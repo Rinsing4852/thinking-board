@@ -98,18 +98,22 @@ describe("vertical slice", () => {
     const g4Item = mistakes.find((mistake) => mistake.playedMove === "g4")?.trainingItemId;
     expect(g4Item).toBeTruthy();
     const selected = await app.inject({
-      method: "POST", url: `/api/v1/training/items/${g4Item}/attempt`,
+      method: "POST", url: "/api/v1/training/next", payload: { pool: "early", itemId: g4Item },
     });
     expect(selected.statusCode).toBe(200);
-    const selectedExercise = selected.json() as { attemptId: string };
-    expect(selectedExercise).toMatchObject({
-      kind: "exercise", itemId: g4Item, candidateMoveUci: "g2g4",
+    expect(selected.json()).toMatchObject({
+      kind: "exercise", itemId: g4Item, attemptId: null, candidateMoveUci: "g2g4",
     });
+    const started = await app.inject({
+      method: "POST", url: `/api/v1/training/items/${g4Item}/start`, payload: {},
+    });
+    expect(started.statusCode).toBe(200);
+    const selectedExercise = started.json() as { attemptId: string };
 
     const missing = await app.inject({
-      method: "POST", url: "/api/v1/training/items/not-a-real-item/attempt",
+      method: "POST", url: "/api/v1/training/items/not-a-real-item/start", payload: {},
     });
-    expect(missing.statusCode).toBe(404);
+    expect(missing.statusCode).toBe(400);
 
     const next = await app.inject({ method: "POST", url: "/api/v1/training/next", payload: { pool: "due" } });
     const exercise = next.json() as { kind: string; attemptId: null; candidateMoveUci: string };

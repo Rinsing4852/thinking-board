@@ -9,14 +9,9 @@ import type {
   NextCandidateGenerationResponse,
 } from "../../../../packages/contracts/src/api";
 import { post } from "../api";
+import { CANDIDATE_GRADE_COPY, CANDIDATE_TYPES, formatMoveLabel } from "../training-language";
 import { ChessBoard } from "./ChessBoard";
-
-const TYPES: Array<{ value: CandidateType; label: string; order: number }> = [
-  { value: "check", label: "Checks", order: 1 },
-  { value: "capture", label: "Captures", order: 2 },
-  { value: "threat", label: "Threats", order: 3 },
-  { value: "improve", label: "Improve weakest piece", order: 4 },
-];
+import { TrainingEmptyState } from "./TrainingEmptyState";
 
 interface EnteredCandidate extends CandidateSubmission {
   moveSan: string;
@@ -121,20 +116,11 @@ export function CandidateGenerationPanel({ refreshToken, requestedItemId, sessio
         <p>Find up to three legal ideas in order: checks, captures, threats, then improve your weakest piece.</p>
       </div>
 
-      {empty && (
-        <div className="panel empty-training">
-          <h3>{empty.message}</h3>
-          {empty.options.length > 0 && (
-            <div className="fallback-actions">
-              {empty.options.map((option) => (
-                <button key={option.pool} className="secondary" onClick={() => void loadNext(option.pool)}>
-                  {option.label} <span>{option.count}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {empty && <TrainingEmptyState
+        empty={empty}
+        onChoosePool={(pool) => void loadNext(pool)}
+        noItemsHelp="Import and analyse another game to create candidate-generation positions."
+      />}
 
       {exercise && (
         <div className="trainer-layout">
@@ -144,7 +130,7 @@ export function CandidateGenerationPanel({ refreshToken, requestedItemId, sessio
                 <span>Position from your game</span>
                 <small>You are {exercise.playerColor}. {orientation === exercise.playerColor ? "Your side is nearest." : "Board flipped."}</small>
               </div>
-              <strong>{exercise.moveNumber}.{exercise.playerColor === "black" ? "…" : ""}</strong>
+              <strong>{formatMoveLabel(exercise.moveNumber, exercise.playerColor)}</strong>
             </div>
             <div className="board-toolbar">
               <span>{phase === "generate" ? `${candidates.length}/3 candidates entered` : phase === "feedback" ? "Engine comparison complete" : "Engine evaluation hidden"}</span>
@@ -173,7 +159,7 @@ export function CandidateGenerationPanel({ refreshToken, requestedItemId, sessio
               <>
                 <h3>What moves deserve calculation?</h3>
                 <div className="candidate-type-list">
-                  {TYPES.map((type) => (
+                  {CANDIDATE_TYPES.map((type) => (
                     <button
                       key={type.value}
                       className={selectedType === type.value ? "candidate-type active" : "candidate-type"}
@@ -183,13 +169,14 @@ export function CandidateGenerationPanel({ refreshToken, requestedItemId, sessio
                     </button>
                   ))}
                 </div>
-                <p className="instruction">Choose a type, then move a piece on the board. The position resets after each candidate.</p>
+                <p className="term-help">{CANDIDATE_TYPES.find((type) => type.value === selectedType)?.description}</p>
+                <p className="instruction">Choose a type, then play one move on the board. The position resets after each candidate, so you can enter another idea. You do not need to type notation.</p>
                 <div className="entered-candidates">
                   {candidates.length === 0 && <span>No candidates entered yet.</span>}
                   {candidates.map((candidate) => (
                     <div key={candidate.moveUci}>
                       <strong>{candidate.moveSan}</strong>
-                      <span>{TYPES.find((type) => type.value === candidate.declaredType)?.label}</span>
+                      <span>{CANDIDATE_TYPES.find((type) => type.value === candidate.declaredType)?.label}</span>
                       <button
                         className="inline-link"
                         onClick={() => setCandidates((current) => current.filter((item) => item.moveUci !== candidate.moveUci))}
@@ -208,24 +195,28 @@ export function CandidateGenerationPanel({ refreshToken, requestedItemId, sessio
 
             {feedback && (
               <div className={`feedback ${feedback.outcome}`} role="status">
-                <span className="feedback-label">{feedback.outcome === "excellent" ? "Strong list" : feedback.outcome === "partial" ? "Mixed list" : "Try again"}</span>
-                <h3>Your candidates</h3>
+                <span className="feedback-label">{feedback.outcome === "excellent" ? "Strong list" : feedback.outcome === "partial" ? "Useful start" : "Needs work"}</span>
+                <h3>How each idea held up</h3>
                 {feedback.candidates.length === 0 && <p>You revealed the engine candidates before submitting your own.</p>}
                 <div className="candidate-results">
                   {feedback.candidates.map((candidate) => (
                     <div key={candidate.moveUci}>
                       <strong>{candidate.moveSan}</strong>
-                      <span className={`grade ${candidate.grade}`}>{candidate.grade}</span>
-                      <small>{candidate.centipawnLoss} cp from best</small>
+                      <span className={`grade ${candidate.grade}`}>{CANDIDATE_GRADE_COPY[candidate.grade].label}</span>
+                      <small>{CANDIDATE_GRADE_COPY[candidate.grade].description}</small>
+                      {candidate.typeCorrect === false && <small className="type-correction">
+                        You labelled this as {CANDIDATE_TYPES.find((type) => type.value === candidate.declaredType)?.label.toLowerCase()}, but the move is not that type.
+                      </small>}
                     </div>
                   ))}
                 </div>
-                <h4>Strong engine candidates</h4>
+                <h4>Other strong candidates</h4>
                 <div className="engine-candidates">
                   {feedback.engineCandidates.map((candidate) => (
-                    <span key={candidate.moveUci}><strong>{candidate.moveSan}</strong> · {candidate.grade}</span>
+                    <span key={candidate.moveUci}><strong>{candidate.moveSan}</strong> · {CANDIDATE_GRADE_COPY[candidate.grade].label}</span>
                   ))}
                 </div>
+                <p className="board-result-note">These are comparison moves, not a demand to find one single “correct” move.</p>
                 <p>{feedback.explanation}</p>
                 <div className="checklist-feedback">
                   <span>Thinking-process skill: Candidate generation</span>

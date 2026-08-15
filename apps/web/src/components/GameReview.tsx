@@ -17,30 +17,96 @@ interface GameSummary {
   analyzedAt: string | null;
 }
 
+interface Mistake {
+  ply: number;
+  moveNumber: number;
+  playedMove: string;
+  centipawnLoss: number | null;
+  comparisonLoss: number;
+  classification: string;
+  trainingItemId: string | null;
+  diagnosisItemId: string | null;
+  explanation: string | null;
+  evaluationBefore: number | null;
+  evaluationAfter: number | null;
+  evaluationBeforeMate: number | null;
+  evaluationAfterMate: number | null;
+  concepts: Array<Concept & { source: string }>;
+  betterCandidates: Array<{ moveSan: string; rank: number }>;
+}
+
 interface Review {
   game: GameSummary;
-  mistakes: Array<{
-    ply: number;
-    moveNumber: number;
-    playedMove: string;
-    centipawnLoss: number | null;
-    comparisonLoss: number;
-    classification: string;
-    trainingItemId: string | null;
-    diagnosisItemId: string | null;
-    explanation: string | null;
-    evaluationBefore: number | null;
-    evaluationAfter: number | null;
-    evaluationBeforeMate: number | null;
-    evaluationAfterMate: number | null;
-    concepts: Array<Concept & { source: string }>;
-    betterCandidates: Array<{ moveSan: string; rank: number }>;
-  }>;
+  mistakes: Mistake[];
 }
 
 interface GameReviewProps {
   refreshToken: number;
   onTrain: (itemId: string) => void;
+}
+
+interface MistakeCardProps {
+  mistake: Mistake;
+  concepts: Concept[];
+  onSave: (itemId: string, thinking: string, tactic: string) => void;
+  onTrain: (itemId: string) => void;
+}
+
+function MistakeCard({ mistake, concepts, onSave, onTrain }: MistakeCardProps) {
+  const [thinking, setThinking] = useState(
+    mistake.concepts.find((concept) => concept.family === "thinking_process")?.id ?? "",
+  );
+  const [tactic, setTactic] = useState(
+    mistake.concepts.find((concept) => concept.family === "tactical")?.id ?? "",
+  );
+  const mateChanged = mistake.evaluationBeforeMate !== null || mistake.evaluationAfterMate !== null;
+  const pawnSwing = mistake.centipawnLoss === null
+    ? null
+    : (mistake.centipawnLoss / 100).toFixed(1).replace(/\.0$/, "");
+
+  return (
+    <article className="mistake-card">
+      <div>
+        <span className="eyebrow">Move {mistake.moveNumber}</span>
+        <h3>{mistake.playedMove}?</h3>
+      </div>
+      <div>
+        <strong>{mistake.classification}</strong>
+        <p>{mistake.explanation ?? "The move gave the opponent a meaningful opportunity."}</p>
+        <p className="review-detail"><b>Result:</b> {
+          mateChanged
+            ? mistake.concepts.some((concept) => concept.id === "tactic.allowed_mate")
+              ? "Allowed a forced mate"
+              : "The forced-mate situation changed"
+            : `The engine estimate worsened by about ${pawnSwing} pawn${pawnSwing === "1" ? "" : "s"}`
+        }</p>
+        {mistake.betterCandidates.length > 0 && <p className="review-detail"><b>Moves worth considering:</b> {mistake.betterCandidates.map((candidate) => candidate.moveSan).join(", ")}</p>}
+        {mistake.concepts.length > 0 && <div className="concept-chips">{mistake.concepts.map((concept) => <span key={concept.id}>{concept.label}</span>)}</div>}
+        {mistake.diagnosisItemId && (
+          <>
+            <div className="diagnosis-editor">
+              <label>Thinking step to train
+                <select value={thinking} onChange={(event) => setThinking(event.target.value)}>
+                  <option value="">Choose…</option>
+                  {concepts.filter((concept) => concept.family === "thinking_process").map((concept) => <option key={concept.id} value={concept.id}>{concept.label}</option>)}
+                </select>
+                <small>Which part of SEE → CANDIDATES → CHECK was missed?</small>
+              </label>
+              <label>Chess pattern
+                <select value={tactic} onChange={(event) => setTactic(event.target.value)}>
+                  <option value="">Choose…</option>
+                  {concepts.filter((concept) => concept.family === "tactical").map((concept) => <option key={concept.id} value={concept.id}>{concept.label}</option>)}
+                </select>
+                <small>What tactical idea appeared on the board?</small>
+              </label>
+              <button className="secondary" onClick={() => onSave(mistake.diagnosisItemId!, thinking, tactic)}>Save diagnosis</button>
+            </div>
+            {mistake.trainingItemId && <button className="review-train-button" onClick={() => onTrain(mistake.trainingItemId!)}>Train this position</button>}
+          </>
+        )}
+      </div>
+    </article>
+  );
 }
 
 export function GameReview({ refreshToken, onTrain }: GameReviewProps) {
@@ -106,58 +172,13 @@ export function GameReview({ refreshToken, onTrain }: GameReviewProps) {
         <div className="mistake-list">
           {review.mistakes.length === 0 && <p>No meaningful mistakes were found in this game.</p>}
           {review.mistakes.slice(0, showAll ? review.mistakes.length : 4).map((mistake) => (
-            <article key={mistake.ply} className="mistake-card">
-              <div>
-                <span className="eyebrow">Move {mistake.moveNumber}</span>
-                <h3>{mistake.playedMove}?</h3>
-              </div>
-              <div>
-                <strong>{mistake.classification}</strong>
-                <p>{mistake.explanation ?? "The move caused a meaningful evaluation loss."}</p>
-                <p className="review-detail"><b>Evaluation swing:</b> {
-                  mistake.evaluationBeforeMate !== null || mistake.evaluationAfterMate !== null
-                    ? mistake.concepts.some((concept) => concept.id === "tactic.allowed_mate")
-                      ? "Allowed a forced mate"
-                      : "Mate evaluation changed"
-                    : `${mistake.centipawnLoss} cp`
-                }</p>
-                {mistake.betterCandidates.length > 0 && <p className="review-detail"><b>Better candidates:</b> {mistake.betterCandidates.map((candidate) => candidate.moveSan).join(", ")}</p>}
-                {mistake.concepts.length > 0 && <div className="concept-chips">{mistake.concepts.map((concept) => <span key={concept.id}>{concept.label}</span>)}</div>}
-                {mistake.diagnosisItemId && (
-                  <>
-                    <div className="diagnosis-editor">
-                      <label>Thinking-process failure
-                        <select id={`thinking-${mistake.ply}`} defaultValue={mistake.concepts.find((concept) => concept.family === "thinking_process")?.id ?? ""}>
-                          <option value="">Choose…</option>
-                          {concepts.filter((concept) => concept.family === "thinking_process").map((concept) => <option key={concept.id} value={concept.id}>{concept.label}</option>)}
-                        </select>
-                      </label>
-                      <label>Tactical motif
-                        <select id={`tactic-${mistake.ply}`} defaultValue={mistake.concepts.find((concept) => concept.family === "tactical")?.id ?? ""}>
-                          <option value="">Choose…</option>
-                          {concepts.filter((concept) => concept.family === "tactical").map((concept) => <option key={concept.id} value={concept.id}>{concept.label}</option>)}
-                        </select>
-                      </label>
-                      <button className="secondary" onClick={() => {
-                        const thinking = (document.getElementById(`thinking-${mistake.ply}`) as HTMLSelectElement).value;
-                        const tactic = (document.getElementById(`tactic-${mistake.ply}`) as HTMLSelectElement).value;
-                        void saveDiagnosis(mistake.diagnosisItemId!, thinking, tactic);
-                      }}>Save diagnosis</button>
-                    </div>
-                    {mistake.trainingItemId && (
-                    <button
-                      className="review-train-button"
-                      onClick={() => {
-                        onTrain(mistake.trainingItemId!);
-                      }}
-                    >
-                      Train this position
-                    </button>
-                    )}
-                  </>
-                )}
-              </div>
-            </article>
+            <MistakeCard
+              key={`${review.game.id}-${mistake.ply}`}
+              mistake={mistake}
+              concepts={concepts}
+              onSave={(itemId, thinking, tactic) => void saveDiagnosis(itemId, thinking, tactic)}
+              onTrain={onTrain}
+            />
           ))}
           {review.mistakes.length > 4 && (
             <button className="secondary" onClick={() => setShowAll((value) => !value)}>

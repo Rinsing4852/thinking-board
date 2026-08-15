@@ -8,7 +8,9 @@ import type {
   QuietPositionExercise,
 } from "../../../../packages/contracts/src/api";
 import { post } from "../api";
+import { formatMoveLabel } from "../training-language";
 import { ChessBoard } from "./ChessBoard";
+import { TrainingEmptyState } from "./TrainingEmptyState";
 
 interface QuietPositionPanelProps {
   refreshToken: number;
@@ -77,18 +79,107 @@ export function QuietPositionPanel({ refreshToken, requestedItemId, sessionId, o
 
   return (
     <section className="training-section" id="quiet-position">
-      <div className="training-copy"><span className="eyebrow">When nothing is forcing</span><h2>Quiet Position</h2><p>After checks, captures, and threats are exhausted, find a piece whose role can be improved.</p></div>
-      {empty && <div className="panel empty-training"><h3>{empty.message}</h3><div className="fallback-actions">{empty.options.map((option) => <button key={option.pool} className="secondary" onClick={() => void loadNext(option.pool)}>{option.label} <span>{option.count}</span></button>)}</div></div>}
-      {exercise && <div className="trainer-layout">
-        <div className="board-column"><div className="candidate-banner"><div><span>Quiet position</span><small>You are {exercise.playerColor}</small></div><strong>Move {exercise.moveNumber}</strong></div><div className="board-toolbar"><span>{phase === "feedback" ? "A useful improvement is shown" : "No immediate tactic is required"}</span><button className="text-button" onClick={() => setOrientation(orientation === "white" ? "black" : "white")}>Flip board</button></div><ChessBoard fen={displayFen} orientation={orientation} interactive={phase === "piece" || (phase === "move" && !move)} selectedSquare={pieceSquare} highlightedSquares={feedback?.weakestSquares ?? []} lastMove={displayMove} {...(phase === "piece" ? { onSquareSelect: setPieceSquare } : {})} {...(phase === "move" ? { onMove: preview } : {})} /></div>
-        <div className="panel question-card"><span className="step-number">05</span><span className="eyebrow">{phase === "feedback" ? "REVIEW" : "IMPROVE"}</span>
-          {phase === "ready" && <div className="ready-step"><h3>No useful check or capture stands out.</h3><p className="instruction">Now ask which piece could take on a more useful role.</p><button onClick={() => void begin()}>Assess my pieces</button></div>}
-          {phase === "piece" && <><h3>Which piece could improve its role most?</h3><p className="instruction">Click that piece on the board. More than one plan can be reasonable; feedback shows an engine-supported choice rather than declaring one objective “worst piece”.</p><div className="selected-answer">{pieceSquare ? <>Selected piece: <strong>{pieceSquare}</strong></> : "Select one of your pieces."}</div><div className="answer-actions"><button disabled={!pieceSquare} onClick={() => setPhase("move")}>Choose an improvement</button><button className="text-button" onClick={() => void reveal()}>Show answer</button></div></>}
-          {phase === "move" && <><h3>Which candidate improves it?</h3><p className="instruction">Play a quiet improving move on the board.</p><div className="selected-answer">{move ? <>Your candidate: <strong>{move.san}</strong> <button className="inline-link" onClick={() => { setMove(null); setDisplayFen(exercise.fen); setDisplayMove(null); }}>Change</button></> : `Improve the piece you selected on ${pieceSquare}.`}</div><div className="answer-actions"><button disabled={!move} onClick={() => void submit()}>Check improvement</button><button className="text-button" onClick={() => void reveal()}>Show answer</button></div></>}
-          {feedback && <div className={`feedback ${feedback.outcome}`} role="status"><span className="feedback-label">{feedback.outcome === "excellent" ? "Useful improvement" : feedback.outcome === "partial" ? "Partly seen" : "Try another role"}</span><h3>{feedback.acceptableMoves.map((answer) => answer.moveSan).join(" or ")}</h3><p>{feedback.explanation}</p><div className="checklist-feedback"><span>Thinking-process skill: Quiet improvement</span><p>{feedback.checklistPoint}</p></div><button onClick={() => sessionId ? onCompleted() : void loadNext()}>{sessionId ? "Continue session" : "Next quiet position"}</button></div>}
-          {error && <p className="error">{error}</p>}
+      <div className="training-copy">
+        <span className="eyebrow">When nothing is forcing</span>
+        <h2>Quiet Position</h2>
+        <p>After checks, captures, and threats are exhausted, find a piece whose role can be improved.</p>
+      </div>
+      {empty && (
+        <TrainingEmptyState
+          empty={empty}
+          onChoosePool={(pool) => void loadNext(pool)}
+          noItemsHelp="Import more games to find positions without an immediate tactic."
+        />
+      )}
+      {exercise && (
+        <div className="trainer-layout">
+          <div className="board-column">
+            <div className="candidate-banner">
+              <div><span>Quiet position</span><small>You are {exercise.playerColor}</small></div>
+              <strong>{formatMoveLabel(exercise.moveNumber, exercise.playerColor)}</strong>
+            </div>
+            <div className="board-toolbar">
+              <span>{phase === "feedback" ? "A useful improvement is shown" : "No immediate tactic is required"}</span>
+              <button className="text-button" onClick={() => setOrientation(orientation === "white" ? "black" : "white")}>Flip board</button>
+            </div>
+            <ChessBoard
+              fen={displayFen}
+              orientation={orientation}
+              interactive={phase === "piece" || (phase === "move" && !move)}
+              selectedSquare={pieceSquare}
+              highlightedSquares={feedback?.weakestSquares ?? []}
+              lastMove={displayMove}
+              {...(phase === "piece" ? { onSquareSelect: setPieceSquare } : {})}
+              {...(phase === "move" ? { onMove: preview } : {})}
+            />
+          </div>
+          <div className="panel question-card">
+            <span className="step-number">05</span>
+            <span className="eyebrow">{phase === "feedback" ? "REVIEW" : "IMPROVE"}</span>
+            {phase === "ready" && (
+              <div className="ready-step">
+                <h3>No useful check, capture, or immediate threat stands out.</h3>
+                <p className="instruction">Now ask which piece has little useful work and could take on a better role.</p>
+                <button onClick={() => void begin()}>Assess my pieces</button>
+              </div>
+            )}
+            {phase === "piece" && (
+              <>
+                <h3>Which piece could improve its role most?</h3>
+                <p className="instruction">Click one of your pieces. A piece may need improving if it is undeveloped, blocked, exposed, or has few useful squares. More than one plan can be reasonable.</p>
+                <div className="selected-answer">{pieceSquare ? <>Selected piece: <strong>{pieceSquare}</strong></> : "Select one of your pieces."}</div>
+                <div className="answer-actions">
+                  <button disabled={!pieceSquare} onClick={() => setPhase("move")}>Choose an improvement</button>
+                  <button className="text-button" onClick={() => void reveal()}>Show an example</button>
+                </div>
+              </>
+            )}
+            {phase === "move" && (
+              <>
+                <h3>Which move gives that piece a better job?</h3>
+                <p className="instruction">Play one quiet improving move on the board. You do not need to type notation.</p>
+                <div className="selected-answer">
+                  {move ? <>
+                    Your candidate: <strong>{move.san}</strong>{" "}
+                    <button className="inline-link" onClick={() => {
+                      setMove(null);
+                      setDisplayFen(exercise.fen);
+                      setDisplayMove(null);
+                    }}>Change</button>
+                  </> : `Improve the piece you selected on ${pieceSquare}.`}
+                </div>
+                <div className="answer-actions">
+                  <button disabled={!move} onClick={() => void submit()}>Check improvement</button>
+                  <button className="text-button" onClick={() => void reveal()}>Show an example</button>
+                </div>
+              </>
+            )}
+            {feedback && (
+              <div className={`feedback ${feedback.outcome}`} role="status">
+                <span className="feedback-label">{feedback.outcome === "excellent" ? "Useful plan" : feedback.outcome === "partial" ? "Partly seen" : "Compare plans"}</span>
+                <h3>{feedback.pieceCorrect && feedback.moveCorrect
+                  ? "You found an engine-supported improvement"
+                  : feedback.pieceCorrect
+                    ? "Useful piece, different move"
+                    : feedback.moveCorrect
+                      ? "Useful move, different piece choice"
+                      : "Here is one useful improvement"}</h3>
+                {pieceSquare && <p className="answer-comparison">
+                  You selected <strong>{pieceSquare}</strong>{move ? <> and played <strong>{move.san}</strong></> : null}. One supported plan starts from <strong>{feedback.weakestSquares.join(" or ")}</strong> and plays <strong>{feedback.acceptableMoves.map((answer) => answer.moveSan).join(" or ")}</strong>.
+                </p>}
+                <p>{feedback.explanation}</p>
+                <p className="board-result-note">The board shows one engine-supported example. It is not claiming that every other plan is wrong.</p>
+                <div className="checklist-feedback">
+                  <span>Thinking-process skill: Quiet improvement</span>
+                  <p>{feedback.checklistPoint}</p>
+                </div>
+                <button onClick={() => sessionId ? onCompleted() : void loadNext()}>{sessionId ? "Continue session" : "Next quiet position"}</button>
+              </div>
+            )}
+            {error && <p className="error">{error}</p>}
+          </div>
         </div>
-      </div>}
+      )}
     </section>
   );
 }

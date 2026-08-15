@@ -16,7 +16,9 @@ export class JobWorker {
 
   start(): void {
     this.db.prepare("UPDATE jobs SET status = 'queued', started_at = NULL WHERE status = 'running'").run();
-    this.timer = setInterval(() => this.schedule(), 250);
+    // Jobs take seconds or minutes; one idle database poll per second keeps the
+    // UI responsive without waking SQLite four times a second forever.
+    this.timer = setInterval(() => this.schedule(), 1_000);
     this.schedule();
   }
 

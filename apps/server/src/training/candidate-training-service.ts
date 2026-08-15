@@ -15,6 +15,7 @@ import type { SqliteDatabase } from "../db/database.js";
 import { now } from "../lib/ids.js";
 import { UciEngine, type EngineLine, type EngineScore } from "../analysis/uci-engine.js";
 import { activeProfileId } from "./profile.js";
+import { recordReview } from "./review-scheduler.js";
 
 interface ExerciseRow {
   item_id: string;
@@ -92,12 +93,6 @@ function lossFromBest(
   return Math.min(3_000, Math.max(0, Math.round(raw)));
 }
 
-function nextDue(level: number, passed: boolean): string {
-  if (!passed) return now();
-  const days = [1, 3, 7, 16, 35][Math.min(level, 4)] ?? 35;
-  return new Date(Date.now() + days * 86_400_000).toISOString();
-}
-
 export class CandidateTrainingService {
   private readonly engine: UciEngine;
   private evaluationQueue: Promise<void> = Promise.resolve();
@@ -160,7 +155,7 @@ export class CandidateTrainingService {
         UPDATE training_attempts SET answered_at = ?, duration_ms = ?, score = 0,
           outcome = 'revealed', response_json = '{}', feedback_json = ? WHERE id = ?
       `).run(answeredAt, duration, JSON.stringify(feedback), attemptId);
-      this.updateReview(attempt.item_id, false, duration, "revealed", answeredAt);
+      recordReview(this.db, attempt.item_id, false, duration, "revealed", answeredAt);
     })();
     return feedback;
   }
@@ -263,7 +258,7 @@ export class CandidateTrainingService {
         startedAt, answeredAt, duration, score, outcome,
         JSON.stringify({ candidates: submissions }), JSON.stringify(feedback), attemptId,
       );
-      this.updateReview(attempt.item_id, outcome === "excellent", duration, outcome, answeredAt);
+      recordReview(this.db, attempt.item_id, outcome === "excellent", duration, outcome, answeredAt);
     })();
     return feedback;
   }
@@ -318,27 +313,4 @@ export class CandidateTrainingService {
     };
   }
 
-  private updateReview(itemId: string, passed: boolean, duration: number, result: string, attemptedAt: string): void {
-    const current = this.db.prepare(`
-      SELECT mastery_level, attempts, successes, lapses, average_response_ms
-      FROM review_states WHERE item_id = ?
-    `).get(itemId) as {
-      mastery_level: number;
-      attempts: number;
-      successes: number;
-      lapses: number;
-      average_response_ms: number | null;
-    };
-    const level = passed ? Math.min(5, current.mastery_level + 1) : 0;
-    const attempts = current.attempts + 1;
-    const average = Math.round(((current.average_response_ms ?? duration) * current.attempts + duration) / attempts);
-    this.db.prepare(`
-      UPDATE review_states SET mastery_level = ?, due_at = ?, last_attempted_at = ?,
-        last_result = ?, attempts = ?, successes = ?, lapses = ?, average_response_ms = ?
-      WHERE item_id = ?
-    `).run(
-      level, nextDue(level, passed), attemptedAt, result, attempts,
-      current.successes + (passed ? 1 : 0), current.lapses + (passed ? 0 : 1), average, itemId,
-    );
-  }
 }

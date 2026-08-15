@@ -46,7 +46,11 @@ export function ImportPanel({ onAnalyzed }: ImportPanelProps) {
     setBusy(true);
     try {
       const result = await post<ImportPgnResponse>("/api/v1/imports/pgn", { pgn, playerName });
-      setStatus(`Imported ${result.imported}; ${result.duplicates} duplicate; ${result.rejected} rejected.`);
+      setStatus(
+        `Imported ${result.imported} game${result.imported === 1 ? "" : "s"}. `
+        + `${result.duplicates} duplicate${result.duplicates === 1 ? "" : "s"} skipped. `
+        + `${result.rejected} rejected.`,
+      );
       if (result.jobId) await pollJob(result.jobId);
       else onAnalyzed();
     } catch (error) {
@@ -61,10 +65,11 @@ export function ImportPanel({ onAnalyzed }: ImportPanelProps) {
       <div className="panel-heading">
         <div>
           <span className="eyebrow">Your games</span>
-          <h2>Paste PGN</h2>
+          <h2>Paste a game (PGN)</h2>
         </div>
         <span className="step-number">01</span>
       </div>
+      <p className="panel-help">Copy the game text from Lichess, Chess.com, or a PGN file and paste it below. You can paste more than one game at once.</p>
       <textarea
         value={pgn}
         onChange={(event) => setPgn(event.target.value)}

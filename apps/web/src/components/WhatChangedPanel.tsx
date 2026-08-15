@@ -8,18 +8,9 @@ import type {
   WhatChangedExercise,
 } from "../../../../packages/contracts/src/api";
 import { post } from "../api";
+import { changeCategoryLabel, formatMoveLabel, WHAT_CHANGED_OPTIONS } from "../training-language";
 import { ChessBoard } from "./ChessBoard";
-
-const CATEGORIES: Array<{ value: WhatChangedCategory; label: string }> = [
-  { value: "attacked_piece", label: "Attacked piece" },
-  { value: "undefended_piece", label: "Undefended piece" },
-  { value: "opened_line", label: "Opened line" },
-  { value: "closed_line", label: "Closed line" },
-  { value: "removed_defender", label: "Removed defender" },
-  { value: "created_threat", label: "Created threat" },
-  { value: "king_safety", label: "Changed king safety" },
-  { value: "nothing_urgent", label: "Nothing urgent" },
-];
+import { TrainingEmptyState } from "./TrainingEmptyState";
 
 interface WhatChangedPanelProps {
   refreshToken: number;
@@ -65,7 +56,7 @@ export function WhatChangedPanel({ refreshToken, requestedItemId, sessionId, onC
 
   const opponentColor = exercise?.playerColor === "white" ? "black" : "white";
   const moveLabel = exercise
-    ? `${exercise.moveNumber}.${opponentColor === "black" ? "…" : ""}${exercise.opponentMoveSan}`
+    ? formatMoveLabel(exercise.moveNumber, opponentColor, exercise.opponentMoveSan)
     : "";
 
   const playOpponentMove = async (): Promise<void> => {
@@ -117,20 +108,11 @@ export function WhatChangedPanel({ refreshToken, requestedItemId, sessionId, onC
         <p>Watch their move first. Identify what it attacks, uncovers, removes, or threatens before generating candidates.</p>
       </div>
 
-      {empty && (
-        <div className="panel empty-training">
-          <h3>{empty.message}</h3>
-          {empty.options.length > 0 ? (
-            <div className="fallback-actions">
-              {empty.options.map((option) => (
-                <button key={option.pool} className="secondary" onClick={() => void loadNext(option.pool)}>
-                  {option.label} <span>{option.count}</span>
-                </button>
-              ))}
-            </div>
-          ) : <p>Import another game to find positions where an opponent’s move created a concrete new attack.</p>}
-        </div>
-      )}
+      {empty && <TrainingEmptyState
+        empty={empty}
+        onChoosePool={(pool) => void loadNext(pool)}
+        noItemsHelp="Import another game to find positions where an opponent’s move created a clear new danger."
+      />}
 
       {exercise && (
         <div className="trainer-layout">
@@ -172,9 +154,9 @@ export function WhatChangedPanel({ refreshToken, requestedItemId, sessionId, onC
               <>
                 <h3>{exercise.prompt}</h3>
                 <p className="move-context">They just played <strong>{exercise.opponentMoveSan}</strong>.</p>
-                <p className="instruction">Choose the most important change, then click the relevant piece or square.</p>
+                <p className="instruction">Choose the most important change, then click the affected piece or square. The short explanation below the choices can help while you learn the terms.</p>
                 <div className="change-category-grid">
-                  {CATEGORIES.map((option) => (
+                  {WHAT_CHANGED_OPTIONS.map((option) => (
                     <button
                       key={option.value}
                       className={category === option.value ? "change-category active" : "change-category"}
@@ -184,6 +166,7 @@ export function WhatChangedPanel({ refreshToken, requestedItemId, sessionId, onC
                     </button>
                   ))}
                 </div>
+                {category && <p className="term-help">{WHAT_CHANGED_OPTIONS.find((option) => option.value === category)?.description}</p>}
                 <div className="selected-answer">
                   {square ? <>Selected square: <strong>{square}</strong></> : "Click the affected piece or square on the board."}
                 </div>
@@ -196,8 +179,19 @@ export function WhatChangedPanel({ refreshToken, requestedItemId, sessionId, onC
 
             {feedback && (
               <div className={`feedback ${feedback.outcome}`} role="status">
-                <span className="feedback-label">{feedback.outcome === "excellent" ? "Excellent" : feedback.outcome === "partial" ? "Partly seen" : "Missed"}</span>
-                <h3>What changed</h3>
+                <span className="feedback-label">{feedback.outcome === "excellent" ? "Seen" : feedback.outcome === "partial" ? "Partly seen" : "Missed"}</span>
+                <h3>{feedback.outcome === "excellent"
+                  ? "You noticed the important change"
+                  : feedback.categoryCorrect
+                    ? "Right change, wrong square"
+                    : feedback.squareCorrect
+                      ? "Right square, wrong reason"
+                      : "This is what changed"}</h3>
+                {category && <p className="answer-comparison">
+                  You chose <strong>{changeCategoryLabel(category)}</strong>{square ? <> on <strong>{square}</strong></> : null}.
+                  {!feedback.categoryCorrect && <> The key change was <strong>{changeCategoryLabel(feedback.correctCategory)}</strong>.</>}
+                  {!feedback.squareCorrect && feedback.correctSquares.length > 0 && <> Look at <strong>{feedback.correctSquares.join(" or ")}</strong>, highlighted on the board.</>}
+                </p>}
                 <p>{feedback.explanation}</p>
                 <p className="board-result-note">The relevant pieces are highlighted on the board.</p>
                 <div className="checklist-feedback">

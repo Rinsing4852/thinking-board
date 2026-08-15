@@ -126,7 +126,7 @@ export class UciEngine {
     const infos = new Map<number, ParsedInfo>();
     try {
       const requestedMultiPv = searchMoves.length > 0 ? 1 : multiPv;
-      await this.command(`setoption name MultiPV value ${requestedMultiPv}`, "readyok");
+      this.send(`setoption name MultiPV value ${requestedMultiPv}`);
       this.send("isready");
       await this.waitFor((line) => line === "readyok", 10_000);
 
@@ -267,12 +267,6 @@ export class UciEngine {
     const ready = this.waitFor((line) => line === "readyok", 10_000);
     this.send("isready");
     await ready;
-  }
-
-  private async command(command: string, expected: string): Promise<void> {
-    this.send(command);
-    if (expected === "readyok") return;
-    await this.waitFor((line) => line === expected, 10_000);
   }
 
   private send(command: string): void {

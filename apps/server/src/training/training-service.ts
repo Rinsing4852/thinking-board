@@ -14,6 +14,7 @@ import type {
 import type { SqliteDatabase } from "../db/database.js";
 import { now } from "../lib/ids.js";
 import { activeProfileId } from "./profile.js";
+import { recordReview } from "./review-scheduler.js";
 
 interface ExerciseRow {
   item_id: string;
@@ -67,12 +68,6 @@ function moveFromUci(uci: string): { from: string; to: string; promotion?: strin
     to: uci.slice(2, 4),
     ...(uci.length === 5 ? { promotion: uci.slice(4, 5) } : {}),
   };
-}
-
-function nextDue(level: number, passed: boolean): string {
-  if (!passed) return now();
-  const days = [1, 3, 7, 16, 35][Math.min(level, 4)] ?? 35;
-  return new Date(Date.now() + days * 86_400_000).toISOString();
 }
 
 export class TrainingService {
@@ -140,23 +135,6 @@ export class TrainingService {
     return this.createWhatChangedExercise(row);
   }
 
-  startItem(itemId: string): BlunderCheckExercise {
-    const row = this.db.prepare(`
-      SELECT ti.id AS item_id, before_pos.fen AS fen_before,
-             after_pos.fen AS fen_after, bci.candidate_move_uci,
-             bci.candidate_move_san, g.player_color, m.move_number
-      FROM training_items ti
-      JOIN blunder_check_items bci ON bci.item_id = ti.id
-      JOIN positions before_pos ON before_pos.id = bci.before_position_id
-      JOIN positions after_pos ON after_pos.id = bci.after_candidate_position_id
-      JOIN games g ON g.id = ti.game_id
-      JOIN moves m ON m.id = ti.source_move_id
-      WHERE ti.id = ? AND ti.active = 1
-    `).get(itemId) as ExerciseRow | undefined;
-    if (!row) throw new Error("Training item not found");
-    return this.createExercise(row);
-  }
-
   private createExercise(row: ExerciseRow): BlunderCheckExercise {
     const response: BlunderCheckExercise = {
       kind: "exercise",
@@ -188,14 +166,6 @@ export class TrainingService {
       moveNumber: row.move_number,
       prompt: "What did their last move change?",
     };
-  }
-
-  startAttempt(attemptId: string): void {
-    const result = this.db.prepare(`
-      UPDATE training_attempts SET started_at = COALESCE(started_at, ?)
-      WHERE id = ? AND answered_at IS NULL
-    `).run(now(), attemptId);
-    if (result.changes === 0) throw new Error("Attempt not found or already completed");
   }
 
   answer(attemptId: string, category: ResponseCategory, moveUci: string): TrainingAnswerResponse {
@@ -258,7 +228,7 @@ export class TrainingService {
         categoryCorrect ? 1 : 0, moveCorrect ? 1 : 0, score, outcome,
         JSON.stringify(feedback), attemptId,
       );
-      this.updateReview(attempt.item_id, outcome === "excellent", duration, outcome, answeredAt);
+      recordReview(this.db, attempt.item_id, outcome === "excellent", duration, outcome, answeredAt);
     })();
 
     return {
@@ -299,7 +269,7 @@ export class TrainingService {
         UPDATE training_attempts SET answered_at = ?, duration_ms = ?, score = 0,
           outcome = 'revealed', feedback_json = ? WHERE id = ?
       `).run(answeredAt, duration, JSON.stringify({ acceptableMoves }), attemptId);
-      this.updateReview(attempt.item_id, false, duration, "revealed", answeredAt);
+      recordReview(this.db, attempt.item_id, false, duration, "revealed", answeredAt);
     })();
     return {
       outcome: "incorrect",
@@ -347,7 +317,7 @@ export class TrainingService {
         categoryCorrect ? 1 : 0, squareCorrect ? 1 : 0, score, outcome,
         JSON.stringify({ square }), JSON.stringify(feedback), attemptId,
       );
-      this.updateReview(attempt.item_id, outcome === "excellent", duration, outcome, answeredAt);
+      recordReview(this.db, attempt.item_id, outcome === "excellent", duration, outcome, answeredAt);
     })();
     return { outcome, score, categoryCorrect, squareCorrect, ...feedback };
   }
@@ -367,7 +337,7 @@ export class TrainingService {
             response_json = '{}', feedback_json = ?
         WHERE id = ?
       `).run(answeredAt, duration, JSON.stringify(feedback), attemptId);
-      this.updateReview(attempt.item_id, false, duration, "revealed", answeredAt);
+      recordReview(this.db, attempt.item_id, false, duration, "revealed", answeredAt);
     })();
     return {
       outcome: "incorrect",
@@ -427,32 +397,6 @@ export class TrainingService {
           : "No Blunder Check exercises have been generated yet.",
       options,
     };
-  }
-
-  private updateReview(itemId: string, passed: boolean, duration: number, result: string, attemptedAt: string): void {
-    const current = this.db.prepare(`
-      SELECT mastery_level, attempts, successes, lapses, average_response_ms
-      FROM review_states WHERE item_id = ?
-    `).get(itemId) as {
-      mastery_level: number;
-      attempts: number;
-      successes: number;
-      lapses: number;
-      average_response_ms: number | null;
-    };
-    const level = passed ? Math.min(5, current.mastery_level + 1) : 0;
-    const attempts = current.attempts + 1;
-    const average = Math.round(((current.average_response_ms ?? duration) * current.attempts + duration) / attempts);
-    this.db.prepare(`
-      UPDATE review_states
-      SET mastery_level = ?, due_at = ?, last_attempted_at = ?, last_result = ?,
-          attempts = ?, successes = ?, lapses = ?, average_response_ms = ?
-      WHERE item_id = ?
-    `).run(
-      level, nextDue(level, passed), attemptedAt, result, attempts,
-      current.successes + (passed ? 1 : 0), current.lapses + (passed ? 0 : 1),
-      average, itemId,
-    );
   }
 
 }

@@ -301,16 +301,6 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     return v1Training.nextQuiet(typeof body.pool === "string" ? body.pool : "due", typeof body.itemId === "string" ? body.itemId : undefined);
   });
 
-  app.post("/api/v1/training/items/:itemId/attempt", async (request, reply) => {
-    try {
-      const { itemId } = request.params as { itemId: string };
-      const started = attempts.start(itemId);
-      return { ...training.startItem(itemId), attemptId: started.attemptId };
-    } catch (error) {
-      return reply.code(404).send({ error: error instanceof Error ? error.message : "Training item not found" });
-    }
-  });
-
   app.post("/api/v1/training/items/:itemId/start", async (request, reply) => {
     try {
       const { itemId } = request.params as { itemId: string };
@@ -318,16 +308,6 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       return attempts.start(itemId, typeof body.sessionId === "string" ? body.sessionId : undefined);
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not start exercise" });
-    }
-  });
-
-  app.post("/api/v1/training/attempts/:attemptId/start", async (request, reply) => {
-    try {
-      const { attemptId } = request.params as { attemptId: string };
-      training.startAttempt(attemptId);
-      return reply.code(204).send();
-    } catch (error) {
-      return reply.code(404).send({ error: error instanceof Error ? error.message : "Attempt not found" });
     }
   });
 

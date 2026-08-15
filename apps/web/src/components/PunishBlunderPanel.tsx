@@ -8,7 +8,9 @@ import type {
   PunishBlunderExercise,
 } from "../../../../packages/contracts/src/api";
 import { post } from "../api";
+import { formatMoveLabel } from "../training-language";
 import { ChessBoard } from "./ChessBoard";
+import { TrainingEmptyState } from "./TrainingEmptyState";
 
 interface PunishBlunderPanelProps {
   refreshToken: number;
@@ -38,6 +40,7 @@ export function PunishBlunderPanel({ refreshToken, requestedItemId, sessionId, o
     } catch (loadError) { setError(loadError instanceof Error ? loadError.message : "Could not load exercise"); }
   };
   useEffect(() => { void loadNext(); }, [refreshToken, requestedItemId]);
+  const blunderingColor = exercise?.opponentColor === "white" ? "black" : "white";
 
   const begin = async (): Promise<void> => {
     if (!exercise) return;
@@ -76,21 +79,90 @@ export function PunishBlunderPanel({ refreshToken, requestedItemId, sessionId, o
 
   return (
     <section className="training-section" id="punish-blunder">
-      <div className="training-copy"><span className="eyebrow">See it from the other side</span><h2>Punish the Blunder</h2><p>Use the opponent’s pieces to exploit the same mistake immediately. Reverse-side practice turns prevention into a tactical pattern.</p></div>
-      {empty && <div className="panel empty-training"><h3>{empty.message}</h3><div className="fallback-actions">{empty.options.map((option) => <button key={option.pool} className="secondary" onClick={() => void loadNext(option.pool)}>{option.label} <span>{option.count}</span></button>)}</div></div>}
-      {exercise && <div className="trainer-layout">
-        <div className="board-column">
-          <div className="candidate-banner"><div><span>Position after the blunder</span><small>You are now the opponent: {exercise.opponentColor}</small></div><strong>{exercise.badMoveSan}?</strong></div>
-          <div className="board-toolbar"><span>{feedback ? "Best punishment shown" : `${exercise.opponentColor} to move`}</span><button className="text-button" onClick={() => setOrientation(orientation === "white" ? "black" : "white")}>Flip board</button></div>
-          <ChessBoard fen={displayFen} orientation={orientation} interactive={phase === "answer" && !move} lastMove={displayMove} onMove={preview} />
+      <div className="training-copy">
+        <span className="eyebrow">See it from the other side</span>
+        <h2>Punish the Blunder</h2>
+        <p>Use the opponent’s pieces to exploit the same mistake immediately. Reverse-side practice turns prevention into a tactical pattern.</p>
+      </div>
+      {empty && (
+        <TrainingEmptyState
+          empty={empty}
+          onChoosePool={(pool) => void loadNext(pool)}
+          noItemsHelp="Import a game with an immediately punishable mistake to create this exercise."
+        />
+      )}
+      {exercise && (
+        <div className="trainer-layout">
+          <div className="board-column">
+            <div className="candidate-banner">
+              <div>
+                <span>Position after the blunder</span>
+                <small>You are now playing {exercise.opponentColor}</small>
+              </div>
+              <strong>{formatMoveLabel(exercise.moveNumber, blunderingColor, exercise.badMoveSan)}?</strong>
+            </div>
+            <div className="board-toolbar">
+              <span>{feedback ? "Best punishment shown" : `${exercise.opponentColor} to move`}</span>
+              <button className="text-button" onClick={() => setOrientation(orientation === "white" ? "black" : "white")}>Flip board</button>
+            </div>
+            <ChessBoard
+              fen={displayFen}
+              orientation={orientation}
+              interactive={phase === "answer" && !move}
+              lastMove={displayMove}
+              onMove={preview}
+            />
+          </div>
+          <div className="panel question-card">
+            <span className="step-number">04</span>
+            <span className="eyebrow">{phase === "feedback" ? "REVIEW" : "PUNISH"}</span>
+            {phase === "ready" && (
+              <div className="ready-step">
+                <h3>The other player just made a mistake: {exercise.badMoveSan}?</h3>
+                <p className="instruction">You are switching sides for this exercise. Start with checks, then captures, then threats.</p>
+                <button onClick={() => void begin()}>Find the punishment</button>
+              </div>
+            )}
+            {phase === "answer" && (
+              <>
+                <h3>{exercise.prompt}</h3>
+                <p className="instruction">Play one immediate reply on the board by clicking the piece and its destination.</p>
+                <div className="selected-answer">
+                  {move ? <>
+                    Your move: <strong>{move.san}</strong>{" "}
+                    <button className="inline-link" onClick={() => {
+                      setMove(null);
+                      setDisplayFen(exercise.fen);
+                      setDisplayMove(null);
+                    }}>Change</button>
+                  </> : "Select your piece, then its destination."}
+                </div>
+                <div className="answer-actions">
+                  <button disabled={!move} onClick={() => void submit()}>Check punishment</button>
+                  <button className="text-button" onClick={() => void reveal()}>Show answer</button>
+                </div>
+              </>
+            )}
+            {feedback && (
+              <div className={`feedback ${feedback.outcome}`} role="status">
+                <span className="feedback-label">{feedback.moveCorrect ? "Found" : "Missed"}</span>
+                <h3>{feedback.moveCorrect ? "You punished the mistake" : "This was the immediate punishment"}</h3>
+                {move && <p className="answer-comparison">
+                  You played <strong>{move.san}</strong>. The strong reply was <strong>{feedback.acceptableMoves.map((answer) => answer.moveSan).join(" or ")}</strong>.
+                </p>}
+                <p>{feedback.explanation}</p>
+                <p className="board-result-note">The board shows the punishment, with its start and destination squares highlighted.</p>
+                <div className="checklist-feedback">
+                  <span>Pattern reinforcement</span>
+                  <p>{feedback.checklistPoint}</p>
+                </div>
+                <button onClick={() => sessionId ? onCompleted() : void loadNext()}>{sessionId ? "Continue session" : "Next punishment"}</button>
+              </div>
+            )}
+            {error && <p className="error">{error}</p>}
+          </div>
         </div>
-        <div className="panel question-card"><span className="step-number">04</span><span className="eyebrow">{phase === "feedback" ? "REVIEW" : "PUNISH"}</span>
-          {phase === "ready" && <div className="ready-step"><h3>The player just played {exercise.badMoveSan}?</h3><p className="instruction">Switch perspective. Look for the opponent’s checks, captures, and threats.</p><button onClick={() => void begin()}>Find the punishment</button></div>}
-          {phase === "answer" && <><h3>{exercise.prompt}</h3><p className="instruction">Play the immediate punishment on the board.</p><div className="selected-answer">{move ? <>Your move: <strong>{move.san}</strong> <button className="inline-link" onClick={() => { setMove(null); setDisplayFen(exercise.fen); setDisplayMove(null); }}>Change</button></> : "Select the opponent’s piece, then its destination."}</div><div className="answer-actions"><button disabled={!move} onClick={() => void submit()}>Check punishment</button><button className="text-button" onClick={() => void reveal()}>Show answer</button></div></>}
-          {feedback && <div className={`feedback ${feedback.outcome}`} role="status"><span className="feedback-label">{feedback.moveCorrect ? "Punished" : "Missed"}</span><h3>{feedback.acceptableMoves.map((answer) => answer.moveSan).join(" or ")}</h3><p>{feedback.explanation}</p><div className="checklist-feedback"><span>Pattern reinforcement</span><p>{feedback.checklistPoint}</p></div><button onClick={() => sessionId ? onCompleted() : void loadNext()}>{sessionId ? "Continue session" : "Next punishment"}</button></div>}
-          {error && <p className="error">{error}</p>}
-        </div>
-      </div>}
+      )}
     </section>
   );
 }

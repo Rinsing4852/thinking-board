@@ -16,6 +16,7 @@ import type {
 import type { SqliteDatabase } from "../db/database.js";
 import { id, now } from "../lib/ids.js";
 import { activeProfileId } from "./profile.js";
+import { recordReview } from "./review-scheduler.js";
 
 const MODE_LABELS: Record<string, string> = {
   blunder_check: "Blunder checks",
@@ -65,12 +66,6 @@ function moveFromUci(uci: string): { from: string; to: string; promotion?: strin
     to: uci.slice(2, 4),
     ...(uci.length === 5 ? { promotion: uci.slice(4, 5) } : {}),
   };
-}
-
-function nextDue(level: number, passed: boolean): string {
-  if (!passed) return now();
-  const days = [1, 3, 7, 16, 35][Math.min(level, 4)] ?? 35;
-  return new Date(Date.now() + days * 86_400_000).toISOString();
 }
 
 export class V1TrainingService {
@@ -236,7 +231,7 @@ export class V1TrainingService {
     }).slice(0, 6);
     return {
       profile: { id: profile.id, displayName: profile.display_name }, totals,
-      recurringProblems, skills: tracked, recommendedSession: this.recommendedMix(15),
+      recurringProblems, skills: tracked, recommendedSession: this.recommendedMix(15, profile.id),
     };
   }
 
@@ -250,7 +245,7 @@ export class V1TrainingService {
       WHERE profile_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1
     `).get(profile.id) as { id: string } | undefined;
     if (existing) return this.session(existing.id);
-    const mix = this.recommendedMix(size);
+    const mix = this.recommendedMix(size, profile.id);
     const selected: Array<{ itemId: string; mode: string; ordinal: number }> = [];
     for (const allocation of mix) {
       const rows = this.db.prepare(`
@@ -263,7 +258,7 @@ export class V1TrainingService {
           SELECT tic2.concept_id, COUNT(DISTINCT ti2.source_move_id) AS occurrences
           FROM training_item_concepts tic2
           JOIN training_items ti2 ON ti2.id = tic2.item_id AND ti2.active = 1
-          WHERE tic2.active = 1
+          WHERE tic2.active = 1 AND ti2.profile_id = ?
           GROUP BY tic2.concept_id
         ) concept_frequency ON concept_frequency.concept_id = tic.concept_id
         WHERE ti.profile_id = ? AND ti.mode = ? AND ti.active = 1
@@ -273,7 +268,7 @@ export class V1TrainingService {
                  repeated_concepts DESC, (rs.attempts - rs.successes) DESC,
                  rs.average_response_ms DESC, ti.created_at DESC, RANDOM()
         LIMIT ?
-      `).all(profile.id, allocation.mode, now(), allocation.count) as Array<{ id: string }>;
+      `).all(profile.id, profile.id, allocation.mode, now(), allocation.count) as Array<{ id: string }>;
       for (const row of rows) selected.push({ itemId: row.id, mode: allocation.mode, ordinal: selected.length + 1 });
     }
     if (selected.length === 0) {
@@ -363,12 +358,15 @@ export class V1TrainingService {
   concepts(): Array<{ id: string; family: string; label: string }> {
     return this.db.prepare(`
       SELECT id, family, label FROM concepts
-      WHERE family IN ('thinking_process', 'tactical') ORDER BY family, label
+      WHERE family IN ('thinking_process', 'tactical')
+        AND id != 'process.candidate_generation'
+      ORDER BY family, label
     `).all() as Array<{ id: string; family: string; label: string }>;
   }
 
   classify(itemId: string, conceptIds: string[]): Array<{ id: string; family: string; label: string }> {
-    const item = this.db.prepare("SELECT id FROM training_items WHERE id = ?").get(itemId);
+    const item = this.db.prepare("SELECT id FROM training_items WHERE id = ? AND profile_id = ?")
+      .get(itemId, activeProfileId(this.db));
     if (!item) throw new Error("Training item not found");
     const unique = [...new Set(conceptIds)];
     const chosen = unique.map((conceptId) => {
@@ -468,24 +466,8 @@ export class V1TrainingService {
           duration_ms = ?, score = ?, outcome = ?, response_json = ?, feedback_json = ?
         WHERE id = ?
       `).run(answeredAt, answeredAt, duration, score, storedOutcome, JSON.stringify(response), JSON.stringify(feedback), attempt.id);
-      this.updateReview(attempt.item_id, passed, duration, storedOutcome, answeredAt);
+      recordReview(this.db, attempt.item_id, passed, duration, storedOutcome, answeredAt);
     })();
-  }
-
-  private updateReview(itemId: string, passed: boolean, duration: number, result: string, attemptedAt: string): void {
-    const current = this.db.prepare(`
-      SELECT mastery_level, attempts, successes, lapses, average_response_ms
-      FROM review_states WHERE item_id = ?
-    `).get(itemId) as { mastery_level: number; attempts: number; successes: number; lapses: number; average_response_ms: number | null };
-    const level = passed ? Math.min(5, current.mastery_level + 1) : 0;
-    const attempts = current.attempts + 1;
-    const average = Math.round(((current.average_response_ms ?? duration) * current.attempts + duration) / attempts);
-    this.db.prepare(`
-      UPDATE review_states SET mastery_level = ?, due_at = ?, last_attempted_at = ?,
-        last_result = ?, attempts = ?, successes = ?, lapses = ?, average_response_ms = ?
-      WHERE item_id = ?
-    `).run(level, nextDue(level, passed), attemptedAt, result, attempts,
-      current.successes + (passed ? 1 : 0), current.lapses + (passed ? 0 : 1), average, itemId);
   }
 
   private empty(mode: "punish_blunder" | "quiet_position"): EmptyTrainingResponse {
@@ -547,10 +529,11 @@ export class V1TrainingService {
     };
   }
 
-  private recommendedMix(size: number): DashboardResponse["recommendedSession"] {
+  private recommendedMix(size: number, profileId: string): DashboardResponse["recommendedSession"] {
     const available = this.db.prepare(`
-      SELECT mode, COUNT(*) AS count FROM training_items WHERE active = 1 GROUP BY mode
-    `).all() as Array<{ mode: string; count: number }>;
+      SELECT mode, COUNT(*) AS count FROM training_items
+      WHERE active = 1 AND profile_id = ? GROUP BY mode
+    `).all(profileId) as Array<{ mode: string; count: number }>;
     const counts = new Map(available.map((row) => [row.mode, row.count]));
     const baseTotal = Object.values(BASE_SESSION).reduce((sum, value) => sum + value, 0);
     const mix = Object.entries(BASE_SESSION)

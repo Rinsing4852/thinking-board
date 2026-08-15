@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { TrainingSessionResponse } from "../../../packages/contracts/src/api";
 import { get } from "./api";
@@ -17,6 +17,14 @@ export function App() {
   const [trainingRequest, setTrainingRequest] = useState<{ itemId: string; requestId: number } | null>(null);
   const [activeMode, setActiveMode] = useState("blunder_check");
   const [session, setSession] = useState<TrainingSessionResponse | null>(null);
+  useEffect(() => {
+    void get<TrainingSessionResponse | null>("/api/v1/training/session/active")
+      .then((activeSession) => {
+        setSession(activeSession);
+        if (activeSession?.currentItem) setActiveMode(activeSession.currentItem.mode);
+      })
+      .catch(() => setSession(null));
+  }, [refreshToken]);
   const refresh = (): void => {
     setTrainingRequest(null);
     setRefreshToken((value) => value + 1);

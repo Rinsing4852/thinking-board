@@ -9,7 +9,9 @@ import type {
   TrainingAnswerResponse,
 } from "../../../../packages/contracts/src/api";
 import { post } from "../api";
+import { categoryLabel, formatMoveLabel, RESPONSE_CATEGORIES } from "../training-language";
 import { ChessBoard } from "./ChessBoard";
+import { TrainingEmptyState } from "./TrainingEmptyState";
 
 interface TrainingPanelProps {
   refreshToken: number;
@@ -135,20 +137,11 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
         <p>Pause before the move. Look for the opponent’s immediate checks, captures, and threats.</p>
       </div>
 
-      {empty && (
-        <div className="panel empty-training">
-          <h3>{empty.message}</h3>
-          {empty.options.length > 0 ? (
-            <div className="fallback-actions">
-              {empty.options.map((option) => (
-                <button key={option.pool} className="secondary" onClick={() => void loadNext(option.pool)}>
-                  {option.label} <span>{option.count}</span>
-                </button>
-              ))}
-            </div>
-          ) : <p>Import a game containing a concrete, immediately punishable mistake.</p>}
-        </div>
-      )}
+      {empty && <TrainingEmptyState
+        empty={empty}
+        onChoosePool={(pool) => void loadNext(pool)}
+        noItemsHelp="Import a game containing a concrete mistake that the opponent could punish immediately."
+      />}
 
       {exercise && (
         <div className="trainer-layout">
@@ -160,7 +153,7 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
               </div>
               <strong>{phase === "feedback" && feedback
                 ? feedback.acceptableMoves[0]?.moveSan
-                : `${exercise.moveNumber}.${exercise.playerColor === "black" ? "…" : ""}${exercise.candidateMoveSan}`}</strong>
+                : formatMoveLabel(exercise.moveNumber, exercise.playerColor, exercise.candidateMoveSan)}</strong>
             </div>
             <div className="board-toolbar">
               <span>{phase === "ready" ? "Your move has not been shown yet" : phase === "answer" ? `${exercise.playerColor === "white" ? "Black" : "White"} to move` : "Correct reply shown on board"}</span>
@@ -180,7 +173,7 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
             <span className="eyebrow">{phase === "ready" ? "YOUR MOVE" : phase === "feedback" ? "REVIEW" : "CHECK"}</span>
             {phase === "ready" && (
               <div className="ready-step">
-                <h3>You played {exercise.moveNumber}.{exercise.playerColor === "black" ? "…" : ""}{exercise.candidateMoveSan}</h3>
+                <h3>You played {formatMoveLabel(exercise.moveNumber, exercise.playerColor, exercise.candidateMoveSan)}</h3>
                 <p className="instruction">
                   You were playing <strong>{exercise.playerColor}</strong>. First study the position before your move, then show the move you actually made.
                 </p>
@@ -193,19 +186,20 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
                 <p className="move-context">
                   You just played <strong>{exercise.candidateMoveSan}</strong>. It is now <strong>{exercise.playerColor === "white" ? "Black" : "White"} to move</strong>.
                 </p>
-                <p className="instruction">1. Choose Check, Capture, or Threat. 2. Move the opponent’s piece on the board. 3. Check your answer.</p>
+                <p className="instruction">First choose the kind of danger. Then play the opponent’s reply by clicking its start and destination squares. You do not need to type chess notation.</p>
                 <div className="category-grid">
-                  {(["check", "capture", "threat"] as ResponseCategory[]).map((value) => (
+                  {RESPONSE_CATEGORIES.map((option) => (
                     <button
-                      key={value}
-                      className={category === value ? "category active" : "category"}
-                      onClick={() => setCategory(value)}
+                      key={option.value}
+                      className={category === option.value ? "category active" : "category"}
+                      onClick={() => setCategory(option.value)}
                     >
-                      <span>{value === "check" ? "+" : value === "capture" ? "×" : "!"}</span>
-                      {value}
+                      <span>{option.symbol}</span>
+                      {option.label}
                     </button>
                   ))}
                 </div>
+                {category && <p className="term-help">{RESPONSE_CATEGORIES.find((option) => option.value === category)?.description}</p>}
                 <div className="selected-answer">
                   {move ? <>Your selected reply: <strong>{move.san}</strong> <button className="inline-link" onClick={changeReply}>Change</button></> : "Select the opponent’s piece, then select its destination square."}
                 </div>
@@ -218,8 +212,18 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
 
             {feedback && (
               <div className={`feedback ${feedback.outcome}`} role="status">
-                <span className="feedback-label">{feedback.outcome === "excellent" ? "Excellent" : feedback.outcome === "partial" ? "Partly seen" : "Missed"}</span>
-                <h3>What went wrong</h3>
+                <span className="feedback-label">{feedback.outcome === "excellent" ? "Seen" : feedback.outcome === "partial" ? "Partly seen" : "Missed"}</span>
+                <h3>{feedback.outcome === "excellent"
+                  ? "You caught the danger"
+                  : feedback.categoryCorrect
+                    ? "Right danger, wrong reply"
+                    : feedback.moveCorrect
+                      ? "Right reply, wrong label"
+                      : "This was the danger to find"}</h3>
+                {category && move && <p className="answer-comparison">
+                  You chose <strong>{categoryLabel(category)}</strong> and played <strong>{move.san}</strong>.
+                  {!feedback.categoryCorrect && <> The reply is a <strong>{categoryLabel(feedback.acceptableMoves[0]?.categories[0] ?? "threat")}</strong>.</>}
+                </p>}
                 <p className="failure-summary">
                   Your move <strong>{exercise.candidateMoveSan}</strong> allowed <strong>{feedback.acceptableMoves.map((answer) => answer.moveSan).join(" or ")}</strong> immediately.
                 </p>

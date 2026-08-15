@@ -57,6 +57,9 @@ npm run dev:web
 The API listens on port 8000 and Vite on port 5173. Vite proxies `/api` to the
 server.
 
+For module boundaries, invariants, and the checklist for adding another training
+mode, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
 ## Verification
 
 ```sh

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import type { DashboardResponse, TrainingSessionResponse } from "../../../../packages/contracts/src/api";
+import type { DashboardResponse, SkillMetric, TrainingSessionResponse } from "../../../../packages/contracts/src/api";
 import { get, post } from "../api";
 
 interface DashboardProps {
@@ -8,6 +8,18 @@ interface DashboardProps {
   onChooseMode: (mode: string) => void;
   onStartSession: (session: TrainingSessionResponse) => void;
   onProfileChanged: () => void;
+}
+
+function progressLabel(skill: SkillMetric): string {
+  if (skill.attempts === 0) return "Not trained";
+  if (skill.attempts < 3) return "Learning";
+  return `${Math.round((skill.successRate ?? 0) * 100)}%`;
+}
+
+function progressNote(skill: SkillMetric): string {
+  if (skill.attempts === 0) return "from your games";
+  if (skill.attempts < 3) return `${skill.attempts} practice attempt${skill.attempts === 1 ? "" : "s"}`;
+  return skill.recentTrend;
 }
 
 export function Dashboard({ refreshToken, onChooseMode, onStartSession, onProfileChanged }: DashboardProps) {
@@ -48,8 +60,8 @@ export function Dashboard({ refreshToken, onChooseMode, onStartSession, onProfil
     <section className="dashboard-section" id="progress">
       <div className="panel-heading">
         <div>
-          <span className="eyebrow">What you repeatedly fail to see</span>
-          <h2>{dashboard.profile.displayName}’s thinking profile</h2>
+          <span className="eyebrow">What to train next</span>
+          <h2>{dashboard.profile.displayName}’s training profile</h2>
         </div>
         <div className="dashboard-actions">
           {profiles.length > 1 && <label>Player
@@ -59,7 +71,7 @@ export function Dashboard({ refreshToken, onChooseMode, onStartSession, onProfil
             }}>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.displayName}</option>)}</select>
           </label>}
           <button onClick={() => session ? onStartSession(session) : void createSession()}>
-            {session ? `Continue ${session.completedCount ?? 0}/${session.items.length}` : "Build today’s 15"}
+            {session ? `Continue session · ${session.completedCount ?? 0}/${session.items.length}` : "Start a 15-exercise session"}
           </button>
         </div>
       </div>
@@ -71,28 +83,28 @@ export function Dashboard({ refreshToken, onChooseMode, onStartSession, onProfil
       </div>
       <div className="dashboard-grid">
         <div className="panel weakness-panel">
-          <span className="eyebrow">Recurring problems</span>
+          <span className="eyebrow">Training priorities</span>
           {dashboard.recurringProblems.length === 0 ? (
             <p>Complete a few drills and your recurring misses will appear here.</p>
           ) : dashboard.recurringProblems.map((skill) => (
             <div className="skill-row" key={skill.conceptId}>
               <div><strong>{skill.label}</strong><small>{skill.realGameOccurrences} real-game occurrence{skill.realGameOccurrences === 1 ? "" : "s"}</small></div>
               <div className="skill-score">
-                <strong>{skill.successRate === null ? "New" : `${Math.round(skill.successRate * 100)}%`}</strong>
-                <small>{skill.recentTrend}</small>
+                <strong>{progressLabel(skill)}</strong>
+                <small>{progressNote(skill)}</small>
               </div>
             </div>
           ))}
         </div>
         <div className="panel session-panel">
-          <span className="eyebrow">Recommended allocation</span>
+          <span className="eyebrow">Today’s practice mix</span>
           <h3>{session?.message ?? "A weakness-weighted session"}</h3>
-          {(session?.mix ?? dashboard.recommendedSession).map((entry) => (
-            <button
-              key={entry.mode}
-              className="session-row"
-              onClick={() => onChooseMode(entry.mode)}
-            >
+          {(session?.mix ?? dashboard.recommendedSession).map((entry) => session ? (
+            <div key={entry.mode} className="session-row">
+              <span>{entry.label}</span><strong>{entry.count}</strong>
+            </div>
+          ) : (
+            <button key={entry.mode} className="session-row" onClick={() => onChooseMode(entry.mode)}>
               <span>{entry.label}</span><strong>{entry.count}</strong>
             </button>
           ))}
