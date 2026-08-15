@@ -1,0 +1,11 @@
+node_modules/
+dist/
+apps/web/dist/
+data/
+backups/
+coverage/
+playwright-report/
+test-results/
+*.log
+.DS_Store
+.env

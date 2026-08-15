@@ -1,0 +1,24 @@
+services:
+  thinking-board:
+    build:
+      context: .
+    container_name: thinking-board
+    user: "1000:1000"
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      STOCKFISH_DEPTH: ${STOCKFISH_DEPTH:-14}
+      STOCKFISH_MULTIPV: ${STOCKFISH_MULTIPV:-3}
+      STOCKFISH_THREADS: ${STOCKFISH_THREADS:-1}
+      STOCKFISH_HASH_MB: ${STOCKFISH_HASH_MB:-128}
+      ACCEPTABLE_TOLERANCE_CP: ${ACCEPTABLE_TOLERANCE_CP:-40}
+      MEANINGFUL_LOSS_CP: ${MEANINGFUL_LOSS_CP:-150}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8000/api/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
