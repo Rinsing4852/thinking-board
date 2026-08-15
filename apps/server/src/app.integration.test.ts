@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import BetterSqlite3 from "better-sqlite3";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -56,6 +57,26 @@ async function waitForCompleted(app: Awaited<ReturnType<typeof buildApp>>, jobId
 }
 
 describe("vertical slice", () => {
+  it("restores a failed analysis job for the active player and retries it", async () => {
+    const appConfig = config(false);
+    const app = await buildApp(appConfig);
+    apps.push(app);
+    const imported = await app.inject({
+      method: "POST", url: "/api/v1/imports/pgn", payload: { pgn: FOOLS_MATE, playerName: "Alice" },
+    });
+    const jobId = (imported.json() as { jobId: string }).jobId;
+    const connection = new BetterSqlite3(appConfig.databasePath);
+    connection.prepare("UPDATE jobs SET status = 'failed', error_message = 'Engine stopped' WHERE id = ?").run(jobId);
+    connection.close();
+
+    const active = await app.inject({ method: "GET", url: "/api/v1/jobs/active" });
+    expect(active.json()).toMatchObject({ id: jobId, status: "failed", error: "Engine stopped" });
+    const retry = await app.inject({ method: "POST", url: `/api/v1/jobs/${jobId}/retry` });
+    expect(retry.statusCode).toBe(202);
+    const queued = await app.inject({ method: "GET", url: `/api/v1/jobs/${jobId}` });
+    expect(queued.json()).toMatchObject({ id: jobId, status: "queued", error: null });
+  });
+
   it("previews, imports, and deduplicates PGN", async () => {
     const app = await buildApp(config(false));
     apps.push(app);
@@ -70,6 +91,8 @@ describe("vertical slice", () => {
     });
     expect(imported.statusCode).toBe(202);
     expect(imported.json()).toMatchObject({ imported: 1, duplicates: 0, rejected: 0 });
+    const activeJob = await app.inject({ method: "GET", url: "/api/v1/jobs/active" });
+    expect(activeJob.json()).toMatchObject({ id: expect.any(String), status: "queued", progressTotal: 1 });
 
     const duplicate = await app.inject({
       method: "POST", url: "/api/v1/imports/pgn", payload: { pgn: FOOLS_MATE, playerName: "Alice" },
@@ -85,6 +108,8 @@ describe("vertical slice", () => {
     });
     const jobId = (imported.json() as { jobId: string }).jobId;
     await waitForCompleted(app, jobId);
+    const noActiveJob = await app.inject({ method: "GET", url: "/api/v1/jobs/active" });
+    expect(noActiveJob.json()).toBeNull();
 
     const games = await app.inject({ method: "GET", url: "/api/v1/games" });
     const gameId = (games.json() as { games: Array<{ id: string }> }).games[0]!.id;

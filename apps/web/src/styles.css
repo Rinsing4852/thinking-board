@@ -47,6 +47,17 @@ h1 em { color: var(--lime); font-style: normal; }
 .panel-heading { display: flex; align-items: start; justify-content: space-between; margin-bottom: 1.3rem; }
 .panel-help { color: var(--ink-soft); line-height: 1.55; margin: -.4rem 0 1rem; }
 h2 { font-size: clamp(1.8rem, 3vw, 2.6rem); margin: .3rem 0 0; letter-spacing: -.04em; }
+.getting-started { display: grid; grid-template-columns: .8fr 1.2fr auto; align-items: center; gap: 2rem; margin-bottom: 1rem; scroll-margin-top: 84px; }
+.getting-started p { color: var(--ink-soft); line-height: 1.55; margin-bottom: 0; }
+.getting-started ol { display: grid; gap: .65rem; margin: 0; padding: 0; list-style: none; }
+.getting-started li { display: flex; align-items: center; gap: .75rem; color: #758078; }
+.getting-started li > span { width: 30px; height: 30px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid currentColor; border-radius: 50%; font: 700 .72rem ui-monospace, monospace; }
+.getting-started li > div { display: grid; gap: .15rem; }
+.getting-started li small { color: var(--ink-soft); line-height: 1.35; }
+.getting-started li.active { color: var(--lime); }
+.getting-started li.active strong { color: #fff; }
+.getting-started li.complete > span { background: var(--lime); border-color: var(--lime); color: #172012; }
+.onboarding-action { justify-self: end; color: #172012; background: var(--lime); border-radius: 8px; padding: .75rem 1rem; font-weight: 800; text-decoration: none; text-align: center; }
 .step-number { color: #68736b; font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: .75rem; text-transform: uppercase; }
 .import-panel textarea { width: 100%; min-height: 190px; resize: vertical; background: #101512; color: #dfe7e0; border: 1px solid var(--line); border-radius: 10px; padding: 1rem; font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; line-height: 1.5; }
 .import-panel textarea:focus, select:focus { outline: 2px solid rgba(201, 243, 107, .45); border-color: var(--lime); }
@@ -63,6 +74,12 @@ select { min-width: 200px; background: #101512; color: #e6ece7; border: 1px soli
 .preview-game span:last-child { font-size: .78rem; }
 .status { color: var(--lime); font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: .82rem; }
 .error { color: var(--red); }
+.analysis-status { display: grid; grid-template-columns: 1fr minmax(140px, 260px); align-items: center; gap: 1rem; margin-top: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: 10px; background: #101512; }
+.analysis-status > div { display: grid; gap: .3rem; }
+.analysis-status span { color: var(--ink-soft); font-size: .85rem; line-height: 1.45; }
+.analysis-status progress { width: 100%; accent-color: var(--lime); }
+.analysis-status.failed { border-color: rgba(239,121,95,.55); }
+.analysis-status.failed strong { color: var(--red); }
 
 .training-section { padding: 7rem 0; }
 .training-copy { display: grid; grid-template-columns: 1fr 1fr; align-items: end; margin-bottom: 2rem; }
@@ -200,6 +217,8 @@ footer { border-top: 1px solid var(--line); padding: 2rem 4vw; color: #69756d; d
   .mode-tabs { grid-template-columns: repeat(2, 1fr); position: static; }
   .mistake-card { grid-template-columns: 1fr; gap: .5rem; }
   .diagnosis-editor { grid-template-columns: 1fr; }
+  .getting-started { grid-template-columns: 1fr; }
+  .onboarding-action { justify-self: start; }
 }
 
 @media (max-width: 520px) {

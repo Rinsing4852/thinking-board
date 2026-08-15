@@ -43,6 +43,34 @@ Backups are written under `./backups` by default. To run it inside the
 container, use `docker exec thinking-board npm run backup -- /app/data/backup.sqlite3`
 and then copy that file somewhere outside the live data directory.
 
+Restore only while the application is stopped. The restore command validates
+the backup and automatically keeps the replaced database as a timestamped
+`before-restore` rollback copy:
+
+```sh
+docker compose down
+docker compose run --rm thinking-board npm run restore -- \
+  /app/data/backup.sqlite3 /app/data/trainer.sqlite3 --force
+docker compose up -d
+```
+
+## Upgrade and rollback
+
+Before upgrading, create a backup inside the persistent data directory:
+
+```sh
+docker exec thinking-board npm run backup -- /app/data/pre-upgrade.sqlite3
+git fetch --tags
+git checkout v1.0.0
+docker compose up --build -d
+curl --fail http://127.0.0.1:8000/api/v1/health
+```
+
+Database migrations run automatically and are tested from every released schema
+version. To roll back, stop the app, check out the previous application tag,
+restore `pre-upgrade.sqlite3` with the restore command above, and start Compose
+again. Never run two application versions against the same live database.
+
 ## Local development
 
 Requirements: Node.js 24 or later. A local Stockfish binary is optional when
@@ -67,12 +95,17 @@ npm run typecheck
 npm test
 npm run build
 npm audit --omit=dev
+npm run test:e2e
 ```
 
 The integration tests execute the complete core loop against a small fake UCI
 engine: PGN import → persistent job → analysis → generated modes → recorded
 answers → player model and weighted session. Docker verification uses the real
 Stockfish 18 build.
+
+The browser suite repeats the clean first-run journey through all five modes and
+checks the chessboard at desktop and mobile widths. See [CHANGELOG.md](CHANGELOG.md)
+for release notes.
 
 ## Configuration
 

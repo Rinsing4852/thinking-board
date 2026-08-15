@@ -33,6 +33,10 @@ COPY migrations ./migrations
 RUN npm run build && npm prune --omit=dev
 
 FROM node:24-bookworm-slim AS runtime
+ARG APP_VERSION=1.0.0
+LABEL org.opencontainers.image.title="Thinking Board" \
+      org.opencontainers.image.version="${APP_VERSION}" \
+      org.opencontainers.image.licenses="MIT"
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=8000 \

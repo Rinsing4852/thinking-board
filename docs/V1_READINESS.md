@@ -24,6 +24,8 @@ V1 is defined by a reliable local loop:
 | Review | Loss, played move, candidates, diagnosis, explanation and direct training link where reliable | Complete |
 | Deployment | One Docker image, Compose, local Stockfish, SQLite, `/app/data`, health check | Complete |
 | Licence | Independent implementation boundary plus Stockfish and npm runtime notices | Complete |
+| Browser regression | Clean import, five modes, recovery UI, desktop/mobile board geometry | Complete |
+| Data recovery | Every migration path plus integrity-checked backup/restore and rollback copy | Complete |
 
 ## Deliberate V1 limits
 
@@ -47,6 +49,7 @@ Run before tagging:
 npm run typecheck
 npm test
 npm run build
+npm run test:e2e
 git diff --check
 docker compose up --build -d
 curl --fail http://127.0.0.1:8000/api/v1/health

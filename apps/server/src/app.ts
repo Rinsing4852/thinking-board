@@ -6,6 +6,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 
 import type { ResponseCategory, WhatChangedCategory } from "../../../packages/contracts/src/api.js";
 import type { CandidateSubmission } from "../../../packages/contracts/src/api.js";
+import { APP_VERSION } from "../../../packages/contracts/src/version.js";
 import { AnalysisService } from "./analysis/analysis-service.js";
 import type { AppConfig } from "./config.js";
 import { Database } from "./db/database.js";
@@ -17,6 +18,29 @@ import { CandidateTrainingService } from "./training/candidate-training-service.
 import { V1TrainingService } from "./training/v1-training-service.js";
 import { AttemptLifecycle } from "./training/attempt-lifecycle.js";
 import { activeProfileId, setActiveProfile } from "./training/profile.js";
+
+interface JobRow {
+  id: string;
+  kind: string;
+  status: "queued" | "running" | "completed" | "failed";
+  progress_current: number;
+  progress_total: number;
+  payload_json: string;
+  result_json: string | null;
+  error_message: string | null;
+}
+
+function jobResponse(row: JobRow) {
+  return {
+    id: row.id,
+    kind: row.kind,
+    status: row.status,
+    progressCurrent: row.progress_current,
+    progressTotal: row.progress_total,
+    result: row.result_json ? JSON.parse(row.result_json) : null,
+    error: row.error_message,
+  };
+}
 
 function requiredString(value: unknown, label: string): string {
   if (typeof value !== "string" || !value.trim()) throw new Error(`${label} is required`);
@@ -67,7 +91,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
 
   app.get("/api/v1/health", async () => {
     database.connection.prepare("SELECT 1").get();
-    return { status: "ok" };
+    return { status: "ok", version: APP_VERSION };
   });
 
   app.get("/api/v1/system/engine", async () => ({
@@ -109,25 +133,38 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     return { ...row, errors: JSON.parse(String(row.errors_json)), errors_json: undefined };
   });
 
+  app.get("/api/v1/jobs/active", async () => {
+    const profileId = activeProfileId(database.connection);
+    if (!profileId) return null;
+    const rows = database.connection.prepare(`
+      SELECT id, kind, status, progress_current, progress_total, payload_json,
+             result_json, error_message
+      FROM jobs
+      WHERE kind = 'analyze_games'
+      ORDER BY created_at DESC
+      LIMIT 50
+    `).all() as JobRow[];
+    const belongsToProfile = database.connection.prepare(
+      "SELECT 1 FROM games WHERE id = ? AND profile_id = ?",
+    );
+    const latest = rows.find((row) => {
+      const payload = JSON.parse(row.payload_json) as { gameIds?: unknown };
+      return Array.isArray(payload.gameIds) && payload.gameIds.some(
+        (gameId) => typeof gameId === "string" && belongsToProfile.get(gameId, profileId),
+      );
+    });
+    return latest && latest.status !== "completed" ? jobResponse(latest) : null;
+  });
+
   app.get("/api/v1/jobs/:jobId", async (request, reply) => {
     const { jobId } = request.params as { jobId: string };
     const row = database.connection.prepare(`
-      SELECT id, kind, status, progress_current, progress_total, result_json, error_message
+      SELECT id, kind, status, progress_current, progress_total, payload_json,
+             result_json, error_message
       FROM jobs WHERE id = ?
-    `).get(jobId) as {
-      id: string; kind: string; status: string; progress_current: number;
-      progress_total: number; result_json: string | null; error_message: string | null;
-    } | undefined;
+    `).get(jobId) as JobRow | undefined;
     if (!row) return reply.code(404).send({ error: "Job not found" });
-    return {
-      id: row.id,
-      kind: row.kind,
-      status: row.status,
-      progressCurrent: row.progress_current,
-      progressTotal: row.progress_total,
-      result: row.result_json ? JSON.parse(row.result_json) : null,
-      error: row.error_message,
-    };
+    return jobResponse(row);
   });
 
   app.post("/api/v1/jobs/:jobId/retry", async (request, reply) => {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import type { TrainingSessionResponse } from "../../../packages/contracts/src/api";
+import { APP_VERSION } from "../../../packages/contracts/src/version";
 import { get } from "./api";
 
 import { GameReview } from "./components/GameReview";
@@ -11,6 +12,7 @@ import { CandidateGenerationPanel } from "./components/CandidateGenerationPanel"
 import { Dashboard } from "./components/Dashboard";
 import { PunishBlunderPanel } from "./components/PunishBlunderPanel";
 import { QuietPositionPanel } from "./components/QuietPositionPanel";
+import { GettingStarted } from "./components/GettingStarted";
 
 export function App() {
   const [refreshToken, setRefreshToken] = useState(0);
@@ -89,7 +91,8 @@ export function App() {
           </div>
         </section>
 
-        <ImportPanel onAnalyzed={refresh} />
+        <GettingStarted refreshToken={refreshToken} />
+        <ImportPanel refreshToken={refreshToken} onAnalyzed={refresh} />
         <Dashboard refreshToken={refreshToken} onChooseMode={chooseMode} onStartSession={startSession} onProfileChanged={() => {
           setSession(null); setTrainingRequest(null); setRefreshToken((value) => value + 1);
         }} />
@@ -128,7 +131,7 @@ export function App() {
       </main>
 
       <footer>
-        <span>Self-hosted · SQLite · Local Stockfish</span>
+        <span>Thinking Board v{APP_VERSION} · Self-hosted · SQLite · Local Stockfish</span>
         <span>SEE → CANDIDATES → CHECK</span>
       </footer>
     </>

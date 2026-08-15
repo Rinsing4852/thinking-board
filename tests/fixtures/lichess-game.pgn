@@ -1,0 +1,20 @@
+[Event "casual correspondence game"]
+[Site "https://lichess.org/7brc54V4"]
+[Date "2026.08.13"]
+[Round "-"]
+[White "lichess AI level 3"]
+[Black "olleyr"]
+[Result "1-0"]
+[GameId "7brc54V4"]
+[Variant "Standard"]
+[ECO "C31"]
+
+1. e4 e5 2. f4 d5 3. exd5 Qxd5 4. Nc3 Qd8 5. Nf3 Ne7 6. Nxe5 f6 7. Nc4 Nbc6 8. Ne4 Nd5 9. g3 Bb4 10. c3 Ba5 11. d4 O-O 12. b4 Bb6 13. f5 a6 14. Qg4 Ba7 15. a4 Bd7 16. b5 axb5 17. h3 bxc4 18. Bxc4 Rf7 19. Rb1 Bb6 20. Bxd5 Ne7 21. Nxf6+ Kf8 22. Bxf7 Kxf7 23. Ne4 Bxf5 24. O-O Ke8 25. Qe2 Rxa4 26. Nc5 Rc4 27. Qxc4 Bxb1 28. Qf7# 1-0
+
+[Event "Last-move awareness fixture"]
+[Date "2026.08.14"]
+[White "olleyr"]
+[Black "Training opponent"]
+[Result "0-1"]
+
+1. f3 e5 2. d3 d5 3. Bd2 Bb4 4. g4 Qh4# 0-1

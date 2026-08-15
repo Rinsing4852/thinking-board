@@ -1,17 +1,63 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { ImportPgnResponse, JobResponse, PgnPreviewResponse } from "../../../../packages/contracts/src/api";
 import { get, post } from "../api";
 
 interface ImportPanelProps {
+  refreshToken: number;
   onAnalyzed: () => void;
 }
-export function ImportPanel({ onAnalyzed }: ImportPanelProps) {
+export function ImportPanel({ refreshToken, onAnalyzed }: ImportPanelProps) {
   const [pgn, setPgn] = useState("");
   const [playerName, setPlayerName] = useState("");
   const [preview, setPreview] = useState<PgnPreviewResponse | null>(null);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  const [job, setJob] = useState<JobResponse | null>(null);
+  const pollGeneration = useRef(0);
+
+  const pollJob = async (jobId: string, generation: number): Promise<void> => {
+    for (;;) {
+      const current = await get<JobResponse>(`/api/v1/jobs/${jobId}`);
+      if (generation !== pollGeneration.current) return;
+      setJob(current);
+      if (current.status === "completed") {
+        setStatus("Analysis complete. Your exercises are ready below.");
+        setBusy(false);
+        onAnalyzed();
+        return;
+      }
+      if (current.status === "failed") {
+        setStatus(current.error ?? "Analysis stopped before it finished.");
+        setBusy(false);
+        return;
+      }
+      setBusy(true);
+      setStatus(current.status === "queued"
+        ? "Your game is waiting for the local engine."
+        : `Analysing game ${Math.min(current.progressCurrent + 1, current.progressTotal)} of ${current.progressTotal} locally…`);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  };
+
+  useEffect(() => {
+    const generation = ++pollGeneration.current;
+    setJob(null);
+    setBusy(false);
+    void get<JobResponse | null>("/api/v1/jobs/active").then((activeJob) => {
+      if (!activeJob || generation !== pollGeneration.current) return;
+      setJob(activeJob);
+      setBusy(activeJob.status !== "failed");
+      return pollJob(activeJob.id, generation);
+    }).catch((error: unknown) => {
+      if (generation === pollGeneration.current) {
+        setStatus(error instanceof Error ? error.message : "Could not restore analysis progress");
+      }
+    });
+    return () => {
+      if (generation === pollGeneration.current) pollGeneration.current += 1;
+    };
+  }, [refreshToken]);
 
   const previewPgn = async (): Promise<void> => {
     setBusy(true);
@@ -27,21 +73,6 @@ export function ImportPanel({ onAnalyzed }: ImportPanelProps) {
     }
   };
 
-  const pollJob = async (jobId: string): Promise<void> => {
-    for (;;) {
-      const job = await get<JobResponse>(`/api/v1/jobs/${jobId}`);
-      setStatus(job.status === "running"
-        ? `Analysing game ${job.progressCurrent + 1} of ${job.progressTotal} locally…`
-        : `Analysis ${job.status}.`);
-      if (job.status === "completed") {
-        onAnalyzed();
-        return;
-      }
-      if (job.status === "failed") throw new Error(job.error ?? "Analysis failed");
-      await new Promise((resolve) => setTimeout(resolve, 750));
-    }
-  };
-
   const importPgn = async (): Promise<void> => {
     setBusy(true);
     try {
@@ -51,7 +82,7 @@ export function ImportPanel({ onAnalyzed }: ImportPanelProps) {
         + `${result.duplicates} duplicate${result.duplicates === 1 ? "" : "s"} skipped. `
         + `${result.rejected} rejected.`,
       );
-      if (result.jobId) await pollJob(result.jobId);
+      if (result.jobId) await pollJob(result.jobId, ++pollGeneration.current);
       else onAnalyzed();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Import failed");
@@ -60,8 +91,21 @@ export function ImportPanel({ onAnalyzed }: ImportPanelProps) {
     }
   };
 
+  const retryAnalysis = async (): Promise<void> => {
+    if (!job || job.status !== "failed") return;
+    setBusy(true);
+    setStatus("Restarting local analysis…");
+    try {
+      await post(`/api/v1/jobs/${job.id}/retry`);
+      await pollJob(job.id, ++pollGeneration.current);
+    } catch (error) {
+      setBusy(false);
+      setStatus(error instanceof Error ? error.message : "Could not restart analysis");
+    }
+  };
+
   return (
-    <section className="panel import-panel">
+    <section className="panel import-panel" id="import">
       <div className="panel-heading">
         <div>
           <span className="eyebrow">Your games</span>
@@ -106,7 +150,20 @@ export function ImportPanel({ onAnalyzed }: ImportPanelProps) {
           {preview.errors.map((error) => <p className="error" key={`${error.index}-${error.message}`}>{error.message}</p>)}
         </div>
       )}
-      {status && <p className="status" aria-live="polite">{status}</p>}
+      {job && job.status !== "completed" && (
+        <div className={`analysis-status ${job.status}`} aria-live="polite">
+          <div>
+            <strong>{job.status === "failed" ? "Analysis needs attention" : "Local analysis in progress"}</strong>
+            <span>{status}</span>
+          </div>
+          {job.status === "failed" ? (
+            <button onClick={() => void retryAnalysis()}>Retry analysis</button>
+          ) : (
+            <progress value={job.progressCurrent} max={Math.max(1, job.progressTotal)} />
+          )}
+        </div>
+      )}
+      {status && (!job || job.status === "completed") && <p className="status" aria-live="polite">{status}</p>}
     </section>
   );
 }
