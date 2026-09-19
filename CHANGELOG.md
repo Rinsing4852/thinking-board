@@ -2,6 +2,12 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.1.1 — 2026-09-19
+
+- Keeps browser release checks in sync with the shared application version.
+- Uses the current Node 24 GitHub Actions runtimes and avoids duplicate CI runs
+  for release tags; container tags continue to publish independently.
+
 ## 1.1.0 — 2026-09-19
 
 ### Opening practice foundation

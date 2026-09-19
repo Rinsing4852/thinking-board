@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { expect, test, type Page } from "@playwright/test";
+import { APP_VERSION } from "../../packages/contracts/src/version";
 
 const PGN = fs.readFileSync(path.resolve("tests/fixtures/lichess-game.pgn"), "utf8");
 
@@ -241,7 +242,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await expectSquareBoard(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await expectSquareBoard(page);
-    await expect(page.getByText("Thinking Board v1.0.0", { exact: false })).toBeVisible();
+    await expect(page.getByText(`Thinking Board v${APP_VERSION}`, { exact: false })).toBeVisible();
 
     await page.getByRole("button", { name: "My games" }).click();
     await page.getByRole("button", { name: "olleyr – Training opponent" }).click();
