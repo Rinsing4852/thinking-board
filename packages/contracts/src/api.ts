@@ -12,6 +12,391 @@ export type WhatChangedCategory =
 export type CandidateType = "check" | "capture" | "threat" | "improve";
 export type CandidateGrade = "excellent" | "good" | "playable" | "dubious" | "blunder";
 
+export interface OpeningRepertoireSummary {
+  id: string;
+  slug: string;
+  name: string;
+  learnerColor: Color;
+  firstMoveUci: string;
+  firstMoveSan: string;
+  summary: string;
+  audienceLabel: string;
+  style: string[];
+  memoryBurden: "low" | "medium" | "high";
+  contentVersion: number;
+  status: "preview" | "published";
+  chapterCount: number;
+  decisionCount: number;
+  origin: "built_in" | "imported";
+  sourceTitle: string | null;
+  review: OpeningReviewCounts;
+}
+
+export interface OpeningReviewCounts {
+  total: number;
+  due: number;
+  new: number;
+  learning: number;
+  reviewed: number;
+}
+
+export interface OpeningCatalogResponse {
+  repertoires: OpeningRepertoireSummary[];
+}
+
+export interface OpeningLineMove {
+  id: string;
+  ply: number;
+  moveUci: string;
+  moveSan: string;
+  role: "learner" | "opponent";
+  moveKind: "primary" | "alternative" | "response";
+  fenBefore: string;
+  fenAfter: string;
+  explanation: {
+    summary: string;
+    changes: string[];
+    concepts: string[];
+    opponentIdea: string | null;
+    resultingPlan: string | null;
+    tacticalWarning: string | null;
+    commonMistake: string | null;
+  };
+}
+
+export interface OpeningLineDetail {
+  id: string;
+  title: string;
+  priority: number;
+  moveCount: number;
+  learnerDecisionCount: number;
+  sanSequence: string;
+  moves: OpeningLineMove[];
+}
+
+export interface OpeningChapterDetail {
+  id: string;
+  title: string;
+  introduction: string;
+  lines: OpeningLineDetail[];
+}
+
+export interface OpeningRepertoireDetailResponse {
+  repertoire: {
+    id: string;
+    name: string;
+    learnerColor: Color;
+    summary: string;
+    origin: "built_in" | "imported";
+    sourceTitle: string | null;
+    editable: boolean;
+  };
+  chapters: OpeningChapterDetail[];
+}
+
+export interface OpeningLineMutationResponse {
+  detail: OpeningRepertoireDetailResponse;
+  lineId: string;
+  createdBranch: boolean;
+  message: string;
+}
+
+export interface OpeningCoverageGap {
+  positionId: string;
+  fen: string;
+  chapterTitle: string;
+  lineTitle: string;
+  moveUci: string;
+  moveSan: string;
+  games: number;
+  frequencyPercent: number;
+}
+
+export interface OpeningCoverageResponse {
+  repertoireId: string;
+  ratingGroup: number;
+  speeds: string[];
+  positionsChecked: number;
+  positionsAvailable: number;
+  coveragePercent: number | null;
+  coveredGames: number;
+  totalGames: number;
+  gaps: OpeningCoverageGap[];
+  incomplete: boolean;
+  message: string;
+}
+
+export interface OpeningAnalysisLine {
+  rank: number;
+  moveUci: string;
+  moveSan: string;
+  pvSan: string[];
+  score: {
+    kind: "centipawns" | "mate";
+    value: number;
+    perspective: "side_to_move";
+  };
+}
+
+export interface OpeningPositionAnalysisResponse {
+  fen: string;
+  depth: number;
+  lines: OpeningAnalysisLine[];
+}
+
+export interface OpeningExplorerReply {
+  moveUci: string;
+  moveSan: string;
+  games: number;
+  frequencyPercent: number;
+}
+
+export interface OpeningExplorerPositionResponse {
+  fen: string;
+  ratingGroup: number;
+  speeds: string[];
+  totalGames: number;
+  opening: { eco: string; name: string } | null;
+  replies: OpeningExplorerReply[];
+  cached: boolean;
+}
+
+export interface LichessConnectionResponse {
+  connected: boolean;
+  username: string | null;
+  lastSyncedAt: string | null;
+  lastGameAt: string | null;
+  tokenConfigured: boolean;
+}
+
+export interface LichessSyncResponse extends ImportPgnResponse {
+  connection: LichessConnectionResponse;
+  message: string;
+}
+
+export type GameOpeningStatus =
+  | "in_repertoire"
+  | "player_deviation"
+  | "opponent_deviation"
+  | "repertoire_ended"
+  | "not_covered";
+
+export interface GameOpeningConnection {
+  matchId: string;
+  status: GameOpeningStatus;
+  repertoire: {
+    id: string;
+    name: string;
+    learnerColor: Color;
+    origin: "built_in" | "imported";
+  };
+  matchedPlies: number;
+  matchedPlayerMoves: number;
+  lastBookPly: number;
+  departure: null | {
+    ply: number;
+    moveNumber: number;
+    moverColor: Color;
+    moveUci: string;
+    moveSan: string;
+  };
+  expectedMove: null | {
+    moveUci: string;
+    moveSan: string;
+    chapterTitle: string;
+    lineTitle: string;
+    explanation: {
+      summary: string;
+      changes: string[];
+      resultingPlan: string | null;
+      tacticalWarning: string | null;
+      commonMistake: string | null;
+    };
+  };
+  practiceAvailable: boolean;
+}
+
+export type OpeningImportColor = Color | "both";
+export type OpeningImportSourceType = "self_authored" | "book_notes" | "lichess_study" | "licensed_pgn";
+
+export interface OpeningImportChapterPreview {
+  sourceIndex: number;
+  title: string;
+  lineCount: number;
+  maximumPly: number;
+  importable: boolean;
+}
+
+export interface OpeningImportPreviewResponse {
+  suggestedName: string;
+  learnerColors: Color[];
+  firstMoveSan: string;
+  chapterCount: number;
+  lineCount: number;
+  learnerDecisionCount: number;
+  explainedDecisionCount: number;
+  missingExplanationCount: number;
+  chapters: OpeningImportChapterPreview[];
+  warnings: string[];
+}
+
+export interface OpeningLichessStudyPreviewResponse extends OpeningImportPreviewResponse {
+  studyId: string;
+  chapterId: string | null;
+  studyUrl: string;
+}
+
+export interface OpeningImportResponse {
+  repertoireIds: string[];
+  imported: number;
+  duplicates: number;
+  message: string;
+}
+
+export interface OpeningLessonOpponentMove {
+  moveUci: string;
+  moveSan: string;
+}
+
+export interface OpeningLessonStep {
+  kind: "step";
+  attemptId: string;
+  repertoire: { id: string; name: string };
+  chapter: { id: string; title: string; introduction: string };
+  lineTitle: string;
+  learnerColor: Color;
+  decisionNumber: number;
+  totalDecisions: number;
+  moveNumber: number;
+  fenBeforeOpponent: string;
+  fenToMove: string;
+  opponentMove: OpeningLessonOpponentMove | null;
+  movesBefore: string[];
+  prompt: string;
+  moveAnswer: OpeningMoveAnswerResponse | null;
+}
+
+export interface OpeningLessonComplete {
+  kind: "complete";
+  attemptId: string;
+  repertoireName: string;
+  chapterTitle: string;
+  decisions: number;
+  repertoireMoves: number;
+  reasonsUnderstood: number;
+  message: string;
+}
+
+export type OpeningLessonState = OpeningLessonStep | OpeningLessonComplete;
+
+export interface OpeningReasonOption {
+  value: string;
+  label: string;
+}
+
+export interface OpeningMoveAnswerResponse {
+  moveOutcome: "repertoire" | "alternative" | "outside_repertoire";
+  playedMoveSan: string;
+  repertoireMove: { moveUci: string; moveSan: string };
+  fenAfterMove: string;
+  message: string;
+  whyQuestion: string;
+  whyOptions: OpeningReasonOption[];
+}
+
+export interface OpeningWhyAnswerResponse {
+  kind: "feedback";
+  attemptId: string;
+  step: OpeningLessonStep;
+  outcome: "correct" | "partial" | "incorrect" | "revealed";
+  selectedConcept: string | null;
+  selectedLabel: string | null;
+  selectedIsPrimary: boolean;
+  correctConcept: string;
+  correctLabel: string;
+  explanation: {
+    summary: string;
+    changes: string[];
+    resultingPlan: string | null;
+    tacticalWarning: string | null;
+    commonMistake: string | null;
+  };
+  next: OpeningLessonState;
+}
+
+export type OpeningLessonActiveState = OpeningLessonStep | OpeningWhyAnswerResponse;
+
+export interface OpeningReviewOpponentMove {
+  moveUci: string;
+  moveSan: string;
+}
+
+export interface OpeningReviewExercise {
+  kind: "exercise";
+  sessionId: string;
+  repertoire: { id: string; name: string };
+  learnerColor: Color;
+  positionNumber: number;
+  totalPositions: number;
+  presentationKind: "scheduled" | "lapse_repeat";
+  learningStage: "new" | "learning" | "review";
+  fenBeforeOpponent: string;
+  fenToMove: string;
+  opponentMove: OpeningReviewOpponentMove | null;
+  movesBefore: string[];
+  moveNumber: number;
+  prompt: string;
+  introduction: {
+    repertoireMove: { moveUci: string; moveSan: string };
+    fenAfterMove: string;
+    explanation: {
+      summary: string;
+      changes: string[];
+      resultingPlan: string | null;
+      tacticalWarning: string | null;
+      commonMistake: string | null;
+    };
+  };
+}
+
+export interface OpeningReviewFeedback {
+  kind: "feedback";
+  sessionId: string;
+  exercise: OpeningReviewExercise;
+  outcome: "remembered" | "learning" | "again";
+  recallSpeed: "normal" | "slow" | null;
+  assisted: boolean;
+  revealed: boolean;
+  playedMove: { moveUci: string; moveSan: string };
+  repertoireMove: { moveUci: string; moveSan: string };
+  fenAfterMove: string;
+  message: string;
+  explanation: {
+    summary: string;
+    changes: string[];
+    resultingPlan: string | null;
+    tacticalWarning: string | null;
+    commonMistake: string | null;
+  };
+  nextDueAt: string;
+  lapseQueued: boolean;
+}
+
+export interface OpeningReviewComplete {
+  kind: "complete";
+  sessionId: string;
+  repertoireName: string;
+  attempts: number;
+  positions: number;
+  remembered: number;
+  introduced: number;
+  lapses: number;
+  message: string;
+}
+
+export type OpeningReviewState = OpeningReviewExercise | OpeningReviewComplete;
+export type OpeningReviewActiveState = OpeningReviewExercise | OpeningReviewFeedback;
+
 export interface PreviewGame {
   index: number;
   white: string;
@@ -221,7 +606,14 @@ export interface SkillMetric {
 
 export interface DashboardResponse {
   profile: { id: string; displayName: string } | null;
-  totals: { games: number; trainingItems: number; due: number; attempts: number };
+  totals: {
+    games: number;
+    trainingItems: number;
+    due: number;
+    attempts: number;
+    gameAttempts: number;
+    openingAttempts: number;
+  };
   recurringProblems: SkillMetric[];
   skills: SkillMetric[];
   recommendedSession: Array<{ mode: string; label: string; count: number }>;

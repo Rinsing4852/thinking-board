@@ -22,6 +22,7 @@ export interface AppConfig {
   acceptableToleranceCp: number;
   meaningfulLossCp: number;
   runWorker: boolean;
+  lichessApiToken?: string | undefined;
 }
 
 export function loadConfig(): AppConfig {
@@ -42,5 +43,6 @@ export function loadConfig(): AppConfig {
     acceptableToleranceCp: integer("ACCEPTABLE_TOLERANCE_CP", 40),
     meaningfulLossCp: integer("MEANINGFUL_LOSS_CP", 150),
     runWorker: process.env.RUN_ANALYSIS_WORKER !== "false",
+    lichessApiToken: process.env.LICHESS_API_TOKEN?.trim() || undefined,
   };
 }

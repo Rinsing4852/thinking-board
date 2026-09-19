@@ -1,4 +1,5 @@
 import type { SqliteDatabase } from "../db/database.js";
+import { id, now } from "../lib/ids.js";
 
 export function activeProfileId(db: SqliteDatabase): string | null {
   const configured = db.prepare(`
@@ -26,4 +27,18 @@ export function setActiveProfile(db: SqliteDatabase, profileId: string): void {
     INSERT INTO app_state(key, value) VALUES ('active_profile_id', ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value
   `).run(profileId);
+}
+
+export function ensureActiveProfile(db: SqliteDatabase): string {
+  const existing = activeProfileId(db);
+  if (existing) return existing;
+
+  const profileId = id();
+  db.transaction(() => {
+    db.prepare("INSERT INTO player_profiles(id, display_name, created_at) VALUES (?, 'Local learner', ?)")
+      .run(profileId, now());
+    db.prepare("INSERT INTO app_state(key, value) VALUES ('active_profile_id', ?)").run(profileId);
+    db.prepare("INSERT INTO app_state(key, value) VALUES ('provisional_profile_id', ?)").run(profileId);
+  })();
+  return profileId;
 }

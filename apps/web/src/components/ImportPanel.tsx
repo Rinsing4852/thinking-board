@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { ImportPgnResponse, JobResponse, PgnPreviewResponse } from "../../../../packages/contracts/src/api";
+import type {
+  ImportPgnResponse,
+  JobResponse,
+  LichessConnectionResponse,
+  LichessSyncResponse,
+  PgnPreviewResponse,
+} from "../../../../packages/contracts/src/api";
 import { get, post } from "../api";
 
 interface ImportPanelProps {
@@ -15,6 +21,11 @@ export function ImportPanel({ refreshToken, onAnalyzed }: ImportPanelProps) {
   const [busy, setBusy] = useState(false);
   const [job, setJob] = useState<JobResponse | null>(null);
   const pollGeneration = useRef(0);
+  const [lichess, setLichess] = useState<LichessConnectionResponse | null>(null);
+  const [lichessUsername, setLichessUsername] = useState("");
+  const [lichessLimit, setLichessLimit] = useState(50);
+  const [lichessBusy, setLichessBusy] = useState(false);
+  const [lichessStatus, setLichessStatus] = useState("");
 
   const pollJob = async (jobId: string, generation: number): Promise<void> => {
     for (;;) {
@@ -54,10 +65,53 @@ export function ImportPanel({ refreshToken, onAnalyzed }: ImportPanelProps) {
         setStatus(error instanceof Error ? error.message : "Could not restore analysis progress");
       }
     });
+    void get<LichessConnectionResponse>("/api/v1/lichess/connection").then((connection) => {
+      setLichess(connection);
+      if (connection.username) setLichessUsername(connection.username);
+    }).catch(() => setLichess(null));
     return () => {
       if (generation === pollGeneration.current) pollGeneration.current += 1;
     };
   }, [refreshToken]);
+
+  const connectLichess = async (): Promise<void> => {
+    if (!lichessUsername.trim() || lichessBusy) return;
+    setLichessBusy(true);
+    setLichessStatus("");
+    try {
+      const connection = await post<LichessConnectionResponse>("/api/v1/lichess/connect", {
+        username: lichessUsername,
+      });
+      setLichess(connection);
+      setLichessUsername(connection.username ?? lichessUsername);
+      setLichessStatus(`Connected to ${connection.username}. Sync when you are ready.`);
+    } catch (error) {
+      setLichessStatus(error instanceof Error ? error.message : "Could not connect Lichess");
+    } finally {
+      setLichessBusy(false);
+    }
+  };
+
+  const syncLichess = async (): Promise<void> => {
+    if (!lichess?.connected || lichessBusy) return;
+    setLichessBusy(true);
+    setLichessStatus("Downloading finished games from Lichess…");
+    try {
+      const result = await post<LichessSyncResponse>("/api/v1/lichess/sync", { maxGames: lichessLimit });
+      setLichess(result.connection);
+      setLichessStatus(`${result.message} ${result.duplicates > 0 ? `${result.duplicates} already imported.` : ""}`.trim());
+      if (result.jobId) {
+        setBusy(true);
+        await pollJob(result.jobId, ++pollGeneration.current);
+      } else {
+        onAnalyzed();
+      }
+    } catch (error) {
+      setLichessStatus(error instanceof Error ? error.message : "Could not sync Lichess games");
+    } finally {
+      setLichessBusy(false);
+    }
+  };
 
   const previewPgn = async (): Promise<void> => {
     setBusy(true);
@@ -114,6 +168,44 @@ export function ImportPanel({ refreshToken, onAnalyzed }: ImportPanelProps) {
         <span className="step-number">01</span>
       </div>
       <p className="panel-help">Copy the game text from Lichess, Chess.com, or a PGN file and paste it below. You can paste more than one game at once.</p>
+      <div className="lichess-sync-card">
+        <div>
+          <span className="eyebrow">Optional shortcut</span>
+          <h3>Sync finished Lichess games</h3>
+          <p>Public games need only your username. A read-only token set by the server owner can include games visible to that token; it is never sent to this browser.</p>
+        </div>
+        <div className="lichess-sync-controls">
+          <label>
+            Lichess username
+            <input value={lichessUsername} onChange={(event) => setLichessUsername(event.target.value)} placeholder="Your Lichess name" />
+          </label>
+          {lichess?.connected && <label>
+            Games per sync
+            <select value={lichessLimit} onChange={(event) => setLichessLimit(Number(event.target.value))}>
+              <option value={25}>25 latest</option>
+              <option value={50}>50 latest</option>
+              <option value={100}>100 latest</option>
+            </select>
+          </label>}
+          {!lichess?.connected || lichess.username?.toLocaleLowerCase() !== lichessUsername.trim().toLocaleLowerCase() ? (
+            <button disabled={lichessBusy || !lichessUsername.trim()} onClick={() => void connectLichess()}>
+              {lichessBusy ? "Connecting…" : lichess?.connected ? "Change account" : "Connect account"}
+            </button>
+          ) : (
+            <button disabled={lichessBusy || busy} onClick={() => void syncLichess()}>
+              {lichessBusy ? "Syncing…" : "Sync new games"}
+            </button>
+          )}
+        </div>
+        {lichess?.connected && (
+          <p className="lichess-connection-note">
+            Connected as <strong>{lichess.username}</strong> · {lichess.tokenConfigured ? "server token enabled" : "public games only"}
+            {lichess.lastSyncedAt ? ` · last synced ${new Date(lichess.lastSyncedAt).toLocaleString()}` : " · not synced yet"}
+          </p>
+        )}
+        {lichessStatus && <p className="status" aria-live="polite">{lichessStatus}</p>}
+      </div>
+      <div className="manual-import-divider"><span>or paste PGN manually</span></div>
       <textarea
         value={pgn}
         onChange={(event) => setPgn(event.target.value)}

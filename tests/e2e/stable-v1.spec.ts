@@ -6,7 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 const PGN = fs.readFileSync(path.resolve("tests/fixtures/lichess-game.pgn"), "utf8");
 
 async function expectSquareBoard(page: Page): Promise<void> {
-  const geometry = await page.getByRole("grid", { name: "Chess position" }).evaluate((board) => {
+  const geometry = await page.getByRole("grid", { name: "Chess position" }).last().evaluate((board) => {
     const boardBox = board.getBoundingClientRect();
     const cells = [...board.querySelectorAll<HTMLElement>("[role='gridcell']")]
       .map((cell) => cell.getBoundingClientRect());
@@ -24,14 +24,187 @@ async function expectSquareBoard(page: Page): Promise<void> {
 }
 
 test.describe.serial("stable V1 browser journey", () => {
+  test("browses complete lines and builds a personal line on the board", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Openings" }).click();
+    const openings = page.locator("#opening-practice");
+    const starter = openings.locator("article").filter({ hasText: "Practical 1.e4 Repertoire" });
+    await starter.getByRole("button", { name: "View all lines" }).click();
+    await expect(openings.getByRole("heading", { name: "Practical 1.e4 Repertoire", level: 2 })).toBeVisible();
+    await expect(openings.getByText("1. e4 e5 2. Nf3 Nc6 3. Bc4", { exact: false })).toBeVisible();
+    await openings.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(openings.getByRole("heading", { name: "e4", exact: true })).toBeVisible();
+    await expect(openings.getByRole("gridcell", { name: "e4 white pawn" })).toBeVisible();
+    await openings.getByRole("button", { name: "Back to repertoires" }).click();
+
+    await openings.getByRole("button", { name: "Build on the board" }).click();
+    await openings.getByRole("textbox", { name: /Repertoire name/ }).fill("Board-built Italian");
+    await expect(openings.getByRole("grid", { name: "Repertoire board" })).toBeVisible();
+    await expect(openings.getByRole("grid", { name: "Repertoire board" }).locator("[role='gridcell'][tabindex='0']")).toHaveCount(1);
+    await expect(openings.getByRole("grid", { name: "Analysis board" }).locator("[role='gridcell'][tabindex='0']")).toHaveCount(1);
+    let board = openings.getByRole("grid", { name: "Analysis board" });
+    await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
+    await board.getByRole("gridcell", { name: "e4 empty" }).click();
+    await openings.getByRole("button", { name: "Add 1 move to my repertoire" }).click();
+    await openings.getByRole("textbox", { name: /Develops with tempo/ }).fill("Claims the centre and opens the bishop.");
+    board = openings.getByRole("grid", { name: "Analysis board" });
+    await board.getByRole("gridcell", { name: "e7 black pawn" }).click();
+    await board.getByRole("gridcell", { name: "e5 empty" }).click();
+    await openings.getByRole("button", { name: "Add 1 move to my repertoire" }).click();
+    await openings.getByRole("textbox", { name: /Challenges the centre/ }).fill("Black mirrors the central claim.");
+    await openings.getByRole("button", { name: "Save repertoire" }).click();
+    await expect(openings.getByRole("heading", { name: "Board-built Italian", level: 2 })).toBeVisible();
+    await expect(openings.getByText("1. e4 e5", { exact: true })).toBeVisible();
+    await expect(openings.getByRole("button", { name: "Practise this line" })).toBeEnabled();
+
+    await openings.getByRole("button", { name: "Edit lines" }).click();
+    await openings.getByRole("button", { name: "End", exact: true }).click();
+    board = openings.getByRole("grid", { name: "Chess position" });
+    await board.getByRole("gridcell", { name: "g1 white knight" }).click();
+    await board.getByRole("gridcell", { name: "f3 empty" }).click();
+    await openings.getByRole("textbox", { name: /Why Nf3/ }).fill("Develops, controls the centre and prepares castling.");
+    await openings.getByRole("button", { name: "Save move" }).click();
+    await expect(openings.getByText("Nf3 was added to the end of this line.")).toBeVisible();
+
+    await openings.getByRole("button", { name: "Previous", exact: true }).click();
+    board = openings.getByRole("grid", { name: "Chess position" });
+    await board.getByRole("gridcell", { name: "f1 white bishop" }).click();
+    await board.getByRole("gridcell", { name: "c4 empty" }).click();
+    await openings.getByRole("textbox", { name: "Branch name" }).fill("Italian bishop-first branch");
+    await openings.getByRole("button", { name: "Save move" }).click();
+    await expect(openings.getByText(/saved as a new branch; the original line is unchanged/i)).toBeVisible();
+    await expect(openings.getByRole("button", { name: /Italian bishop-first branch/ })).toBeVisible();
+  });
+
+  test("previews and imports a private opening repertoire for both sides", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Openings" }).click();
+    const openings = page.locator("#opening-practice");
+    await openings.getByRole("button", { name: "Import opening PGN" }).click();
+    await openings.getByRole("textbox", { name: /Repertoire name/ }).fill("Browser repertoire");
+    await openings.getByLabel("Practise as").selectOption("both");
+    await openings.getByRole("textbox", { name: /Source title/ }).fill("My private reading notes");
+    await openings.getByRole("textbox", { name: "Opening PGN" }).fill(`[Event "Browser opening"]
+[Result "*"]
+
+1. e4 {Take space in the centre.} e5 2. Nf3 Nc6 (2... Nf6 3. Nxe5) 3. Bc4 *`);
+    await openings.getByRole("button", { name: "Preview import" }).click();
+    await expect(openings.getByText("Ready to import")).toBeVisible();
+    await expect(openings.getByText("2 practice lines")).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+    await openings.getByRole("checkbox", { name: /I own this material/ }).check();
+    await openings.getByRole("button", { name: "Import private repertoire" }).click();
+    await expect(openings.getByText("2 private repertoires imported and ready to practise.")).toBeVisible();
+    await expect(openings.getByRole("heading", { name: "Browser repertoire — White" })).toBeVisible();
+    await expect(openings.getByRole("heading", { name: "Browser repertoire — Black" })).toBeVisible();
+  });
+
+  test("reviews opening positions with spaced repetition and clear feedback", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Openings" }).click();
+    const openings = page.locator("#opening-practice");
+    const starter = openings.locator("article").filter({ hasText: "Practical 1.e4 Repertoire" });
+    await expect(openings.getByLabel("Ways to practise a repertoire")).toHaveCount(1);
+    await starter.getByRole("button", { name: "Learn 5 new positions" }).click();
+    await expect(openings.getByText("Step 1 of 5")).toBeVisible();
+    await expect(openings.getByRole("heading", { name: "This is a new repertoire position." })).toBeVisible();
+    await openings.getByRole("button", { name: "Show the repertoire move" }).click();
+    await expect(openings.getByRole("heading", { name: "e4", exact: true })).toBeVisible();
+    await openings.getByRole("button", { name: "Now try it from memory" }).click();
+
+    let board = openings.getByRole("grid", { name: "Chess position" });
+    await openings.getByRole("button", { name: "I don’t know — show me" }).click();
+    await expect(openings.getByText("Learning", { exact: true })).toBeVisible();
+    await page.reload();
+    await expect(openings.getByText("This position has been placed back into today’s session for an unassisted recall.")).toBeVisible();
+    await openings.getByRole("button", { name: "Continue" }).click();
+
+    const decisions = [
+      { from: "g1 white knight", to: "f3 empty" },
+      { from: "f1 white bishop", to: "c4 empty" },
+      { from: "d2 white pawn", to: "d3 empty" },
+      { from: "e1 white king", to: "g1 empty" },
+      { from: "e2 white pawn", to: "e4 empty" },
+    ];
+    for (const [index, decision] of decisions.entries()) {
+      if (index < decisions.length - 1) {
+        await openings.getByRole("button", { name: /^Play / }).click();
+        await openings.getByRole("button", { name: "I already know it — test me" }).click();
+      }
+      board = openings.getByRole("grid", { name: "Chess position" });
+      await board.getByRole("gridcell", { name: decision.from }).click();
+      await board.getByRole("gridcell", { name: decision.to }).click();
+      await openings.getByRole("button", { name: "Check my move" }).click();
+      await expect(openings.getByText("Remembered", { exact: true })).toBeVisible();
+      await openings.getByRole("button", { name: "Continue" }).click();
+    }
+
+    await expect(openings.getByText("Practice complete", { exact: true })).toBeVisible();
+    const scores = openings.locator(".opening-complete-scores");
+    await expect(scores.getByText("5", { exact: true })).toBeVisible();
+    await expect(scores.getByText("1", { exact: true })).toBeVisible();
+    await openings.getByRole("button", { name: "Back to opening choices" }).click();
+    await expect(starter.getByText("5 reviewed", { exact: false })).toBeVisible();
+  });
+
+  test("starts an opening lesson, explains the move, and restores the next decision", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Openings" }).click();
+    const openings = page.locator("#opening-practice");
+    await expect(openings.getByRole("heading", { name: "Opening Practice" })).toBeVisible();
+    const starter = openings.locator("article").filter({ hasText: "Practical 1.e4 Repertoire" });
+    await starter.getByRole("button", { name: "Study line in order" }).click();
+    await expect(openings.getByText("Decision 1 of 6")).toBeVisible();
+    await openings.getByRole("button", { name: "Pause" }).click();
+    await expect(openings.getByText("Guided line paused")).toBeVisible();
+    page.once("dialog", async (dialog) => {
+      expect(dialog.message()).toContain("end the paused guided line");
+      await dialog.dismiss();
+    });
+    await starter.getByRole("button", { name: "Study line in order" }).click();
+    await expect(openings.getByText("Guided line paused")).toBeVisible();
+    await openings.getByRole("button", { name: "Resume guided line" }).click();
+
+    const board = openings.getByRole("grid", { name: "Chess position" });
+    await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
+    await board.getByRole("gridcell", { name: "e4 empty" }).click();
+    await openings.getByRole("button", { name: "Check my move" }).click();
+    await expect(openings.getByText("Repertoire move found")).toBeVisible();
+
+    await page.reload();
+    await expect(openings.getByRole("heading", { name: "What is the main reason for e4 here?" })).toBeVisible();
+    await openings.getByRole("button", { name: "Control or challenge the centre" }).click();
+    await expect(openings.getByRole("heading", {
+      name: "Claims central space and opens lines for the queen and king's bishop.",
+    })).toBeVisible();
+    await page.reload();
+    await expect(openings.getByRole("heading", {
+      name: "Claims central space and opens lines for the queen and king's bishop.",
+    })).toBeVisible();
+    await openings.getByRole("button", { name: "Continue" }).click();
+
+    await page.reload();
+    await expect(openings.getByText("Decision 2 of 6")).toBeVisible();
+    await expect(openings.getByRole("button", { name: "Play e5" })).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expectSquareBoard(page);
+    const questionTop = await openings.locator(".opening-question-card").evaluate((element) => element.getBoundingClientRect().top);
+    const boardTop = await openings.getByRole("grid", { name: "Chess position" }).evaluate((element) => element.getBoundingClientRect().top);
+    expect(questionTop).toBeLessThan(boardTop);
+  });
+
   test("imports a game and explains every training mode", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Start with one of your games" })).toBeVisible();
-    await page.getByRole("textbox", { name: "PGN text" }).fill(PGN);
+    await page.getByRole("button", { name: "My games" }).click();
+    const pgnInput = page.getByRole("textbox", { name: "PGN text" });
+    await expect(pgnInput).toBeVisible();
+    await pgnInput.fill(PGN);
     await page.getByRole("button", { name: "Check PGN" }).click();
     await page.getByLabel("I am").selectOption({ label: "olleyr" });
     await page.getByRole("button", { name: "Import & analyse" }).click();
     await expect(page.getByText("Analysis complete. Your exercises are ready below.")).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("button", { name: "Today" }).click();
     await expect(page.getByRole("heading", { name: "Your first exercise is ready" })).toBeVisible();
 
     await page.getByRole("button", { name: "1 · What changed" }).click();
@@ -69,6 +242,16 @@ test.describe.serial("stable V1 browser journey", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await expectSquareBoard(page);
     await expect(page.getByText("Thinking Board v1.0.0", { exact: false })).toBeVisible();
+
+    await page.getByRole("button", { name: "My games" }).click();
+    await page.getByRole("button", { name: "olleyr – Training opponent" }).click();
+    await expect(page.getByText("Opening connection", { exact: true })).toBeVisible();
+    await expect(page.getByText("First difference: 1.f3", { exact: true })).toBeVisible();
+    await expect(page.getByText("This does not automatically make your move a mistake.", { exact: false })).toBeVisible();
+    await page.getByRole("button", { name: "Practise this repertoire position" }).click();
+    await expect(page.getByText("Today’s opening practice", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "This is a new repertoire position." })).toBeVisible();
+    await expectSquareBoard(page);
   });
 
   test("restores a failed analysis and offers recovery", async ({ page }) => {
@@ -84,6 +267,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await page.route("**/api/v1/jobs/active", (route) => route.fulfill({ json: failed }));
     await page.route("**/api/v1/jobs/failed-browser-job", (route) => route.fulfill({ json: failed }));
     await page.goto("/");
+    await page.getByRole("button", { name: "My games" }).click();
     await expect(page.getByText("Analysis needs attention")).toBeVisible();
     await expect(page.getByText("Stockfish stopped unexpectedly.")).toBeVisible();
     await expect(page.getByRole("button", { name: "Retry analysis" })).toBeVisible();

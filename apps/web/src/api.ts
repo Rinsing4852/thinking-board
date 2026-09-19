@@ -8,16 +8,17 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export function post<T>(url: string, body?: unknown): Promise<T> {
+export function post<T>(url: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   return request<T>(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body ?? {}),
+    ...(signal ? { signal } : {}),
   });
 }
 
-export function get<T>(url: string): Promise<T> {
-  return request<T>(url);
+export function get<T>(url: string, signal?: AbortSignal): Promise<T> {
+  return request<T>(url, signal ? { signal } : undefined);
 }
 
 export function patch<T>(url: string, body: unknown): Promise<T> {

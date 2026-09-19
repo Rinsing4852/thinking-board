@@ -13,6 +13,8 @@ Important runtime components:
 | Fastify | MIT | https://github.com/fastify/fastify |
 | React | MIT | https://github.com/facebook/react |
 | better-sqlite3 | MIT | https://github.com/WiseLibs/better-sqlite3 |
+| ts-fsrs | MIT | https://github.com/open-spaced-repetition/ts-fsrs |
+| Lichess chess opening names | CC0-1.0 | https://github.com/lichess-org/chess-openings |
 
 The Docker image includes Stockfish's `Copying.txt` at
 `/app/licenses/stockfish/COPYING.txt`. The exact Stockfish source used to build

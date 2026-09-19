@@ -29,6 +29,17 @@ export class ImportService {
   }
 
   import(pgn: string, playerName: string): ImportPgnResponse {
+    return this.importForProfile(pgn, playerName, null);
+  }
+
+  importIntoProfile(pgn: string, playerName: string, profileId: string): ImportPgnResponse {
+    if (!this.db.prepare("SELECT 1 FROM player_profiles WHERE id = ?").get(profileId)) {
+      throw new Error("Player profile not found");
+    }
+    return this.importForProfile(pgn, playerName, profileId);
+  }
+
+  private importForProfile(pgn: string, playerName: string, requestedProfileId: string | null): ImportPgnResponse {
     const selected = normalizePlayerName(playerName);
     if (!selected) throw new Error("Select the player whose games these are");
     const parsed = parsePgnText(pgn);
@@ -43,7 +54,7 @@ export class ImportService {
         VALUES (?, ?, 'processing', ?)
       `).run(batchId, pgn, now());
 
-      const profileId = this.resolveProfile(playerName, selected);
+      const profileId = requestedProfileId ?? this.resolveProfile(playerName, selected);
       for (const game of parsed.games) {
         const whiteMatches = normalizePlayerName(game.white) === selected;
         const blackMatches = normalizePlayerName(game.black) === selected;
@@ -99,6 +110,23 @@ export class ImportService {
       SELECT profile_id FROM player_aliases WHERE normalized_name = ? LIMIT 1
     `).get(normalizedName) as { profile_id: string } | undefined;
     if (existing) return existing.profile_id;
+
+    const provisional = this.db.prepare(`
+      SELECT value AS id FROM app_state WHERE key = 'provisional_profile_id'
+    `).get() as { id: string } | undefined;
+    if (provisional
+      && this.db.prepare("SELECT 1 FROM player_profiles WHERE id = ?").get(provisional.id)
+      && !this.db.prepare("SELECT 1 FROM games WHERE profile_id = ? LIMIT 1").get(provisional.id)
+      && !this.db.prepare("SELECT 1 FROM player_aliases WHERE profile_id = ? LIMIT 1").get(provisional.id)) {
+      this.db.prepare("UPDATE player_profiles SET display_name = ? WHERE id = ?")
+        .run(displayName.trim(), provisional.id);
+      this.db.prepare(`
+        INSERT INTO player_aliases(profile_id, display_name, normalized_name) VALUES (?, ?, ?)
+      `).run(provisional.id, displayName.trim(), normalizedName);
+      this.db.prepare("DELETE FROM app_state WHERE key = 'provisional_profile_id'").run();
+      return provisional.id;
+    }
+
     const profileId = id();
     this.db.prepare("INSERT INTO player_profiles(id, display_name, created_at) VALUES (?, ?, ?)")
       .run(profileId, displayName.trim(), now());

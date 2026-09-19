@@ -28,7 +28,8 @@
     "chess.js": "^1.4.0",
     "fastify": "^5.6.2",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "ts-fsrs": "^5.4.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

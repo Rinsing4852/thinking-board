@@ -1,0 +1,7 @@
+services:
+  thinking-board:
+    build:
+      context: .
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        APP_SOURCE_URL: ${APP_SOURCE_URL:-https://github.com/Rinsing4852/thinking-board}

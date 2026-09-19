@@ -34,8 +34,11 @@ RUN npm run build && npm prune --omit=dev
 
 FROM node:24-bookworm-slim AS runtime
 ARG APP_VERSION=1.0.0
+ARG APP_SOURCE_URL=https://github.com/Rinsing4852/thinking-board
 LABEL org.opencontainers.image.title="Thinking Board" \
       org.opencontainers.image.version="${APP_VERSION}" \
+      org.opencontainers.image.source="${APP_SOURCE_URL}" \
+      org.opencontainers.image.description="Self-hosted chess thinking-process and opening trainer" \
       org.opencontainers.image.licenses="MIT"
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \

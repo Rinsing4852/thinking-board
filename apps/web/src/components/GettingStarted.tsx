@@ -5,9 +5,10 @@ import { get } from "../api";
 
 interface GettingStartedProps {
   refreshToken: number;
+  onNavigate: (destination: "today" | "games") => void;
 }
 
-export function GettingStarted({ refreshToken }: GettingStartedProps) {
+export function GettingStarted({ refreshToken, onNavigate }: GettingStartedProps) {
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
 
   useEffect(() => {
@@ -17,7 +18,7 @@ export function GettingStarted({ refreshToken }: GettingStartedProps) {
     return () => window.removeEventListener("training-completed", load);
   }, [refreshToken]);
 
-  if (!dashboard || dashboard.totals.attempts > 0) return null;
+  if (!dashboard || dashboard.totals.gameAttempts > 0) return null;
   const activeStep = dashboard.totals.games === 0 ? 1 : dashboard.totals.trainingItems === 0 ? 2 : 3;
   const heading = activeStep === 1
     ? "Start with one of your games"
@@ -43,11 +44,9 @@ export function GettingStarted({ refreshToken }: GettingStartedProps) {
           <span>3</span><div><strong>Practise the missed thinking step</strong><small>Read the feedback, then try the pattern again later.</small></div>
         </li>
       </ol>
-      {activeStep !== 2 && (
-        <a className="onboarding-action" href={activeStep === 1 ? "#import" : "#trainer"}>
-          {activeStep === 1 ? "Paste my first game" : "Go to my first exercise"}
-        </a>
-      )}
+      {activeStep !== 2 && (activeStep === 1
+        ? <button className="onboarding-action" onClick={() => onNavigate("games")}>Paste my first game</button>
+        : <a className="onboarding-action" href="#trainer" onClick={() => onNavigate("today")}>Go to my first exercise</a>)}
     </section>
   );
 }

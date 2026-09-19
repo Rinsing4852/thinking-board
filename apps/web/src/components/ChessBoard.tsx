@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Chess } from "chess.js";
 
 import type { Color } from "../../../../packages/contracts/src/api";
@@ -20,6 +20,7 @@ interface ChessBoardProps {
   highlightedSquares?: string[];
   onMove?: (uci: string, san: string) => void;
   onSquareSelect?: (square: string) => void;
+  ariaLabel?: string;
 }
 
 function squareName(file: number, rank: number): string {
@@ -43,10 +44,13 @@ export function ChessBoard({
   highlightedSquares = [],
   onMove,
   onSquareSelect,
+  ariaLabel = "Chess position",
 }: ChessBoardProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const game = useMemo(() => new Chess(fen), [fen]);
   const squares = useMemo(() => boardSquares(orientation), [orientation]);
+  const [focusedSquare, setFocusedSquare] = useState(squares[0]!);
+  const squareRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const targets = useMemo(() => {
     if (!selected) return new Set<string>();
     return new Set(
@@ -55,6 +59,27 @@ export function ChessBoard({
   }, [game, selected]);
 
   useEffect(() => setSelected(null), [fen]);
+  useEffect(() => setFocusedSquare(squares[0]!), [squares]);
+
+  const moveKeyboardFocus = (event: KeyboardEvent<HTMLButtonElement>, square: string): void => {
+    if (!interactive) return;
+    const offsets: Record<string, [number, number]> = {
+      ArrowUp: [-1, 0],
+      ArrowDown: [1, 0],
+      ArrowLeft: [0, -1],
+      ArrowRight: [0, 1],
+    };
+    const offset = offsets[event.key];
+    if (!offset) return;
+    const index = squares.indexOf(square);
+    const row = Math.floor(index / 8) + offset[0];
+    const column = index % 8 + offset[1];
+    if (row < 0 || row > 7 || column < 0 || column > 7) return;
+    event.preventDefault();
+    const nextSquare = squares[row * 8 + column]!;
+    setFocusedSquare(nextSquare);
+    squareRefs.current[nextSquare]?.focus();
+  };
 
   const clickSquare = (square: string): void => {
     if (!interactive) return;
@@ -85,7 +110,7 @@ export function ChessBoard({
   };
 
   return (
-    <div className="chessboard" role="grid" aria-label="Chess position">
+    <div className="chessboard" role="grid" aria-label={ariaLabel}>
       {squares.map((square) => {
         const file = square.charCodeAt(0) - 97;
         const rank = Number(square[1]) - 1;
@@ -107,8 +132,14 @@ export function ChessBoard({
             role="gridcell"
             className={className}
             aria-label={`${square}${piece ? ` ${piece.color === "w" ? "white" : "black"} ${PIECE_NAMES[piece.type]}` : " empty"}`}
-            tabIndex={interactive ? 0 : -1}
-            onClick={() => clickSquare(square)}
+            tabIndex={interactive && focusedSquare === square ? 0 : -1}
+            ref={(element) => { squareRefs.current[square] = element; }}
+            onFocus={() => setFocusedSquare(square)}
+            onKeyDown={(event) => moveKeyboardFocus(event, square)}
+            onClick={() => {
+              setFocusedSquare(square);
+              clickSquare(square);
+            }}
           >
             <span className={`piece ${piece?.color === "w" ? "white-piece" : "black-piece"}`} aria-hidden="true">{symbol}</span>
             {file === (orientation === "white" ? 0 : 7) && <span className="rank-label">{square[1]}</span>}

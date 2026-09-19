@@ -200,7 +200,8 @@ export class V1TrainingService {
       .get(selectedProfileId) as { id: string; display_name: string } | undefined : undefined;
     if (!profile) {
       return {
-        profile: null, totals: { games: 0, trainingItems: 0, due: 0, attempts: 0 },
+        profile: null,
+        totals: { games: 0, trainingItems: 0, due: 0, attempts: 0, gameAttempts: 0, openingAttempts: 0 },
         recurringProblems: [], skills: [], recommendedSession: [],
       };
     }
@@ -211,8 +212,33 @@ export class V1TrainingService {
         (SELECT COUNT(*) FROM review_states rs JOIN training_items ti ON ti.id = rs.item_id
           WHERE ti.profile_id = ? AND ti.active = 1 AND rs.due_at <= ?) AS due,
         (SELECT COUNT(*) FROM training_attempts ta JOIN training_items ti ON ti.id = ta.item_id
-          WHERE ti.profile_id = ? AND ta.answered_at IS NOT NULL) AS attempts
-    `).get(profile.id, profile.id, profile.id, now(), profile.id) as DashboardResponse["totals"];
+          WHERE ti.profile_id = ? AND ta.answered_at IS NOT NULL) AS gameAttempts,
+        ((SELECT COUNT(*) FROM opening_lesson_answers ola
+          JOIN opening_lesson_attempts olt ON olt.id = ola.lesson_attempt_id
+          WHERE olt.profile_id = ? AND ola.reason_answered_at IS NOT NULL)
+        + (SELECT COUNT(*) FROM opening_review_events ore
+          JOIN opening_review_sessions ors ON ors.id = ore.session_id
+          WHERE ors.profile_id = ?)) AS openingAttempts,
+        ((SELECT COUNT(*) FROM training_attempts ta JOIN training_items ti ON ti.id = ta.item_id
+          WHERE ti.profile_id = ? AND ta.answered_at IS NOT NULL)
+        + (SELECT COUNT(*) FROM opening_lesson_answers ola
+          JOIN opening_lesson_attempts olt ON olt.id = ola.lesson_attempt_id
+          WHERE olt.profile_id = ? AND ola.reason_answered_at IS NOT NULL)
+        + (SELECT COUNT(*) FROM opening_review_events ore
+          JOIN opening_review_sessions ors ON ors.id = ore.session_id
+          WHERE ors.profile_id = ?)) AS attempts
+    `).get(
+      profile.id,
+      profile.id,
+      profile.id,
+      now(),
+      profile.id,
+      profile.id,
+      profile.id,
+      profile.id,
+      profile.id,
+      profile.id,
+    ) as DashboardResponse["totals"];
     const concepts = this.db.prepare(`
       SELECT c.id, c.family, c.label,
              COUNT(DISTINCT CASE WHEN tic.active = 1 THEN ti.source_move_id END) AS occurrences

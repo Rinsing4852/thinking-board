@@ -57,6 +57,11 @@ export function formatMoveLabel(moveNumber: number, color: Color, moveSan?: stri
   return moveSan ? `${number} ${moveSan}` : number;
 }
 
+export function formatOpeningLineContext(moves: string[]): string {
+  if (moves.length === 0) return "Starting position";
+  return moves.map((move, index) => index % 2 === 0 ? `${Math.floor(index / 2) + 1}.${move}` : move).join(" ");
+}
+
 export function categoryLabel(category: ResponseCategory): string {
   return RESPONSE_CATEGORIES.find((option) => option.value === category)?.label ?? category;
 }

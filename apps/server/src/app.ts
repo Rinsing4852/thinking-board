@@ -11,8 +11,20 @@ import { AnalysisService } from "./analysis/analysis-service.js";
 import type { AppConfig } from "./config.js";
 import { Database } from "./db/database.js";
 import { ImportService } from "./imports/import-service.js";
+import { LichessSyncService } from "./imports/lichess-sync-service.js";
 import { JobWorker } from "./jobs/job-worker.js";
 import { id, now } from "./lib/ids.js";
+import { OpeningContentService } from "./openings/opening-content-service.js";
+import { OpeningGameService } from "./openings/opening-game-service.js";
+import { OpeningPgnImportService } from "./openings/opening-pgn-import.js";
+import { OpeningLichessImportService } from "./openings/opening-lichess-import.js";
+import { OpeningReviewService } from "./openings/opening-review-service.js";
+import { OpeningTrainingService } from "./openings/opening-training-service.js";
+import { OpeningWorkspaceService } from "./openings/opening-workspace-service.js";
+import { OpeningCoverageService } from "./openings/opening-coverage-service.js";
+import { OpeningAnalysisService } from "./openings/opening-analysis-service.js";
+import { OpeningExplorerService } from "./openings/opening-explorer-service.js";
+import { STARTER_OPENING_CURRICULA } from "./openings/starter-curricula.js";
 import { TrainingService } from "./training/training-service.js";
 import { CandidateTrainingService } from "./training/candidate-training-service.js";
 import { V1TrainingService } from "./training/v1-training-service.js";
@@ -54,10 +66,22 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   });
   const database = new Database(config.databasePath, config.migrationsDir);
   const imports = new ImportService(database.connection);
+  const lichessSync = new LichessSyncService(database.connection, imports, config.lichessApiToken);
   const training = new TrainingService(database.connection);
   const candidateTraining = new CandidateTrainingService(database.connection, config);
   const v1Training = new V1TrainingService(database.connection);
   const attempts = new AttemptLifecycle(database.connection);
+  const openingContent = new OpeningContentService(database.connection);
+  openingContent.sync(STARTER_OPENING_CURRICULA);
+  const openingImports = new OpeningPgnImportService(database.connection, openingContent);
+  const openingLichessImports = new OpeningLichessImportService(openingImports);
+  const openingTraining = new OpeningTrainingService(database.connection);
+  const openingReviews = new OpeningReviewService(database.connection);
+  const openingGames = new OpeningGameService(database.connection);
+  const openingWorkspace = new OpeningWorkspaceService(database.connection);
+  const openingCoverage = new OpeningCoverageService(database.connection, config.lichessApiToken);
+  const openingAnalysis = new OpeningAnalysisService(config);
+  const openingExplorer = new OpeningExplorerService(database.connection, config.lichessApiToken);
   const analysis = new AnalysisService(database.connection, config);
   analysis.backfillWhatChanged();
   analysis.backfillCandidates();
@@ -101,6 +125,249 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     workerEnabled: config.runWorker,
   }));
 
+  app.get("/api/v1/openings/catalog", async () => openingContent.catalog());
+
+  app.get("/api/v1/openings/repertoires/:repertoireId", async (request, reply) => {
+    try {
+      const { repertoireId } = request.params as { repertoireId: string };
+      return openingWorkspace.repertoire(repertoireId);
+    } catch (error) {
+      return reply.code(404).send({ error: error instanceof Error ? error.message : "Opening repertoire not found" });
+    }
+  });
+
+  app.post("/api/v1/openings/repertoires/:repertoireId/lines/:lineId/moves", async (request, reply) => {
+    try {
+      const { repertoireId, lineId } = request.params as { repertoireId: string; lineId: string };
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      return openingWorkspace.addMove({
+        repertoireId,
+        lineId,
+        afterPly: Number(body.afterPly),
+        moveUci: requiredString(body.moveUci, "Move"),
+        branchTitle: typeof body.branchTitle === "string" ? body.branchTitle : undefined,
+        summary: typeof body.summary === "string" ? body.summary : undefined,
+      });
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not save opening move" });
+    }
+  });
+
+  app.patch("/api/v1/openings/repertoires/:repertoireId/moves/:moveId/explanation", async (request, reply) => {
+    try {
+      const { repertoireId, moveId } = request.params as { repertoireId: string; moveId: string };
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      return openingWorkspace.updateExplanation(
+        repertoireId,
+        moveId,
+        requiredString(body.summary, "Explanation"),
+      );
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not save explanation" });
+    }
+  });
+
+  app.get("/api/v1/openings/repertoires/:repertoireId/coverage", async (request, reply) => {
+    try {
+      const { repertoireId } = request.params as { repertoireId: string };
+      const { rating } = request.query as { rating?: string };
+      return await openingCoverage.coverage(repertoireId, rating ? Number(rating) : 1600);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not check opening coverage" });
+    }
+  });
+
+  app.post("/api/v1/openings/analysis", async (request, reply) => {
+    try {
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      return await openingAnalysis.analyze(requiredString(body.fen, "Position"));
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not analyse opening position" });
+    }
+  });
+
+  app.get("/api/v1/openings/explorer", async (request, reply) => {
+    try {
+      const { fen, rating } = request.query as { fen?: string; rating?: string };
+      return await openingExplorer.position(requiredString(fen, "Position"), rating ? Number(rating) : 1600);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not load practical move frequencies" });
+    }
+  });
+
+  app.post("/api/v1/openings/imports/pgn/preview", async (request, reply) => {
+    try {
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      return openingImports.preview({
+        pgn: requiredString(body.pgn, "PGN"),
+        learnerColor: body.learnerColor as "white" | "black" | "both",
+        name: typeof body.name === "string" ? body.name : undefined,
+        sourceType: body.sourceType as "self_authored" | "book_notes" | "lichess_study" | "licensed_pgn" | undefined,
+        sourceTitle: typeof body.sourceTitle === "string" ? body.sourceTitle : undefined,
+        sourceAuthor: typeof body.sourceAuthor === "string" ? body.sourceAuthor : undefined,
+      });
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not preview opening PGN" });
+    }
+  });
+
+  app.post("/api/v1/openings/imports/pgn", async (request, reply) => {
+    try {
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      return openingImports.import({
+        pgn: requiredString(body.pgn, "PGN"),
+        learnerColor: body.learnerColor as "white" | "black" | "both",
+        name: typeof body.name === "string" ? body.name : undefined,
+        sourceType: body.sourceType as "self_authored" | "book_notes" | "lichess_study" | "licensed_pgn" | undefined,
+        sourceTitle: typeof body.sourceTitle === "string" ? body.sourceTitle : undefined,
+        sourceAuthor: typeof body.sourceAuthor === "string" ? body.sourceAuthor : undefined,
+        ownershipConfirmed: body.ownershipConfirmed === true,
+      });
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not import opening PGN" });
+    }
+  });
+
+  app.post("/api/v1/openings/imports/lichess/preview", async (request, reply) => {
+    try {
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      return await openingLichessImports.preview({
+        studyUrl: requiredString(body.studyUrl, "Lichess Study URL"),
+        learnerColor: body.learnerColor as "white" | "black" | "both",
+        name: typeof body.name === "string" ? body.name : undefined,
+      });
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not preview Lichess Study" });
+    }
+  });
+
+  app.post("/api/v1/openings/imports/lichess", async (request, reply) => {
+    try {
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      return await openingLichessImports.import({
+        studyUrl: requiredString(body.studyUrl, "Lichess Study URL"),
+        learnerColor: body.learnerColor as "white" | "black" | "both",
+        name: typeof body.name === "string" ? body.name : undefined,
+        selectedChapterIndexes: Array.isArray(body.selectedChapterIndexes)
+          ? body.selectedChapterIndexes.map(Number)
+          : undefined,
+        ownershipConfirmed: body.ownershipConfirmed === true,
+      });
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not import Lichess Study" });
+    }
+  });
+
+  app.get("/api/v1/openings/lessons/active", async () => openingTraining.active());
+
+  app.post("/api/v1/openings/repertoires/:repertoireId/lessons/start", async (request, reply) => {
+    try {
+      const { repertoireId } = request.params as { repertoireId: string };
+      return openingTraining.start(repertoireId);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not start opening lesson" });
+    }
+  });
+
+  app.post("/api/v1/openings/repertoires/:repertoireId/lines/:lineId/lessons/start", async (request, reply) => {
+    try {
+      const { repertoireId, lineId } = request.params as { repertoireId: string; lineId: string };
+      return openingTraining.start(repertoireId, lineId);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not start opening line" });
+    }
+  });
+
+  app.post("/api/v1/openings/lessons/:attemptId/move", async (request, reply) => {
+    try {
+      const { attemptId } = request.params as { attemptId: string };
+      const body = request.body as { moveUci?: unknown };
+      return openingTraining.answerMove(attemptId, requiredString(body?.moveUci, "Move"));
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not check opening move" });
+    }
+  });
+
+  app.post("/api/v1/openings/lessons/:attemptId/why", async (request, reply) => {
+    try {
+      const { attemptId } = request.params as { attemptId: string };
+      const body = (request.body ?? {}) as { concept?: unknown; reveal?: unknown };
+      if (body.reveal === true) return openingTraining.answerWhy(attemptId, null);
+      return openingTraining.answerWhy(attemptId, requiredString(body.concept, "Reason"));
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not check explanation" });
+    }
+  });
+
+  app.post("/api/v1/openings/lessons/:attemptId/continue", async (request, reply) => {
+    try {
+      const { attemptId } = request.params as { attemptId: string };
+      return openingTraining.continue(attemptId);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not continue opening lesson" });
+    }
+  });
+
+  app.get("/api/v1/openings/reviews/active", async () => openingReviews.active());
+
+  app.post("/api/v1/openings/reviews/:sessionId/resume", async (request, reply) => {
+    try {
+      const { sessionId } = request.params as { sessionId: string };
+      return openingReviews.resume(sessionId);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not resume opening review" });
+    }
+  });
+
+  app.post("/api/v1/openings/repertoires/:repertoireId/reviews/start", async (request, reply) => {
+    try {
+      const { repertoireId } = request.params as { repertoireId: string };
+      const body = (request.body ?? {}) as { mode?: unknown };
+      const mode = body.mode ?? "auto";
+      if (mode !== "auto" && mode !== "due" && mode !== "new" && mode !== "early") {
+        throw new Error("Review mode must be due, new, or early");
+      }
+      return openingReviews.start(repertoireId, mode);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not start opening review" });
+    }
+  });
+
+  app.post("/api/v1/openings/reviews/:sessionId/move", async (request, reply) => {
+    try {
+      const { sessionId } = request.params as { sessionId: string };
+      const body = request.body as { moveUci?: unknown; assisted?: unknown };
+      if (body?.assisted !== undefined && typeof body.assisted !== "boolean") {
+        throw new Error("Assisted must be true or false");
+      }
+      return openingReviews.answer(
+        sessionId,
+        requiredString(body?.moveUci, "Move"),
+        body?.assisted === true,
+      );
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not check opening review" });
+    }
+  });
+
+  app.post("/api/v1/openings/reviews/:sessionId/continue", async (request, reply) => {
+    try {
+      const { sessionId } = request.params as { sessionId: string };
+      return openingReviews.continue(sessionId);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not continue opening review" });
+    }
+  });
+
+  app.post("/api/v1/openings/reviews/:sessionId/reveal", async (request, reply) => {
+    try {
+      const { sessionId } = request.params as { sessionId: string };
+      return openingReviews.reveal(sessionId);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not reveal opening move" });
+    }
+  });
+
   app.post("/api/v1/imports/pgn/preview", async (request, reply) => {
     try {
       const body = request.body as { pgn?: unknown };
@@ -119,6 +386,27 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       ));
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Invalid request" });
+    }
+  });
+
+  app.get("/api/v1/lichess/connection", async () => lichessSync.connection());
+
+  app.post("/api/v1/lichess/connect", async (request, reply) => {
+    try {
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      return await lichessSync.connect(requiredString(body.username, "Lichess username"));
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not connect Lichess" });
+    }
+  });
+
+  app.post("/api/v1/lichess/sync", async (request, reply) => {
+    try {
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      const result = await lichessSync.sync(body.maxGames === undefined ? 50 : Number(body.maxGames));
+      return reply.code(result.jobId ? 202 : 200).send(result);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not sync Lichess games" });
     }
   });
 
@@ -187,11 +475,13 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
 
   app.get("/api/v1/games/:gameId/review", async (request, reply) => {
     const { gameId } = request.params as { gameId: string };
+    const profileId = activeProfileId(database.connection);
+    if (!profileId) return reply.code(404).send({ error: "Game not found" });
     const game = database.connection.prepare(`
       SELECT id, white_name AS white, black_name AS black, player_color AS playerColor,
              result, played_at AS playedAt, analyzed_at AS analyzedAt
       FROM games WHERE id = ? AND profile_id = ?
-    `).get(gameId, activeProfileId(database.connection));
+    `).get(gameId, profileId);
     if (!game) return reply.code(404).send({ error: "Game not found" });
     const mistakeRows = database.connection.prepare(`
       SELECT m.ply, m.move_number AS moveNumber, m.san AS playedMove, m.uci AS playedMoveUci,
@@ -243,7 +533,20 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
         beforePositionId: undefined, playedMoveUci: undefined,
       };
     });
-    return { game, mistakes };
+    const opening = openingGames.matchGame(gameId, profileId);
+    return { game, opening, mistakes };
+  });
+
+  app.post("/api/v1/games/:gameId/opening/practice", async (request, reply) => {
+    try {
+      const { gameId } = request.params as { gameId: string };
+      const profileId = activeProfileId(database.connection);
+      if (!profileId) throw new Error("Game not found");
+      const target = openingGames.practiceTarget(gameId, profileId);
+      return openingReviews.startPosition(target.repertoireId, target.positionId, gameId);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not start opening practice" });
+    }
   });
 
   app.get("/api/v1/dashboard", async () => v1Training.dashboard());
@@ -468,6 +771,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     if (config.runWorker) await worker.close();
     else await analysis.close();
     await candidateTraining.close();
+    await openingAnalysis.close();
     database.close();
   });
   return app;
