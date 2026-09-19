@@ -2,7 +2,7 @@
 
 All notable changes to Thinking Board are recorded here.
 
-## Unreleased
+## 1.1.0 — 2026-09-19
 
 ### Opening practice foundation
 

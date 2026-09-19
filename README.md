@@ -141,7 +141,7 @@ curl --fail http://127.0.0.1:8000/api/v1/health
 
 Database migrations run automatically and are tested from every released schema
 version. For reproducible installs, set `APP_VERSION` in `.env` to a numbered
-image tag such as `1.0.0`; `latest` follows the current release. To roll back,
+image tag such as `1.1.0`; `latest` follows the current release. To roll back,
 stop the app, restore `pre-upgrade.sqlite3` with the restore command above, set
 `APP_VERSION` to the previous release, and start Compose again. Never run two
 application versions against the same live database.
