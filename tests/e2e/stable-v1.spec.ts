@@ -24,6 +24,26 @@ async function expectSquareBoard(page: Page): Promise<void> {
   expect(Math.max(...geometry.cellHeights) - Math.min(...geometry.cellHeights)).toBeLessThan(1);
 }
 
+async function expectSvgPieces(page: Page, boardName: string): Promise<void> {
+  const pieces = await page.getByRole("grid", { name: boardName }).locator("img.piece").evaluateAll((images) =>
+    images.map((image) => {
+      const piece = image as HTMLImageElement;
+      const box = piece.getBoundingClientRect();
+      return {
+        complete: piece.complete,
+        naturalWidth: piece.naturalWidth,
+        source: piece.getAttribute("src"),
+        width: box.width,
+        height: box.height,
+      };
+    }),
+  );
+  expect(pieces).toHaveLength(32);
+  expect(pieces.every((piece) => piece.complete && piece.naturalWidth > 0)).toBe(true);
+  expect(pieces.every((piece) => piece.source?.startsWith("/pieces/cburnett/"))).toBe(true);
+  expect(pieces.every((piece) => piece.width > 0 && Math.abs(piece.width - piece.height) < 1)).toBe(true);
+}
+
 test.describe.serial("stable V1 browser journey", () => {
   test("browses complete lines and builds a personal line on the board", async ({ page }) => {
     await page.goto("/");
@@ -41,6 +61,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await openings.getByRole("button", { name: "Build on the board" }).click();
     await openings.getByRole("textbox", { name: /Repertoire name/ }).fill("Board-built Italian");
     await expect(openings.getByRole("grid", { name: "Repertoire board" })).toBeVisible();
+    await expectSvgPieces(page, "Repertoire board");
     await expect(openings.getByRole("grid", { name: "Repertoire board" }).locator("[role='gridcell'][tabindex='0']")).toHaveCount(1);
     await expect(openings.getByRole("grid", { name: "Analysis board" }).locator("[role='gridcell'][tabindex='0']")).toHaveCount(1);
     let board = openings.getByRole("grid", { name: "Analysis board" });

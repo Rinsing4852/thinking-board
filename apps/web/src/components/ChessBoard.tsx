@@ -3,9 +3,19 @@ import { Chess } from "chess.js";
 
 import type { Color } from "../../../../packages/contracts/src/api";
 
-const PIECES: Record<string, string> = {
-  K: "♚", Q: "♛", R: "♜", B: "♝", N: "♞", P: "♟",
-  k: "♚", q: "♛", r: "♜", b: "♝", n: "♞", p: "♟",
+const PIECE_IMAGES: Record<string, string> = {
+  wk: "/pieces/cburnett/wk.svg",
+  wq: "/pieces/cburnett/wq.svg",
+  wr: "/pieces/cburnett/wr.svg",
+  wb: "/pieces/cburnett/wb.svg",
+  wn: "/pieces/cburnett/wn.svg",
+  wp: "/pieces/cburnett/wp.svg",
+  bk: "/pieces/cburnett/bk.svg",
+  bq: "/pieces/cburnett/bq.svg",
+  br: "/pieces/cburnett/br.svg",
+  bb: "/pieces/cburnett/bb.svg",
+  bn: "/pieces/cburnett/bn.svg",
+  bp: "/pieces/cburnett/bp.svg",
 };
 const PIECE_NAMES: Record<string, string> = {
   p: "pawn", n: "knight", b: "bishop", r: "rook", q: "queen", k: "king",
@@ -115,7 +125,7 @@ export function ChessBoard({
         const file = square.charCodeAt(0) - 97;
         const rank = Number(square[1]) - 1;
         const piece = game.get(square as never);
-        const symbol = piece ? PIECES[piece.color === "w" ? piece.type.toUpperCase() : piece.type] : "";
+        const pieceImage = piece ? PIECE_IMAGES[`${piece.color}${piece.type}`] : null;
         const isLast = Boolean(lastMove?.startsWith(square) || lastMove?.slice(2, 4) === square);
         const className = [
           "board-square",
@@ -141,7 +151,15 @@ export function ChessBoard({
               clickSquare(square);
             }}
           >
-            <span className={`piece ${piece?.color === "w" ? "white-piece" : "black-piece"}`} aria-hidden="true">{symbol}</span>
+            {pieceImage && (
+              <img
+                className="piece"
+                src={pieceImage}
+                alt=""
+                aria-hidden="true"
+                draggable={false}
+              />
+            )}
             {file === (orientation === "white" ? 0 : 7) && <span className="rank-label">{square[1]}</span>}
             {rank === (orientation === "white" ? 0 : 7) && <span className="file-label">{square[0]}</span>}
           </button>

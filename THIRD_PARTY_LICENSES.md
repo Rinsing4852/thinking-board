@@ -15,9 +15,14 @@ Important runtime components:
 | better-sqlite3 | MIT | https://github.com/WiseLibs/better-sqlite3 |
 | ts-fsrs | MIT | https://github.com/open-spaced-repetition/ts-fsrs |
 | Lichess chess opening names | CC0-1.0 | https://github.com/lichess-org/chess-openings |
+| Cburnett chess piece artwork | BSD-3-Clause | https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces/Standard |
 
 The Docker image includes Stockfish's `Copying.txt` at
 `/app/licenses/stockfish/COPYING.txt`. The exact Stockfish source used to build
 the image is the unmodified commit linked above, verified after cloning the
 `sf_18` tag. If the build argument is changed, this document and the
 corresponding-source pointer must be updated.
+
+The Cburnett SVG chess pieces are stored separately under
+`apps/web/public/pieces/cburnett`. Their BSD notice is included alongside the
+artwork and does not change the MIT licence of the application code.
