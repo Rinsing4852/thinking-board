@@ -477,6 +477,7 @@ button.mode-tab.active:disabled { opacity: 1; }
 .opening-inbox-summary > button { justify-self: end; }
 .opening-inbox-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
 .opening-inbox-item { display: grid; align-content: start; gap: .7rem; min-width: 0; padding: 1.15rem; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--orange); border-radius: 12px; }
+.opening-inbox-item.preparing { grid-column: 1 / -1; }
 .opening-inbox-item.player_deviation { border-left-color: var(--lime); }
 .opening-inbox-item.reviewed { opacity: .66; }
 .opening-inbox-item-heading { display: flex; justify-content: space-between; align-items: start; gap: 1rem; }
@@ -487,6 +488,28 @@ button.mode-tab.active:disabled { opacity: 1; }
 .opening-inbox-why strong { color: #dce4dd; }
 .opening-inbox-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; margin-top: auto; padding-top: .25rem; }
 .opening-inbox-actions button { padding: .6rem .75rem; font-size: .74rem; }
+.opening-surprise-prep { display: grid; gap: 1rem; margin-top: .5rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.opening-surprise-copy h4, .opening-surprise-guidance h4 { margin: .3rem 0; font-size: 1.2rem; }
+.opening-surprise-copy > p, .opening-surprise-guidance p { color: var(--ink-soft); line-height: 1.45; margin: .3rem 0; }
+.opening-surprise-copy .opening-personal-copy-note { color: #d7e3d9; border-left: 2px solid var(--lime); padding-left: .75rem; }
+.opening-surprise-grid { display: grid; grid-template-columns: minmax(280px, 420px) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+.opening-surprise-grid .chessboard { border-radius: 10px; }
+.opening-selected-reply { display: flex; align-items: center; gap: .65rem; padding: .65rem .75rem; background: #101512; border: 1px solid var(--line); border-radius: 0 0 10px 10px; }
+.opening-selected-reply span { color: var(--ink-soft); font-size: .72rem; }
+.opening-selected-reply strong { color: var(--lime); }
+.opening-selected-reply button { margin-left: auto; }
+.opening-surprise-guidance { display: grid; gap: .8rem; }
+.opening-surprise-candidates { display: grid; gap: .4rem; }
+.opening-surprise-candidates button { display: flex; justify-content: space-between; align-items: center; gap: 1rem; width: 100%; text-align: left; }
+.opening-surprise-candidates button > span { display: grid; gap: .2rem; min-width: 0; }
+.opening-surprise-candidates small { color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opening-surprise-candidates button.active { background: var(--lime); color: #172012; }
+.opening-surprise-candidates button.active small { color: #34402f; }
+.opening-surprise-notes { padding: .75rem; background: #101512; border: 1px solid var(--line); border-radius: 10px; }
+.opening-surprise-notes summary { color: #dce4dd; cursor: pointer; font-weight: 700; }
+.opening-surprise-notes label { display: grid; gap: .35rem; margin-top: .75rem; color: var(--ink-soft); font-size: .75rem; }
+.opening-surprise-notes textarea { resize: vertical; min-height: 64px; }
+.opening-surprise-actions { display: flex; justify-content: flex-end; gap: .5rem; }
 .opening-inbox-clear { padding: 1.2rem; color: var(--ink-soft); border: 1px dashed var(--line); border-radius: 12px; }
 .opening-inbox-clear strong { color: var(--lime); }
 .opening-inbox-clear p { margin: .35rem 0 0; line-height: 1.5; }
@@ -559,6 +582,8 @@ footer { border-top: 1px solid var(--line); padding: 2rem 4vw; color: #69756d; d
   .opening-inbox-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .opening-inbox-summary > button { grid-column: 1 / -1; justify-self: start; }
   .opening-inbox-list { grid-template-columns: 1fr; }
+  .opening-surprise-grid { grid-template-columns: 1fr; }
+  .opening-surprise-grid > div:first-child { width: min(100%, 520px); }
   .opening-inbox-item-heading { display: grid; }
   .opening-inbox-frequency { justify-self: start; }
   .game-review-heading { grid-template-columns: 1fr; gap: .6rem; }
@@ -615,6 +640,7 @@ footer { border-top: 1px solid var(--line); padding: 2rem 4vw; color: #69756d; d
   .opening-line-controls { grid-template-columns: auto auto; }
   .opening-line-controls span { grid-column: 1 / -1; grid-row: 1; }
   .opening-builder-settings { grid-template-columns: 1fr; }
+  .opening-surprise-actions { align-items: stretch; flex-direction: column-reverse; }
   button.category { display: flex; justify-content: center; align-items: center; }
   footer { flex-direction: column; gap: .5rem; }
 }

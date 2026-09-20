@@ -974,6 +974,76 @@ describe("vertical slice", () => {
     expect(practice.statusCode).toBe(400);
   });
 
+  it("turns an opponent surprise into an editable repertoire branch", async () => {
+    const appConfig = config(false);
+    const app = await buildApp(appConfig);
+    apps.push(app);
+    await app.inject({
+      method: "POST",
+      url: "/api/v1/imports/pgn",
+      payload: { pgn: ITALIAN_OPPONENT_DEVIATION, playerName: "Alice" },
+    });
+    const inbox = await app.inject({ method: "GET", url: "/api/v1/openings/game-inbox" });
+    const surprise = (inbox.json() as {
+      groups: Array<{ key: string; opening: { status: string } }>;
+    }).groups.find((group) => group.opening.status === "opponent_deviation")!;
+
+    const invalid = await app.inject({
+      method: "POST",
+      url: `/api/v1/openings/game-inbox/${surprise.key}/prepare`,
+      payload: { replyMoveUci: "d7d5" },
+    });
+    expect(invalid.statusCode).toBe(400);
+    const beforeSave = new BetterSqlite3(appConfig.databasePath);
+    expect(beforeSave.prepare("SELECT COUNT(*) FROM opening_imports").pluck().get()).toBe(0);
+    beforeSave.close();
+
+    const prepared = await app.inject({
+      method: "POST",
+      url: `/api/v1/openings/game-inbox/${surprise.key}/prepare`,
+      payload: {
+        replyMoveUci: "d2d4",
+        opponentSummary: "Black supports e5 but blocks the dark-squared bishop.",
+        replySummary: "Builds a broad centre before Black develops.",
+      },
+    });
+    expect(prepared.statusCode).toBe(200);
+    expect(prepared.json()).toMatchObject({
+      repertoire: {
+        name: "Practical 1.e4 Repertoire — My repertoire",
+        copiedFromBuiltIn: true,
+      },
+      opponentMove: { moveUci: "d7d6", moveSan: "d6" },
+      replyMove: { moveUci: "d2d4", moveSan: "d4" },
+      message: expect.stringMatching(/created.*saved d6 with your d4 reply/i),
+      inbox: { groups: [] },
+    });
+
+    const repertoireId = (prepared.json() as { repertoire: { id: string } }).repertoire.id;
+    const detail = await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}` });
+    expect(detail.json()).toMatchObject({ repertoire: { editable: true, origin: "imported" } });
+    const lines = (detail.json() as {
+      chapters: Array<{ lines: Array<{ moves: Array<{ moveUci: string; explanation: { summary: string } }> }> }>;
+    }).chapters.flatMap((chapter) => chapter.lines);
+    expect(lines).toEqual(expect.arrayContaining([expect.objectContaining({
+      moves: expect.arrayContaining([
+        expect.objectContaining({
+          moveUci: "d7d6",
+          explanation: expect.objectContaining({ summary: "Black supports e5 but blocks the dark-squared bishop." }),
+        }),
+        expect.objectContaining({
+          moveUci: "d2d4",
+          explanation: expect.objectContaining({ summary: "Builds a broad centre before Black develops." }),
+        }),
+      ]),
+    })]));
+
+    const connection = new BetterSqlite3(appConfig.databasePath);
+    expect(connection.prepare("SELECT COUNT(*) FROM opening_imports WHERE repertoire_id = ?").pluck().get(repertoireId)).toBe(1);
+    expect(connection.prepare("SELECT COUNT(*) FROM opening_repertoires WHERE id = 'repertoire.white-e4-principled'").pluck().get()).toBe(1);
+    connection.close();
+  });
+
   it("offers an early opening review when every learned position is scheduled for later", async () => {
     const appConfig = config(false);
     const app = await buildApp(appConfig);

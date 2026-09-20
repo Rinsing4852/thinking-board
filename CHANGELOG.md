@@ -40,6 +40,11 @@ All notable changes to Thinking Board are recorded here.
 - Counts repeated real-game patterns, keeps unreviewed work first and lets the
   learner practise the exact missed position or explicitly clear a group while
   retaining its history.
+- Turns an opponent surprise into repertoire preparation directly from the
+  opening inbox: choose a reply on the board or from local Stockfish candidates,
+  add optional learning notes and save the new branch in one flow.
+- Preserves built-in courses by creating an editable personal copy only when a
+  learner first saves a branch from built-in material.
 
 ## 1.1.1 — 2026-09-19
 

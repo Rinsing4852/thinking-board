@@ -80,7 +80,11 @@ visible without relying on notation. When the player leaves the repertoire,
 one button opens that exact position in the existing learn-and-review schedule.
 The opening inbox groups the same departure across recent games, puts repeated
 unreviewed patterns first and keeps an explicit reviewed state without deleting
-the underlying game evidence.
+the underlying game evidence. An opponent surprise can be prepared from the
+same card: choose your reply on the board, compare local Stockfish candidates
+and optionally record the ideas behind both moves. Private repertoires are
+extended directly; built-in material is copied to an editable personal
+repertoire before the branch is saved.
 
 Opening imports are stored only in this installation. The importer does not
 scrape Chessable or grant rights to third-party material: only import lines and

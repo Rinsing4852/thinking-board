@@ -4,6 +4,7 @@ import type {
   GameOpeningConnection,
   GameOpeningInboxResponse,
   OpeningReviewActiveState,
+  OpeningSurprisePreparationResponse,
 } from "../../../../packages/contracts/src/api";
 import { get, patch, post } from "../api";
 import { ChessBoard } from "./ChessBoard";
@@ -339,7 +340,14 @@ export function GameReview({ refreshToken, onTrain, onOpeningPracticeStarted }: 
         onInspect={inspectInboxGame}
         onPractice={(gameId) => void practiceOpening(gameId)}
         onMarkReviewed={(groupKey) => void markInboxGroupReviewed(groupKey)}
+        onPrepared={(response: OpeningSurprisePreparationResponse) => {
+          setInbox(response.inbox);
+          setStatus(response.message);
+          setError("");
+        }}
       />
+      {status && <p className="success" role="status">{status}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
       <div className="game-review-heading" id="selected-game-review">
         <div>
           <span className="eyebrow">Game detail</span>
@@ -388,8 +396,6 @@ export function GameReview({ refreshToken, onTrain, onOpeningPracticeStarted }: 
           )}
         </div>
       )}
-      {status && <p className="status">{status}</p>}
-      {error && <p className="error" role="alert">{error}</p>}
     </section>
   );
 }

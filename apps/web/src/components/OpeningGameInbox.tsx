@@ -3,7 +3,9 @@ import { useState } from "react";
 import type {
   GameOpeningInboxGroup,
   GameOpeningInboxResponse,
+  OpeningSurprisePreparationResponse,
 } from "../../../../packages/contracts/src/api";
+import { OpeningSurprisePrep } from "./OpeningSurprisePrep";
 
 interface OpeningGameInboxProps {
   inbox: GameOpeningInboxResponse | null;
@@ -12,6 +14,7 @@ interface OpeningGameInboxProps {
   onInspect: (gameId: string) => void;
   onPractice: (gameId: string) => void;
   onMarkReviewed: (groupKey: string) => void;
+  onPrepared: (response: OpeningSurprisePreparationResponse) => void;
 }
 
 function moveLabel(group: GameOpeningInboxGroup): string {
@@ -51,8 +54,10 @@ export function OpeningGameInbox({
   onInspect,
   onPractice,
   onMarkReviewed,
+  onPrepared,
 }: OpeningGameInboxProps) {
   const [showReviewed, setShowReviewed] = useState(false);
+  const [preparingKey, setPreparingKey] = useState<string | null>(null);
   if (!inbox) return <p className="opening-inbox-loading">Comparing games with your repertoire…</p>;
 
   const visibleGroups = showReviewed
@@ -88,8 +93,14 @@ export function OpeningGameInbox({
           {visibleGroups.map((group) => {
             const latest = group.occurrences[0]!.game;
             const reviewed = group.unreviewedCount === 0;
+            const departure = group.opening.departure;
+            const canPrepare = Boolean(
+              departure
+              && ["opponent_deviation", "repertoire_ended"].includes(group.opening.status)
+              && departure.moverColor !== group.opening.repertoire.learnerColor,
+            );
             return (
-              <article key={group.key} className={`opening-inbox-item ${group.opening.status}${reviewed ? " reviewed" : ""}`}>
+              <article key={group.key} className={`opening-inbox-item ${group.opening.status}${reviewed ? " reviewed" : ""}${preparingKey === group.key ? " preparing" : ""}`}>
                 <div className="opening-inbox-item-heading">
                   <div>
                     <span className="eyebrow">{statusLabel(group)}</span>
@@ -114,12 +125,27 @@ export function OpeningGameInbox({
                       {practiceBusy ? "Starting…" : `Practise ${group.opening.expectedMove?.moveSan ?? "this position"}`}
                     </button>
                   )}
+                  {canPrepare && (
+                    <button onClick={() => setPreparingKey((key) => key === group.key ? null : group.key)}>
+                      {preparingKey === group.key ? "Close preparation" : `Prepare for ${departure?.moveSan}`}
+                    </button>
+                  )}
                   {!reviewed && (
                     <button className="text-button" disabled={busyKey === group.key} onClick={() => onMarkReviewed(group.key)}>
                       {busyKey === group.key ? "Saving…" : group.occurrenceCount > 1 ? "Mark these reviewed" : "Mark reviewed"}
                     </button>
                   )}
                 </div>
+                {preparingKey === group.key && (
+                  <OpeningSurprisePrep
+                    group={group}
+                    onCancel={() => setPreparingKey(null)}
+                    onSaved={(response) => {
+                      setPreparingKey(null);
+                      onPrepared(response);
+                    }}
+                  />
+                )}
               </article>
             );
           })}

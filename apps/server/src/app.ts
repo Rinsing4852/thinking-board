@@ -504,6 +504,34 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     }
   });
 
+  app.post("/api/v1/openings/game-inbox/:groupKey/prepare", async (request, reply) => {
+    try {
+      const { groupKey } = request.params as { groupKey: string };
+      const profileId = activeProfileId(database.connection);
+      if (!profileId) throw new Error("Opening inbox item not found");
+      const inbox = openingGames.inbox(profileId);
+      const group = inbox.groups.find((candidate) => candidate.key === requiredString(groupKey, "Inbox item"));
+      const departure = group?.opening.departure;
+      if (!group || !departure) throw new Error("Opening inbox item not found");
+      if (!["opponent_deviation", "repertoire_ended"].includes(group.opening.status)
+        || departure.moverColor === group.opening.repertoire.learnerColor) {
+        throw new Error("This item is not an opponent reply to prepare");
+      }
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      const prepared = openingWorkspace.prepareOpponentSurprise({
+        repertoireId: group.opening.repertoire.id,
+        fenBefore: departure.fenBefore,
+        opponentMoveUci: departure.moveUci,
+        replyMoveUci: requiredString(body.replyMoveUci, "Your reply"),
+        opponentSummary: typeof body.opponentSummary === "string" ? body.opponentSummary : undefined,
+        replySummary: typeof body.replySummary === "string" ? body.replySummary : undefined,
+      });
+      return { ...prepared, inbox: openingGames.inbox(profileId) };
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not prepare this opponent reply" });
+    }
+  });
+
   app.get("/api/v1/games", async () => ({
     games: database.connection.prepare(`
       SELECT id, white_name AS white, black_name AS black, player_color AS playerColor,

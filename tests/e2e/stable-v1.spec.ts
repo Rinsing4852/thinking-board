@@ -301,6 +301,39 @@ test.describe.serial("stable V1 browser journey", () => {
     await expectSquareBoard(page);
   });
 
+  test("prepares an opponent surprise directly from the opening inbox", async ({ page }) => {
+    const response = await page.request.post("/api/v1/imports/pgn", {
+      data: {
+        playerName: "olleyr",
+        pgn: `[Event "Inbox surprise"]
+[Date "2026.09.20"]
+[White "olleyr"]
+[Black "Training opponent"]
+[Result "*"]
+
+1. e4 e5 2. Nf3 d6 *`,
+      },
+    });
+    expect(response.ok()).toBe(true);
+
+    await page.goto("/#games");
+    const surprise = page.locator(".opening-inbox-item").filter({ hasText: "surprised you with 2...d6" });
+    await expect(surprise).toBeVisible();
+    await surprise.getByRole("button", { name: "Prepare for d6" }).click();
+    await expect(surprise.getByRole("heading", { name: "How will you answer d6?" })).toBeVisible();
+    await expect(surprise.getByText("Nothing is saved until you confirm it.", { exact: false })).toBeVisible();
+
+    const board = surprise.getByRole("grid", { name: "Position after d6" });
+    await board.getByRole("gridcell", { name: "d2 white pawn" }).click();
+    await board.getByRole("gridcell", { name: "d4 empty" }).click();
+    await expect(surprise.getByText("Your reply")).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+    await surprise.getByRole("button", { name: "Save d6 → d4" }).click();
+    await expect(page.getByText(/saved d6 with your d4 reply/i)).toBeVisible();
+    await expect(surprise).toBeHidden();
+  });
+
   test("restores a failed analysis and offers recovery", async ({ page }) => {
     const failed = {
       id: "failed-browser-job",

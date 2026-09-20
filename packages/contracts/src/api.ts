@@ -254,6 +254,19 @@ export interface GameOpeningInboxResponse {
   repeatedGroups: number;
 }
 
+export interface OpeningSurprisePreparationResponse {
+  repertoire: {
+    id: string;
+    name: string;
+    copiedFromBuiltIn: boolean;
+  };
+  lineId: string;
+  opponentMove: { moveUci: string; moveSan: string };
+  replyMove: { moveUci: string; moveSan: string };
+  message: string;
+  inbox: GameOpeningInboxResponse;
+}
+
 export type OpeningImportColor = Color | "both";
 export type OpeningImportSourceType = "self_authored" | "book_notes" | "lichess_study" | "licensed_pgn";
 

@@ -5,6 +5,7 @@ import type {
   OpeningRepertoireDetailResponse,
   OpeningLineMutationResponse,
   OpeningLearningCommentResponse,
+  OpeningSurprisePreparationResponse,
 } from "../../../../packages/contracts/src/api.js";
 import { Chess } from "chess.js";
 import type { SqliteDatabase } from "../db/database.js";
@@ -220,6 +221,69 @@ export class OpeningWorkspaceService {
     };
   }
 
+  prepareOpponentSurprise(input: {
+    repertoireId: string;
+    fenBefore: string;
+    opponentMoveUci: string;
+    replyMoveUci: string;
+    opponentSummary?: string | undefined;
+    replySummary?: string | undefined;
+  }): Omit<OpeningSurprisePreparationResponse, "inbox"> {
+    const original = this.db.prepare(`
+      SELECT id, name FROM opening_repertoires WHERE id = ?
+    `).get(input.repertoireId) as { id: string; name: string } | undefined;
+    if (!original) throw new Error("Opening repertoire is not available");
+
+    const opponent = this.legalMove(input.fenBefore, input.opponentMoveUci, "Opponent move");
+    const reply = this.legalMove(opponent.fenAfter, input.replyMoveUci, "Your reply");
+    const learnerColor = opponent.fenAfter.split(" ")[1] === "b" ? "black" : "white";
+    const repertoireColor = this.db.prepare(`
+      SELECT learner_color FROM opening_repertoires WHERE id = ?
+    `).pluck().get(input.repertoireId);
+    if (learnerColor !== repertoireColor) {
+      throw new Error("Choose a reply for your side of this repertoire");
+    }
+
+    return this.db.transaction(() => {
+      const copiedFromBuiltIn = !this.isEditable(input.repertoireId);
+      const repertoireId = copiedFromBuiltIn
+        ? this.cloneForEditing(input.repertoireId)
+        : input.repertoireId;
+      const target = this.lineAtPosition(repertoireId, input.fenBefore);
+      if (!target) throw new Error("Could not find this game position in the repertoire");
+
+      const opponentResult = this.addMove({
+        repertoireId,
+        lineId: target.lineId,
+        afterPly: target.afterPly,
+        moveUci: input.opponentMoveUci,
+        branchTitle: `Against ${opponent.san}`,
+        summary: input.opponentSummary,
+      });
+      const replyResult = this.addMove({
+        repertoireId,
+        lineId: opponentResult.lineId,
+        afterPly: target.afterPly + 1,
+        moveUci: input.replyMoveUci,
+        summary: input.replySummary,
+      });
+      const repertoire = replyResult.detail.repertoire;
+      return {
+        repertoire: {
+          id: repertoire.id,
+          name: repertoire.name,
+          copiedFromBuiltIn,
+        },
+        lineId: replyResult.lineId,
+        opponentMove: { moveUci: input.opponentMoveUci, moveSan: opponent.san },
+        replyMove: { moveUci: input.replyMoveUci, moveSan: reply.san },
+        message: copiedFromBuiltIn
+          ? `Created ${repertoire.name} and saved ${opponent.san} with your ${reply.san} reply.`
+          : `Saved ${opponent.san} with your ${reply.san} reply to ${repertoire.name}.`,
+      };
+    })();
+  }
+
   updateExplanation(repertoireId: string, moveId: string, summaryValue: string): OpeningRepertoireDetailResponse {
     this.assertEditable(repertoireId);
     const summary = summaryValue.trim().replace(/\s+/g, " ").slice(0, 600);
@@ -274,9 +338,165 @@ export class OpeningWorkspaceService {
   }
 
   private assertEditable(repertoireId: string): void {
-    if (!this.db.prepare("SELECT 1 FROM opening_imports WHERE repertoire_id = ?").get(repertoireId)) {
+    if (!this.isEditable(repertoireId)) {
       throw new Error("Built-in repertoires are read-only. Create a personal repertoire to edit lines.");
     }
+  }
+
+  private isEditable(repertoireId: string): boolean {
+    return Boolean(this.db.prepare("SELECT 1 FROM opening_imports WHERE repertoire_id = ?").get(repertoireId));
+  }
+
+  private legalMove(fen: string, moveUciValue: string, label: string): { fenAfter: string; san: string } {
+    const moveUci = moveUciValue.trim().toLowerCase();
+    if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(moveUci)) throw new Error(`${label} is not valid`);
+    const chess = new Chess(fen);
+    let played;
+    try {
+      played = chess.move({
+        from: moveUci.slice(0, 2),
+        to: moveUci.slice(2, 4),
+        ...(moveUci.length === 5 ? { promotion: moveUci[4] } : {}),
+      });
+    } catch {
+      played = null;
+    }
+    if (!played) throw new Error(`${label} is not legal in this position`);
+    return { fenAfter: chess.fen(), san: played.san };
+  }
+
+  private lineAtPosition(repertoireId: string, fen: string): { lineId: string; afterPly: number } | null {
+    const row = this.db.prepare(`
+      SELECT l.id AS line_id, olm.ply AS after_ply
+      FROM opening_positions p
+      JOIN opening_moves m ON m.to_position_id = p.id AND m.repertoire_id = ? AND m.active = 1
+      JOIN opening_line_moves olm ON olm.move_id = m.id
+      JOIN opening_lines l ON l.id = olm.line_id AND l.active = 1
+      JOIN opening_chapters c ON c.id = l.chapter_id AND c.active = 1
+      WHERE p.position_key = ?
+      ORDER BY c.sort_order, l.priority, olm.ply
+      LIMIT 1
+    `).get(repertoireId, openingPositionKey(fen)) as { line_id: string; after_ply: number } | undefined;
+    return row ? { lineId: row.line_id, afterPly: row.after_ply } : null;
+  }
+
+  private cloneForEditing(sourceRepertoireId: string): string {
+    const source = this.db.prepare(`
+      SELECT * FROM opening_repertoires WHERE id = ?
+    `).get(sourceRepertoireId) as Record<string, unknown> | undefined;
+    if (!source) throw new Error("Opening repertoire is not available");
+
+    const repertoireId = id();
+    const timestamp = now();
+    const name = `${String(source.name)} — My repertoire`;
+    this.db.prepare(`
+      INSERT INTO opening_repertoires(
+        id, slug, name, learner_color, first_move_uci, first_move_san,
+        summary, audience_label, style_json, memory_burden, content_version,
+        status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'published', ?, ?)
+    `).run(
+      repertoireId,
+      `personal-${repertoireId}`,
+      name,
+      source.learner_color,
+      source.first_move_uci,
+      source.first_move_san,
+      source.summary,
+      "Personal repertoire",
+      source.style_json,
+      source.memory_burden,
+      timestamp,
+      timestamp,
+    );
+    this.db.prepare(`
+      INSERT INTO opening_imports(
+        id, repertoire_id, fingerprint, learner_color, source_type, source_title,
+        original_pgn, ownership_confirmed, imported_at
+      ) VALUES (?, ?, ?, ?, 'self_authored', ?, '', 1, ?)
+    `).run(id(), repertoireId, `personal-copy:${repertoireId}`, source.learner_color, `Personal copy of ${String(source.name)}`, timestamp);
+
+    const chapterMap = new Map<string, string>();
+    const chapters = this.db.prepare(`
+      SELECT * FROM opening_chapters WHERE repertoire_id = ? ORDER BY sort_order
+    `).all(sourceRepertoireId) as Array<Record<string, unknown>>;
+    for (const chapter of chapters) {
+      const chapterId = id();
+      chapterMap.set(String(chapter.id), chapterId);
+      this.db.prepare(`
+        INSERT INTO opening_chapters(
+          id, repertoire_id, slug, title, introduction, root_position_id, sort_order, active
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        chapterId, repertoireId, chapter.slug, chapter.title, chapter.introduction,
+        chapter.root_position_id, chapter.sort_order, chapter.active,
+      );
+    }
+
+    const moveMap = new Map<string, string>();
+    const moves = this.db.prepare(`
+      SELECT m.*, a.summary, a.changes_json, a.concepts_json, a.opponent_idea,
+             a.resulting_plan, a.tactical_warning, a.common_mistake
+      FROM opening_moves m
+      JOIN opening_move_annotations a ON a.move_id = m.id
+      WHERE m.repertoire_id = ?
+    `).all(sourceRepertoireId) as Array<Record<string, unknown>>;
+    for (const move of moves) {
+      const moveId = id();
+      moveMap.set(String(move.id), moveId);
+      this.db.prepare(`
+        INSERT INTO opening_moves(
+          id, repertoire_id, from_position_id, to_position_id, move_uci, move_san,
+          role, move_kind, frequency, sort_order, active
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        moveId, repertoireId, move.from_position_id, move.to_position_id,
+        move.move_uci, move.move_san, move.role, move.move_kind,
+        move.frequency, move.sort_order, move.active,
+      );
+      this.db.prepare(`
+        INSERT INTO opening_move_annotations(
+          move_id, summary, changes_json, concepts_json, opponent_idea,
+          resulting_plan, tactical_warning, common_mistake
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        moveId, move.summary, move.changes_json, move.concepts_json, move.opponent_idea,
+        move.resulting_plan, move.tactical_warning, move.common_mistake,
+      );
+    }
+
+    const lineMap = new Map<string, string>();
+    const lines = this.db.prepare(`
+      SELECT l.* FROM opening_lines l
+      JOIN opening_chapters c ON c.id = l.chapter_id
+      WHERE c.repertoire_id = ?
+      ORDER BY c.sort_order, l.priority
+    `).all(sourceRepertoireId) as Array<Record<string, unknown>>;
+    for (const line of lines) {
+      const lineId = id();
+      lineMap.set(String(line.id), lineId);
+      this.db.prepare(`
+        INSERT INTO opening_lines(id, chapter_id, slug, title, priority, active)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(lineId, chapterMap.get(String(line.chapter_id)), line.slug, line.title, line.priority, line.active);
+    }
+
+    const memberships = this.db.prepare(`
+      SELECT olm.line_id, olm.move_id, olm.ply
+      FROM opening_line_moves olm
+      JOIN opening_lines l ON l.id = olm.line_id
+      JOIN opening_chapters c ON c.id = l.chapter_id
+      WHERE c.repertoire_id = ?
+      ORDER BY olm.line_id, olm.ply
+    `).all(sourceRepertoireId) as Array<{ line_id: string; move_id: string; ply: number }>;
+    const addMembership = this.db.prepare(`
+      INSERT INTO opening_line_moves(line_id, move_id, ply) VALUES (?, ?, ?)
+    `);
+    for (const membership of memberships) {
+      addMembership.run(lineMap.get(membership.line_id), moveMap.get(membership.move_id), membership.ply);
+    }
+
+    return repertoireId;
   }
 
   private ensurePosition(fen: string): string {
