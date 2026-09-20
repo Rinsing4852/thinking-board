@@ -107,6 +107,18 @@ export interface OpeningLineMutationResponse {
   message: string;
 }
 
+export interface OpeningLineDeletionResponse {
+  detail: OpeningRepertoireDetailResponse;
+  deletedLineId: string;
+  nextLineId: string;
+  message: string;
+}
+
+export interface OpeningRepertoireDeletionResponse {
+  deletedRepertoireId: string;
+  message: string;
+}
+
 export interface OpeningCoverageGap {
   positionId: string;
   fen: string;

@@ -105,6 +105,25 @@ test.describe.serial("stable V1 browser journey", () => {
     await openings.getByRole("button", { name: "Save move" }).click();
     await expect(openings.getByText(/saved as a new branch; the original line is unchanged/i)).toBeVisible();
     await expect(openings.getByRole("button", { name: /Italian bishop-first branch/ })).toBeVisible();
+
+    await openings.getByRole("button", { name: "Delete selected line" }).click();
+    let deletion = openings.getByRole("alertdialog");
+    await expect(deletion.getByRole("heading", { name: "Delete “Italian bishop-first branch”?" })).toBeVisible();
+    await deletion.getByRole("button", { name: "Keep line" }).click();
+    await expect(deletion).toBeHidden();
+    await openings.getByRole("button", { name: "Delete selected line" }).click();
+    deletion = openings.getByRole("alertdialog");
+    await deletion.getByRole("button", { name: "Delete line", exact: true }).click();
+    await expect(openings.getByText(/shared moves remain in your other lines/i)).toBeVisible();
+    await expect(openings.getByRole("button", { name: /Italian bishop-first branch/ })).toBeHidden();
+
+    await openings.getByRole("button", { name: "Delete repertoire", exact: true }).click();
+    deletion = openings.getByRole("alertdialog");
+    await expect(deletion.getByRole("heading", { name: "Delete “Board-built Italian”?" })).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+    await deletion.getByRole("button", { name: "Delete repertoire", exact: true }).click();
+    await expect(openings.getByRole("heading", { name: "Board-built Italian", level: 3 })).toBeHidden();
   });
 
   test("previews and imports a private opening repertoire for both sides", async ({ page }) => {

@@ -4,7 +4,9 @@ import type {
   OpeningLineMove,
   OpeningRepertoireDetailResponse,
   OpeningLineMutationResponse,
+  OpeningLineDeletionResponse,
   OpeningLearningCommentResponse,
+  OpeningRepertoireDeletionResponse,
   OpeningSurprisePreparationResponse,
 } from "../../../../packages/contracts/src/api.js";
 import { Chess } from "chess.js";
@@ -218,6 +220,87 @@ export class OpeningWorkspaceService {
       message: createdBranch
         ? `${played.san} was saved as a new branch; the original line is unchanged.`
         : `${played.san} was added to the end of this line.`,
+    };
+  }
+
+  deleteLine(repertoireId: string, lineId: string): OpeningLineDeletionResponse {
+    this.assertEditable(repertoireId);
+    const line = this.db.prepare(`
+      SELECT l.id, l.title, l.chapter_id
+      FROM opening_lines l
+      JOIN opening_chapters c ON c.id = l.chapter_id
+      WHERE l.id = ? AND c.repertoire_id = ? AND l.active = 1
+    `).get(lineId, repertoireId) as { id: string; title: string; chapter_id: string } | undefined;
+    if (!line) throw new Error("Opening line is not available");
+    const lineCount = Number(this.db.prepare(`
+      SELECT COUNT(*)
+      FROM opening_lines l
+      JOIN opening_chapters c ON c.id = l.chapter_id
+      WHERE c.repertoire_id = ? AND l.active = 1 AND c.active = 1
+    `).pluck().get(repertoireId));
+    if (lineCount <= 1) {
+      throw new Error("This is the final line. Delete the repertoire if you want to start again.");
+    }
+
+    this.db.transaction(() => {
+      this.db.prepare("DELETE FROM opening_lesson_attempts WHERE line_id = ?").run(lineId);
+      this.db.prepare(`
+        UPDATE opening_review_sessions
+        SET status = 'abandoned', abandoned_at = ?
+        WHERE repertoire_id = ? AND status = 'active'
+      `).run(now(), repertoireId);
+      this.db.prepare("DELETE FROM opening_lines WHERE id = ?").run(lineId);
+      this.db.prepare(`
+        DELETE FROM opening_review_items
+        WHERE repertoire_id = ?
+          AND move_id IN (
+            SELECT id FROM opening_moves
+            WHERE repertoire_id = ?
+              AND NOT EXISTS (
+                SELECT 1 FROM opening_line_moves olm WHERE olm.move_id = opening_moves.id
+              )
+          )
+      `).run(repertoireId, repertoireId);
+      this.db.prepare(`
+        DELETE FROM opening_moves
+        WHERE repertoire_id = ?
+          AND NOT EXISTS (
+            SELECT 1 FROM opening_line_moves olm WHERE olm.move_id = opening_moves.id
+          )
+      `).run(repertoireId);
+      this.db.prepare(`
+        DELETE FROM opening_chapters
+        WHERE id = ?
+          AND NOT EXISTS (SELECT 1 FROM opening_lines WHERE chapter_id = opening_chapters.id)
+      `).run(line.chapter_id);
+      this.touch(repertoireId);
+    })();
+
+    const detail = this.repertoire(repertoireId);
+    const nextLineId = detail.chapters.flatMap((chapter) => chapter.lines)[0]?.id;
+    if (!nextLineId) throw new Error("The repertoire no longer has a line to display");
+    return {
+      detail,
+      deletedLineId: lineId,
+      nextLineId,
+      message: `${line.title} was deleted. Shared moves remain in your other lines.`,
+    };
+  }
+
+  deleteRepertoire(repertoireId: string): OpeningRepertoireDeletionResponse {
+    this.assertEditable(repertoireId);
+    const repertoire = this.db.prepare(`
+      SELECT id, name FROM opening_repertoires WHERE id = ?
+    `).get(repertoireId) as { id: string; name: string } | undefined;
+    if (!repertoire) throw new Error("Opening repertoire is not available");
+
+    this.db.transaction(() => {
+      this.db.prepare("DELETE FROM opening_lesson_attempts WHERE repertoire_id = ?").run(repertoireId);
+      this.db.prepare("DELETE FROM opening_repertoires WHERE id = ?").run(repertoireId);
+    })();
+    return {
+      deletedRepertoireId: repertoireId,
+      message: `${repertoire.name} was deleted. Your imported games were kept.`,
     };
   }
 

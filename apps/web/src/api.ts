@@ -28,3 +28,7 @@ export function patch<T>(url: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
 }
+
+export function remove<T>(url: string): Promise<T> {
+  return request<T>(url, { method: "DELETE" });
+}

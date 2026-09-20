@@ -1,13 +1,15 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Chess } from "chess.js";
 
 import type {
   OpeningCoverageResponse,
+  OpeningLineDeletionResponse,
   OpeningLineDetail,
   OpeningLineMutationResponse,
+  OpeningRepertoireDeletionResponse,
   OpeningRepertoireDetailResponse,
 } from "../../../../packages/contracts/src/api";
-import { get, patch, post } from "../api";
+import { get, patch, post, remove } from "../api";
 import { ChessBoard } from "./ChessBoard";
 import { OpeningLearningComment } from "./OpeningLearningComment";
 
@@ -18,6 +20,7 @@ interface OpeningLineExplorerProps {
   onBack: () => void;
   onPractice: (lineId: string) => void;
   onDetailChanged: (detail: OpeningRepertoireDetailResponse) => void;
+  onRepertoireDeleted: (repertoireId: string) => void;
 }
 
 export function OpeningLineExplorer({
@@ -27,6 +30,7 @@ export function OpeningLineExplorer({
   onBack,
   onPractice,
   onDetailChanged,
+  onRepertoireDeleted,
 }: OpeningLineExplorerProps) {
   const allLines = useMemo(
     () => detail.chapters.flatMap((chapter) => chapter.lines.map((line) => ({ chapter, line }))),
@@ -47,10 +51,18 @@ export function OpeningLineExplorer({
   const [coverage, setCoverage] = useState<OpeningCoverageResponse | null>(null);
   const [coverageRating, setCoverageRating] = useState(1600);
   const [coverageBusy, setCoverageBusy] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<"line" | "repertoire" | null>(null);
+  const deleteDialogRef = useRef<HTMLDivElement>(null);
   const selected = allLines.find(({ line }) => line.id === lineId) ?? initial;
   const line: OpeningLineDetail | undefined = selected?.line;
   const currentMove = ply > 0 ? line?.moves[ply - 1] : undefined;
   const displayFen = currentMove?.fenAfter ?? line?.moves[0]?.fenBefore ?? "start";
+
+  useEffect(() => {
+    if (!deleteTarget) return;
+    deleteDialogRef.current?.focus();
+    deleteDialogRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [deleteTarget]);
 
   const chooseLine = (nextLineId: string): void => {
     setLineId(nextLineId);
@@ -118,6 +130,43 @@ export function OpeningLineExplorer({
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not save the explanation");
     } finally {
+      setLocalBusy(false);
+    }
+  };
+
+  const deleteSelectedLine = async (): Promise<void> => {
+    if (!line || localBusy) return;
+    setLocalBusy(true);
+    setStatus("");
+    try {
+      const result = await remove<OpeningLineDeletionResponse>(
+        `/api/v1/openings/repertoires/${detail.repertoire.id}/lines/${line.id}`,
+      );
+      onDetailChanged(result.detail);
+      setLineId(result.nextLineId);
+      setPly(0);
+      setEditingExplanation(false);
+      setPendingMove(null);
+      setDeleteTarget(null);
+      setStatus(result.message);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not delete this line");
+    } finally {
+      setLocalBusy(false);
+    }
+  };
+
+  const deleteEntireRepertoire = async (): Promise<void> => {
+    if (localBusy) return;
+    setLocalBusy(true);
+    setStatus("");
+    try {
+      const result = await remove<OpeningRepertoireDeletionResponse>(
+        `/api/v1/openings/repertoires/${detail.repertoire.id}`,
+      );
+      onRepertoireDeleted(result.deletedRepertoireId);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not delete this repertoire");
       setLocalBusy(false);
     }
   };
@@ -230,8 +279,48 @@ export function OpeningLineExplorer({
       )}
 
       {editing && (
-        <div className="opening-edit-guide" role="status">
-          <strong>Edit mode:</strong> stop at any position and make a move on the board. At the end it extends this line; in the middle a different move creates a new branch, leaving the original intact.
+        <div className="opening-edit-guide">
+          <div>
+            <strong>Edit mode:</strong> stop at any position and make a move on the board. At the end it extends this line; in the middle a different move creates a new branch, leaving the original intact.
+            {allLines.length === 1 && <small>This is your final line. Delete the repertoire to remove it and start again.</small>}
+          </div>
+          <div className="opening-delete-actions">
+            <button
+              className="secondary danger-button"
+              disabled={allLines.length === 1 || localBusy}
+              onClick={() => setDeleteTarget("line")}
+            >Delete selected line</button>
+            <button
+              className="secondary danger-button"
+              disabled={localBusy}
+              onClick={() => setDeleteTarget("repertoire")}
+            >Delete repertoire</button>
+          </div>
+        </div>
+      )}
+      {deleteTarget && (
+        <div
+          className="panel opening-delete-confirm"
+          role="alertdialog"
+          aria-labelledby="opening-delete-title"
+          ref={deleteDialogRef}
+          tabIndex={-1}
+        >
+          <div>
+            <span className="eyebrow">Confirm deletion</span>
+            <h3 id="opening-delete-title">{deleteTarget === "line" ? `Delete “${line.title}”?` : `Delete “${detail.repertoire.name}”?`}</h3>
+            <p>{deleteTarget === "line"
+              ? "This line and moves used only by it will be removed. Shared moves stay in your other lines. This cannot be undone."
+              : "Every line, explanation and opening-review result in this personal repertoire will be removed. Your imported games stay. This cannot be undone."}</p>
+          </div>
+          <div className="answer-actions">
+            <button className="secondary" disabled={localBusy} onClick={() => setDeleteTarget(null)}>
+              {deleteTarget === "line" ? "Keep line" : "Keep repertoire"}
+            </button>
+            <button className="danger-button danger-confirm" disabled={localBusy} onClick={() => void (deleteTarget === "line" ? deleteSelectedLine() : deleteEntireRepertoire())}>
+              {localBusy ? "Deleting…" : deleteTarget === "line" ? "Delete line" : "Delete repertoire"}
+            </button>
+          </div>
         </div>
       )}
       {status && <p className={status.toLowerCase().includes("could not") || status.toLowerCase().includes("not legal") ? "error" : "status"} aria-live="polite">{status}</p>}

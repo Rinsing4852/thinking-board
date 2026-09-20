@@ -294,6 +294,97 @@ describe("vertical slice", () => {
     });
   });
 
+  it("deletes a personal line safely and can remove the whole repertoire to start again", async () => {
+    const appConfig = config(false);
+    const app = await buildApp(appConfig);
+    apps.push(app);
+    const imported = await app.inject({
+      method: "POST",
+      url: "/api/v1/openings/imports/pgn",
+      payload: {
+        pgn: OPENING_REPERTOIRE_PGN,
+        learnerColor: "black",
+        name: "Temporary French",
+        sourceType: "self_authored",
+        sourceTitle: "Temporary board",
+        ownershipConfirmed: true,
+      },
+    });
+    const repertoireId = (imported.json() as { repertoireIds: string[] }).repertoireIds[0]!;
+    const detail = await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}` });
+    const lines = (detail.json() as {
+      chapters: Array<{ lines: Array<{ id: string; title: string }> }>;
+    }).chapters.flatMap((chapter) => chapter.lines);
+    expect(lines).toHaveLength(2);
+
+    const review = await app.inject({
+      method: "POST",
+      url: `/api/v1/openings/repertoires/${repertoireId}/reviews/start`,
+      payload: { mode: "new" },
+    });
+    expect(review.statusCode).toBe(200);
+
+    await app.inject({
+      method: "POST",
+      url: `/api/v1/openings/repertoires/${repertoireId}/lines/${lines[1]!.id}/lessons/start`,
+    });
+    const deletedLine = await app.inject({
+      method: "DELETE",
+      url: `/api/v1/openings/repertoires/${repertoireId}/lines/${lines[1]!.id}`,
+    });
+    expect(deletedLine.statusCode).toBe(200);
+    expect(deletedLine.json()).toMatchObject({
+      deletedLineId: lines[1]!.id,
+      nextLineId: lines[0]!.id,
+      message: expect.stringMatching(/shared moves remain/i),
+      detail: { chapters: [expect.objectContaining({ lines: [expect.objectContaining({ id: lines[0]!.id })] })] },
+    });
+    const afterLineDelete = new BetterSqlite3(appConfig.databasePath);
+    expect(afterLineDelete.prepare(`
+      SELECT COUNT(*)
+      FROM opening_review_items ori
+      JOIN opening_moves m ON m.id = ori.move_id
+      WHERE ori.repertoire_id = ?
+        AND NOT EXISTS (SELECT 1 FROM opening_line_moves olm WHERE olm.move_id = m.id)
+    `).pluck().get(repertoireId)).toBe(0);
+    expect(afterLineDelete.prepare(`
+      SELECT COUNT(*) FROM opening_review_sessions
+      WHERE repertoire_id = ? AND status = 'active'
+    `).pluck().get(repertoireId)).toBe(0);
+    afterLineDelete.close();
+
+    const finalLine = await app.inject({
+      method: "DELETE",
+      url: `/api/v1/openings/repertoires/${repertoireId}/lines/${lines[0]!.id}`,
+    });
+    expect(finalLine.statusCode).toBe(400);
+    expect(finalLine.json()).toMatchObject({ error: expect.stringMatching(/final line.*delete the repertoire/i) });
+
+    const protectedCourse = await app.inject({
+      method: "DELETE",
+      url: "/api/v1/openings/repertoires/repertoire.white-e4-principled",
+    });
+    expect(protectedCourse.statusCode).toBe(400);
+    expect(protectedCourse.json()).toMatchObject({ error: expect.stringMatching(/built-in repertoires are read-only/i) });
+
+    const deletedRepertoire = await app.inject({
+      method: "DELETE",
+      url: `/api/v1/openings/repertoires/${repertoireId}`,
+    });
+    expect(deletedRepertoire.statusCode).toBe(200);
+    expect(deletedRepertoire.json()).toMatchObject({
+      deletedRepertoireId: repertoireId,
+      message: expect.stringMatching(/imported games were kept/i),
+    });
+    expect((await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}` })).statusCode).toBe(404);
+
+    const connection = new BetterSqlite3(appConfig.databasePath);
+    expect(connection.prepare("SELECT COUNT(*) FROM opening_imports WHERE repertoire_id = ?").pluck().get(repertoireId)).toBe(0);
+    expect(connection.prepare("SELECT COUNT(*) FROM opening_lesson_attempts WHERE repertoire_id = ?").pluck().get(repertoireId)).toBe(0);
+    expect(connection.prepare("SELECT COUNT(*) FROM opening_moves WHERE repertoire_id = ?").pluck().get(repertoireId)).toBe(0);
+    connection.close();
+  });
+
   it("connects and incrementally imports public Lichess games through the normal analysis queue", async () => {
     globalThis.fetch = (async (input) => {
       const url = String(input);

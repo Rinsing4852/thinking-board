@@ -249,8 +249,17 @@ button.opening-reason:hover { border-color: var(--lime); }
 .opening-coverage-gaps > strong { margin-bottom: .2rem; }
 .opening-coverage-gaps button { display: flex; justify-content: space-between; gap: 1rem; text-align: left; background: #101512; color: var(--ink); border: 1px solid var(--line); padding: .55rem .7rem; }
 .opening-coverage-gaps button small { color: var(--lime); white-space: nowrap; }
-.opening-edit-guide { border: 1px solid rgba(201,243,107,.35); border-radius: 10px; padding: .8rem 1rem; background: rgba(201,243,107,.07); color: var(--ink-soft); line-height: 1.45; }
+.opening-edit-guide { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border: 1px solid rgba(201,243,107,.35); border-radius: 10px; padding: .8rem 1rem; background: rgba(201,243,107,.07); color: var(--ink-soft); line-height: 1.45; }
 .opening-edit-guide strong { color: var(--lime); }
+.opening-edit-guide small { display: block; margin-top: .25rem; }
+.opening-delete-actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; gap: .5rem; }
+button.danger-button { border-color: rgba(255, 125, 112, .55); color: #ffaaa0; }
+button.danger-button:hover:not(:disabled) { border-color: #ff8f83; background: rgba(255, 100, 84, .12); }
+button.danger-confirm { background: #a9362b; border-color: #d45649; color: #fff; }
+.opening-delete-confirm { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; border-color: rgba(255, 125, 112, .55); }
+.opening-delete-confirm h3 { margin: .35rem 0; }
+.opening-delete-confirm p { color: var(--ink-soft); line-height: 1.45; margin: 0; max-width: 720px; }
+.opening-delete-confirm .answer-actions { flex: 0 0 auto; margin: 0; }
 .opening-workspace-grid { display: grid; grid-template-columns: minmax(210px, .58fr) minmax(420px, 1.35fr) minmax(250px, .72fr); gap: 1rem; align-items: start; }
 .opening-line-library { padding: 1rem; max-height: 760px; overflow: auto; }
 .opening-line-library-toggle { display: none; width: 100%; }
@@ -615,6 +624,8 @@ footer { border-top: 1px solid var(--line); padding: 2rem 4vw; color: #69756d; d
   .opening-review .opening-lesson-title > div:first-child p { display: none; }
   .opening-workspace-heading, .opening-builder-heading { align-items: start; flex-direction: column; }
   .opening-workspace-actions { justify-content: flex-start; }
+  .opening-edit-guide, .opening-delete-confirm { align-items: stretch; flex-direction: column; }
+  .opening-delete-actions button, .opening-delete-confirm .answer-actions button { flex: 1 1 150px; }
   .opening-workspace-grid { grid-template-columns: 1fr; }
   .opening-line-library-toggle { display: block; }
   .opening-line-library { display: none; max-height: none; }

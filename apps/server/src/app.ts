@@ -136,6 +136,24 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     }
   });
 
+  app.delete("/api/v1/openings/repertoires/:repertoireId", async (request, reply) => {
+    try {
+      const { repertoireId } = request.params as { repertoireId: string };
+      return openingWorkspace.deleteRepertoire(repertoireId);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not delete opening repertoire" });
+    }
+  });
+
+  app.delete("/api/v1/openings/repertoires/:repertoireId/lines/:lineId", async (request, reply) => {
+    try {
+      const { repertoireId, lineId } = request.params as { repertoireId: string; lineId: string };
+      return openingWorkspace.deleteLine(repertoireId, lineId);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not delete opening line" });
+    }
+  });
+
   app.post("/api/v1/openings/repertoires/:repertoireId/lines/:lineId/moves", async (request, reply) => {
     try {
       const { repertoireId, lineId } = request.params as { repertoireId: string; lineId: string };

@@ -209,6 +209,19 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
     setWorkspaceDetail(detail);
   };
 
+  const finishRepertoireDeletion = (repertoireId: string): void => {
+    setWorkspaceDetail(null);
+    setCatalog((current) => current.filter((repertoire) => repertoire.id !== repertoireId));
+    setRecommendation(null);
+    void Promise.all([
+      get<OpeningCatalogResponse>("/api/v1/openings/catalog"),
+      get<OpeningReviewRecommendation>("/api/v1/openings/reviews/recommended"),
+    ]).then(([catalogResponse, recommended]) => {
+      setCatalog(catalogResponse.repertoires);
+      setRecommendation(recommended);
+    }).catch(() => undefined);
+  };
+
   const startReview = async (repertoireId: string, mode: ReviewMode): Promise<void> => {
     if (step && pausedLessonPhase && !window.confirm("Starting memory practice will end the paused guided line. Continue?")) return;
     if (activeReview && reviewPaused && !window.confirm("Starting a new memory session will end the paused session. Continue?")) return;
@@ -504,6 +517,7 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
           onBack={() => setWorkspaceDetail(null)}
           onPractice={(lineId) => void startLineLesson(workspaceDetail.repertoire.id, lineId)}
           onDetailChanged={setWorkspaceDetail}
+          onRepertoireDeleted={finishRepertoireDeletion}
         />
       )}
 
