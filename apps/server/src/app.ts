@@ -167,6 +167,17 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     }
   });
 
+  app.patch("/api/v1/openings/repertoires/:repertoireId/moves/:moveId/comment", async (request, reply) => {
+    try {
+      const { repertoireId, moveId } = request.params as { repertoireId: string; moveId: string };
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      if (typeof body.comment !== "string") throw new Error("Learning comment must be text");
+      return openingWorkspace.updateLearningComment(repertoireId, moveId, body.comment);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not save learning comment" });
+    }
+  });
+
   app.get("/api/v1/openings/repertoires/:repertoireId/coverage", async (request, reply) => {
     try {
       const { repertoireId } = request.params as { repertoireId: string };
@@ -347,6 +358,16 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       );
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not check opening review" });
+    }
+  });
+
+  app.post("/api/v1/openings/reviews/:sessionId/mistakes", async (request, reply) => {
+    try {
+      const { sessionId } = request.params as { sessionId: string };
+      const body = request.body as { moveUci?: unknown };
+      return openingReviews.recordMistake(sessionId, requiredString(body?.moveUci, "Move"));
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not record opening mistake" });
     }
   });
 

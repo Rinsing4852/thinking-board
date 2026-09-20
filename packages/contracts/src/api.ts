@@ -61,7 +61,13 @@ export interface OpeningLineMove {
     resultingPlan: string | null;
     tacticalWarning: string | null;
     commonMistake: string | null;
+    personalComment: string | null;
   };
+}
+
+export interface OpeningLearningCommentResponse {
+  moveId: string;
+  comment: string | null;
 }
 
 export interface OpeningLineDetail {
@@ -211,6 +217,7 @@ export interface GameOpeningConnection {
       resultingPlan: string | null;
       tacticalWarning: string | null;
       commonMistake: string | null;
+      personalComment: string | null;
     };
   };
   practiceAvailable: boolean;
@@ -258,6 +265,11 @@ export interface OpeningLessonOpponentMove {
   moveSan: string;
 }
 
+export interface OpeningAcceptedMove {
+  moveUci: string;
+  moveSan: string;
+}
+
 export interface OpeningLessonStep {
   kind: "step";
   attemptId: string;
@@ -273,6 +285,7 @@ export interface OpeningLessonStep {
   opponentMove: OpeningLessonOpponentMove | null;
   movesBefore: string[];
   prompt: string;
+  acceptedMoves: OpeningAcceptedMove[];
   moveAnswer: OpeningMoveAnswerResponse | null;
 }
 
@@ -297,7 +310,7 @@ export interface OpeningReasonOption {
 export interface OpeningMoveAnswerResponse {
   moveOutcome: "repertoire" | "alternative" | "outside_repertoire";
   playedMoveSan: string;
-  repertoireMove: { moveUci: string; moveSan: string };
+  repertoireMove: { moveId: string; moveUci: string; moveSan: string };
   fenAfterMove: string;
   message: string;
   whyQuestion: string;
@@ -320,6 +333,7 @@ export interface OpeningWhyAnswerResponse {
     resultingPlan: string | null;
     tacticalWarning: string | null;
     commonMistake: string | null;
+    personalComment: string | null;
   };
   next: OpeningLessonState;
 }
@@ -346,8 +360,9 @@ export interface OpeningReviewExercise {
   movesBefore: string[];
   moveNumber: number;
   prompt: string;
+  acceptedMoves: OpeningAcceptedMove[];
   introduction: {
-    repertoireMove: { moveUci: string; moveSan: string };
+    repertoireMove: { moveId: string; moveUci: string; moveSan: string };
     fenAfterMove: string;
     explanation: {
       summary: string;
@@ -355,6 +370,7 @@ export interface OpeningReviewExercise {
       resultingPlan: string | null;
       tacticalWarning: string | null;
       commonMistake: string | null;
+      personalComment: string | null;
     };
   };
 }
@@ -377,6 +393,7 @@ export interface OpeningReviewFeedback {
     resultingPlan: string | null;
     tacticalWarning: string | null;
     commonMistake: string | null;
+    personalComment: string | null;
   };
   nextDueAt: string;
   lapseQueued: boolean;
@@ -396,6 +413,12 @@ export interface OpeningReviewComplete {
 
 export type OpeningReviewState = OpeningReviewExercise | OpeningReviewComplete;
 export type OpeningReviewActiveState = OpeningReviewExercise | OpeningReviewFeedback;
+
+export interface OpeningReviewMistakeResponse {
+  moveUci: string;
+  moveSan: string;
+  attemptNumber: number;
+}
 
 export interface PreviewGame {
   index: number;

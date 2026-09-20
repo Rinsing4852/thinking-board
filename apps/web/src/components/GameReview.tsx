@@ -147,6 +147,7 @@ function OpeningConnectionCard({
             <span>{opening.expectedMove.chapterTitle}</span>
             <strong>Why {opening.expectedMove.moveSan}?</strong>
             <p>{opening.expectedMove.explanation.summary}</p>
+            {opening.expectedMove.explanation.personalComment && <p><b>Your comment:</b> {opening.expectedMove.explanation.personalComment}</p>}
             {opening.expectedMove.explanation.resultingPlan && <p><b>Plan:</b> {opening.expectedMove.explanation.resultingPlan}</p>}
           </div>
           <button disabled={starting} onClick={onPractice}>

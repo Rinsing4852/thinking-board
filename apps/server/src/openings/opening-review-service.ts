@@ -5,6 +5,7 @@ import type {
   OpeningReviewComplete,
   OpeningReviewExercise,
   OpeningReviewFeedback,
+  OpeningReviewMistakeResponse,
   OpeningReviewState,
 } from "../../../../packages/contracts/src/api.js";
 import type { SqliteDatabase } from "../db/database.js";
@@ -34,6 +35,7 @@ interface ReviewItemRow extends StoredOpeningReviewCard {
   resulting_plan: string | null;
   tactical_warning: string | null;
   common_mistake: string | null;
+  personal_comment: string | null;
 }
 
 interface ActiveQueueRow {
@@ -264,7 +266,11 @@ export class OpeningReviewService {
         AND role = 'learner' AND active = 1
     `).get(item.repertoire_id, item.position_id, moveUci);
     const correct = Boolean(accepted);
-    const independentRecall = correct && !assisted;
+    const previousMistake = Boolean(this.db.prepare(`
+      SELECT 1 FROM opening_review_mistakes WHERE queue_entry_id = ? LIMIT 1
+    `).get(queue.queue_id));
+    const effectiveAssisted = assisted || previousMistake;
+    const independentRecall = correct && !effectiveAssisted;
     const answeredAt = now();
     const responseMs = Math.max(0, Date.parse(answeredAt) - Date.parse(queue.started_at));
     const scheduled = scheduleOpeningReview(item, independentRecall, answeredAt, responseMs);
@@ -303,7 +309,7 @@ export class OpeningReviewService {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         id(), item.id, sessionId, queue.queue_id, moveUci, played.san,
-        correct ? 1 : 0, assisted ? 1 : 0, revealed ? 1 : 0, scheduled.rating, responseMs, item.state,
+        correct ? 1 : 0, effectiveAssisted ? 1 : 0, revealed ? 1 : 0, scheduled.rating, responseMs, item.state,
         scheduled.card.state, scheduled.card.dueAt, answeredAt,
       );
       if (!independentRecall && !this.db.prepare(`
@@ -323,6 +329,35 @@ export class OpeningReviewService {
     })();
 
     return this.feedback(queue, this.event(queue.queue_id)!, repeatQueued);
+  }
+
+  recordMistake(sessionId: string, moveUci: string): OpeningReviewMistakeResponse {
+    const queue = this.activeQueue(sessionId);
+    if (this.event(queue.queue_id)) throw new Error("This opening position has already been answered");
+    const item = this.item(queue.review_item_id);
+    const played = applyLegalMove(item.from_fen, moveUci);
+    const accepted = this.db.prepare(`
+      SELECT 1 FROM opening_moves
+      WHERE repertoire_id = ? AND from_position_id = ? AND move_uci = ?
+        AND role = 'learner' AND active = 1
+    `).get(item.repertoire_id, item.position_id, moveUci);
+    if (accepted) throw new Error("That is an accepted repertoire move");
+
+    const createdAt = now();
+    const responseMs = Math.max(0, Date.parse(createdAt) - Date.parse(queue.started_at));
+    this.db.prepare(`
+      INSERT INTO opening_review_mistakes(
+        id, review_item_id, session_id, queue_entry_id,
+        played_move_uci, played_move_san, response_ms, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id(), item.id, sessionId, queue.queue_id,
+      moveUci, played.san, responseMs, createdAt,
+    );
+    const attemptNumber = Number(this.db.prepare(`
+      SELECT COUNT(*) FROM opening_review_mistakes WHERE queue_entry_id = ?
+    `).pluck().get(queue.queue_id));
+    return { moveUci, moveSan: played.san, attemptNumber };
   }
 
   reveal(sessionId: string): OpeningReviewFeedback {
@@ -417,13 +452,15 @@ export class OpeningReviewService {
     const row = this.db.prepare(`
       SELECT ori.*, m.move_uci, m.move_san, before.fen AS from_fen, after.fen AS to_fen,
              r.learner_color, r.name AS repertoire_name, a.summary, a.changes_json,
-             a.resulting_plan, a.tactical_warning, a.common_mistake
+             a.resulting_plan, a.tactical_warning, a.common_mistake,
+             lc.comment AS personal_comment
       FROM opening_review_items ori
       JOIN opening_moves m ON m.id = ori.move_id
       JOIN opening_positions before ON before.id = m.from_position_id
       JOIN opening_positions after ON after.id = m.to_position_id
       JOIN opening_repertoires r ON r.id = ori.repertoire_id
       JOIN opening_move_annotations a ON a.move_id = m.id
+      LEFT JOIN opening_learning_comments lc ON lc.move_id = m.id AND lc.profile_id = ori.profile_id
       WHERE ori.id = ?
     `).get(itemId) as ReviewItemRow | undefined;
     if (!row) throw new Error("Opening review item not found");
@@ -484,7 +521,15 @@ export class OpeningReviewService {
       resultingPlan: item.resulting_plan,
       tacticalWarning: item.tactical_warning,
       commonMistake: item.common_mistake,
+      personalComment: item.personal_comment,
     };
+    const acceptedMoves = this.db.prepare(`
+      SELECT move_uci AS moveUci, move_san AS moveSan
+      FROM opening_moves
+      WHERE repertoire_id = ? AND from_position_id = ?
+        AND role = 'learner' AND active = 1
+      ORDER BY CASE move_kind WHEN 'primary' THEN 0 ELSE 1 END, sort_order, move_san
+    `).all(item.repertoire_id, item.position_id) as Array<{ moveUci: string; moveSan: string }>;
     return {
       kind: "exercise",
       sessionId: queue.session_id,
@@ -502,8 +547,9 @@ export class OpeningReviewService {
       movesBefore,
       moveNumber: Number.parseInt(item.from_fen.split(" ")[5] ?? "1", 10),
       prompt: "Recall your repertoire move for this position.",
+      acceptedMoves,
       introduction: {
-        repertoireMove: { moveUci: item.move_uci, moveSan: item.move_san },
+        repertoireMove: { moveId: item.move_id, moveUci: item.move_uci, moveSan: item.move_san },
         fenAfterMove: item.to_fen,
         explanation,
       },
@@ -544,6 +590,7 @@ export class OpeningReviewService {
         resultingPlan: item.resulting_plan,
         tacticalWarning: item.tactical_warning,
         commonMistake: item.common_mistake,
+        personalComment: item.personal_comment,
       },
       nextDueAt: event.next_due_at,
       lapseQueued: lapseQueued || queue.presentation_kind === "lapse_repeat" || outcome !== "remembered",
@@ -556,7 +603,12 @@ export class OpeningReviewService {
              COUNT(DISTINCT e.review_item_id) AS positions,
              SUM(CASE WHEN e.correct = 1 AND e.assisted = 0 THEN 1 ELSE 0 END) AS remembered,
              SUM(CASE WHEN e.correct = 1 AND e.assisted = 1 THEN 1 ELSE 0 END) AS introduced,
-             SUM(CASE WHEN e.correct = 0 THEN 1 ELSE 0 END) AS lapses
+             COUNT(DISTINCT CASE
+               WHEN e.correct = 0 OR EXISTS(
+                 SELECT 1 FROM opening_review_mistakes rm WHERE rm.queue_entry_id = e.queue_entry_id
+               ) THEN e.queue_entry_id
+               ELSE NULL
+             END) AS lapses
       FROM opening_review_sessions s
       JOIN opening_repertoires r ON r.id = s.repertoire_id
       LEFT JOIN opening_review_events e ON e.session_id = s.id

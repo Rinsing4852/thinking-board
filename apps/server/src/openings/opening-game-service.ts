@@ -6,6 +6,7 @@ import type {
 import type { SqliteDatabase } from "../db/database.js";
 import { id, now } from "../lib/ids.js";
 import { openingPositionKey } from "./opening-content.js";
+import { activeProfileId } from "../training/profile.js";
 
 interface GameRow {
   id: string;
@@ -221,6 +222,7 @@ export class OpeningGameService {
   }
 
   private toConnection(match: MatchRow): GameOpeningConnection {
+    const profileId = activeProfileId(this.db);
     const departure = match.departure_move_id
       ? this.db.prepare(`
         SELECT ply, move_number, mover_color, uci, san FROM moves WHERE id = ?
@@ -232,16 +234,18 @@ export class OpeningGameService {
       ? this.db.prepare(`
         SELECT m.move_uci, m.move_san, a.summary, a.changes_json,
                a.resulting_plan, a.tactical_warning, a.common_mistake,
+               lc.comment AS personal_comment,
                c.title AS chapter_title, l.title AS line_title
         FROM opening_moves m
         JOIN opening_move_annotations a ON a.move_id = m.id
+        LEFT JOIN opening_learning_comments lc ON lc.move_id = m.id AND lc.profile_id = ?
         JOIN opening_line_moves olm ON olm.move_id = m.id
         JOIN opening_lines l ON l.id = olm.line_id AND l.active = 1
         JOIN opening_chapters c ON c.id = l.chapter_id AND c.active = 1
         WHERE m.id = ?
         ORDER BY c.sort_order, l.priority, olm.ply
         LIMIT 1
-      `).get(match.expected_move_id) as Record<string, unknown> | undefined
+      `).get(profileId, match.expected_move_id) as Record<string, unknown> | undefined
       : undefined;
 
     return {
@@ -274,6 +278,7 @@ export class OpeningGameService {
           resultingPlan: expected.resulting_plan === null ? null : String(expected.resulting_plan),
           tacticalWarning: expected.tactical_warning === null ? null : String(expected.tactical_warning),
           commonMistake: expected.common_mistake === null ? null : String(expected.common_mistake),
+          personalComment: expected.personal_comment === null ? null : String(expected.personal_comment),
         },
       } : null,
       practiceAvailable: match.status === "player_deviation" && Boolean(expected),

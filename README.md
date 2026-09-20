@@ -24,6 +24,14 @@ answer never masquerades as remembering it: an assisted move returns later in
 the same session. Correct independent recalls move further into the future;
 missed moves enter a short relearning step.
 
+Practice is designed to stay quick: moves are checked directly on the board,
+wrong attempts reset immediately, and a first hint highlights which piece to
+move before the full answer is revealed. Prepared opponent replies play
+automatically, and correct answers can advance after a short explanation. Every
+repertoire move can also carry a private, editable learning comment in the
+learner's own words. These comments remain separate from the source material
+and appear wherever that move is studied or reviewed.
+
 Every repertoire also has a line explorer. It keeps transpositions as shared
 positions internally while presenting complete named lines to the learner, with
 move-by-move board navigation, explanations, and practice for the selected

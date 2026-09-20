@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { Chess } from "chess.js";
 
 import type {
   OpeningCatalogResponse,
@@ -18,12 +17,14 @@ import type {
   OpeningWhyAnswerResponse,
 } from "../../../../packages/contracts/src/api";
 import { get, post } from "../api";
+import { applyUciMove, getMoveHint } from "../opening-board";
 import { formatMoveLabel, formatOpeningLineContext } from "../training-language";
 import { ChessBoard } from "./ChessBoard";
 import { OpeningBoardBuilder } from "./OpeningBoardBuilder";
 import { OpeningExplanation } from "./OpeningExplanation";
 import { OpeningLineExplorer } from "./OpeningLineExplorer";
 import { OpeningReview } from "./OpeningReview";
+import { OpeningLearningComment } from "./OpeningLearningComment";
 
 type LessonPhase = "catalog" | "observe" | "move" | "why" | "feedback" | "complete";
 type ActiveLessonPhase = Exclude<LessonPhase, "catalog" | "complete">;
@@ -31,16 +32,6 @@ type ReviewMode = "due" | "new" | "early";
 
 interface OpeningPracticeProps {
   refreshToken: number;
-}
-
-function applyMove(fen: string, moveUci: string): string {
-  const chess = new Chess(fen);
-  chess.move({
-    from: moveUci.slice(0, 2),
-    to: moveUci.slice(2, 4),
-    ...(moveUci.length === 5 ? { promotion: moveUci[4] } : {}),
-  });
-  return chess.fen();
 }
 
 export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
@@ -53,7 +44,8 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
   const [pausedLessonPhase, setPausedLessonPhase] = useState<ActiveLessonPhase | null>(null);
   const [displayFen, setDisplayFen] = useState("");
   const [lastMove, setLastMove] = useState<string | null>(null);
-  const [proposedMove, setProposedMove] = useState<{ uci: string; san: string } | null>(null);
+  const [moveNotice, setMoveNotice] = useState("");
+  const [hintSquare, setHintSquare] = useState<string | null>(null);
   const [moveFeedback, setMoveFeedback] = useState<OpeningMoveAnswerResponse | null>(null);
   const [whyFeedback, setWhyFeedback] = useState<OpeningWhyAnswerResponse | null>(null);
   const [pendingNext, setPendingNext] = useState<OpeningLessonState | null>(null);
@@ -81,7 +73,8 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
   const showStep = (nextStep: OpeningLessonStep): void => {
     setStep(nextStep);
     setComplete(null);
-    setProposedMove(null);
+    setMoveNotice("");
+    setHintSquare(null);
     setMoveFeedback(nextStep.moveAnswer);
     setWhyFeedback(null);
     setPendingNext(null);
@@ -131,7 +124,8 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
       else {
         setStep(null);
         setComplete(null);
-        setProposedMove(null);
+        setMoveNotice("");
+        setHintSquare(null);
         setMoveFeedback(null);
         setWhyFeedback(null);
         setPendingNext(null);
@@ -263,28 +257,22 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
     setPhase("move");
   };
 
-  const previewMove = (uci: string, san: string): void => {
-    if (!step) return;
-    setProposedMove({ uci, san });
-    setDisplayFen(applyMove(step.fenToMove, uci));
-    setLastMove(uci);
-  };
+  useEffect(() => {
+    if (phase !== "observe" || !step?.opponentMove) return;
+    const timer = window.setTimeout(playOpponentMove, 650);
+    return () => window.clearTimeout(timer);
+  }, [phase, step?.attemptId, step?.decisionNumber, step?.opponentMove]);
 
-  const changeMove = (): void => {
-    if (!step) return;
-    setProposedMove(null);
-    setDisplayFen(step.fenToMove);
-    setLastMove(step.opponentMove?.moveUci ?? null);
-  };
-
-  const checkMove = async (): Promise<void> => {
-    if (!step || !proposedMove || !beginSubmission()) return;
+  const checkMove = async (moveUci: string): Promise<void> => {
+    if (!step || !beginSubmission()) return;
     setError("");
     try {
       const result = await post<OpeningMoveAnswerResponse>(
         `/api/v1/openings/lessons/${step.attemptId}/move`,
-        { moveUci: proposedMove.uci },
+        { moveUci },
       );
+      setMoveNotice("");
+      setHintSquare(null);
       setMoveFeedback(result);
       setDisplayFen(result.fenAfterMove);
       setLastMove(result.repertoireMove.moveUci);
@@ -294,6 +282,39 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
     } finally {
       endSubmission();
     }
+  };
+
+  const playLessonMove = (uci: string, san: string): void => {
+    if (!step || submittingRef.current) return;
+    const accepted = step.acceptedMoves.some((move) => move.moveUci === uci);
+    if (!accepted) {
+      const hint = getMoveHint(step.fenToMove, step.acceptedMoves[0]?.moveUci ?? "");
+      setMoveNotice(`${san} is not part of this repertoire here. Try again — move the ${hint.piece}.`);
+      setHintSquare(hint.square);
+      setDisplayFen(step.fenToMove);
+      setLastMove(step.opponentMove?.moveUci ?? null);
+      return;
+    }
+    setDisplayFen(applyUciMove(step.fenToMove, uci));
+    setLastMove(uci);
+    void checkMove(uci);
+  };
+
+  const showLessonHint = (): void => {
+    if (!step) return;
+    const hint = getMoveHint(step.fenToMove, step.acceptedMoves[0]?.moveUci ?? "");
+    setHintSquare(hint.square);
+    setMoveNotice(`Hint: move the ${hint.piece} on ${hint.square}.`);
+  };
+
+  const showLessonMove = (): void => {
+    if (!step) return;
+    const answer = step.acceptedMoves[0];
+    if (!answer) return;
+    setMoveNotice(`The repertoire move is ${answer.moveSan}.`);
+    setDisplayFen(applyUciMove(step.fenToMove, answer.moveUci));
+    setLastMove(answer.moveUci);
+    void checkMove(answer.moveUci);
   };
 
   const checkWhy = async (concept: string | null): Promise<void> => {
@@ -311,6 +332,13 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
     } finally {
       endSubmission();
     }
+  };
+
+  const updateLessonComment = (comment: string | null): void => {
+    setWhyFeedback((current) => current ? {
+      ...current,
+      explanation: { ...current.explanation, personalComment: comment },
+    } : current);
   };
 
   const continueLesson = async (): Promise<void> => {
@@ -726,7 +754,7 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
                 <span>{phase === "observe"
                   ? "Look at the position before advancing"
                   : phase === "move"
-                    ? proposedMove ? `You selected ${proposedMove.san}` : "Click a piece, then its destination"
+                    ? submitting ? "Checking your move…" : "Play a move — it is checked immediately"
                     : "The lesson's move is displayed"}</span>
               </div>
               <div className="opening-line-context" aria-label="Moves leading to this position">
@@ -736,9 +764,10 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
               <ChessBoard
                 fen={displayFen}
                 orientation={step.learnerColor}
-                interactive={phase === "move" && !proposedMove}
+                interactive={phase === "move" && !submitting}
                 lastMove={lastMove}
-                onMove={previewMove}
+                highlightedSquares={hintSquare ? [hintSquare] : []}
+                onMove={playLessonMove}
               />
             </div>
 
@@ -749,8 +778,8 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
                 <>
                   <span className="eyebrow">NOTICE</span>
                   <h3>The opponent is about to reply.</h3>
-                  <p className="instruction">First look at what is developed, attacked, or defended. Then play their move and decide how your repertoire responds.</p>
-                  <button onClick={playOpponentMove}>Play {step.opponentMove.moveSan}</button>
+                  <p className="instruction">First look at what is developed, attacked, or defended. {step.opponentMove.moveSan} will play automatically.</p>
+                  <button className="secondary" onClick={playOpponentMove}>Play now</button>
                 </>
               )}
 
@@ -758,16 +787,19 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
                 <>
                   <span className="eyebrow">CHOOSE</span>
                   <h3>{step.prompt}</h3>
-                  <p className="instruction">Make the move on the board. You do not need to type notation.</p>
-                  {proposedMove && (
-                    <div className="selected-answer">
-                      Your move: <strong>{proposedMove.san}</strong>
-                    <button className="inline-link" disabled={submitting} onClick={changeMove}>change</button>
+                  <p className="instruction">Tap or click a piece, then a highlighted square — or drag the piece. Your move is checked immediately.</p>
+                  {moveNotice && (
+                    <div className="opening-move-result outside_repertoire" role="status">
+                      <strong>{moveNotice.startsWith("Hint:") ? "Hint" : "Try again"}</strong>
+                      <p>{moveNotice}</p>
                     </div>
                   )}
                   <div className="answer-actions">
-                    <button disabled={!proposedMove || submitting} onClick={() => void checkMove()}>
-                      {submitting ? "Checking…" : "Check my move"}
+                    <button className="secondary" disabled={submitting} onClick={showLessonHint}>
+                      Hint: show the piece
+                    </button>
+                    <button className="secondary" disabled={submitting} onClick={showLessonMove}>
+                      {submitting ? "Showing…" : "Show move"}
                     </button>
                   </div>
                 </>
@@ -826,12 +858,21 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
                   <OpeningExplanation
                     explanation={whyFeedback.explanation}
                     showSummary={false}
+                    showPersonalComment={false}
                     changesLabel={whyFeedback.correctConcept === "imported_note"
                       ? "Your imported note"
                       : whyFeedback.correctConcept === "missing_explanation"
                         ? "What the PGN tells us"
                         : "What changed"}
                   />
+                  {moveFeedback && (
+                    <OpeningLearningComment
+                      repertoireId={step.repertoire.id}
+                      moveId={moveFeedback.repertoireMove.moveId}
+                      comment={whyFeedback.explanation.personalComment}
+                      onSaved={updateLessonComment}
+                    />
+                  )}
                   <button disabled={submitting} onClick={() => void continueLesson()}>
                     {submitting ? "Continuing…" : pendingNext?.kind === "complete" ? "Finish lesson" : "Continue"}
                   </button>

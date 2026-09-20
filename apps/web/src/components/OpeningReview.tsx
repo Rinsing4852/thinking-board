@@ -1,17 +1,19 @@
-import { useState } from "react";
-import { Chess } from "chess.js";
+import { useEffect, useState } from "react";
 
 import type {
   OpeningReviewActiveState,
   OpeningReviewComplete,
   OpeningReviewExercise,
   OpeningReviewFeedback,
+  OpeningReviewMistakeResponse,
   OpeningReviewState,
 } from "../../../../packages/contracts/src/api";
 import { post } from "../api";
+import { applyUciMove, getMoveHint } from "../opening-board";
 import { formatMoveLabel, formatOpeningLineContext } from "../training-language";
 import { ChessBoard } from "./ChessBoard";
 import { OpeningExplanation } from "./OpeningExplanation";
+import { OpeningLearningComment } from "./OpeningLearningComment";
 
 interface OpeningReviewProps {
   initial: OpeningReviewActiveState;
@@ -20,16 +22,6 @@ interface OpeningReviewProps {
 }
 
 type StudyPhase = "introduction" | "demonstration" | "recall";
-
-function afterMove(fen: string, moveUci: string): string {
-  const chess = new Chess(fen);
-  chess.move({
-    from: moveUci.slice(0, 2),
-    to: moveUci.slice(2, 4),
-    ...(moveUci.length === 5 ? { promotion: moveUci[4] } : {}),
-  });
-  return chess.fen();
-}
 
 function initialBoard(active: OpeningReviewActiveState): string {
   if (active.kind === "feedback") return active.fenAfterMove;
@@ -65,17 +57,22 @@ export function OpeningReview({ initial, onComplete, onPause }: OpeningReviewPro
   const [lastMove, setLastMove] = useState<string | null>(
     initial.kind === "feedback" ? initial.repertoireMove.moveUci : null,
   );
-  const [proposedMove, setProposedMove] = useState<{ uci: string; san: string } | null>(null);
+  const [moveNotice, setMoveNotice] = useState("");
+  const [hintSquare, setHintSquare] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [autoAdvance, setAutoAdvance] = useState(() => window.localStorage.getItem("opening-auto-advance") !== "false");
+  const [autoAdvancePaused, setAutoAdvancePaused] = useState(false);
 
   const showExercise = (next: OpeningReviewExercise): void => {
     setExercise(next);
     setFeedback(null);
-    setProposedMove(null);
+    setMoveNotice("");
+    setHintSquare(null);
     setObserving(Boolean(next.opponentMove));
     setStudyPhase(firstStudyPhase(next));
     setAssisted(false);
+    setAutoAdvancePaused(false);
     setDisplayFen(next.opponentMove ? next.fenBeforeOpponent : next.fenToMove);
     setLastMove(null);
   };
@@ -87,11 +84,11 @@ export function OpeningReview({ initial, onComplete, onPause }: OpeningReviewPro
     setObserving(false);
   };
 
-  const previewMove = (uci: string, san: string): void => {
-    setProposedMove({ uci, san });
-    setDisplayFen(afterMove(exercise.fenToMove, uci));
-    setLastMove(uci);
-  };
+  useEffect(() => {
+    if (!observing || !exercise.opponentMove) return;
+    const timer = window.setTimeout(playOpponentMove, 650);
+    return () => window.clearTimeout(timer);
+  }, [observing, exercise.sessionId, exercise.positionNumber, exercise.opponentMove]);
 
   const demonstrateMove = (): void => {
     setStudyPhase("demonstration");
@@ -103,26 +100,23 @@ export function OpeningReview({ initial, onComplete, onPause }: OpeningReviewPro
   const beginRecall = (usedHelp: boolean): void => {
     setStudyPhase("recall");
     setAssisted(usedHelp);
-    setProposedMove(null);
+    setMoveNotice("");
+    setHintSquare(null);
     setDisplayFen(exercise.fenToMove);
     setLastMove(exercise.opponentMove?.moveUci ?? null);
   };
 
-  const changeMove = (): void => {
-    setProposedMove(null);
-    setDisplayFen(exercise.fenToMove);
-    setLastMove(exercise.opponentMove?.moveUci ?? null);
-  };
-
-  const checkMove = async (): Promise<void> => {
-    if (!proposedMove || submitting) return;
+  const checkMove = async (moveUci: string): Promise<void> => {
+    if (submitting) return;
     setSubmitting(true);
     setError("");
     try {
       const result = await post<OpeningReviewFeedback>(
         `/api/v1/openings/reviews/${exercise.sessionId}/move`,
-        { moveUci: proposedMove.uci, assisted },
+        { moveUci, assisted },
       );
+      setMoveNotice("");
+      setHintSquare(null);
       setFeedback(result);
       setDisplayFen(result.fenAfterMove);
       setLastMove(result.repertoireMove.moveUci);
@@ -132,6 +126,38 @@ export function OpeningReview({ initial, onComplete, onPause }: OpeningReviewPro
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const playRecallMove = (uci: string, san: string): void => {
+    if (submitting) return;
+    const accepted = exercise.acceptedMoves.some((move) => move.moveUci === uci);
+    if (!accepted) {
+      const hint = getMoveHint(exercise.fenToMove, exercise.introduction.repertoireMove.moveUci);
+      setAssisted(true);
+      setMoveNotice(`${san} is not in your repertoire here. Try again — move the ${hint.piece}.`);
+      setHintSquare(hint.square);
+      setDisplayFen(exercise.fenToMove);
+      setLastMove(exercise.opponentMove?.moveUci ?? null);
+      setSubmitting(true);
+      setError("");
+      void post<OpeningReviewMistakeResponse>(
+        `/api/v1/openings/reviews/${exercise.sessionId}/mistakes`,
+        { moveUci: uci },
+      ).catch((failure) => {
+        setError(failure instanceof Error ? failure.message : "Could not record this attempt");
+      }).finally(() => setSubmitting(false));
+      return;
+    }
+    setDisplayFen(applyUciMove(exercise.fenToMove, uci));
+    setLastMove(uci);
+    void checkMove(uci);
+  };
+
+  const showPieceHint = (): void => {
+    const hint = getMoveHint(exercise.fenToMove, exercise.introduction.repertoireMove.moveUci);
+    setAssisted(true);
+    setHintSquare(hint.square);
+    setMoveNotice(`Hint: move the ${hint.piece} on ${hint.square}.`);
   };
 
   const revealMove = async (): Promise<void> => {
@@ -168,6 +194,38 @@ export function OpeningReview({ initial, onComplete, onPause }: OpeningReviewPro
     } finally {
       setSubmitting(false);
     }
+  };
+
+  useEffect(() => {
+    if (!feedback || feedback.outcome !== "remembered" || !autoAdvance || autoAdvancePaused || submitting) return;
+    const timer = window.setTimeout(() => void continueReview(), 1500);
+    return () => window.clearTimeout(timer);
+  }, [feedback, autoAdvance, autoAdvancePaused, submitting]);
+
+  const setAutoAdvancePreference = (enabled: boolean): void => {
+    setAutoAdvance(enabled);
+    window.localStorage.setItem("opening-auto-advance", String(enabled));
+  };
+
+  const updateLearningComment = (comment: string | null): void => {
+    setExercise((current) => ({
+      ...current,
+      introduction: {
+        ...current.introduction,
+        explanation: { ...current.introduction.explanation, personalComment: comment },
+      },
+    }));
+    setFeedback((current) => current ? {
+      ...current,
+      explanation: { ...current.explanation, personalComment: comment },
+      exercise: {
+        ...current.exercise,
+        introduction: {
+          ...current.exercise.introduction,
+          explanation: { ...current.exercise.introduction.explanation, personalComment: comment },
+        },
+      },
+    } : current);
   };
 
   if (complete) {
@@ -208,6 +266,14 @@ export function OpeningReview({ initial, onComplete, onPause }: OpeningReviewPro
           <small>{exercise.presentationKind === "lapse_repeat"
             ? "Unassisted retry"
             : exercise.learningStage === "new" ? "New position: learn before recalling" : "Scheduled by memory strength"}</small>
+          <label className="opening-auto-advance">
+            <input
+              type="checkbox"
+              checked={autoAdvance}
+              onChange={(event) => setAutoAdvancePreference(event.target.checked)}
+            />
+            Auto-advance correct moves
+          </label>
         </div>
       </div>
 
@@ -231,7 +297,7 @@ export function OpeningReview({ initial, onComplete, onPause }: OpeningReviewPro
                 ? "The repertoire response is displayed"
                 : studyPhase === "demonstration"
                   ? "Study where the move goes and what it achieves"
-                  : proposedMove ? `You selected ${proposedMove.san}` : studyPhase === "recall" ? "Click a piece, then its destination" : "Read the idea before revealing the move"}</span>
+                  : studyPhase === "recall" ? submitting ? "Checking your move…" : "Play a move — it is checked immediately" : "Read the idea before revealing the move"}</span>
           </div>
           <div className="opening-line-context" aria-label="Moves leading to this position">
             <span>Position reached after</span>
@@ -240,9 +306,10 @@ export function OpeningReview({ initial, onComplete, onPause }: OpeningReviewPro
           <ChessBoard
             fen={displayFen}
             orientation={exercise.learnerColor}
-            interactive={!observing && !feedback && studyPhase === "recall" && !proposedMove}
+            interactive={!observing && !feedback && studyPhase === "recall" && !submitting}
             lastMove={lastMove}
-            onMove={previewMove}
+            highlightedSquares={hintSquare ? [hintSquare] : []}
+            onMove={playRecallMove}
           />
         </div>
 
@@ -252,8 +319,8 @@ export function OpeningReview({ initial, onComplete, onPause }: OpeningReviewPro
             <>
               <span className="eyebrow">SEE</span>
               <h3>What is the opponent about to change?</h3>
-              <p className="instruction">Look for attacks, loosened defenders and new threats. Then reveal their move and decide how your repertoire responds.</p>
-              <button onClick={playOpponentMove}>Play {exercise.opponentMove.moveSan}</button>
+              <p className="instruction">Look for attacks, loosened defenders and new threats. {exercise.opponentMove.moveSan} will play automatically.</p>
+              <button className="secondary" onClick={playOpponentMove}>Play now</button>
             </>
           )}
 
@@ -286,19 +353,19 @@ export function OpeningReview({ initial, onComplete, onPause }: OpeningReviewPro
             <>
               <span className="eyebrow">RECALL</span>
               <h3>{exercise.prompt}</h3>
-              <p className="instruction">Play the move on the board. Only an answer made without help counts as remembered.</p>
-              {proposedMove && (
-                <div className="selected-answer">
-                  Your move: <strong>{proposedMove.san}</strong>
-                  <button className="inline-link" disabled={submitting} onClick={changeMove}>change</button>
+              <p className="instruction">Tap or click a piece, then a highlighted square — or drag the piece. Your move is checked immediately. Only an answer made without help counts as remembered.</p>
+              {moveNotice && (
+                <div className="opening-move-result outside_repertoire" role="status">
+                  <strong>{moveNotice.startsWith("Hint:") ? "Hint" : "Try again"}</strong>
+                  <p>{moveNotice}</p>
                 </div>
               )}
               <div className="answer-actions">
-                <button disabled={!proposedMove || submitting} onClick={() => void checkMove()}>
-                  {submitting ? "Checking…" : "Check my move"}
+                <button className="secondary" disabled={submitting} onClick={showPieceHint}>
+                  Hint: show the piece
                 </button>
                 <button className="secondary" disabled={submitting} onClick={() => void revealMove()}>
-                  I don’t know — show me
+                  I don’t know — show move
                 </button>
               </div>
             </>
@@ -311,11 +378,27 @@ export function OpeningReview({ initial, onComplete, onPause }: OpeningReviewPro
                 : feedback.outcome === "learning" ? "Learning" : "Review again"}</span>
               <h3>{feedback.repertoireMove.moveSan}</h3>
               <p>{feedback.message}</p>
-              <OpeningExplanation explanation={feedback.explanation} />
+              <p className="opening-feedback-summary"><strong>Why:</strong> {feedback.explanation.summary}</p>
+              <details className="opening-feedback-details">
+                <summary>See the full explanation</summary>
+                <OpeningExplanation explanation={feedback.explanation} showSummary={false} showPersonalComment={false} />
+              </details>
+              <OpeningLearningComment
+                repertoireId={exercise.repertoire.id}
+                moveId={exercise.introduction.repertoireMove.moveId}
+                comment={feedback.explanation.personalComment}
+                onEditingChange={setAutoAdvancePaused}
+                onSaved={updateLearningComment}
+              />
               <p className="opening-next-due">{dueLabel(feedback.nextDueAt, feedback.outcome)}</p>
-              <button disabled={submitting} onClick={() => void continueReview()}>
-                {submitting ? "Continuing…" : "Continue"}
-              </button>
+              <div className="answer-actions opening-feedback-actions">
+                <button disabled={submitting} onClick={() => void continueReview()}>
+                  {submitting ? "Continuing…" : "Continue now"}
+                </button>
+                {feedback.outcome === "remembered" && autoAdvance && !autoAdvancePaused && (
+                  <button className="text-button" onClick={() => setAutoAdvancePaused(true)}>Keep this open</button>
+                )}
+              </div>
             </div>
           )}
           {error && <p className="error" role="alert">{error}</p>}

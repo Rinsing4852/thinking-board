@@ -137,7 +137,7 @@ export function QuietPositionPanel({ refreshToken, requestedItemId, sessionId, o
             {phase === "move" && (
               <>
                 <h3>Which move gives that piece a better job?</h3>
-                <p className="instruction">Play one quiet improving move on the board. You do not need to type notation.</p>
+                <p className="instruction">Play one quiet improving move. Tap or click a piece and a highlighted square, or drag the piece.</p>
                 <div className="selected-answer">
                   {move ? <>
                     Your candidate: <strong>{move.san}</strong>{" "}

@@ -567,6 +567,93 @@ describe("vertical slice", () => {
     connection.close();
   });
 
+  it("keeps the exact wrong move and prevents a corrected retry counting as independent recall", async () => {
+    const appConfig = config(false);
+    const app = await buildApp(appConfig);
+    apps.push(app);
+    const started = await app.inject({
+      method: "POST",
+      url: "/api/v1/openings/repertoires/repertoire.white-e4-principled/reviews/start",
+      payload: { mode: "new" },
+    });
+    const sessionId = (started.json() as { sessionId: string }).sessionId;
+
+    const mistake = await app.inject({
+      method: "POST",
+      url: `/api/v1/openings/reviews/${sessionId}/mistakes`,
+      payload: { moveUci: "d2d4" },
+    });
+    expect(mistake.statusCode).toBe(200);
+    expect(mistake.json()).toMatchObject({ moveUci: "d2d4", moveSan: "d4", attemptNumber: 1 });
+
+    const corrected = await app.inject({
+      method: "POST",
+      url: `/api/v1/openings/reviews/${sessionId}/move`,
+      payload: { moveUci: "e2e4", assisted: false },
+    });
+    expect(corrected.statusCode).toBe(200);
+    expect(corrected.json()).toMatchObject({ outcome: "learning", assisted: true, lapseQueued: true });
+
+    const connection = new BetterSqlite3(appConfig.databasePath);
+    expect(connection.prepare("SELECT played_move_uci FROM opening_review_mistakes").pluck().get()).toBe("d2d4");
+    expect(connection.prepare("SELECT assisted FROM opening_review_events").pluck().get()).toBe(1);
+    connection.close();
+  });
+
+  it("stores a personal learning comment without modifying built-in opening content", async () => {
+    const app = await buildApp(config(false));
+    apps.push(app);
+    const before = await app.inject({
+      method: "GET",
+      url: "/api/v1/openings/repertoires/repertoire.white-e4-principled",
+    });
+    const beforeBody = before.json() as {
+      chapters: Array<{ lines: Array<{ moves: Array<{ id: string; moveUci: string; explanation: { summary: string } }> }> }>;
+    };
+    const move = beforeBody.chapters.flatMap((chapter) => chapter.lines)
+      .flatMap((line) => line.moves)
+      .find((candidate) => candidate.moveUci === "e2e4")!;
+    const providedSummary = move.explanation.summary;
+
+    const saved = await app.inject({
+      method: "PATCH",
+      url: `/api/v1/openings/repertoires/repertoire.white-e4-principled/moves/${move.id}/comment`,
+      payload: { comment: "  Claim the centre before developing the king's knight.  " },
+    });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json()).toEqual({
+      moveId: move.id,
+      comment: "Claim the centre before developing the king's knight.",
+    });
+
+    const after = await app.inject({
+      method: "GET",
+      url: "/api/v1/openings/repertoires/repertoire.white-e4-principled",
+    });
+    const afterBody = after.json() as {
+      chapters: Array<{ lines: Array<{ moves: Array<{ id: string; explanation: { summary: string; personalComment: string | null } }> }> }>;
+    };
+    const updatedMove = afterBody.chapters.flatMap((chapter) => chapter.lines)
+      .flatMap((line) => line.moves)
+      .find((candidate) => candidate.id === move.id)!;
+    expect(updatedMove.explanation).toMatchObject({
+      summary: providedSummary,
+      personalComment: "Claim the centre before developing the king's knight.",
+    });
+
+    const started = await app.inject({
+      method: "POST",
+      url: "/api/v1/openings/repertoires/repertoire.white-e4-principled/reviews/start",
+      payload: { mode: "new" },
+    });
+    expect(started.json()).toMatchObject({
+      introduction: {
+        repertoireMove: { moveId: move.id },
+        explanation: { personalComment: "Claim the centre before developing the king's knight." },
+      },
+    });
+  });
+
   it("restarts the response timer when a paused opening review resumes", async () => {
     const appConfig = config(false);
     const app = await buildApp(appConfig);
@@ -632,6 +719,7 @@ describe("vertical slice", () => {
       totalPositions: 5,
       opponentMove: null,
       learningStage: "new",
+      acceptedMoves: [{ moveUci: "e2e4", moveSan: "e4" }],
       introduction: { repertoireMove: { moveSan: "e4" } },
     });
     const sessionId = (started.json() as { sessionId: string }).sessionId;

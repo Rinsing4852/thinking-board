@@ -84,6 +84,10 @@ describe("database migrations", () => {
         .toBe("opening_position_statistics");
       expect(upgraded.connection.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'opening_explorer_cache'").pluck().get())
         .toBe("opening_explorer_cache");
+      expect(upgraded.connection.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'opening_learning_comments'").pluck().get())
+        .toBe("opening_learning_comments");
+      expect(upgraded.connection.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'opening_review_mistakes'").pluck().get())
+        .toBe("opening_review_mistakes");
       expect(upgraded.connection.pragma("foreign_key_check")).toEqual([]);
       upgraded.close();
     }

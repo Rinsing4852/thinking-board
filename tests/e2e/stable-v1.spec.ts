@@ -56,6 +56,10 @@ test.describe.serial("stable V1 browser journey", () => {
     await openings.getByRole("button", { name: "Next", exact: true }).click();
     await expect(openings.getByRole("heading", { name: "e4", exact: true })).toBeVisible();
     await expect(openings.getByRole("gridcell", { name: "e4 white pawn" })).toBeVisible();
+    await openings.getByRole("button", { name: "Add comment" }).click();
+    await openings.getByRole("textbox", { name: "Your learning comment" }).fill("Remember: claim the centre before moving the knight.");
+    await openings.getByRole("button", { name: "Save comment" }).click();
+    await expect(openings.getByText("Remember: claim the centre before moving the knight.")).toBeVisible();
     await openings.getByRole("button", { name: "Back to repertoires" }).click();
 
     await openings.getByRole("button", { name: "Build on the board" }).click();
@@ -65,8 +69,13 @@ test.describe.serial("stable V1 browser journey", () => {
     await expect(openings.getByRole("grid", { name: "Repertoire board" }).locator("[role='gridcell'][tabindex='0']")).toHaveCount(1);
     await expect(openings.getByRole("grid", { name: "Analysis board" }).locator("[role='gridcell'][tabindex='0']")).toHaveCount(1);
     let board = openings.getByRole("grid", { name: "Analysis board" });
-    await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
-    await board.getByRole("gridcell", { name: "e4 empty" }).click();
+    const e2 = board.getByRole("gridcell", { name: "e2 white pawn" });
+    const e3 = board.getByRole("gridcell", { name: "e3 empty" });
+    const e4 = board.getByRole("gridcell", { name: "e4 empty" });
+    await e2.click();
+    await expect(e3).toHaveClass(/target/);
+    await expect(e4).toHaveClass(/target/);
+    await e2.dragTo(e4);
     await openings.getByRole("button", { name: "Add 1 move to my repertoire" }).click();
     await openings.getByRole("textbox", { name: /Develops with tempo/ }).fill("Claims the centre and opens the bishop.");
     board = openings.getByRole("grid", { name: "Analysis board" });
@@ -136,7 +145,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await openings.getByRole("button", { name: "Now try it from memory" }).click();
 
     let board = openings.getByRole("grid", { name: "Chess position" });
-    await openings.getByRole("button", { name: "I don’t know — show me" }).click();
+    await openings.getByRole("button", { name: "I don’t know — show move" }).click();
     await expect(openings.getByText("Learning", { exact: true })).toBeVisible();
     await page.reload();
     await expect(openings.getByText("This position has been placed back into today’s session for an unassisted recall.")).toBeVisible();
@@ -157,7 +166,6 @@ test.describe.serial("stable V1 browser journey", () => {
       board = openings.getByRole("grid", { name: "Chess position" });
       await board.getByRole("gridcell", { name: decision.from }).click();
       await board.getByRole("gridcell", { name: decision.to }).click();
-      await openings.getByRole("button", { name: "Check my move" }).click();
       await expect(openings.getByText("Remembered", { exact: true })).toBeVisible();
       await openings.getByRole("button", { name: "Continue" }).click();
     }
@@ -189,9 +197,13 @@ test.describe.serial("stable V1 browser journey", () => {
     await openings.getByRole("button", { name: "Resume guided line" }).click();
 
     const board = openings.getByRole("grid", { name: "Chess position" });
+    await board.getByRole("gridcell", { name: "g1 white knight" }).click();
+    await board.getByRole("gridcell", { name: "f3 empty" }).click();
+    await expect(openings.getByText("Try again", { exact: true })).toBeVisible();
+    await expect(openings.getByText(/move the pawn/i)).toBeVisible();
+    await expect(board.getByRole("gridcell", { name: "e2 white pawn" })).toHaveClass(/answer-highlight/);
     await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
     await board.getByRole("gridcell", { name: "e4 empty" }).click();
-    await openings.getByRole("button", { name: "Check my move" }).click();
     await expect(openings.getByText("Repertoire move found")).toBeVisible();
 
     await page.reload();
@@ -208,7 +220,8 @@ test.describe.serial("stable V1 browser journey", () => {
 
     await page.reload();
     await expect(openings.getByText("Decision 2 of 6")).toBeVisible();
-    await expect(openings.getByRole("button", { name: "Play e5" })).toBeVisible();
+    await expect(openings.getByRole("heading", { name: "What should White play next?" })).toBeVisible();
+    await expect(openings.getByText("e5 will play automatically.")).not.toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });
     await expectSquareBoard(page);
     const questionTop = await openings.locator(".opening-question-card").evaluate((element) => element.getBoundingClientRect().top);
@@ -238,7 +251,7 @@ test.describe.serial("stable V1 browser journey", () => {
 
     await page.getByRole("button", { name: "2 · Candidates" }).click();
     await page.getByRole("button", { name: "Start generating candidates" }).click();
-    await expect(page.getByText("You do not need to type notation.")).toBeVisible();
+    await expect(page.getByText(/tap or click a piece and a highlighted square/i)).toBeVisible();
     await page.getByRole("button", { name: "Show engine candidates" }).click();
     await expect(page.getByText("These are comparison moves, not a demand to find one single “correct” move.")).toBeVisible();
 

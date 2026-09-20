@@ -170,7 +170,7 @@ export function CandidateGenerationPanel({ refreshToken, requestedItemId, sessio
                   ))}
                 </div>
                 <p className="term-help">{CANDIDATE_TYPES.find((type) => type.value === selectedType)?.description}</p>
-                <p className="instruction">Choose a type, then play one move on the board. The position resets after each candidate, so you can enter another idea. You do not need to type notation.</p>
+                <p className="instruction">Choose a type, then tap or click a piece and a highlighted square — or drag the piece. The position resets after each candidate, ready for your next idea.</p>
                 <div className="entered-candidates">
                   {candidates.length === 0 && <span>No candidates entered yet.</span>}
                   {candidates.map((candidate) => (

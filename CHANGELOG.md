@@ -2,6 +2,26 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## Unreleased
+
+### Faster opening learning
+
+- Checks opening moves as soon as they are played. A correct move continues the
+  lesson automatically, while a wrong move resets immediately for another try.
+- Records the exact wrong move before the eventual answer, highlights the piece
+  that should move on the first hint, and treats a corrected answer as assisted
+  rather than an independent recall.
+- Automatically plays prepared opponent replies and optionally advances after
+  concise correct-answer feedback, with controls to pause either action when
+  the learner wants more time.
+- Adds private, editable learning comments to repertoire moves. Personal notes
+  appear in line exploration, lessons, reviews and imported-game feedback
+  without altering the underlying built-in or imported explanation.
+- Upgrades every shared chessboard with click-or-drag movement, clearer legal
+  move and capture markers, stronger selection and coordinate contrast,
+  keyboard announcements, touch-friendly interaction and an explicit promotion
+  chooser instead of silently assuming a queen.
+
 ## 1.1.1 — 2026-09-19
 
 - Keeps browser release checks in sync with the shared application version.

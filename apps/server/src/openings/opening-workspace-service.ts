@@ -4,11 +4,13 @@ import type {
   OpeningLineMove,
   OpeningRepertoireDetailResponse,
   OpeningLineMutationResponse,
+  OpeningLearningCommentResponse,
 } from "../../../../packages/contracts/src/api.js";
 import { Chess } from "chess.js";
 import type { SqliteDatabase } from "../db/database.js";
 import { id, now } from "../lib/ids.js";
 import { openingPositionKey } from "./opening-content.js";
+import { ensureActiveProfile } from "../training/profile.js";
 
 interface RepertoireRow {
   id: string;
@@ -47,12 +49,14 @@ interface MoveRow {
   resulting_plan: string | null;
   tactical_warning: string | null;
   common_mistake: string | null;
+  personal_comment: string | null;
 }
 
 export class OpeningWorkspaceService {
   constructor(private readonly db: SqliteDatabase) {}
 
   repertoire(repertoireId: string): OpeningRepertoireDetailResponse {
+    const profileId = ensureActiveProfile(this.db);
     const repertoire = this.db.prepare(`
       SELECT r.id, r.name, r.learner_color, r.summary, oi.source_title,
              CASE WHEN oi.repertoire_id IS NULL THEN 0 ELSE 1 END AS editable
@@ -83,7 +87,7 @@ export class OpeningWorkspaceService {
         id: chapter.id,
         title: chapter.title,
         introduction: chapter.introduction,
-        lines: this.lines(chapter.id),
+        lines: this.lines(chapter.id, profileId),
       })),
     };
   }
@@ -97,6 +101,7 @@ export class OpeningWorkspaceService {
     summary?: string | undefined;
   }): OpeningLineMutationResponse {
     this.assertEditable(input.repertoireId);
+    const profileId = ensureActiveProfile(this.db);
     if (!Number.isInteger(input.afterPly) || input.afterPly < 0) throw new Error("Choose a valid place in the line");
     const moveUci = input.moveUci.trim().toLowerCase();
     if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(moveUci)) throw new Error("Move must be legal UCI notation");
@@ -110,7 +115,7 @@ export class OpeningWorkspaceService {
       id: string; title: string; chapter_id: string; priority: number; learner_color: "white" | "black";
     } | undefined;
     if (!line) throw new Error("Opening line is not available");
-    const moves = this.moves(line.id);
+    const moves = this.moves(line.id, profileId);
     if (input.afterPly > moves.length) throw new Error("That place is beyond the end of this line");
     const fen = input.afterPly === 0 ? moves[0]?.fenBefore : moves[input.afterPly - 1]?.fenAfter;
     if (!fen) throw new Error("The line has no starting position");
@@ -237,6 +242,37 @@ export class OpeningWorkspaceService {
     return this.repertoire(repertoireId);
   }
 
+  updateLearningComment(
+    repertoireId: string,
+    moveId: string,
+    commentValue: string,
+  ): OpeningLearningCommentResponse {
+    const profileId = ensureActiveProfile(this.db);
+    const move = this.db.prepare(`
+      SELECT id FROM opening_moves
+      WHERE id = ? AND repertoire_id = ? AND active = 1
+    `).get(moveId, repertoireId);
+    if (!move) throw new Error("Opening move is not available");
+
+    const comment = commentValue.trim().replace(/\s+/g, " ").slice(0, 1000);
+    const timestamp = now();
+    if (!comment) {
+      this.db.prepare(`
+        DELETE FROM opening_learning_comments WHERE profile_id = ? AND move_id = ?
+      `).run(profileId, moveId);
+      return { moveId, comment: null };
+    }
+
+    this.db.prepare(`
+      INSERT INTO opening_learning_comments(profile_id, move_id, comment, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(profile_id, move_id) DO UPDATE SET
+        comment = excluded.comment,
+        updated_at = excluded.updated_at
+    `).run(profileId, moveId, comment, timestamp, timestamp);
+    return { moveId, comment };
+  }
+
   private assertEditable(repertoireId: string): void {
     if (!this.db.prepare("SELECT 1 FROM opening_imports WHERE repertoire_id = ?").get(repertoireId)) {
       throw new Error("Built-in repertoires are read-only. Create a personal repertoire to edit lines.");
@@ -263,7 +299,7 @@ export class OpeningWorkspaceService {
     `).run(now(), repertoireId);
   }
 
-  private lines(chapterId: string): OpeningLineDetail[] {
+  private lines(chapterId: string, profileId: string): OpeningLineDetail[] {
     const lines = this.db.prepare(`
       SELECT id, title, priority
       FROM opening_lines
@@ -271,7 +307,7 @@ export class OpeningWorkspaceService {
       ORDER BY priority, title
     `).all(chapterId) as LineRow[];
     return lines.map((line) => {
-      const moves = this.moves(line.id);
+      const moves = this.moves(line.id, profileId);
       return {
         id: line.id,
         title: line.title,
@@ -284,20 +320,22 @@ export class OpeningWorkspaceService {
     });
   }
 
-  private moves(lineId: string): OpeningLineMove[] {
+  private moves(lineId: string, profileId: string): OpeningLineMove[] {
     const rows = this.db.prepare(`
       SELECT m.id, olm.ply, m.move_uci, m.move_san, m.role, m.move_kind,
              before.fen AS fen_before, after.fen AS fen_after,
              a.summary, a.changes_json, a.concepts_json, a.opponent_idea,
-             a.resulting_plan, a.tactical_warning, a.common_mistake
+             a.resulting_plan, a.tactical_warning, a.common_mistake,
+             lc.comment AS personal_comment
       FROM opening_line_moves olm
       JOIN opening_moves m ON m.id = olm.move_id AND m.active = 1
       JOIN opening_positions before ON before.id = m.from_position_id
       JOIN opening_positions after ON after.id = m.to_position_id
       JOIN opening_move_annotations a ON a.move_id = m.id
+      LEFT JOIN opening_learning_comments lc ON lc.move_id = m.id AND lc.profile_id = ?
       WHERE olm.line_id = ?
       ORDER BY olm.ply
-    `).all(lineId) as MoveRow[];
+    `).all(profileId, lineId) as MoveRow[];
     return rows.map((row) => ({
       id: row.id,
       ply: row.ply,
@@ -315,6 +353,7 @@ export class OpeningWorkspaceService {
         resultingPlan: row.resulting_plan,
         tacticalWarning: row.tactical_warning,
         commonMistake: row.common_mistake,
+        personalComment: row.personal_comment,
       },
     }));
   }

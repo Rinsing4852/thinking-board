@@ -46,6 +46,7 @@ interface LineMoveRow {
   resulting_plan: string | null;
   tactical_warning: string | null;
   common_mistake: string | null;
+  personal_comment: string | null;
 }
 
 interface AnswerRow {
@@ -372,20 +373,21 @@ export class OpeningTrainingService {
     return attempt;
   }
 
-  private lineMoves(lineId: string): LineMoveRow[] {
+  private lineMoves(lineId: string, profileId: string): LineMoveRow[] {
     return this.db.prepare(`
       SELECT olm.ply, m.id AS move_id, m.move_uci, m.move_san, m.role,
              m.from_position_id, before.fen AS from_fen, after.fen AS to_fen,
              a.summary, a.changes_json, a.concepts_json, a.resulting_plan,
-             a.tactical_warning, a.common_mistake
+             a.tactical_warning, a.common_mistake, lc.comment AS personal_comment
       FROM opening_line_moves olm
       JOIN opening_moves m ON m.id = olm.move_id
       JOIN opening_positions before ON before.id = m.from_position_id
       JOIN opening_positions after ON after.id = m.to_position_id
       JOIN opening_move_annotations a ON a.move_id = m.id
+      LEFT JOIN opening_learning_comments lc ON lc.move_id = m.id AND lc.profile_id = ?
       WHERE olm.line_id = ?
       ORDER BY olm.ply
-    `).all(lineId) as LineMoveRow[];
+    `).all(profileId, lineId) as LineMoveRow[];
   }
 
   private currentDecision(attempt: AttemptRow, decisionIndex = attempt.current_decision): {
@@ -393,7 +395,7 @@ export class OpeningTrainingService {
     learnerMoves: LineMoveRow[];
     allMoves: LineMoveRow[];
   } {
-    const allMoves = this.lineMoves(attempt.line_id);
+    const allMoves = this.lineMoves(attempt.line_id, attempt.profile_id);
     const learnerMoves = allMoves.filter((move) => move.role === "learner");
     const expected = learnerMoves[decisionIndex];
     if (!expected) throw new Error("Opening lesson has no remaining decision");
@@ -436,6 +438,7 @@ export class OpeningTrainingService {
       opponentMove,
       movesBefore,
       prompt: `What should ${attempt.learner_color === "white" ? "White" : "Black"} play next?`,
+      acceptedMoves: this.acceptedMoves(attempt.repertoire_id, expected.from_position_id),
       moveAnswer: existingAnswer
         ? this.moveAnswerResponse(
           expected,
@@ -446,6 +449,16 @@ export class OpeningTrainingService {
         )
         : null,
     };
+  }
+
+  private acceptedMoves(repertoireId: string, positionId: string): Array<{ moveUci: string; moveSan: string }> {
+    return this.db.prepare(`
+      SELECT move_uci AS moveUci, move_san AS moveSan
+      FROM opening_moves
+      WHERE repertoire_id = ? AND from_position_id = ?
+        AND role = 'learner' AND active = 1
+      ORDER BY CASE move_kind WHEN 'primary' THEN 0 ELSE 1 END, sort_order, move_san
+    `).all(repertoireId, positionId) as Array<{ moveUci: string; moveSan: string }>;
   }
 
   private answer(attemptId: string, decisionIndex: number): AnswerRow | undefined {
@@ -499,6 +512,7 @@ export class OpeningTrainingService {
         resultingPlan: expected.resulting_plan,
         tacticalWarning: expected.tactical_warning,
         commonMistake: expected.common_mistake,
+        personalComment: expected.personal_comment,
       },
       next,
     };
@@ -516,7 +530,7 @@ export class OpeningTrainingService {
     return {
       moveOutcome: outcome,
       playedMoveSan,
-      repertoireMove: { moveUci: expected.move_uci, moveSan: expected.move_san },
+      repertoireMove: { moveId: expected.move_id, moveUci: expected.move_uci, moveSan: expected.move_san },
       fenAfterMove: expected.to_fen,
       message: outcome === "repertoire"
         ? correctConcept === "missing_explanation"

@@ -126,7 +126,7 @@ export function PunishBlunderPanel({ refreshToken, requestedItemId, sessionId, o
             {phase === "answer" && (
               <>
                 <h3>{exercise.prompt}</h3>
-                <p className="instruction">Play one immediate reply on the board by clicking the piece and its destination.</p>
+                <p className="instruction">Play one immediate reply. Tap or click the piece and a highlighted destination, or drag the piece.</p>
                 <div className="selected-answer">
                   {move ? <>
                     Your move: <strong>{move.san}</strong>{" "}

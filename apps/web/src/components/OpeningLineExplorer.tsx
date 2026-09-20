@@ -9,6 +9,7 @@ import type {
 } from "../../../../packages/contracts/src/api";
 import { get, patch, post } from "../api";
 import { ChessBoard } from "./ChessBoard";
+import { OpeningLearningComment } from "./OpeningLearningComment";
 
 interface OpeningLineExplorerProps {
   detail: OpeningRepertoireDetailResponse;
@@ -134,6 +135,21 @@ export function OpeningLineExplorer({
     } finally {
       setCoverageBusy(false);
     }
+  };
+
+  const updateLearningComment = (moveId: string, comment: string | null): void => {
+    onDetailChanged({
+      ...detail,
+      chapters: detail.chapters.map((chapter) => ({
+        ...chapter,
+        lines: chapter.lines.map((candidate) => ({
+          ...candidate,
+          moves: candidate.moves.map((move) => move.id === moveId
+            ? { ...move, explanation: { ...move.explanation, personalComment: comment } }
+            : move),
+        })),
+      })),
+    });
   };
 
   const pendingFen = useMemo(() => {
@@ -335,6 +351,12 @@ export function OpeningLineExplorer({
               {currentMove.explanation.resultingPlan && <><strong>Plan</strong><p>{currentMove.explanation.resultingPlan}</p></>}
               {currentMove.explanation.tacticalWarning && <><strong>Watch out</strong><p>{currentMove.explanation.tacticalWarning}</p></>}
               {currentMove.explanation.commonMistake && <><strong>Common mistake</strong><p>{currentMove.explanation.commonMistake}</p></>}
+              <OpeningLearningComment
+                repertoireId={detail.repertoire.id}
+                moveId={currentMove.id}
+                comment={currentMove.explanation.personalComment}
+                onSaved={(comment) => updateLearningComment(currentMove.id, comment)}
+              />
               {detail.repertoire.editable && !editingExplanation && (
                 <button className="secondary" onClick={() => { setExplanationText(currentMove.explanation.summary); setEditingExplanation(true); }}>
                   Edit explanation
