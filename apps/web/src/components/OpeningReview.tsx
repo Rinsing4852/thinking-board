@@ -244,7 +244,7 @@ export function OpeningReview({ initial, onComplete, onPause }: OpeningReviewPro
           <progress aria-label={`Opening practice progress: step ${exercise.positionNumber} of ${exercise.totalPositions}`} value={exercise.positionNumber - 1} max={exercise.totalPositions} />
           <small>{exercise.presentationKind === "lapse_repeat"
             ? "Unassisted retry"
-            : exercise.learningStage === "new" ? "New move · learn by playing" : "Scheduled by memory strength"}</small>
+            : exercise.practiceReason.label}</small>
         </div>
       </div>
 

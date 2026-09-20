@@ -946,6 +946,79 @@ describe("vertical slice", () => {
     connection.close();
   });
 
+  it("builds one recommended opening session from game misses, due work, and limited new material", async () => {
+    const appConfig = config(false);
+    const app = await buildApp(appConfig);
+    apps.push(app);
+    await app.inject({
+      method: "POST",
+      url: "/api/v1/imports/pgn",
+      payload: { pgn: REPEATED_ITALIAN_DEVIATIONS, playerName: "Alice" },
+    });
+
+    await app.inject({
+      method: "GET",
+      url: "/api/v1/openings/reviews/recommended",
+    });
+    const prepared = new BetterSqlite3(appConfig.databasePath);
+    prepared.prepare(`
+      UPDATE opening_review_items
+      SET state = 2, repetitions = 2, due_at = '2020-01-01T00:00:00.000Z'
+      WHERE id = (
+        SELECT ori.id
+        FROM opening_review_items ori
+        JOIN opening_moves m ON m.id = ori.move_id
+        WHERE ori.repertoire_id = 'repertoire.white-e4-principled'
+          AND m.move_uci <> 'd2d3'
+        ORDER BY ori.id
+        LIMIT 1
+      )
+    `).run();
+    prepared.close();
+
+    const recommended = await app.inject({
+      method: "GET",
+      url: "/api/v1/openings/reviews/recommended",
+    });
+    expect(recommended.statusCode).toBe(200);
+    expect(recommended.json()).toMatchObject({
+      available: true,
+      repertoire: {
+        id: "repertoire.white-e4-principled",
+        learnerColor: "white",
+      },
+      counts: {
+        gameMisses: 1,
+        due: 1,
+        new: 3,
+        total: 5,
+      },
+      message: expect.stringMatching(/game mistakes come first/i),
+    });
+
+    const started = await app.inject({
+      method: "POST",
+      url: "/api/v1/openings/reviews/recommended/start",
+    });
+    expect(started.statusCode).toBe(200);
+    expect(started.json()).toMatchObject({
+      kind: "exercise",
+      repertoire: { id: "repertoire.white-e4-principled" },
+      totalPositions: 5,
+      practiceReason: {
+        kind: "game_miss",
+        label: "Missed in 2 of your games",
+      },
+      introduction: { repertoireMove: { moveUci: "d2d3", moveSan: "d3" } },
+    });
+
+    const connection = new BetterSqlite3(appConfig.databasePath);
+    expect(connection.prepare(`
+      SELECT selection_pool FROM opening_review_sessions WHERE status = 'active'
+    `).pluck().get()).toBe("mixed");
+    connection.close();
+  });
+
   it("does not blame the player when the opponent leaves the repertoire first", async () => {
     const app = await buildApp(config(false));
     apps.push(app);

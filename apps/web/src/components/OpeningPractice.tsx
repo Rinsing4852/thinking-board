@@ -14,6 +14,7 @@ import type {
   OpeningRepertoireDetailResponse,
   OpeningRepertoireSummary,
   OpeningReviewActiveState,
+  OpeningReviewRecommendation,
   OpeningWhyAnswerResponse,
 } from "../../../../packages/contracts/src/api";
 import { get, post } from "../api";
@@ -39,6 +40,7 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
   const [step, setStep] = useState<OpeningLessonStep | null>(null);
   const [complete, setComplete] = useState<OpeningLessonComplete | null>(null);
   const [activeReview, setActiveReview] = useState<OpeningReviewActiveState | null>(null);
+  const [recommendation, setRecommendation] = useState<OpeningReviewRecommendation | null>(null);
   const [reviewPaused, setReviewPaused] = useState(false);
   const [phase, setPhase] = useState<LessonPhase>("catalog");
   const [pausedLessonPhase, setPausedLessonPhase] = useState<ActiveLessonPhase | null>(null);
@@ -111,8 +113,10 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
       get<OpeningCatalogResponse>("/api/v1/openings/catalog"),
       get<OpeningLessonActiveState | null>("/api/v1/openings/lessons/active"),
       get<OpeningReviewActiveState | null>("/api/v1/openings/reviews/active"),
-    ]).then(([catalogResponse, active, review]) => {
+      get<OpeningReviewRecommendation>("/api/v1/openings/reviews/recommended"),
+    ]).then(([catalogResponse, active, review, recommended]) => {
       setCatalog(catalogResponse.repertoires);
+      setRecommendation(recommended);
       setActiveReview(review);
       setReviewPaused(false);
       setPausedLessonPhase(null);
@@ -227,11 +231,36 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
     }
   };
 
+  const startRecommendedReview = async (): Promise<void> => {
+    if (step && pausedLessonPhase && !window.confirm("Starting memory practice will end the paused guided line. Continue?")) return;
+    if (activeReview && reviewPaused && !window.confirm("Starting a new memory session will end the paused session. Continue?")) return;
+    if (!beginSubmission()) return;
+    setError("");
+    try {
+      const review = await post<OpeningReviewActiveState>("/api/v1/openings/reviews/recommended/start");
+      setStep(null);
+      setPausedLessonPhase(null);
+      setActiveReview(review);
+      setReviewPaused(false);
+      requestAnimationFrame(() => document.getElementById("opening-practice")?.scrollIntoView({ behavior: "smooth" }));
+    } catch (startError) {
+      setError(startError instanceof Error ? startError.message : "Could not start recommended opening practice");
+    } finally {
+      endSubmission();
+    }
+  };
+
   const finishReview = (): void => {
     setActiveReview(null);
     setReviewPaused(false);
-    void get<OpeningCatalogResponse>("/api/v1/openings/catalog")
-      .then((response) => setCatalog(response.repertoires))
+    void Promise.all([
+      get<OpeningCatalogResponse>("/api/v1/openings/catalog"),
+      get<OpeningReviewRecommendation>("/api/v1/openings/reviews/recommended"),
+    ])
+      .then(([response, recommended]) => {
+        setCatalog(response.repertoires);
+        setRecommendation(recommended);
+      })
       .catch(() => undefined);
   };
 
@@ -501,6 +530,24 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
               </div>
               <button onClick={() => { setPhase(pausedLessonPhase); setPausedLessonPhase(null); }}>
                 Resume guided line
+              </button>
+            </div>
+          )}
+          {!activeReview && !(step && pausedLessonPhase) && recommendation?.available && recommendation.repertoire && (
+            <div className="panel opening-recommendation">
+              <div className="opening-recommendation-copy">
+                <span className="eyebrow">Recommended next</span>
+                <h3>{recommendation.repertoire.name}</h3>
+                <p>{recommendation.message}</p>
+                <div className="opening-recommendation-mix" aria-label="Recommended session contents">
+                  {recommendation.counts.gameMisses > 0 && <span><strong>{recommendation.counts.gameMisses}</strong> from your games</span>}
+                  {recommendation.counts.due > 0 && <span><strong>{recommendation.counts.due}</strong> due</span>}
+                  {recommendation.counts.new > 0 && <span><strong>{recommendation.counts.new}</strong> new</span>}
+                  {recommendation.counts.early > 0 && <span><strong>{recommendation.counts.early}</strong> early review</span>}
+                </div>
+              </div>
+              <button disabled={submitting} onClick={() => void startRecommendedReview()}>
+                {submitting ? "Starting…" : `Start ${recommendation.counts.total}-position session`}
               </button>
             </div>
           )}

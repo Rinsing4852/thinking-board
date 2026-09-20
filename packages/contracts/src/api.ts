@@ -389,6 +389,21 @@ export interface OpeningReviewOpponentMove {
   moveSan: string;
 }
 
+export type OpeningReviewReasonKind = "game_miss" | "due" | "new" | "early" | "retry";
+
+export interface OpeningReviewRecommendation {
+  available: boolean;
+  repertoire: { id: string; name: string; learnerColor: Color } | null;
+  counts: {
+    gameMisses: number;
+    due: number;
+    new: number;
+    early: number;
+    total: number;
+  };
+  message: string;
+}
+
 export interface OpeningReviewExercise {
   kind: "exercise";
   sessionId: string;
@@ -398,6 +413,7 @@ export interface OpeningReviewExercise {
   totalPositions: number;
   presentationKind: "scheduled" | "lapse_repeat";
   learningStage: "new" | "learning" | "review";
+  practiceReason: { kind: OpeningReviewReasonKind; label: string };
   fenBeforeOpponent: string;
   fenToMove: string;
   opponentMove: OpeningReviewOpponentMove | null;

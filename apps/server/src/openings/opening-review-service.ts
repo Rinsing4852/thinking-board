@@ -6,6 +6,7 @@ import type {
   OpeningReviewExercise,
   OpeningReviewFeedback,
   OpeningReviewMistakeResponse,
+  OpeningReviewRecommendation,
   OpeningReviewState,
 } from "../../../../packages/contracts/src/api.js";
 import type { SqliteDatabase } from "../db/database.js";
@@ -71,6 +72,13 @@ interface CandidateReviewMove {
   frequency: number | null;
 }
 
+interface RecommendedSelection {
+  repertoire: { id: string; name: string; learnerColor: "white" | "black" };
+  selected: Array<{ id: string }>;
+  counts: OpeningReviewRecommendation["counts"];
+  unreviewedGameMisses: number;
+}
+
 function applyLegalMove(fen: string, moveUci: string): { san: string; fen: string } {
   if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(moveUci)) throw new Error("Choose a legal move on the board");
   try {
@@ -94,6 +102,40 @@ function averageResponse(previous: number | null, repetitions: number, responseM
 
 export class OpeningReviewService {
   constructor(private readonly db: SqliteDatabase) {}
+
+  recommendation(sessionSize = 10, newLimit = 3): OpeningReviewRecommendation {
+    const profileId = ensureActiveProfile(this.db);
+    const recommendation = this.recommendedSelection(profileId, sessionSize, newLimit);
+    if (!recommendation) {
+      return {
+        available: false,
+        repertoire: null,
+        counts: { gameMisses: 0, due: 0, new: 0, early: 0, total: 0 },
+        message: "Add at least one learner move to a repertoire to begin opening practice.",
+      };
+    }
+    return {
+      available: true,
+      repertoire: recommendation.repertoire,
+      counts: recommendation.counts,
+      message: this.recommendationMessage(recommendation.counts),
+    };
+  }
+
+  startRecommended(sessionSize = 10, newLimit = 3): OpeningReviewExercise {
+    const profileId = ensureActiveProfile(this.db);
+    const recommendation = this.recommendedSelection(profileId, sessionSize, newLimit);
+    if (!recommendation || recommendation.selected.length === 0) {
+      throw new Error("There are no opening positions available to practise");
+    }
+    return this.createSession(
+      profileId,
+      recommendation.repertoire.id,
+      recommendation.selected,
+      "mixed",
+      null,
+    );
+  }
 
   start(
     repertoireId: string,
@@ -189,6 +231,141 @@ export class OpeningReviewService {
     if (!item) throw new Error("The repertoire position is no longer available");
     const pool = item.state === 0 ? "new" : item.due_at <= now() ? "due" : "early";
     return this.createSession(profileId, repertoireId, [{ id: item.id }], pool, gameId);
+  }
+
+  private recommendedSelection(profileId: string, sessionSize: number, newLimit: number): RecommendedSelection | null {
+    const repertoires = this.db.prepare(`
+      SELECT id, name, learner_color
+      FROM opening_repertoires
+      ORDER BY learner_color DESC, name
+    `).all() as Array<{ id: string; name: string; learner_color: "white" | "black" }>;
+    const candidates: RecommendedSelection[] = [];
+    const timestamp = now();
+
+    for (const repertoire of repertoires) {
+      this.ensureItems(profileId, repertoire.id);
+      const gameMisses = this.db.prepare(`
+        WITH ranked_matches AS (
+          SELECT gom.*,
+                 ROW_NUMBER() OVER (
+                   PARTITION BY gom.game_id
+                   ORDER BY gom.matched_plies DESC,
+                            gom.matched_player_moves DESC,
+                            CASE gom.status
+                              WHEN 'in_repertoire' THEN 5
+                              WHEN 'player_deviation' THEN 4
+                              WHEN 'opponent_deviation' THEN 3
+                              WHEN 'repertoire_ended' THEN 2
+                              ELSE 1
+                            END DESC,
+                            CASE WHEN oi.repertoire_id IS NULL THEN 0 ELSE 1 END DESC,
+                            ranked_repertoire.name
+                 ) AS match_rank
+          FROM game_opening_matches gom
+          JOIN opening_repertoires ranked_repertoire ON ranked_repertoire.id = gom.repertoire_id
+          LEFT JOIN opening_imports oi ON oi.repertoire_id = gom.repertoire_id
+          WHERE gom.profile_id = ?
+        )
+        SELECT ori.id,
+               COUNT(DISTINCT gom.game_id) AS occurrence_count,
+               SUM(CASE WHEN grs.reviewed_at IS NULL THEN 1 ELSE 0 END) AS unreviewed_count,
+               MAX(COALESCE(g.played_at, g.created_at)) AS latest_game
+        FROM ranked_matches gom
+        JOIN games g ON g.id = gom.game_id AND g.profile_id = gom.profile_id
+        JOIN opening_review_items ori
+          ON ori.profile_id = gom.profile_id
+         AND ori.repertoire_id = gom.repertoire_id
+         AND ori.move_id = gom.expected_move_id
+         AND ori.knowledge_dimension = 'move'
+        JOIN opening_moves m ON m.id = ori.move_id AND m.active = 1
+        LEFT JOIN game_opening_review_states grs
+          ON grs.profile_id = gom.profile_id
+         AND grs.game_id = gom.game_id
+         AND grs.repertoire_id = gom.repertoire_id
+        WHERE gom.match_rank = 1 AND gom.repertoire_id = ?
+          AND gom.status = 'player_deviation' AND gom.expected_move_id IS NOT NULL
+        GROUP BY ori.id
+        ORDER BY unreviewed_count DESC, occurrence_count DESC, latest_game DESC, ori.id
+        LIMIT ?
+      `).all(profileId, repertoire.id, sessionSize) as Array<{
+        id: string;
+        occurrence_count: number;
+        unreviewed_count: number;
+      }>;
+      const due = this.db.prepare(`
+        SELECT ori.id FROM opening_review_items ori
+        JOIN opening_moves m ON m.id = ori.move_id AND m.active = 1
+        WHERE ori.profile_id = ? AND ori.repertoire_id = ? AND ori.knowledge_dimension = 'move'
+          AND ori.state <> 0 AND ori.due_at <= ?
+        ORDER BY ori.due_at, ori.lapses DESC, COALESCE(ori.average_response_ms, 0) DESC, ori.repetitions
+      `).all(profileId, repertoire.id, timestamp) as Array<{ id: string }>;
+      const fresh = this.db.prepare(`
+        SELECT ori.id,
+               MIN(c.sort_order) AS chapter_order,
+               MIN(l.priority) AS line_priority,
+               MIN(olm.ply) AS line_ply
+        FROM opening_review_items ori
+        JOIN opening_moves m ON m.id = ori.move_id AND m.active = 1
+        JOIN opening_line_moves olm ON olm.move_id = m.id
+        JOIN opening_lines l ON l.id = olm.line_id AND l.active = 1
+        JOIN opening_chapters c ON c.id = l.chapter_id AND c.active = 1
+        WHERE ori.profile_id = ? AND ori.repertoire_id = ?
+          AND ori.knowledge_dimension = 'move' AND ori.state = 0
+        GROUP BY ori.id
+        ORDER BY chapter_order, line_priority, line_ply, COALESCE(m.frequency, 0) DESC, m.id
+      `).all(profileId, repertoire.id) as Array<{ id: string }>;
+      const early = this.db.prepare(`
+        SELECT ori.id FROM opening_review_items ori
+        JOIN opening_moves m ON m.id = ori.move_id AND m.active = 1
+        WHERE ori.profile_id = ? AND ori.repertoire_id = ? AND ori.knowledge_dimension = 'move'
+          AND ori.state <> 0 AND ori.due_at > ?
+        ORDER BY ori.due_at, ori.lapses DESC, COALESCE(ori.average_response_ms, 0) DESC
+      `).all(profileId, repertoire.id, timestamp) as Array<{ id: string }>;
+
+      const selected: Array<{ id: string }> = [];
+      const selectedIds = new Set<string>();
+      const counts = { gameMisses: 0, due: 0, new: 0, early: 0, total: 0 };
+      const append = (items: Array<{ id: string }>, key: "gameMisses" | "due" | "new" | "early", limit = sessionSize): void => {
+        for (const item of items) {
+          if (selected.length >= sessionSize || counts[key] >= limit) break;
+          if (selectedIds.has(item.id)) continue;
+          selectedIds.add(item.id);
+          selected.push({ id: item.id });
+          counts[key] += 1;
+        }
+      };
+      append(gameMisses, "gameMisses");
+      append(due, "due");
+      append(fresh, "new", newLimit);
+      append(early, "early");
+      counts.total = selected.length;
+      if (selected.length > 0) {
+        candidates.push({
+          repertoire: { id: repertoire.id, name: repertoire.name, learnerColor: repertoire.learner_color },
+          selected,
+          counts,
+          unreviewedGameMisses: gameMisses.reduce((sum, item) => sum + Number(item.unreviewed_count), 0),
+        });
+      }
+    }
+
+    candidates.sort((left, right) =>
+      Number(right.unreviewedGameMisses > 0) - Number(left.unreviewedGameMisses > 0)
+      || right.unreviewedGameMisses - left.unreviewedGameMisses
+      || right.counts.gameMisses - left.counts.gameMisses
+      || right.counts.due - left.counts.due
+      || right.counts.new - left.counts.new
+      || left.repertoire.name.localeCompare(right.repertoire.name));
+    return candidates[0] ?? null;
+  }
+
+  private recommendationMessage(counts: OpeningReviewRecommendation["counts"]): string {
+    if (counts.gameMisses > 0) {
+      return "Your game mistakes come first, followed by memory reviews that are due.";
+    }
+    if (counts.due > 0) return "Start with the moves your memory schedule says are ready to review.";
+    if (counts.new > 0) return "Nothing is due, so this session introduces a small amount of new material.";
+    return "Nothing is due. Keep your repertoire fresh with an optional early review.";
   }
 
   private createSession(
@@ -515,6 +692,45 @@ export class OpeningReviewService {
     const learningStage = item.state === 0 && item.repetitions === 0
       ? "new"
       : item.state === 1 || item.state === 3 ? "learning" : "review";
+    const gameMissCount = Number(this.db.prepare(`
+      WITH ranked_matches AS (
+        SELECT gom.*,
+               ROW_NUMBER() OVER (
+                 PARTITION BY gom.game_id
+                 ORDER BY gom.matched_plies DESC,
+                          gom.matched_player_moves DESC,
+                          CASE gom.status
+                            WHEN 'in_repertoire' THEN 5
+                            WHEN 'player_deviation' THEN 4
+                            WHEN 'opponent_deviation' THEN 3
+                            WHEN 'repertoire_ended' THEN 2
+                            ELSE 1
+                          END DESC,
+                          CASE WHEN oi.repertoire_id IS NULL THEN 0 ELSE 1 END DESC,
+                          r.name
+               ) AS match_rank
+        FROM game_opening_matches gom
+        JOIN opening_repertoires r ON r.id = gom.repertoire_id
+        LEFT JOIN opening_imports oi ON oi.repertoire_id = gom.repertoire_id
+        WHERE gom.profile_id = ?
+      )
+      SELECT COUNT(DISTINCT game_id)
+      FROM ranked_matches
+      WHERE match_rank = 1 AND repertoire_id = ? AND expected_move_id = ?
+        AND status = 'player_deviation'
+    `).pluck().get(item.profile_id, item.repertoire_id, item.move_id));
+    const practiceReason = queue.presentation_kind === "lapse_repeat"
+      ? { kind: "retry" as const, label: "Retrying this move without help" }
+      : gameMissCount > 0
+        ? {
+          kind: "game_miss" as const,
+          label: gameMissCount === 1 ? "Missed in one of your games" : `Missed in ${gameMissCount} of your games`,
+        }
+        : learningStage === "new"
+          ? { kind: "new" as const, label: "New repertoire move" }
+          : item.due_at <= now()
+            ? { kind: "due" as const, label: "Due memory review" }
+            : { kind: "early" as const, label: "Optional early review" };
     const explanation = {
       summary: item.summary,
       changes: JSON.parse(item.changes_json) as string[],
@@ -539,6 +755,7 @@ export class OpeningReviewService {
       totalPositions: total,
       presentationKind: queue.presentation_kind,
       learningStage,
+      practiceReason,
       fenBeforeOpponent: hasOpponentContext ? context!.previous_fen! : item.from_fen,
       fenToMove: item.from_fen,
       opponentMove: hasOpponentContext

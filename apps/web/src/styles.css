@@ -143,6 +143,14 @@ select { min-width: 200px; background: #101512; color: #e6ece7; border: 1px soli
 .opening-permission input { margin-top: .2rem; accent-color: var(--lime); }
 .opening-source { flex: 0 0 auto !important; margin: -.2rem 0 .4rem; font-size: .78rem; }
 .success { color: var(--lime); }
+.opening-recommendation { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; margin-bottom: 1rem; border-color: rgba(201, 243, 107, .42); background: linear-gradient(135deg, rgba(201, 243, 107, .08), var(--panel) 55%); }
+.opening-recommendation-copy { display: grid; gap: .45rem; min-width: 0; }
+.opening-recommendation h3 { margin: 0; font-size: 1.35rem; }
+.opening-recommendation p { color: var(--ink-soft); line-height: 1.45; margin: 0; }
+.opening-recommendation > button { flex: 0 0 auto; }
+.opening-recommendation-mix { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .2rem; }
+.opening-recommendation-mix span { padding: .35rem .55rem; border: 1px solid var(--line); border-radius: 999px; color: var(--ink-soft); font-size: .72rem; }
+.opening-recommendation-mix strong { color: var(--lime); }
 .opening-catalog { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .opening-card { display: flex; flex-direction: column; align-items: start; }
 .opening-card h3 { font-size: 1.55rem; margin: 1rem 0 .5rem; }
@@ -594,6 +602,8 @@ footer { border-top: 1px solid var(--line); padding: 2rem 4vw; color: #69756d; d
   .getting-started { grid-template-columns: 1fr; }
   .opening-catalog { grid-template-columns: 1fr; }
   .opening-import-launch { align-items: start; flex-direction: column; gap: 1rem; }
+  .opening-recommendation { align-items: stretch; flex-direction: column; }
+  .opening-recommendation > button { width: 100%; }
   .opening-import-actions { justify-content: flex-start; }
   .opening-resume-card { align-items: start; flex-direction: column; }
   .opening-importer-heading { grid-template-columns: 1fr; gap: .7rem; }

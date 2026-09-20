@@ -29,7 +29,7 @@ import { TrainingService } from "./training/training-service.js";
 import { CandidateTrainingService } from "./training/candidate-training-service.js";
 import { V1TrainingService } from "./training/v1-training-service.js";
 import { AttemptLifecycle } from "./training/attempt-lifecycle.js";
-import { activeProfileId, setActiveProfile } from "./training/profile.js";
+import { activeProfileId, ensureActiveProfile, setActiveProfile } from "./training/profile.js";
 
 interface JobRow {
   id: string;
@@ -320,6 +320,22 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   });
 
   app.get("/api/v1/openings/reviews/active", async () => openingReviews.active());
+
+  app.get("/api/v1/openings/reviews/recommended", async () => {
+    const profileId = ensureActiveProfile(database.connection);
+    openingGames.inbox(profileId);
+    return openingReviews.recommendation();
+  });
+
+  app.post("/api/v1/openings/reviews/recommended/start", async (request, reply) => {
+    try {
+      const profileId = ensureActiveProfile(database.connection);
+      openingGames.inbox(profileId);
+      return openingReviews.startRecommended();
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not start recommended opening practice" });
+    }
+  });
 
   app.post("/api/v1/openings/reviews/:sessionId/resume", async (request, reply) => {
     try {
