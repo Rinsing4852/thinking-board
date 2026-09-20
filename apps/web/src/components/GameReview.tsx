@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 
 import type { GameOpeningConnection, OpeningReviewActiveState } from "../../../../packages/contracts/src/api";
 import { get, patch, post } from "../api";
+import { ChessBoard } from "./ChessBoard";
+import { applyUciMove } from "../opening-board";
 
 interface Concept {
   id: string;
@@ -15,6 +17,7 @@ interface GameSummary {
   black: string;
   playerColor: string;
   result: string;
+  playedAt: string | null;
   analyzedAt: string | null;
 }
 
@@ -125,9 +128,28 @@ function OpeningConnectionCard({
   starting: boolean;
   onPractice: () => void;
 }) {
+  const [boardView, setBoardView] = useState<"decision" | "played" | "repertoire">("decision");
+  useEffect(() => setBoardView("decision"), [opening.matchId]);
   const covered = opening.matchedPlayerMoves === 1
     ? "1 of your moves matched"
     : `${opening.matchedPlayerMoves} of your moves matched`;
+  const departure = opening.departure;
+  const canShowRepertoire = opening.status === "player_deviation" && Boolean(opening.expectedMove);
+  const boardFen = !departure || boardView === "decision"
+    ? departure?.fenBefore
+    : boardView === "played"
+      ? departure.fenAfter
+      : opening.expectedMove
+        ? applyUciMove(departure.fenBefore, opening.expectedMove.moveUci)
+        : departure.fenBefore;
+  const displayedMove = boardView === "played"
+    ? departure?.moveUci ?? null
+    : boardView === "repertoire"
+      ? opening.expectedMove?.moveUci ?? null
+      : null;
+  const decisionHighlights = boardView === "decision" && opening.expectedMove
+    ? [opening.expectedMove.moveUci.slice(0, 2), opening.expectedMove.moveUci.slice(2, 4)]
+    : [];
   return (
     <article className={`panel game-opening-card ${opening.status}`}>
       <div className="game-opening-heading">
@@ -135,54 +157,82 @@ function OpeningConnectionCard({
           <span className="eyebrow">Opening connection</span>
           <h3>{opening.repertoire.name}</h3>
         </div>
-        <span className="opening-coverage">{covered}</span>
+        <span className="game-opening-coverage-badge">{covered}</span>
       </div>
 
-      {opening.status === "player_deviation" && opening.departure && opening.expectedMove && (
-        <>
-          <strong className="game-opening-result">First difference: {moveLabel(opening.departure)}</strong>
-          <p>You played <strong>{opening.departure.moveSan}</strong>. Your prepared line continues with <strong>{opening.expectedMove.moveSan}</strong>.</p>
-          <p className="opening-neutral-note">This does not automatically make your move a mistake. It marks the first position where the game and your repertoire differed.</p>
-          <div className="game-opening-explanation">
-            <span>{opening.expectedMove.chapterTitle}</span>
-            <strong>Why {opening.expectedMove.moveSan}?</strong>
-            <p>{opening.expectedMove.explanation.summary}</p>
-            {opening.expectedMove.explanation.personalComment && <p><b>Your comment:</b> {opening.expectedMove.explanation.personalComment}</p>}
-            {opening.expectedMove.explanation.resultingPlan && <p><b>Plan:</b> {opening.expectedMove.explanation.resultingPlan}</p>}
+      <div className={`game-opening-review-layout${departure ? " has-board" : ""}`}>
+        {departure && boardFen && (
+          <div className="game-opening-decision-board">
+            <ChessBoard
+              fen={boardFen}
+              orientation={opening.repertoire.learnerColor}
+              lastMove={displayedMove}
+              highlightedSquares={decisionHighlights}
+              ariaLabel="Opening difference position"
+            />
+            <div className="opening-board-views" aria-label="Compare opening moves">
+              <button className={boardView === "decision" ? "active" : "secondary"} aria-pressed={boardView === "decision"} onClick={() => setBoardView("decision")}>Decision</button>
+              <button className={boardView === "played" ? "active" : "secondary"} aria-pressed={boardView === "played"} onClick={() => setBoardView("played")}>Game: {departure.moveSan}</button>
+              {canShowRepertoire && opening.expectedMove && (
+                <button className={boardView === "repertoire" ? "active" : "secondary"} aria-pressed={boardView === "repertoire"} onClick={() => setBoardView("repertoire")}>Repertoire: {opening.expectedMove.moveSan}</button>
+              )}
+            </div>
+            <small>{boardView === "decision"
+              ? "The position before the first difference. The prepared move is highlighted."
+              : boardView === "played"
+                ? `What happened after ${departure.moveSan}.`
+                : `How the position changes after ${opening.expectedMove?.moveSan}.`}</small>
           </div>
-          <button disabled={starting} onClick={onPractice}>
-            {starting ? "Opening practice…" : "Practise this repertoire position"}
-          </button>
-        </>
-      )}
+        )}
 
-      {opening.status === "opponent_deviation" && opening.departure && (
-        <>
-          <strong className="game-opening-result">Your opponent left the prepared line with {moveLabel(opening.departure)}.</strong>
-          <p>You were still following your repertoire. From this point, use opening principles rather than trying to remember a move that was never taught.</p>
-        </>
-      )}
+        <div className="game-opening-review-copy">
+          {opening.status === "player_deviation" && opening.departure && opening.expectedMove && (
+            <>
+              <strong className="game-opening-result">First difference: {moveLabel(opening.departure)}</strong>
+              <p>You played <strong>{opening.departure.moveSan}</strong>. Your prepared line continues with <strong>{opening.expectedMove.moveSan}</strong>.</p>
+              <p className="opening-neutral-note">This does not automatically make your move a mistake. It marks the first position where the game and your repertoire differed.</p>
+              <div className="game-opening-explanation">
+                <span>{opening.expectedMove.chapterTitle}</span>
+                <strong>Why {opening.expectedMove.moveSan}?</strong>
+                <p>{opening.expectedMove.explanation.summary}</p>
+                {opening.expectedMove.explanation.personalComment && <p><b>Your comment:</b> {opening.expectedMove.explanation.personalComment}</p>}
+                {opening.expectedMove.explanation.resultingPlan && <p><b>Plan:</b> {opening.expectedMove.explanation.resultingPlan}</p>}
+              </div>
+              <button disabled={starting} onClick={onPractice}>
+                {starting ? "Opening practice…" : `Practise ${opening.expectedMove.moveSan} now`}
+              </button>
+            </>
+          )}
 
-      {opening.status === "repertoire_ended" && (
-        <>
-          <strong className="game-opening-result">You reached the end of the prepared material.</strong>
-          <p>The next position is not covered yet. That is a repertoire content gap, not a chess error.</p>
-        </>
-      )}
+          {opening.status === "opponent_deviation" && opening.departure && (
+            <>
+              <strong className="game-opening-result">Your opponent left the prepared line with {moveLabel(opening.departure)}.</strong>
+              <p>You were still following your repertoire. From this point, use opening principles rather than trying to remember a move that was never taught.</p>
+            </>
+          )}
 
-      {opening.status === "in_repertoire" && (
-        <>
-          <strong className="game-opening-result">You stayed inside this repertoire for the whole game.</strong>
-          <p>The moves played are covered by your current course.</p>
-        </>
-      )}
+          {opening.status === "repertoire_ended" && (
+            <>
+              <strong className="game-opening-result">You reached the end of the prepared material.</strong>
+              <p>The next position is not covered yet. That is a repertoire content gap, not a chess error.</p>
+            </>
+          )}
 
-      {opening.status === "not_covered" && (
-        <>
-          <strong className="game-opening-result">This game is not covered by this repertoire.</strong>
-          <p>Your current {opening.repertoire.learnerColor === "white" ? "White 1.e4" : "Black Modern against 1.e4"} course does not match the game’s starting moves.</p>
-        </>
-      )}
+          {opening.status === "in_repertoire" && (
+            <>
+              <strong className="game-opening-result">You stayed inside this repertoire for the whole game.</strong>
+              <p>The moves played are covered by your current course.</p>
+            </>
+          )}
+
+          {opening.status === "not_covered" && (
+            <>
+              <strong className="game-opening-result">This game is not covered by this repertoire.</strong>
+              <p>Your current {opening.repertoire.learnerColor === "white" ? "White 1.e4" : "Black Modern against 1.e4"} course does not match the game’s starting moves.</p>
+            </>
+          )}
+        </div>
+      </div>
     </article>
   );
 }
@@ -196,17 +246,23 @@ export function GameReview({ refreshToken, onTrain, onOpeningPracticeStarted }: 
   const [showAll, setShowAll] = useState(false);
   const [openingStarting, setOpeningStarting] = useState(false);
 
+  const loadReview = async (gameId: string): Promise<void> => {
+    setError("");
+    try {
+      const nextReview = await get<Review>(`/api/v1/games/${gameId}/review`);
+      setReview(nextReview);
+      setShowAll(false);
+      setOpeningStarting(false);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Could not load game review");
+    }
+  };
+
   useEffect(() => {
     void get<{ games: GameSummary[] }>("/api/v1/games").then((data) => {
       setGames(data.games);
       const first = data.games[0];
-      if (first) void get<Review>(`/api/v1/games/${first.id}/review`).then((nextReview) => {
-        setReview(nextReview);
-        setShowAll(false);
-        setOpeningStarting(false);
-      }).catch((loadError: unknown) => {
-        setError(loadError instanceof Error ? loadError.message : "Could not load game review");
-      });
+      if (first) void loadReview(first.id);
     }).catch((loadError: unknown) => setError(loadError instanceof Error ? loadError.message : "Could not load games"));
     void get<{ concepts: Concept[] }>("/api/v1/concepts").then((data) => setConcepts(data.concepts)).catch(() => undefined);
   }, [refreshToken]);
@@ -241,24 +297,21 @@ export function GameReview({ refreshToken, onTrain, onOpeningPracticeStarted }: 
       <div className="panel-heading">
         <div>
           <span className="eyebrow">From your games</span>
-          <h2>Important mistakes</h2>
+          <h2>Compare games with your repertoire</h2>
+          <p>Choose a game to see where preparation ended, compare the moves on the board, and practise the missed position.</p>
         </div>
         <span className="step-number">Review</span>
       </div>
-      <div className="game-chips">
+      <div className="game-chips" aria-label="Imported games">
         {games.map((game) => (
           <button
             key={game.id}
-            className="secondary"
-            onClick={() => void get<Review>(`/api/v1/games/${game.id}/review`).then((nextReview) => {
-              setReview(nextReview);
-              setShowAll(false);
-              setOpeningStarting(false);
-            }).catch((loadError: unknown) => {
-              setError(loadError instanceof Error ? loadError.message : "Could not load game review");
-            })}
+            className={`game-chip${review?.game.id === game.id ? " active" : ""}`}
+            aria-pressed={review?.game.id === game.id}
+            onClick={() => void loadReview(game.id)}
           >
-            {game.white} – {game.black}
+            <strong>{game.white} – {game.black}</strong>
+            <small>{game.result} · you played {game.playerColor}{game.playedAt ? ` · ${new Date(game.playedAt).toLocaleDateString()}` : ""}</small>
           </button>
         ))}
       </div>
@@ -271,7 +324,9 @@ export function GameReview({ refreshToken, onTrain, onOpeningPracticeStarted }: 
               onPractice={() => void practiceOpening()}
             />
           )}
-          {review.mistakes.length === 0 && <p>No meaningful mistakes were found in this game.</p>}
+          {!review.game.analyzedAt && <div className="panel review-analysis-note"><strong>Opening comparison ready</strong><p>The local engine analysis is still pending. Opening comparison does not need Stockfish.</p></div>}
+          {review.game.analyzedAt && review.mistakes.length === 0 && <div className="panel review-analysis-note"><strong>No major engine mistakes found</strong><p>This game can still teach you about repertoire recall and where your prepared material ends.</p></div>}
+          {review.mistakes.length > 0 && <h3 className="review-subheading">Important middlegame and tactical mistakes</h3>}
           {review.mistakes.slice(0, showAll ? review.mistakes.length : 4).map((mistake) => (
             <MistakeCard
               key={`${review.game.id}-${mistake.ply}`}

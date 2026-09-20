@@ -25,9 +25,10 @@ the same session. Correct independent recalls move further into the future;
 missed moves enter a short relearning step.
 
 Practice is designed to stay quick: moves are checked directly on the board,
-wrong attempts reset immediately, and a first hint highlights which piece to
-move before the full answer is revealed. Prepared opponent replies play
-automatically, and correct answers can advance after a short explanation. Every
+wrong attempts reset immediately, the first miss highlights which piece to
+move, and another miss shows the exact move. Prepared opponent replies and the
+next exercise play automatically, so normal practice needs no Continue or
+confirmation buttons. Every
 repertoire move can also carry a private, editable learning comment in the
 learner's own words. These comments remain separate from the source material
 and appear wherever that move is studied or reviewed.
@@ -73,8 +74,10 @@ Imported games are matched to both built-in and private repertoires by board
 position, so transpositions and authored alternative moves remain valid. Game
 review identifies whether the player deviated, the opponent left the prepared
 line, or the repertoire content simply ended. A deviation is never called a
-blunder merely for being different. When the player leaves the repertoire, one
-button opens that exact position in the existing learn-and-review schedule.
+blunder merely for being different. The review board switches between the
+decision position, the move played and the prepared move so the difference is
+visible without relying on notation. When the player leaves the repertoire,
+one button opens that exact position in the existing learn-and-review schedule.
 
 Opening imports are stored only in this installation. The importer does not
 scrape Chessable or grant rights to third-party material: only import lines and

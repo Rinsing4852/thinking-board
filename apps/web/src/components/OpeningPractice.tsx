@@ -445,7 +445,7 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
 
   return (
     <section className={`opening-practice-section ${showBuilder ? "studio-active" : ""}`} id="opening-practice">
-      {!showBuilder && <div className="training-copy opening-heading">
+      {!showBuilder && !activeReview && !step && <div className="training-copy opening-heading">
         <div>
           <span className="eyebrow">Understand your opening</span>
           <h2>Opening Practice</h2>
@@ -660,7 +660,7 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
           )}
 
           <div className="panel opening-mode-guide opening-mode-guide-global" aria-label="Ways to practise a repertoire">
-            <p><strong>Learn & remember</strong><span>Recall individual positions on a spaced schedule.</span></p>
+            <p><strong>Quick practice</strong><span>Play continuously; replies and the next position are automatic.</span></p>
             <p><strong>Study line</strong><span>Walk through one complete line and connect every move to its purpose.</span></p>
             <p><strong>Browse lines</strong><span>Inspect every saved branch without starting a lesson.</span></p>
           </div>
@@ -692,11 +692,11 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
                       ? repertoire.review.due > 10
                         ? `Review 10 of ${repertoire.review.due} due`
                         : `Review ${repertoire.review.due} due`
-                      : repertoire.review.new > 0 ? `Learn ${Math.min(5, repertoire.review.new)} new positions` : "Review early"}
+                      : repertoire.review.new > 0 ? `Practise ${Math.min(5, repertoire.review.new)} new moves` : "Review early"}
                   </button>
                   {repertoire.review.due > 0 && repertoire.review.new > 0 && (
                     <button className="secondary" disabled={submitting} onClick={() => void startReview(repertoire.id, "new")}>
-                      Learn {Math.min(5, repertoire.review.new)} new instead
+                      Practise {Math.min(5, repertoire.review.new)} new instead
                     </button>
                   )}
                   <button className="secondary" disabled={submitting} onClick={() => void startLesson(repertoire.id)}>

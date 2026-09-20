@@ -225,9 +225,15 @@ export class OpeningGameService {
     const profileId = activeProfileId(this.db);
     const departure = match.departure_move_id
       ? this.db.prepare(`
-        SELECT ply, move_number, mover_color, uci, san FROM moves WHERE id = ?
+        SELECT m.ply, m.move_number, m.mover_color, m.uci, m.san,
+               before.fen AS fen_before, after.fen AS fen_after
+        FROM moves m
+        JOIN positions before ON before.id = m.from_position_id
+        JOIN positions after ON after.id = m.to_position_id
+        WHERE m.id = ?
       `).get(match.departure_move_id) as {
         ply: number; move_number: number; mover_color: Color; uci: string; san: string;
+        fen_before: string; fen_after: string;
       }
       : null;
     const expected = match.expected_move_id
@@ -266,6 +272,8 @@ export class OpeningGameService {
         moverColor: departure.mover_color,
         moveUci: departure.uci,
         moveSan: departure.san,
+        fenBefore: departure.fen_before,
+        fenAfter: departure.fen_after,
       } : null,
       expectedMove: expected ? {
         moveUci: String(expected.move_uci),

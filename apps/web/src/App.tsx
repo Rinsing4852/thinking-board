@@ -163,14 +163,14 @@ export function App() {
             <div className="page-heading">
               <span className="eyebrow">Your games</span>
               <h1>Import. Analyse. Learn.</h1>
-              <p>Bring in a PGN, let the local engine analyse it, then turn the important moments into practice.</p>
+              <p>Compare your latest games with your repertoire, practise the first missed decision, then review important thinking mistakes.</p>
             </div>
-            <ImportPanel refreshToken={refreshToken} onAnalyzed={refresh} />
             <GameReview
               refreshToken={refreshToken}
               onTrain={trainItem}
               onOpeningPracticeStarted={openStartedOpeningPractice}
             />
+            <ImportPanel refreshToken={refreshToken} onAnalyzed={refresh} />
           </>
         )}
 

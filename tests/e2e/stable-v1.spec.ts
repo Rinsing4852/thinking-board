@@ -137,19 +137,21 @@ test.describe.serial("stable V1 browser journey", () => {
     const openings = page.locator("#opening-practice");
     const starter = openings.locator("article").filter({ hasText: "Practical 1.e4 Repertoire" });
     await expect(openings.getByLabel("Ways to practise a repertoire")).toHaveCount(1);
-    await starter.getByRole("button", { name: "Learn 5 new positions" }).click();
+    await starter.getByRole("button", { name: "Practise 5 new moves" }).click();
     await expect(openings.getByText("Step 1 of 5")).toBeVisible();
-    await expect(openings.getByRole("heading", { name: "This is a new repertoire position." })).toBeVisible();
-    await openings.getByRole("button", { name: "Show the repertoire move" }).click();
-    await expect(openings.getByRole("heading", { name: "e4", exact: true })).toBeVisible();
-    await openings.getByRole("button", { name: "Now try it from memory" }).click();
+    await expect(openings.getByRole("heading", { name: "Find the move from its purpose." })).toBeVisible();
+    await expect(openings.getByText("Correct moves continue automatically", { exact: false })).toBeVisible();
 
     let board = openings.getByRole("grid", { name: "Chess position" });
-    await openings.getByRole("button", { name: "I don’t know — show move" }).click();
+    await board.getByRole("gridcell", { name: "g1 white knight" }).click();
+    await board.getByRole("gridcell", { name: "f3 empty" }).click();
+    await expect(openings.getByText("Try again", { exact: true })).toBeVisible();
+    await expect(board.getByRole("gridcell", { name: "e2 white pawn" })).toHaveClass(/answer-highlight/);
+    await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
+    await board.getByRole("gridcell", { name: "e4 empty" }).click();
     await expect(openings.getByText("Learning", { exact: true })).toBeVisible();
-    await page.reload();
-    await expect(openings.getByText("This position has been placed back into today’s session for an unassisted recall.")).toBeVisible();
-    await openings.getByRole("button", { name: "Continue" }).click();
+    await expect(openings.getByText("Next position is loading automatically…")).toBeVisible();
+    await expect(openings.getByText("Step 2 of 6")).toBeVisible({ timeout: 5_000 });
 
     const decisions = [
       { from: "g1 white knight", to: "f3 empty" },
@@ -159,21 +161,19 @@ test.describe.serial("stable V1 browser journey", () => {
       { from: "e2 white pawn", to: "e4 empty" },
     ];
     for (const [index, decision] of decisions.entries()) {
-      if (index < decisions.length - 1) {
-        await openings.getByRole("button", { name: /^Play / }).click();
-        await openings.getByRole("button", { name: "I already know it — test me" }).click();
-      }
+      await expect(openings.getByText(`Step ${index + 2} of 6`)).toBeVisible({ timeout: 5_000 });
+      await expect(openings.getByText("Your turn — play on the board")).toBeVisible({ timeout: 5_000 });
       board = openings.getByRole("grid", { name: "Chess position" });
       await board.getByRole("gridcell", { name: decision.from }).click();
       await board.getByRole("gridcell", { name: decision.to }).click();
       await expect(openings.getByText("Remembered", { exact: true })).toBeVisible();
-      await openings.getByRole("button", { name: "Continue" }).click();
     }
 
-    await expect(openings.getByText("Practice complete", { exact: true })).toBeVisible();
+    await expect(openings.getByText("Practice complete", { exact: true })).toBeVisible({ timeout: 5_000 });
     const scores = openings.locator(".opening-complete-scores");
     await expect(scores.getByText("5", { exact: true })).toBeVisible();
-    await expect(scores.getByText("1", { exact: true })).toBeVisible();
+    const assistedScore = scores.locator("div").filter({ hasText: "answers shown or helped" });
+    await expect(assistedScore.getByText("1", { exact: true })).toBeVisible();
     await openings.getByRole("button", { name: "Back to opening choices" }).click();
     await expect(starter.getByText("5 reviewed", { exact: false })).toBeVisible();
   });
@@ -226,7 +226,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await expectSquareBoard(page);
     const questionTop = await openings.locator(".opening-question-card").evaluate((element) => element.getBoundingClientRect().top);
     const boardTop = await openings.getByRole("grid", { name: "Chess position" }).evaluate((element) => element.getBoundingClientRect().top);
-    expect(questionTop).toBeLessThan(boardTop);
+    expect(boardTop).toBeLessThan(questionTop);
   });
 
   test("imports a game and explains every training mode", async ({ page }) => {
@@ -283,9 +283,15 @@ test.describe.serial("stable V1 browser journey", () => {
     await expect(page.getByText("Opening connection", { exact: true })).toBeVisible();
     await expect(page.getByText("First difference: 1.f3", { exact: true })).toBeVisible();
     await expect(page.getByText("This does not automatically make your move a mistake.", { exact: false })).toBeVisible();
-    await page.getByRole("button", { name: "Practise this repertoire position" }).click();
+    const differenceBoard = page.getByRole("grid", { name: "Opening difference position" });
+    await expect(differenceBoard.getByRole("gridcell", { name: "e2 white pawn" })).toBeVisible();
+    await page.getByRole("button", { name: "Game: f3" }).click();
+    await expect(differenceBoard.getByRole("gridcell", { name: "f3 white pawn" })).toBeVisible();
+    await page.getByRole("button", { name: "Repertoire: e4" }).click();
+    await expect(differenceBoard.getByRole("gridcell", { name: "e4 white pawn" })).toBeVisible();
+    await page.getByRole("button", { name: "Practise e4 now" }).click();
     await expect(page.getByText("Today’s opening practice", { exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "This is a new repertoire position." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Find the move from its purpose." })).toBeVisible();
     await expectSquareBoard(page);
   });
 

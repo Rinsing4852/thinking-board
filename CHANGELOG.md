@@ -6,6 +6,12 @@ All notable changes to Thinking Board are recorded here.
 
 ### Faster opening learning
 
+- Replaces the button-gated new-move sequence with continuous board-first
+  practice: play immediately, watch opponent replies automatically and move to
+  the next position without pressing Continue.
+- Gives progressive help after mistakes—first the piece, then the exact source
+  and destination—while keeping Show answer available as an optional escape
+  hatch rather than a required step.
 - Checks opening moves as soon as they are played. A correct move continues the
   lesson automatically, while a wrong move resets immediately for another try.
 - Records the exact wrong move before the eventual answer, highlights the piece
@@ -21,6 +27,14 @@ All notable changes to Thinking Board are recorded here.
   move and capture markers, stronger selection and coordinate contrast,
   keyboard announcements, touch-friendly interaction and an explicit promotion
   chooser instead of silently assuming a queen.
+- Makes repertoire feedback from imported games visual: the decision position,
+  played move and prepared move can be compared on the same board before
+  launching focused practice for the missed position.
+- Separates opening comparison from engine progress so a newly imported game
+  can teach repertoire recall immediately without implying that pending
+  Stockfish analysis found no mistakes.
+- Puts existing game feedback before the import form; new installations still
+  lead with import, while returning players land on the work they came to do.
 
 ## 1.1.1 — 2026-09-19
 

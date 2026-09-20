@@ -842,7 +842,14 @@ describe("vertical slice", () => {
         matchedPlies: 6,
         matchedPlayerMoves: 3,
         lastBookPly: 6,
-        departure: { ply: 7, moveNumber: 4, moverColor: "white", moveSan: "h3" },
+        departure: {
+          ply: 7,
+          moveNumber: 4,
+          moverColor: "white",
+          moveSan: "h3",
+          fenBefore: expect.stringContaining(" w "),
+          fenAfter: expect.stringContaining(" b "),
+        },
         expectedMove: {
           moveUci: "d2d3",
           moveSan: "d3",

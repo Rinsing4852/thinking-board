@@ -205,6 +205,8 @@ export interface GameOpeningConnection {
     moverColor: Color;
     moveUci: string;
     moveSan: string;
+    fenBefore: string;
+    fenAfter: string;
   };
   expectedMove: null | {
     moveUci: string;
