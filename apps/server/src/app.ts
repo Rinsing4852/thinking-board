@@ -486,6 +486,24 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     return reply.code(202).send({ id: jobId, status: "queued" });
   });
 
+  app.get("/api/v1/openings/game-inbox", async () => {
+    const profileId = activeProfileId(database.connection);
+    return profileId
+      ? openingGames.inbox(profileId)
+      : { groups: [], totalGroups: 0, unreviewedGroups: 0, repeatedGroups: 0 };
+  });
+
+  app.patch("/api/v1/openings/game-inbox/:groupKey/reviewed", async (request, reply) => {
+    try {
+      const { groupKey } = request.params as { groupKey: string };
+      const profileId = activeProfileId(database.connection);
+      if (!profileId) throw new Error("Opening inbox item not found");
+      return openingGames.markInboxGroupReviewed(profileId, requiredString(groupKey, "Inbox item"));
+    } catch (error) {
+      return reply.code(404).send({ error: error instanceof Error ? error.message : "Opening inbox item not found" });
+    }
+  });
+
   app.get("/api/v1/games", async () => ({
     games: database.connection.prepare(`
       SELECT id, white_name AS white, black_name AS black, player_color AS playerColor,

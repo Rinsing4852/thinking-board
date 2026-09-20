@@ -35,6 +35,11 @@ All notable changes to Thinking Board are recorded here.
   Stockfish analysis found no mistakes.
 - Puts existing game feedback before the import form; new installations still
   lead with import, while returning players land on the work they came to do.
+- Adds an opening inbox that automatically groups matching repertoire misses,
+  opponent surprises and repertoire endings across the latest imported games.
+- Counts repeated real-game patterns, keeps unreviewed work first and lets the
+  learner practise the exact missed position or explicitly clear a group while
+  retaining its history.
 
 ## 1.1.1 — 2026-09-19
 

@@ -1,5 +1,9 @@
+import { createHash } from "node:crypto";
+
 import type {
   Color,
+  GameOpeningInboxGroup,
+  GameOpeningInboxResponse,
   GameOpeningConnection,
   GameOpeningStatus,
 } from "../../../../packages/contracts/src/api.js";
@@ -54,6 +58,21 @@ interface MatchRow {
   origin: "built_in" | "imported";
 }
 
+interface InboxGameRow {
+  id: string;
+  white: string;
+  black: string;
+  playerColor: Color;
+  result: string;
+  playedAt: string | null;
+  analyzedAt: string | null;
+}
+
+interface ReviewStateRow {
+  match_signature: string;
+  reviewed_at: string;
+}
+
 const STATUS_PRIORITY: Record<GameOpeningStatus, number> = {
   in_repertoire: 5,
   player_deviation: 4,
@@ -101,6 +120,96 @@ export class OpeningGameService {
     `).get(best.expected_move_id) as { repertoire_id: string; from_position_id: string } | undefined;
     if (!target) throw new Error("The repertoire position is no longer available");
     return { repertoireId: target.repertoire_id, positionId: target.from_position_id };
+  }
+
+  inbox(profileId: string): GameOpeningInboxResponse {
+    const games = this.db.prepare(`
+      SELECT id, white_name AS white, black_name AS black,
+             player_color AS playerColor, result, played_at AS playedAt,
+             analyzed_at AS analyzedAt
+      FROM games
+      WHERE profile_id = ?
+      ORDER BY COALESCE(played_at, created_at) DESC, created_at DESC
+      LIMIT 100
+    `).all(profileId) as InboxGameRow[];
+    const groups = new Map<string, GameOpeningInboxGroup>();
+
+    for (const game of games) {
+      const opening = this.matchGame(game.id, profileId);
+      if (!opening || !opening.departure || ![
+        "player_deviation", "opponent_deviation", "repertoire_ended",
+      ].includes(opening.status)) continue;
+
+      const signature = this.matchSignature(opening);
+      const state = this.db.prepare(`
+        SELECT match_signature, reviewed_at
+        FROM game_opening_review_states
+        WHERE profile_id = ? AND game_id = ? AND repertoire_id = ?
+      `).get(profileId, game.id, opening.repertoire.id) as ReviewStateRow | undefined;
+      const reviewedAt = state?.match_signature === signature ? state.reviewed_at : null;
+      const key = this.groupKey(opening);
+      const occurrence = { game, reviewedAt };
+      const existing = groups.get(key);
+      if (existing) {
+        existing.occurrences.push(occurrence);
+        existing.occurrenceCount += 1;
+        if (!reviewedAt) existing.unreviewedCount += 1;
+      } else {
+        groups.set(key, {
+          key,
+          opening,
+          occurrenceCount: 1,
+          unreviewedCount: reviewedAt ? 0 : 1,
+          latestGameId: game.id,
+          occurrences: [occurrence],
+        });
+      }
+    }
+
+    const ordered = [...groups.values()].sort((left, right) =>
+      Number(right.unreviewedCount > 0) - Number(left.unreviewedCount > 0)
+      || right.unreviewedCount - left.unreviewedCount
+      || right.occurrenceCount - left.occurrenceCount
+      || this.gameTime(right.occurrences[0]?.game.playedAt) - this.gameTime(left.occurrences[0]?.game.playedAt));
+    return {
+      groups: ordered,
+      totalGroups: ordered.length,
+      unreviewedGroups: ordered.filter((group) => group.unreviewedCount > 0).length,
+      repeatedGroups: ordered.filter((group) => group.occurrenceCount > 1).length,
+    };
+  }
+
+  markInboxGroupReviewed(profileId: string, groupKey: string): GameOpeningInboxResponse {
+    const inbox = this.inbox(profileId);
+    const group = inbox.groups.find((candidate) => candidate.key === groupKey);
+    if (!group) throw new Error("Opening inbox item not found");
+    const timestamp = now();
+    const signature = this.matchSignature(group.opening);
+    const save = this.db.prepare(`
+      INSERT INTO game_opening_review_states(
+        profile_id, game_id, repertoire_id, match_signature,
+        reviewed_at, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(game_id, repertoire_id) DO UPDATE SET
+        profile_id = excluded.profile_id,
+        match_signature = excluded.match_signature,
+        reviewed_at = excluded.reviewed_at,
+        updated_at = excluded.updated_at
+    `);
+    this.db.transaction(() => {
+      for (const occurrence of group.occurrences) {
+        save.run(
+          profileId,
+          occurrence.game.id,
+          group.opening.repertoire.id,
+          signature,
+          timestamp,
+          timestamp,
+          timestamp,
+        );
+      }
+    })();
+    return this.inbox(profileId);
   }
 
   private game(gameId: string, profileId: string): GameRow {
@@ -219,6 +328,26 @@ export class OpeningGameService {
       || Number(right.origin === "imported") - Number(left.origin === "imported")
       || left.repertoire_name.localeCompare(right.repertoire_name));
     return rows[0] ?? null;
+  }
+
+  private matchSignature(opening: GameOpeningConnection): string {
+    return [
+      opening.status,
+      opening.repertoire.id,
+      opening.departure?.moveUci ?? "",
+      opening.expectedMove?.moveUci ?? "",
+      opening.departure ? openingPositionKey(opening.departure.fenBefore) : "",
+    ].join("|");
+  }
+
+  private groupKey(opening: GameOpeningConnection): string {
+    return createHash("sha256").update(this.matchSignature(opening)).digest("hex").slice(0, 24);
+  }
+
+  private gameTime(value: string | null | undefined): number {
+    if (!value) return 0;
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
   }
 
   private toConnection(match: MatchRow): GameOpeningConnection {

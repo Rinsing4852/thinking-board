@@ -78,6 +78,9 @@ blunder merely for being different. The review board switches between the
 decision position, the move played and the prepared move so the difference is
 visible without relying on notation. When the player leaves the repertoire,
 one button opens that exact position in the existing learn-and-review schedule.
+The opening inbox groups the same departure across recent games, puts repeated
+unreviewed patterns first and keeps an explicit reviewed state without deleting
+the underlying game evidence.
 
 Opening imports are stored only in this installation. The importer does not
 scrape Chessable or grant rights to third-party material: only import lines and

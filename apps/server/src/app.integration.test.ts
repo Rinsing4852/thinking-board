@@ -30,6 +30,22 @@ const ITALIAN_DEVIATION = `[Event "Opening connection"]
 
 1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. h3 *`;
 
+const REPEATED_ITALIAN_DEVIATIONS = `[Event "Opening miss one"]
+[Date "2026.09.18"]
+[White "Alice"]
+[Black "Bob"]
+[Result "*"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. h3 Nf6 5. d3 *
+
+[Event "Opening miss two"]
+[Date "2026.09.19"]
+[White "Alice"]
+[Black "Carol"]
+[Result "*"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. h3 d6 5. d3 *`;
+
 const ITALIAN_OPPONENT_DEVIATION = `[Event "Opponent leaves the line"]
 [White "Alice"]
 [Black "Bob"]
@@ -879,6 +895,54 @@ describe("vertical slice", () => {
     const connection = new BetterSqlite3(appConfig.databasePath);
     expect(connection.prepare("SELECT COUNT(*) FROM game_opening_matches WHERE game_id = ?").pluck().get(gameId)).toBe(1);
     expect(connection.prepare("SELECT focus_game_id FROM opening_review_sessions WHERE status = 'active'").pluck().get()).toBe(gameId);
+    connection.close();
+  });
+
+  it("groups repeated game deviations in a persistent opening inbox", async () => {
+    const appConfig = config(false);
+    const app = await buildApp(appConfig);
+    apps.push(app);
+    const imported = await app.inject({
+      method: "POST",
+      url: "/api/v1/imports/pgn",
+      payload: { pgn: REPEATED_ITALIAN_DEVIATIONS, playerName: "Alice" },
+    });
+    expect(imported.json()).toMatchObject({ imported: 2 });
+
+    const inbox = await app.inject({ method: "GET", url: "/api/v1/openings/game-inbox" });
+    expect(inbox.statusCode).toBe(200);
+    const body = inbox.json() as {
+      groups: Array<{
+        key: string;
+        occurrenceCount: number;
+        unreviewedCount: number;
+        opening: { status: string; departure: { moveSan: string }; expectedMove: { moveSan: string } };
+      }>;
+    };
+    const repeated = body.groups.find((group) => group.opening.status === "player_deviation");
+    expect(repeated).toMatchObject({
+      occurrenceCount: 2,
+      unreviewedCount: 2,
+      opening: {
+        status: "player_deviation",
+        departure: { moveSan: "h3" },
+        expectedMove: { moveSan: "d3" },
+      },
+    });
+
+    const reviewed = await app.inject({
+      method: "PATCH",
+      url: `/api/v1/openings/game-inbox/${repeated!.key}/reviewed`,
+    });
+    expect(reviewed.statusCode).toBe(200);
+    expect(reviewed.json()).toMatchObject({
+      unreviewedGroups: 0,
+      repeatedGroups: 1,
+      groups: [expect.objectContaining({ occurrenceCount: 2, unreviewedCount: 0 })],
+    });
+
+    const connection = new BetterSqlite3(appConfig.databasePath);
+    expect(connection.prepare("SELECT COUNT(*) FROM game_opening_review_states").pluck().get()).toBe(2);
     connection.close();
   });
 

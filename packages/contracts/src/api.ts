@@ -225,6 +225,35 @@ export interface GameOpeningConnection {
   practiceAvailable: boolean;
 }
 
+export interface GameOpeningInboxOccurrence {
+  game: {
+    id: string;
+    white: string;
+    black: string;
+    playerColor: Color;
+    result: string;
+    playedAt: string | null;
+    analyzedAt: string | null;
+  };
+  reviewedAt: string | null;
+}
+
+export interface GameOpeningInboxGroup {
+  key: string;
+  opening: GameOpeningConnection;
+  occurrenceCount: number;
+  unreviewedCount: number;
+  latestGameId: string;
+  occurrences: GameOpeningInboxOccurrence[];
+}
+
+export interface GameOpeningInboxResponse {
+  groups: GameOpeningInboxGroup[];
+  totalGroups: number;
+  unreviewedGroups: number;
+  repeatedGroups: number;
+}
+
 export type OpeningImportColor = Color | "both";
 export type OpeningImportSourceType = "self_authored" | "book_notes" | "lichess_study" | "licensed_pgn";
 

@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
 
-import type { GameOpeningConnection, OpeningReviewActiveState } from "../../../../packages/contracts/src/api";
+import type {
+  GameOpeningConnection,
+  GameOpeningInboxResponse,
+  OpeningReviewActiveState,
+} from "../../../../packages/contracts/src/api";
 import { get, patch, post } from "../api";
 import { ChessBoard } from "./ChessBoard";
+import { OpeningGameInbox } from "./OpeningGameInbox";
 import { applyUciMove } from "../opening-board";
 
 interface Concept {
@@ -245,6 +250,8 @@ export function GameReview({ refreshToken, onTrain, onOpeningPracticeStarted }: 
   const [error, setError] = useState("");
   const [showAll, setShowAll] = useState(false);
   const [openingStarting, setOpeningStarting] = useState(false);
+  const [inbox, setInbox] = useState<GameOpeningInboxResponse | null>(null);
+  const [inboxBusyKey, setInboxBusyKey] = useState<string | null>(null);
 
   const loadReview = async (gameId: string): Promise<void> => {
     setError("");
@@ -264,6 +271,9 @@ export function GameReview({ refreshToken, onTrain, onOpeningPracticeStarted }: 
       const first = data.games[0];
       if (first) void loadReview(first.id);
     }).catch((loadError: unknown) => setError(loadError instanceof Error ? loadError.message : "Could not load games"));
+    void get<GameOpeningInboxResponse>("/api/v1/openings/game-inbox")
+      .then(setInbox)
+      .catch((loadError: unknown) => setError(loadError instanceof Error ? loadError.message : "Could not load opening inbox"));
     void get<{ concepts: Concept[] }>("/api/v1/concepts").then((data) => setConcepts(data.concepts)).catch(() => undefined);
   }, [refreshToken]);
 
@@ -278,16 +288,36 @@ export function GameReview({ refreshToken, onTrain, onOpeningPracticeStarted }: 
     }
   };
 
-  const practiceOpening = async (): Promise<void> => {
-    if (!review || openingStarting) return;
+  const practiceOpening = async (gameId: string): Promise<void> => {
+    if (openingStarting) return;
     setOpeningStarting(true);
     setError("");
     try {
-      await post<OpeningReviewActiveState>(`/api/v1/games/${review.game.id}/opening/practice`);
+      await post<OpeningReviewActiveState>(`/api/v1/games/${gameId}/opening/practice`);
       onOpeningPracticeStarted();
     } catch (practiceError) {
       setError(practiceError instanceof Error ? practiceError.message : "Could not start opening practice");
       setOpeningStarting(false);
+    }
+  };
+
+  const inspectInboxGame = (gameId: string): void => {
+    void loadReview(gameId).then(() => {
+      requestAnimationFrame(() => document.getElementById("selected-game-review")?.scrollIntoView({ behavior: "smooth" }));
+    });
+  };
+
+  const markInboxGroupReviewed = async (groupKey: string): Promise<void> => {
+    if (inboxBusyKey) return;
+    setInboxBusyKey(groupKey);
+    setError("");
+    try {
+      const updated = await patch<GameOpeningInboxResponse>(`/api/v1/openings/game-inbox/${groupKey}/reviewed`, {});
+      setInbox(updated);
+    } catch (markError) {
+      setError(markError instanceof Error ? markError.message : "Could not update the opening inbox");
+    } finally {
+      setInboxBusyKey(null);
     }
   };
 
@@ -297,10 +327,25 @@ export function GameReview({ refreshToken, onTrain, onOpeningPracticeStarted }: 
       <div className="panel-heading">
         <div>
           <span className="eyebrow">From your games</span>
-          <h2>Compare games with your repertoire</h2>
-          <p>Choose a game to see where preparation ended, compare the moves on the board, and practise the missed position.</p>
+          <h2>Opening inbox</h2>
+          <p>Recurring misses come first. Practise what you forgot, inspect surprises, and clear each pattern when you understand it.</p>
         </div>
         <span className="step-number">Review</span>
+      </div>
+      <OpeningGameInbox
+        inbox={inbox}
+        busyKey={inboxBusyKey}
+        practiceBusy={openingStarting}
+        onInspect={inspectInboxGame}
+        onPractice={(gameId) => void practiceOpening(gameId)}
+        onMarkReviewed={(groupKey) => void markInboxGroupReviewed(groupKey)}
+      />
+      <div className="game-review-heading" id="selected-game-review">
+        <div>
+          <span className="eyebrow">Game detail</span>
+          <h3>Inspect a complete game</h3>
+        </div>
+        <p>Opening feedback and Stockfish mistakes remain separate: leaving preparation is not automatically a bad chess move.</p>
       </div>
       <div className="game-chips" aria-label="Imported games">
         {games.map((game) => (
@@ -321,7 +366,7 @@ export function GameReview({ refreshToken, onTrain, onOpeningPracticeStarted }: 
             <OpeningConnectionCard
               opening={review.opening}
               starting={openingStarting}
-              onPractice={() => void practiceOpening()}
+              onPractice={() => void practiceOpening(review.game.id)}
             />
           )}
           {!review.game.analyzedAt && <div className="panel review-analysis-note"><strong>Opening comparison ready</strong><p>The local engine analysis is still pending. Opening comparison does not need Stockfish.</p></div>}

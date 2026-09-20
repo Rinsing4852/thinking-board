@@ -279,6 +279,12 @@ test.describe.serial("stable V1 browser journey", () => {
     await expect(page.getByText(`Thinking Board v${APP_VERSION}`, { exact: false })).toBeVisible();
 
     await page.getByRole("button", { name: "My games" }).click();
+    await expect(page.getByRole("heading", { name: "Opening inbox" })).toBeVisible();
+    const f3InboxItem = page.locator(".opening-inbox-item").filter({ hasText: "Recall e4 instead of f3" });
+    await expect(f3InboxItem).toBeVisible();
+    await expect(f3InboxItem.getByText("Seen once · 1 new")).toBeVisible();
+    await f3InboxItem.getByRole("button", { name: "Mark reviewed" }).click();
+    await expect(f3InboxItem).toBeHidden();
     await page.getByRole("button", { name: "olleyr – Training opponent" }).click();
     await expect(page.getByText("Opening connection", { exact: true })).toBeVisible();
     await expect(page.getByText("First difference: 1.f3", { exact: true })).toBeVisible();
