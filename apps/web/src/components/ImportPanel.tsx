@@ -55,20 +55,43 @@ export function ImportPanel({ refreshToken, onAnalyzed }: ImportPanelProps) {
     const generation = ++pollGeneration.current;
     setJob(null);
     setBusy(false);
-    void get<JobResponse | null>("/api/v1/jobs/active").then((activeJob) => {
-      if (!activeJob || generation !== pollGeneration.current) return;
-      setJob(activeJob);
-      setBusy(activeJob.status !== "failed");
-      return pollJob(activeJob.id, generation);
-    }).catch((error: unknown) => {
-      if (generation === pollGeneration.current) {
-        setStatus(error instanceof Error ? error.message : "Could not restore analysis progress");
-      }
-    });
-    void get<LichessConnectionResponse>("/api/v1/lichess/connection").then((connection) => {
+    void Promise.all([
+      get<JobResponse | null>("/api/v1/jobs/active"),
+      get<LichessConnectionResponse>("/api/v1/lichess/connection"),
+    ]).then(async ([activeJob, connection]) => {
+      if (generation !== pollGeneration.current) return;
       setLichess(connection);
       if (connection.username) setLichessUsername(connection.username);
-    }).catch(() => setLichess(null));
+      if (activeJob) {
+        setJob(activeJob);
+        setBusy(activeJob.status !== "failed");
+        await pollJob(activeJob.id, generation);
+        return;
+      }
+      const lastSync = connection.lastSyncedAt ? Date.parse(connection.lastSyncedAt) : 0;
+      const automaticSyncDue = connection.connected && Date.now() - lastSync >= 6 * 60 * 60 * 1000;
+      if (!automaticSyncDue) return;
+      setLichessBusy(true);
+      setLichessStatus("Checking Lichess for new finished games…");
+      try {
+        const result = await post<LichessSyncResponse>("/api/v1/lichess/sync", { maxGames: 25 });
+        if (generation !== pollGeneration.current) return;
+        setLichess(result.connection);
+        setLichessStatus(`${result.message} Automatic checks run at most every six hours.`);
+        if (result.jobId) {
+          setBusy(true);
+          await pollJob(result.jobId, generation);
+        } else {
+          onAnalyzed();
+        }
+      } finally {
+        if (generation === pollGeneration.current) setLichessBusy(false);
+      }
+    }).catch((error: unknown) => {
+      if (generation === pollGeneration.current) {
+        setStatus(error instanceof Error ? error.message : "Could not restore game and sync status");
+      }
+    });
     return () => {
       if (generation === pollGeneration.current) pollGeneration.current += 1;
     };

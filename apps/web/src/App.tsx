@@ -156,7 +156,7 @@ export function App() {
           </>
         )}
 
-        {view === "openings" && <OpeningPractice refreshToken={refreshToken} />}
+        {view === "openings" && <OpeningPractice refreshToken={refreshToken} onOpenGames={() => setView("games")} />}
 
         {view === "games" && (
           <>

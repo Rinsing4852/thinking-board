@@ -148,8 +148,14 @@ export class OpeningTrainingService {
         FROM opening_repertoires r
         JOIN opening_chapters c ON c.repertoire_id = r.id AND c.active = 1
         JOIN opening_lines l ON l.chapter_id = c.id AND l.active = 1
+        LEFT JOIN opening_repertoire_preferences repertoire_preference
+          ON repertoire_preference.repertoire_id = r.id AND repertoire_preference.profile_id = ?
+        LEFT JOIN opening_line_preferences line_preference
+          ON line_preference.line_id = l.id AND line_preference.profile_id = ?
         WHERE r.id = ? AND l.id = ?
-      `).get(repertoireId, requestedLineId)
+          AND repertoire_preference.archived_at IS NULL
+          AND line_preference.archived_at IS NULL
+      `).get(profileId, profileId, repertoireId, requestedLineId)
       : this.db.prepare(`
       SELECT r.id AS repertoire_id, r.content_version, c.id AS chapter_id, l.id AS line_id
       FROM opening_repertoires r
@@ -163,13 +169,19 @@ export class OpeningTrainingService {
         WHERE profile_id = ? AND status = 'completed'
         GROUP BY line_id
       ) practice ON practice.line_id = l.id
+      LEFT JOIN opening_repertoire_preferences repertoire_preference
+        ON repertoire_preference.repertoire_id = r.id AND repertoire_preference.profile_id = ?
+      LEFT JOIN opening_line_preferences line_preference
+        ON line_preference.line_id = l.id AND line_preference.profile_id = ?
       WHERE r.id = ?
+        AND repertoire_preference.archived_at IS NULL
+        AND line_preference.archived_at IS NULL
       ORDER BY COALESCE(practice.completed_count, 0),
                CASE WHEN practice.last_started_at IS NULL THEN 0 ELSE 1 END,
                practice.last_started_at,
                c.sort_order, l.priority
       LIMIT 1
-    `).get(profileId, repertoireId);
+    `).get(profileId, profileId, profileId, repertoireId);
     const typedSelection = selection as {
       repertoire_id: string;
       content_version: number;

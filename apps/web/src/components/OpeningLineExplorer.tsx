@@ -8,6 +8,9 @@ import type {
   OpeningLineMutationResponse,
   OpeningRepertoireDeletionResponse,
   OpeningRepertoireDetailResponse,
+  OpeningArchiveResponse,
+  OpeningMetadataMutationResponse,
+  OpeningMoveUndoResponse,
 } from "../../../../packages/contracts/src/api";
 import { get, patch, post, remove } from "../api";
 import { ChessBoard } from "./ChessBoard";
@@ -16,6 +19,7 @@ import { OpeningLearningComment } from "./OpeningLearningComment";
 interface OpeningLineExplorerProps {
   detail: OpeningRepertoireDetailResponse;
   startingLineId?: string | null;
+  initialCoverage?: OpeningCoverageResponse | null;
   busy?: boolean;
   onBack: () => void;
   onPractice: (lineId: string) => void;
@@ -26,6 +30,7 @@ interface OpeningLineExplorerProps {
 export function OpeningLineExplorer({
   detail,
   startingLineId,
+  initialCoverage = null,
   busy = false,
   onBack,
   onPractice,
@@ -48,15 +53,86 @@ export function OpeningLineExplorer({
   const [explanationText, setExplanationText] = useState("");
   const [status, setStatus] = useState("");
   const [localBusy, setLocalBusy] = useState(false);
-  const [coverage, setCoverage] = useState<OpeningCoverageResponse | null>(null);
+  const [coverage, setCoverage] = useState<OpeningCoverageResponse | null>(initialCoverage);
   const [coverageRating, setCoverageRating] = useState(1600);
   const [coverageBusy, setCoverageBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<"line" | "repertoire" | null>(null);
+  const [repertoireName, setRepertoireName] = useState(detail.repertoire.name);
+  const [lineTitle, setLineTitle] = useState(initial?.line.title ?? "");
+  const [lastMutation, setLastMutation] = useState<{
+    lineId: string;
+    moveId: string;
+    createdBranch: boolean;
+    previousLineId: string;
+  } | null>(null);
   const deleteDialogRef = useRef<HTMLDivElement>(null);
   const selected = allLines.find(({ line }) => line.id === lineId) ?? initial;
   const line: OpeningLineDetail | undefined = selected?.line;
+  const selectedLineIndex = selected?.chapter.lines.findIndex((candidate) => candidate.id === lineId) ?? -1;
   const currentMove = ply > 0 ? line?.moves[ply - 1] : undefined;
   const displayFen = currentMove?.fenAfter ?? line?.moves[0]?.fenBefore ?? "start";
+
+  const setLineArchived = async (archived: boolean): Promise<void> => {
+    if (!line || localBusy) return;
+    setLocalBusy(true);
+    setStatus("");
+    try {
+      const result = await patch<OpeningArchiveResponse>(
+        `/api/v1/openings/repertoires/${detail.repertoire.id}/lines/${line.id}/archive`,
+        { archived },
+      );
+      if (!result.detail) throw new Error("The updated repertoire could not be loaded");
+      onDetailChanged(result.detail);
+      const nextLine = archived
+        ? result.detail.chapters.flatMap((chapter) => chapter.lines).find((candidate) => !candidate.archived)
+        : result.detail.chapters.flatMap((chapter) => chapter.lines).find((candidate) => candidate.id === line.id);
+      if (nextLine) setLineId(nextLine.id);
+      setPly(0);
+      setPendingMove(null);
+      setEditingExplanation(false);
+      setStatus(result.message);
+    } catch (archiveError) {
+      setStatus(archiveError instanceof Error ? archiveError.message : "Could not update this line");
+    } finally {
+      setLocalBusy(false);
+    }
+  };
+
+  const renameRepertoire = async (): Promise<void> => {
+    if (localBusy || repertoireName.trim() === detail.repertoire.name) return;
+    setLocalBusy(true);
+    setStatus("");
+    try {
+      const result = await patch<OpeningMetadataMutationResponse>(
+        `/api/v1/openings/repertoires/${detail.repertoire.id}`,
+        { name: repertoireName },
+      );
+      onDetailChanged(result.detail);
+      setStatus(result.message);
+    } catch (renameError) {
+      setStatus(renameError instanceof Error ? renameError.message : "Could not rename this repertoire");
+    } finally {
+      setLocalBusy(false);
+    }
+  };
+
+  const updateLine = async (input: { title?: string; direction?: "earlier" | "later" }): Promise<void> => {
+    if (!line || localBusy) return;
+    setLocalBusy(true);
+    setStatus("");
+    try {
+      const result = await patch<OpeningMetadataMutationResponse>(
+        `/api/v1/openings/repertoires/${detail.repertoire.id}/lines/${line.id}`,
+        input,
+      );
+      onDetailChanged(result.detail);
+      setStatus(result.message);
+    } catch (updateError) {
+      setStatus(updateError instanceof Error ? updateError.message : "Could not update this line");
+    } finally {
+      setLocalBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (!deleteTarget) return;
@@ -64,12 +140,22 @@ export function OpeningLineExplorer({
     deleteDialogRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [deleteTarget]);
 
+  useEffect(() => {
+    setRepertoireName(detail.repertoire.name);
+    setLineTitle(line?.title ?? "");
+  }, [detail.repertoire.name, line?.id, line?.title]);
+
+  useEffect(() => {
+    if (initialCoverage && initialCoverage.ratingGroup === coverageRating) setCoverage(initialCoverage);
+  }, [initialCoverage, coverageRating]);
+
   const chooseLine = (nextLineId: string): void => {
     setLineId(nextLineId);
     setPly(0);
     setPendingMove(null);
     setEditingExplanation(false);
     setStatus("");
+    setLastMutation(null);
     setLineLibraryOpen(false);
   };
 
@@ -78,6 +164,7 @@ export function OpeningLineExplorer({
     setPendingMove(null);
     setEditingExplanation(false);
     setStatus("");
+    setLastMutation(null);
   };
 
   const previewNewMove = (uci: string, san: string): void => {
@@ -108,8 +195,46 @@ export function OpeningLineExplorer({
       setNewExplanation("");
       setBranchTitle("");
       setStatus(result.message);
+      setLastMutation({
+        lineId: result.lineId,
+        moveId: result.moveId,
+        createdBranch: result.createdBranch,
+        previousLineId: line.id,
+      });
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not save that move");
+    } finally {
+      setLocalBusy(false);
+    }
+  };
+
+  const undoLastSave = async (): Promise<void> => {
+    if (!lastMutation || localBusy) return;
+    setLocalBusy(true);
+    setStatus("");
+    try {
+      if (lastMutation.createdBranch) {
+        const result = await remove<OpeningLineDeletionResponse>(
+          `/api/v1/openings/repertoires/${detail.repertoire.id}/lines/${lastMutation.lineId}`,
+        );
+        onDetailChanged(result.detail);
+        setLineId(lastMutation.previousLineId);
+        setPly(Math.max(0, ply - 1));
+        setStatus("The new branch was removed.");
+      } else {
+        const result = await post<OpeningMoveUndoResponse>(
+          `/api/v1/openings/repertoires/${detail.repertoire.id}/lines/${lastMutation.lineId}/moves/undo`,
+          { moveId: lastMutation.moveId },
+        );
+        onDetailChanged(result.detail);
+        setLineId(result.lineId);
+        setPly(Math.max(0, ply - 1));
+        setStatus(result.message);
+      }
+      setLastMutation(null);
+      setPendingMove(null);
+    } catch (undoError) {
+      setStatus(undoError instanceof Error ? undoError.message : "Could not undo the last save");
     } finally {
       setLocalBusy(false);
     }
@@ -245,8 +370,12 @@ export function OpeningLineExplorer({
               {editing ? "Finish editing" : "Edit lines"}
             </button>
           )}
+          <button className="secondary" disabled={localBusy} onClick={() => void setLineArchived(!line.archived)}>
+            {localBusy ? "Saving…" : line.archived ? "Restore this line" : "Archive this line"}
+          </button>
+          <a className="button secondary" href={`/api/v1/openings/repertoires/${detail.repertoire.id}/export.pgn`} download>Export PGN</a>
           <button className="secondary" onClick={onBack}>Back to repertoires</button>
-          <button disabled={busy || line.learnerDecisionCount === 0} onClick={() => onPractice(line.id)}>
+          <button disabled={busy || line.archived || line.learnerDecisionCount === 0} onClick={() => onPractice(line.id)}>
             {busy ? "Starting…" : "Practise this line"}
           </button>
         </div>
@@ -283,6 +412,24 @@ export function OpeningLineExplorer({
           <div>
             <strong>Edit mode:</strong> stop at any position and make a move on the board. At the end it extends this line; in the middle a different move creates a new branch, leaving the original intact.
             {allLines.length === 1 && <small>This is your final line. Delete the repertoire to remove it and start again.</small>}
+          </div>
+          <div className="opening-edit-metadata">
+            <label>Repertoire name
+              <span>
+                <input value={repertoireName} onChange={(event) => setRepertoireName(event.target.value)} maxLength={120} />
+                <button className="secondary" disabled={localBusy || !repertoireName.trim() || repertoireName.trim() === detail.repertoire.name} onClick={() => void renameRepertoire()}>Save</button>
+              </span>
+            </label>
+            <label>Selected line
+              <span>
+                <input value={lineTitle} onChange={(event) => setLineTitle(event.target.value)} maxLength={120} />
+                <button className="secondary" disabled={localBusy || !lineTitle.trim() || lineTitle.trim() === line.title} onClick={() => void updateLine({ title: lineTitle })}>Save</button>
+              </span>
+            </label>
+            <div className="opening-order-actions" aria-label="Line order">
+              <button className="secondary" disabled={localBusy || selectedLineIndex <= 0} onClick={() => void updateLine({ direction: "earlier" })}>Move earlier</button>
+              <button className="secondary" disabled={localBusy || selectedLineIndex >= selected.chapter.lines.length - 1} onClick={() => void updateLine({ direction: "later" })}>Move later</button>
+            </div>
           </div>
           <div className="opening-delete-actions">
             <button
@@ -323,7 +470,10 @@ export function OpeningLineExplorer({
           </div>
         </div>
       )}
-      {status && <p className={status.toLowerCase().includes("could not") || status.toLowerCase().includes("not legal") ? "error" : "status"} aria-live="polite">{status}</p>}
+      {status && <div className="opening-workspace-status" aria-live="polite">
+        <p className={status.toLowerCase().includes("could not") || status.toLowerCase().includes("not legal") ? "error" : "status"}>{status}</p>
+        {lastMutation && <button className="text-button" disabled={localBusy} onClick={() => void undoLastSave()}>Undo last save</button>}
+      </div>}
 
       <button
         className="secondary opening-line-library-toggle"
@@ -347,12 +497,12 @@ export function OpeningLineExplorer({
               <div className="opening-line-buttons">
                 {chapter.lines.map((candidate) => (
                   <button
-                    className={candidate.id === line.id ? "active" : ""}
+                    className={`${candidate.id === line.id ? "active" : ""}${candidate.archived ? " archived" : ""}`.trim()}
                     key={candidate.id}
                     onClick={() => chooseLine(candidate.id)}
                   >
                     <strong>{candidate.title}</strong>
-                    <span>{candidate.learnerDecisionCount} decisions · {candidate.moveCount} moves</span>
+                    <span>{candidate.archived ? "Archived · " : ""}{candidate.learnerDecisionCount} decisions · {candidate.moveCount} moves</span>
                   </button>
                 ))}
               </div>
@@ -379,6 +529,7 @@ export function OpeningLineExplorer({
             fen={pendingFen}
             orientation={detail.repertoire.learnerColor}
             interactive={editing && !pendingMove}
+            allowAnnotations
             lastMove={pendingMove?.uci ?? currentMove?.moveUci ?? null}
             onMove={previewNewMove}
           />

@@ -72,10 +72,25 @@ test.describe.serial("stable V1 browser journey", () => {
     const e2 = board.getByRole("gridcell", { name: "e2 white pawn" });
     const e3 = board.getByRole("gridcell", { name: "e3 empty" });
     const e4 = board.getByRole("gridcell", { name: "e4 empty" });
+    await e2.scrollIntoViewIfNeeded();
+    const e2Box = await e2.boundingBox();
+    const e4Box = await e4.boundingBox();
+    if (!e2Box || !e4Box) throw new Error("Analysis board squares are not visible");
+    await page.mouse.move(e2Box.x + e2Box.width / 2, e2Box.y + e2Box.height / 2);
+    await page.mouse.down({ button: "right" });
+    await page.mouse.move(e4Box.x + e4Box.width / 2, e4Box.y + e4Box.height / 2, { steps: 6 });
+    await page.mouse.up({ button: "right" });
+    await expect(board.locator(".board-annotations .annotation-mark")).toHaveCount(1);
+    await openings.getByRole("button", { name: "Flip board" }).click();
+    await expect(board.locator("[role='gridcell']").first()).toHaveAttribute("aria-label", "h1 white rook");
+    await openings.getByRole("button", { name: "Flip board" }).click();
+    await expect(board.locator("[role='gridcell']").first()).toHaveAttribute("aria-label", "a8 black rook");
     await e2.click();
+    await expect(board.locator(".board-annotations")).toHaveCount(0);
     await expect(e3).toHaveClass(/target/);
     await expect(e4).toHaveClass(/target/);
     await e2.dragTo(e4);
+    await expect(board.getByRole("gridcell", { name: "e4 white pawn" }).locator("img.piece")).toHaveClass(/moving-piece/);
     await openings.getByRole("button", { name: "Add 1 move to my repertoire" }).click();
     await openings.getByRole("textbox", { name: /Develops with tempo/ }).fill("Claims the centre and opens the bishop.");
     board = openings.getByRole("grid", { name: "Analysis board" });
@@ -90,6 +105,14 @@ test.describe.serial("stable V1 browser journey", () => {
 
     await openings.getByRole("button", { name: "Edit lines" }).click();
     await openings.getByRole("button", { name: "End", exact: true }).click();
+    board = openings.getByRole("grid", { name: "Chess position" });
+    await board.getByRole("gridcell", { name: "g1 white knight" }).click();
+    await board.getByRole("gridcell", { name: "f3 empty" }).click();
+    await openings.getByRole("textbox", { name: /Why Nf3/ }).fill("Develops, controls the centre and prepares castling.");
+    await openings.getByRole("button", { name: "Save move" }).click();
+    await expect(openings.getByText("Nf3 was added to the end of this line.")).toBeVisible();
+    await openings.getByRole("button", { name: "Undo last save" }).click();
+    await expect(openings.getByText("Nf3 was removed.")).toBeVisible();
     board = openings.getByRole("grid", { name: "Chess position" });
     await board.getByRole("gridcell", { name: "g1 white knight" }).click();
     await board.getByRole("gridcell", { name: "f3 empty" }).click();
@@ -124,6 +147,28 @@ test.describe.serial("stable V1 browser journey", () => {
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
     await deletion.getByRole("button", { name: "Delete repertoire", exact: true }).click();
     await expect(openings.getByRole("heading", { name: "Board-built Italian", level: 3 })).toBeHidden();
+  });
+
+  test("archives and restores built-in repertoires and individual lines", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Openings" }).click();
+    const openings = page.locator("#opening-practice");
+    let starter = openings.locator("article").filter({ hasText: "Practical 1.e4 Repertoire" });
+    await starter.getByRole("button", { name: "Archive", exact: true }).click();
+    await expect(starter).toBeHidden();
+    const archiveLibrary = openings.locator("details.opening-archive-library");
+    await archiveLibrary.locator("summary").click();
+    await expect(archiveLibrary.getByText("Practical 1.e4 Repertoire")).toBeVisible();
+    await archiveLibrary.getByRole("button", { name: "Restore" }).click();
+    starter = openings.locator("article").filter({ hasText: "Practical 1.e4 Repertoire" });
+    await expect(starter).toBeVisible();
+
+    await starter.getByRole("button", { name: "View all lines" }).click();
+    await openings.getByRole("button", { name: "Archive this line" }).click();
+    await expect(openings.getByText(/Black develops the bishop first was archived/i)).toBeVisible();
+    await openings.getByRole("button", { name: /Black develops the bishop first/ }).click();
+    await openings.getByRole("button", { name: "Restore this line" }).click();
+    await expect(openings.getByText(/Black develops the bishop first was restored/i)).toBeVisible();
   });
 
   test("previews and imports a private opening repertoire for both sides", async ({ page }) => {

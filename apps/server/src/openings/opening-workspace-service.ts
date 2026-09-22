@@ -8,6 +8,9 @@ import type {
   OpeningLearningCommentResponse,
   OpeningRepertoireDeletionResponse,
   OpeningSurprisePreparationResponse,
+  OpeningArchiveResponse,
+  OpeningMetadataMutationResponse,
+  OpeningMoveUndoResponse,
 } from "../../../../packages/contracts/src/api.js";
 import { Chess } from "chess.js";
 import type { SqliteDatabase } from "../db/database.js";
@@ -22,6 +25,7 @@ interface RepertoireRow {
   summary: string;
   source_title: string | null;
   editable: number;
+  archived_at: string | null;
 }
 
 interface ChapterRow {
@@ -34,6 +38,7 @@ interface LineRow {
   id: string;
   title: string;
   priority: number;
+  archived_at: string | null;
 }
 
 interface MoveRow {
@@ -62,11 +67,14 @@ export class OpeningWorkspaceService {
     const profileId = ensureActiveProfile(this.db);
     const repertoire = this.db.prepare(`
       SELECT r.id, r.name, r.learner_color, r.summary, oi.source_title,
-             CASE WHEN oi.repertoire_id IS NULL THEN 0 ELSE 1 END AS editable
+             CASE WHEN oi.repertoire_id IS NULL THEN 0 ELSE 1 END AS editable,
+             preference.archived_at
       FROM opening_repertoires r
       LEFT JOIN opening_imports oi ON oi.repertoire_id = r.id
+      LEFT JOIN opening_repertoire_preferences preference
+        ON preference.repertoire_id = r.id AND preference.profile_id = ?
       WHERE r.id = ?
-    `).get(repertoireId) as RepertoireRow | undefined;
+    `).get(profileId, repertoireId) as RepertoireRow | undefined;
     if (!repertoire) throw new Error("Opening repertoire is not available");
 
     const chapters = this.db.prepare(`
@@ -85,6 +93,7 @@ export class OpeningWorkspaceService {
         origin: repertoire.source_title === null ? "built_in" : "imported",
         sourceTitle: repertoire.source_title,
         editable: repertoire.editable === 1,
+        archived: repertoire.archived_at !== null,
       },
       chapters: chapters.map((chapter): OpeningChapterDetail => ({
         id: chapter.id,
@@ -143,6 +152,7 @@ export class OpeningWorkspaceService {
     const summary = input.summary?.trim().slice(0, 600) || null;
     const createdBranch = Boolean(nextMove);
     let targetLineId = line.id;
+    let savedMoveId = "";
 
     this.db.transaction(() => {
       const fromPositionId = this.ensurePosition(fen);
@@ -155,6 +165,7 @@ export class OpeningWorkspaceService {
         WHERE repertoire_id = ? AND from_position_id = ? AND move_uci = ?
       `).get(input.repertoireId, fromPositionId, moveUci) as { id: string } | undefined;
       const moveId = existingMove?.id ?? id();
+      savedMoveId = moveId;
       if (existingMove) {
         this.db.prepare("UPDATE opening_moves SET active = 1 WHERE id = ?").run(moveId);
       } else {
@@ -216,10 +227,44 @@ export class OpeningWorkspaceService {
     return {
       detail: this.repertoire(input.repertoireId),
       lineId: targetLineId,
+      moveId: savedMoveId,
       createdBranch,
       message: createdBranch
         ? `${played.san} was saved as a new branch; the original line is unchanged.`
         : `${played.san} was added to the end of this line.`,
+    };
+  }
+
+  undoLastMove(repertoireId: string, lineId: string, moveId: string): OpeningMoveUndoResponse {
+    this.assertEditable(repertoireId);
+    const profileId = ensureActiveProfile(this.db);
+    const last = this.db.prepare(`
+      SELECT membership.move_id, membership.ply, move.move_san
+      FROM opening_line_moves membership
+      JOIN opening_moves move ON move.id = membership.move_id
+      JOIN opening_lines line ON line.id = membership.line_id
+      JOIN opening_chapters chapter ON chapter.id = line.chapter_id
+      WHERE membership.line_id = ? AND chapter.repertoire_id = ?
+      ORDER BY membership.ply DESC LIMIT 1
+    `).get(lineId, repertoireId) as { move_id: string; ply: number; move_san: string } | undefined;
+    if (!last || last.move_id !== moveId) throw new Error("Only the most recently added move can be undone");
+    if (last.ply <= 1) throw new Error("The first move cannot be removed from this editor");
+    const timestamp = now();
+    this.db.transaction(() => {
+      this.db.prepare("DELETE FROM opening_lesson_attempts WHERE profile_id = ? AND line_id = ?").run(profileId, lineId);
+      this.abandonPractice(profileId, repertoireId, timestamp);
+      this.db.prepare("DELETE FROM opening_line_moves WHERE line_id = ? AND move_id = ?").run(lineId, moveId);
+      const stillUsed = Boolean(this.db.prepare("SELECT 1 FROM opening_line_moves WHERE move_id = ? LIMIT 1").get(moveId));
+      if (!stillUsed) {
+        this.db.prepare("DELETE FROM opening_review_items WHERE profile_id = ? AND move_id = ?").run(profileId, moveId);
+        this.db.prepare("DELETE FROM opening_moves WHERE id = ?").run(moveId);
+      }
+      this.touch(repertoireId);
+    })();
+    return {
+      detail: this.repertoire(repertoireId),
+      lineId,
+      message: `${last.move_san} was removed.`,
     };
   }
 
@@ -302,6 +347,178 @@ export class OpeningWorkspaceService {
       deletedRepertoireId: repertoireId,
       message: `${repertoire.name} was deleted. Your imported games were kept.`,
     };
+  }
+
+  setRepertoireArchived(repertoireId: string, archived: boolean): OpeningArchiveResponse {
+    const profileId = ensureActiveProfile(this.db);
+    const repertoire = this.db.prepare(`
+      SELECT name FROM opening_repertoires WHERE id = ?
+    `).get(repertoireId) as { name: string } | undefined;
+    if (!repertoire) throw new Error("Opening repertoire is not available");
+    const timestamp = now();
+    this.db.transaction(() => {
+      if (archived) {
+        this.db.prepare(`
+          INSERT INTO opening_repertoire_preferences(profile_id, repertoire_id, archived_at, updated_at)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT(profile_id, repertoire_id) DO UPDATE SET
+            archived_at = excluded.archived_at, updated_at = excluded.updated_at
+        `).run(profileId, repertoireId, timestamp, timestamp);
+        this.abandonPractice(profileId, repertoireId, timestamp);
+      } else {
+        this.db.prepare(`
+          DELETE FROM opening_repertoire_preferences WHERE profile_id = ? AND repertoire_id = ?
+        `).run(profileId, repertoireId);
+      }
+    })();
+    return {
+      entity: "repertoire",
+      id: repertoireId,
+      archived,
+      message: archived
+        ? `${repertoire.name} was archived. Its lines and progress are preserved.`
+        : `${repertoire.name} was restored to opening practice.`,
+    };
+  }
+
+  setLineArchived(repertoireId: string, lineId: string, archived: boolean): OpeningArchiveResponse {
+    const profileId = ensureActiveProfile(this.db);
+    const line = this.db.prepare(`
+      SELECT line.title
+      FROM opening_lines line
+      JOIN opening_chapters chapter ON chapter.id = line.chapter_id
+      WHERE line.id = ? AND chapter.repertoire_id = ? AND line.active = 1 AND chapter.active = 1
+    `).get(lineId, repertoireId) as { title: string } | undefined;
+    if (!line) throw new Error("Opening line is not available");
+    if (archived) {
+      const visibleLines = Number(this.db.prepare(`
+        SELECT COUNT(*)
+        FROM opening_lines candidate
+        JOIN opening_chapters chapter ON chapter.id = candidate.chapter_id AND chapter.active = 1
+        LEFT JOIN opening_line_preferences preference
+          ON preference.line_id = candidate.id AND preference.profile_id = ?
+        WHERE chapter.repertoire_id = ? AND candidate.active = 1 AND preference.archived_at IS NULL
+      `).pluck().get(profileId, repertoireId));
+      if (visibleLines <= 1) {
+        throw new Error("This is the final active line. Archive the repertoire instead.");
+      }
+    }
+    const timestamp = now();
+    this.db.transaction(() => {
+      if (archived) {
+        this.db.prepare(`
+          INSERT INTO opening_line_preferences(profile_id, line_id, archived_at, updated_at)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT(profile_id, line_id) DO UPDATE SET
+            archived_at = excluded.archived_at, updated_at = excluded.updated_at
+        `).run(profileId, lineId, timestamp, timestamp);
+        this.abandonPractice(profileId, repertoireId, timestamp);
+      } else {
+        this.db.prepare(`
+          DELETE FROM opening_line_preferences WHERE profile_id = ? AND line_id = ?
+        `).run(profileId, lineId);
+      }
+    })();
+    return {
+      entity: "line",
+      id: lineId,
+      archived,
+      message: archived
+        ? `${line.title} was archived. Its moves and progress are preserved.`
+        : `${line.title} was restored to practice.`,
+      detail: this.repertoire(repertoireId),
+    };
+  }
+
+  renameRepertoire(repertoireId: string, nameValue: string): OpeningMetadataMutationResponse {
+    this.assertEditable(repertoireId);
+    const name = nameValue.trim().replace(/\s+/g, " ").slice(0, 120);
+    if (!name) throw new Error("Enter a repertoire name");
+    this.db.transaction(() => {
+      this.db.prepare(`UPDATE opening_repertoires SET name = ? WHERE id = ?`).run(name, repertoireId);
+      this.touch(repertoireId);
+    })();
+    return { detail: this.repertoire(repertoireId), message: `Repertoire renamed to ${name}.` };
+  }
+
+  updateLineMetadata(
+    repertoireId: string,
+    lineId: string,
+    input: { title?: string; direction?: "earlier" | "later" },
+  ): OpeningMetadataMutationResponse {
+    this.assertEditable(repertoireId);
+    const line = this.db.prepare(`
+      SELECT line.id, line.title, line.priority, line.chapter_id
+      FROM opening_lines line
+      JOIN opening_chapters chapter ON chapter.id = line.chapter_id
+      WHERE line.id = ? AND chapter.repertoire_id = ? AND line.active = 1
+    `).get(lineId, repertoireId) as {
+      id: string; title: string; priority: number; chapter_id: string;
+    } | undefined;
+    if (!line) throw new Error("Opening line is not available");
+    const title = input.title === undefined
+      ? line.title
+      : input.title.trim().replace(/\s+/g, " ").slice(0, 120);
+    if (!title) throw new Error("Enter a line name");
+
+    let moved = false;
+    this.db.transaction(() => {
+      this.db.prepare("UPDATE opening_lines SET title = ? WHERE id = ?").run(title, lineId);
+      if (input.direction) {
+        const sibling = this.db.prepare(`
+          SELECT id, priority
+          FROM opening_lines
+          WHERE chapter_id = ? AND active = 1 AND id <> ?
+            AND priority ${input.direction === "earlier" ? "<" : ">"} ?
+          ORDER BY priority ${input.direction === "earlier" ? "DESC" : "ASC"}, title
+          LIMIT 1
+        `).get(line.chapter_id, lineId, line.priority) as { id: string; priority: number } | undefined;
+        if (sibling) {
+          this.db.prepare("UPDATE opening_lines SET priority = ? WHERE id = ?").run(sibling.priority, lineId);
+          this.db.prepare("UPDATE opening_lines SET priority = ? WHERE id = ?").run(line.priority, sibling.id);
+          moved = true;
+        }
+      }
+      this.touch(repertoireId);
+    })();
+    return {
+      detail: this.repertoire(repertoireId),
+      message: input.direction
+        ? moved
+          ? `${title} moved ${input.direction === "earlier" ? "earlier" : "later"} in this chapter.`
+          : `${title} is already ${input.direction === "earlier" ? "first" : "last"} in this chapter.`
+        : `Line renamed to ${title}.`,
+    };
+  }
+
+  exportPgn(repertoireId: string): { filename: string; pgn: string } {
+    const detail = this.repertoire(repertoireId);
+    const lines = detail.chapters.flatMap((chapter) => chapter.lines.map((line) => ({ chapter, line })));
+    if (lines.length === 0) throw new Error("Add at least one line before exporting this repertoire");
+    const cleanComment = (value: string): string => value.replace(/[{}]/g, "").replace(/\s+/g, " ").trim();
+    const cleanTag = (value: string): string => value.replace(/[\r\n\\]/g, " ").replace(/"/g, "'").replace(/\s+/g, " ").trim();
+    const games = lines.map(({ chapter, line }) => {
+      const tags = [
+        `[Event "${cleanTag(detail.repertoire.name)}"]`,
+        `[Site "Thinking Board"]`,
+        `[Round "-"]`,
+        `[White "${detail.repertoire.learnerColor === "white" ? "Repertoire" : "Opponent"}"]`,
+        `[Black "${detail.repertoire.learnerColor === "black" ? "Repertoire" : "Opponent"}"]`,
+        `[Result "*"]`,
+        `[Opening "${cleanTag(chapter.title)}"]`,
+        `[Variation "${cleanTag(line.title)}"]`,
+      ];
+      const moves: string[] = [];
+      for (const move of line.moves) {
+        if (move.ply % 2 === 1) moves.push(`${Math.ceil(move.ply / 2)}.`);
+        moves.push(move.moveSan);
+        const note = cleanComment(move.explanation.personalComment ?? move.explanation.summary);
+        if (note) moves.push(`{${note}}`);
+      }
+      return `${tags.join("\n")}\n\n${moves.join(" ")} *`;
+    });
+    const filename = `${detail.repertoire.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "repertoire"}.pgn`;
+    return { filename, pgn: games.join("\n\n") };
   }
 
   prepareOpponentSurprise(input: {
@@ -426,6 +643,17 @@ export class OpeningWorkspaceService {
     }
   }
 
+  private abandonPractice(profileId: string, repertoireId: string, timestamp: string): void {
+    this.db.prepare(`
+      UPDATE opening_lesson_attempts SET status = 'abandoned', abandoned_at = ?
+      WHERE profile_id = ? AND repertoire_id = ? AND status = 'active'
+    `).run(timestamp, profileId, repertoireId);
+    this.db.prepare(`
+      UPDATE opening_review_sessions SET status = 'abandoned', abandoned_at = ?
+      WHERE profile_id = ? AND repertoire_id = ? AND status = 'active'
+    `).run(timestamp, profileId, repertoireId);
+  }
+
   private isEditable(repertoireId: string): boolean {
     return Boolean(this.db.prepare("SELECT 1 FROM opening_imports WHERE repertoire_id = ?").get(repertoireId));
   }
@@ -449,6 +677,7 @@ export class OpeningWorkspaceService {
   }
 
   private lineAtPosition(repertoireId: string, fen: string): { lineId: string; afterPly: number } | null {
+    const profileId = ensureActiveProfile(this.db);
     const row = this.db.prepare(`
       SELECT l.id AS line_id, olm.ply AS after_ply
       FROM opening_positions p
@@ -456,10 +685,12 @@ export class OpeningWorkspaceService {
       JOIN opening_line_moves olm ON olm.move_id = m.id
       JOIN opening_lines l ON l.id = olm.line_id AND l.active = 1
       JOIN opening_chapters c ON c.id = l.chapter_id AND c.active = 1
-      WHERE p.position_key = ?
+      LEFT JOIN opening_line_preferences preference
+        ON preference.line_id = l.id AND preference.profile_id = ?
+      WHERE p.position_key = ? AND preference.archived_at IS NULL
       ORDER BY c.sort_order, l.priority, olm.ply
       LIMIT 1
-    `).get(repertoireId, openingPositionKey(fen)) as { line_id: string; after_ply: number } | undefined;
+    `).get(repertoireId, profileId, openingPositionKey(fen)) as { line_id: string; after_ply: number } | undefined;
     return row ? { lineId: row.line_id, afterPly: row.after_ply } : null;
   }
 
@@ -604,11 +835,13 @@ export class OpeningWorkspaceService {
 
   private lines(chapterId: string, profileId: string): OpeningLineDetail[] {
     const lines = this.db.prepare(`
-      SELECT id, title, priority
-      FROM opening_lines
-      WHERE chapter_id = ? AND active = 1
-      ORDER BY priority, title
-    `).all(chapterId) as LineRow[];
+      SELECT line.id, line.title, line.priority, preference.archived_at
+      FROM opening_lines line
+      LEFT JOIN opening_line_preferences preference
+        ON preference.line_id = line.id AND preference.profile_id = ?
+      WHERE line.chapter_id = ? AND line.active = 1
+      ORDER BY CASE WHEN preference.archived_at IS NULL THEN 0 ELSE 1 END, line.priority, line.title
+    `).all(profileId, chapterId) as LineRow[];
     return lines.map((line) => {
       const moves = this.moves(line.id, profileId);
       return {
@@ -618,6 +851,7 @@ export class OpeningWorkspaceService {
         moveCount: moves.length,
         learnerDecisionCount: moves.filter((move) => move.role === "learner").length,
         sanSequence: formatSanSequence(moves),
+        archived: line.archived_at !== null,
         moves,
       };
     });

@@ -294,6 +294,152 @@ describe("vertical slice", () => {
     });
   });
 
+  it("archives built-in opening material without deleting its lines or progress", async () => {
+    const app = await buildApp(config(false));
+    apps.push(app);
+    const repertoireId = "repertoire.white-e4-principled";
+    const before = await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}` });
+    const beforeBody = before.json() as {
+      chapters: Array<{ lines: Array<{ id: string; archived: boolean }> }>;
+    };
+    const lines = beforeBody.chapters.flatMap((chapter) => chapter.lines);
+    const lineId = lines[0]!.id;
+    const progressBefore = (await app.inject({ method: "GET", url: "/api/v1/openings/progress" })).json() as {
+      totalLines: number;
+    };
+
+    const archivedLine = await app.inject({
+      method: "PATCH",
+      url: `/api/v1/openings/repertoires/${repertoireId}/lines/${lineId}/archive`,
+      payload: { archived: true },
+    });
+    expect(archivedLine.statusCode).toBe(200);
+    expect(archivedLine.json()).toMatchObject({
+      entity: "line",
+      id: lineId,
+      archived: true,
+      detail: { chapters: expect.arrayContaining([expect.objectContaining({
+        lines: expect.arrayContaining([expect.objectContaining({ id: lineId, archived: true })]),
+      })]) },
+    });
+    const catalogWithLineArchived = await app.inject({ method: "GET", url: "/api/v1/openings/catalog" });
+    expect(catalogWithLineArchived.json()).toMatchObject({
+      repertoires: expect.arrayContaining([expect.objectContaining({
+        id: repertoireId,
+        activeLineCount: lines.length - 1,
+        archivedLineCount: 1,
+      })]),
+    });
+    const progressAfter = (await app.inject({ method: "GET", url: "/api/v1/openings/progress" })).json() as {
+      totalLines: number;
+    };
+    expect(progressAfter.totalLines).toBe(progressBefore.totalLines - 1);
+    expect((await app.inject({
+      method: "POST",
+      url: `/api/v1/openings/repertoires/${repertoireId}/lines/${lineId}/lessons/start`,
+    })).statusCode).toBe(400);
+
+    expect((await app.inject({
+      method: "PATCH",
+      url: `/api/v1/openings/repertoires/${repertoireId}/lines/${lineId}/archive`,
+      payload: { archived: false },
+    })).json()).toMatchObject({ archived: false });
+    expect((await app.inject({
+      method: "PATCH",
+      url: `/api/v1/openings/repertoires/${repertoireId}/archive`,
+      payload: { archived: true },
+    })).json()).toMatchObject({ entity: "repertoire", archived: true });
+    const catalogArchived = await app.inject({ method: "GET", url: "/api/v1/openings/catalog" });
+    expect(catalogArchived.json()).toMatchObject({
+      repertoires: expect.arrayContaining([expect.objectContaining({ id: repertoireId, archived: true })]),
+    });
+    expect((await app.inject({
+      method: "POST",
+      url: `/api/v1/openings/repertoires/${repertoireId}/reviews/start`,
+      payload: { mode: "new" },
+    })).statusCode).toBe(400);
+    expect((await app.inject({
+      method: "PATCH",
+      url: `/api/v1/openings/repertoires/${repertoireId}/archive`,
+      payload: { archived: false },
+    })).json()).toMatchObject({ archived: false });
+    const restored = await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}` });
+    expect((restored.json() as typeof beforeBody).chapters.flatMap((chapter) => chapter.lines)).toHaveLength(lines.length);
+  });
+
+  it("renames, reorders, exports and immediately undoes changes to a personal repertoire", async () => {
+    const app = await buildApp(config(false));
+    apps.push(app);
+    const imported = await app.inject({
+      method: "POST",
+      url: "/api/v1/openings/imports/pgn",
+      payload: {
+        pgn: OPENING_REPERTOIRE_PGN,
+        learnerColor: "black",
+        name: "Editable French",
+        sourceType: "self_authored",
+        sourceTitle: "My board",
+        ownershipConfirmed: true,
+      },
+    });
+    const repertoireId = (imported.json() as { repertoireIds: string[] }).repertoireIds[0]!;
+    const detail = await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}` });
+    const lines = (detail.json() as {
+      chapters: Array<{ lines: Array<{ id: string; title: string; priority: number; moves: Array<{ id: string }> }> }>;
+    }).chapters[0]!.lines;
+    const firstLine = lines[0]!;
+    const secondLine = lines[1]!;
+
+    const renamed = await app.inject({
+      method: "PATCH",
+      url: `/api/v1/openings/repertoires/${repertoireId}`,
+      payload: { name: "My Dependable French" },
+    });
+    expect(renamed.json()).toMatchObject({ detail: { repertoire: { name: "My Dependable French" } } });
+    const reordered = await app.inject({
+      method: "PATCH",
+      url: `/api/v1/openings/repertoires/${repertoireId}/lines/${secondLine.id}`,
+      payload: { title: "Advance option", direction: "earlier" },
+    });
+    expect(reordered.statusCode).toBe(200);
+    const reorderedLines = (reordered.json() as {
+      detail: { chapters: Array<{ lines: Array<{ id: string; title: string }> }> };
+    }).detail.chapters[0]!.lines;
+    expect(reorderedLines[0]).toMatchObject({ id: secondLine.id, title: "Advance option" });
+
+    const added = await app.inject({
+      method: "POST",
+      url: `/api/v1/openings/repertoires/${repertoireId}/lines/${firstLine.id}/moves`,
+      payload: { afterPly: 5, moveUci: "c7c5", summary: "Challenge White's centre." },
+    });
+    expect(added.statusCode).toBe(200);
+    const addedBody = added.json() as { moveId: string; createdBranch: boolean };
+    expect(addedBody).toMatchObject({ moveId: expect.any(String), createdBranch: false });
+    const undone = await app.inject({
+      method: "POST",
+      url: `/api/v1/openings/repertoires/${repertoireId}/lines/${firstLine.id}/moves/undo`,
+      payload: { moveId: addedBody.moveId },
+    });
+    expect(undone.statusCode).toBe(200);
+    expect(undone.json()).toMatchObject({ lineId: firstLine.id, message: expect.stringMatching(/c5 was removed/i) });
+
+    expect((await app.inject({
+      method: "PATCH",
+      url: `/api/v1/openings/repertoires/${repertoireId}/lines/${secondLine.id}/archive`,
+      payload: { archived: true },
+    })).statusCode).toBe(200);
+    const exported = await app.inject({
+      method: "GET",
+      url: `/api/v1/openings/repertoires/${repertoireId}/export.pgn`,
+    });
+    expect(exported.statusCode).toBe(200);
+    expect(exported.headers["content-type"]).toContain("application/x-chess-pgn");
+    expect(exported.headers["content-disposition"]).toContain("my-dependable-french.pgn");
+    expect(exported.body).toContain('[Event "My Dependable French"]');
+    expect(exported.body).toContain('[Variation "Advance option"]');
+    expect(exported.body).not.toContain("Challenge White's centre");
+  });
+
   it("deletes a personal line safely and can remove the whole repertoire to start again", async () => {
     const appConfig = config(false);
     const app = await buildApp(appConfig);

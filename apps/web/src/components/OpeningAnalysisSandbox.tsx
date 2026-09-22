@@ -43,6 +43,7 @@ function scoreLabel(line: OpeningPositionAnalysisResponse["lines"][number]): str
 
 export function OpeningAnalysisSandbox({ baseFen, orientation, onAddMoves }: OpeningAnalysisSandboxProps) {
   const [fen, setFen] = useState(baseFen);
+  const [boardOrientation, setBoardOrientation] = useState(orientation);
   const [moves, setMoves] = useState<SandboxMove[]>([]);
   const [analysis, setAnalysis] = useState<OpeningPositionAnalysisResponse | null>(null);
   const [analysisError, setAnalysisError] = useState("");
@@ -61,6 +62,7 @@ export function OpeningAnalysisSandbox({ baseFen, orientation, onAddMoves }: Ope
     setExplorer(null);
     setExplorerError("");
   }, [baseFen]);
+  useEffect(() => setBoardOrientation(orientation), [orientation]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -144,16 +146,18 @@ export function OpeningAnalysisSandbox({ baseFen, orientation, onAddMoves }: Ope
         <strong>{turn} to move</strong>
       </div>
       <div className="board-toolbar opening-sandbox-toolbar">
-        <span>{moves.length === 0 ? "Synced with your repertoire position" : `${moves.length} unsaved move${moves.length === 1 ? "" : "s"}`}</span>
+        <span>{moves.length === 0 ? "Synced · right-drag to mark ideas" : `${moves.length} unsaved move${moves.length === 1 ? "" : "s"} · right-drag to mark`}</span>
         <div>
+          <button className="text-button" onClick={() => setBoardOrientation((current) => current === "white" ? "black" : "white")}>Flip board</button>
           <button className="text-button" disabled={moves.length === 0} onClick={undo}>Undo</button>
           <button className="text-button" disabled={moves.length === 0} onClick={reset}>Reset</button>
         </div>
       </div>
       <ChessBoard
         fen={fen}
-        orientation={orientation}
+        orientation={boardOrientation}
         interactive
+        allowAnnotations
         lastMove={lastMove}
         onMove={(uci, san) => playMove(uci, san)}
         ariaLabel="Analysis board"

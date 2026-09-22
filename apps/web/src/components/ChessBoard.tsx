@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
   type PointerEvent,
 } from "react";
@@ -55,6 +56,20 @@ interface DragPiece {
   y: number;
 }
 
+type AnnotationColor = "green" | "red" | "blue" | "yellow";
+
+interface BoardAnnotation {
+  color: AnnotationColor;
+  from: string;
+  to: string;
+}
+
+interface AnnotationStart {
+  color: AnnotationColor;
+  from: string;
+  pointerId: number;
+}
+
 interface ChessBoardProps {
   fen: string;
   orientation: Color;
@@ -62,6 +77,7 @@ interface ChessBoardProps {
   lastMove?: string | null;
   selectedSquare?: string | null;
   highlightedSquares?: string[];
+  allowAnnotations?: boolean;
   onMove?: (uci: string, san: string) => void;
   onSquareSelect?: (square: string) => void;
   ariaLabel?: string;
@@ -79,6 +95,21 @@ function boardSquares(orientation: Color): string[] {
   return squares;
 }
 
+function boardPoint(square: string, orientation: Color): { x: number; y: number } {
+  const file = square.charCodeAt(0) - 97;
+  const rank = Number(square[1]) - 1;
+  return orientation === "white"
+    ? { x: file + .5, y: 7 - rank + .5 }
+    : { x: 7 - file + .5, y: rank + .5 };
+}
+
+function annotationColor(event: PointerEvent<HTMLButtonElement>): AnnotationColor {
+  if (event.shiftKey) return "red";
+  if (event.altKey) return "blue";
+  if (event.ctrlKey || event.metaKey) return "yellow";
+  return "green";
+}
+
 export function ChessBoard({
   fen,
   orientation,
@@ -86,6 +117,7 @@ export function ChessBoard({
   lastMove,
   selectedSquare,
   highlightedSquares = [],
+  allowAnnotations = false,
   onMove,
   onSquareSelect,
   ariaLabel = "Chess position",
@@ -93,14 +125,20 @@ export function ChessBoard({
   const [selected, setSelected] = useState<string | null>(null);
   const [dragPiece, setDragPiece] = useState<DragPiece | null>(null);
   const [promotionChoice, setPromotionChoice] = useState<PromotionChoice | null>(null);
+  const [annotations, setAnnotations] = useState<BoardAnnotation[]>([]);
+  const [annotationPreview, setAnnotationPreview] = useState<BoardAnnotation | null>(null);
+  const [invalidSquare, setInvalidSquare] = useState<string | null>(null);
   const game = useMemo(() => new Chess(fen), [fen]);
   const squares = useMemo(() => boardSquares(orientation), [orientation]);
   const [focusedSquare, setFocusedSquare] = useState(squares[0]!);
   const squareRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const firstPromotionButton = useRef<HTMLButtonElement | null>(null);
   const dragStart = useRef<DragStart | null>(null);
+  const annotationStart = useRef<AnnotationStart | null>(null);
+  const invalidTimer = useRef<number | null>(null);
   const suppressClick = useRef(false);
   const statusId = useId();
+  const markerId = statusId.replaceAll(":", "");
   const targets = useMemo(() => {
     const result = new Map<string, boolean>();
     if (!selected) return result;
@@ -109,17 +147,45 @@ export function ChessBoard({
     }
     return result;
   }, [game, selected]);
+  const checkedKing = useMemo(() => {
+    if (!game.inCheck()) return null;
+    return squares.find((square) => {
+      const piece = game.get(square as never);
+      return piece?.type === "k" && piece.color === game.turn();
+    }) ?? null;
+  }, [game, squares]);
 
   useEffect(() => {
     setSelected(null);
     setDragPiece(null);
     setPromotionChoice(null);
+    setAnnotations([]);
+    setAnnotationPreview(null);
+    setInvalidSquare(null);
     dragStart.current = null;
+    annotationStart.current = null;
+    if (invalidTimer.current !== null) {
+      window.clearTimeout(invalidTimer.current);
+      invalidTimer.current = null;
+    }
   }, [fen]);
   useEffect(() => setFocusedSquare(squares[0]!), [squares]);
   useEffect(() => {
     if (promotionChoice) firstPromotionButton.current?.focus();
   }, [promotionChoice]);
+  useEffect(() => () => {
+    if (invalidTimer.current !== null) window.clearTimeout(invalidTimer.current);
+  }, []);
+
+  const showInvalidMove = (square: string): void => {
+    if (invalidTimer.current !== null) window.clearTimeout(invalidTimer.current);
+    setInvalidSquare(null);
+    window.requestAnimationFrame(() => setInvalidSquare(square));
+    invalidTimer.current = window.setTimeout(() => {
+      setInvalidSquare(null);
+      invalidTimer.current = null;
+    }, 420);
+  };
 
   const moveKeyboardFocus = (event: KeyboardEvent<HTMLButtonElement>, square: string): void => {
     if (!interactive) return;
@@ -178,6 +244,7 @@ export function ChessBoard({
   };
 
   const clickSquare = (square: string): void => {
+    if (annotations.length > 0) setAnnotations([]);
     if (!interactive || promotionChoice) return;
     if (suppressClick.current) {
       suppressClick.current = false;
@@ -198,7 +265,25 @@ export function ChessBoard({
     }
     if (tryMove(selected, square)) return;
     const piece = game.get(square as never);
-    setSelected(piece && piece.color === game.turn() ? square : null);
+    if (piece && piece.color === game.turn()) {
+      setSelected(square);
+    } else {
+      showInvalidMove(square);
+      setSelected(null);
+    }
+  };
+
+  const startAnnotation = (event: PointerEvent<HTMLButtonElement>, square: string): boolean => {
+    if (!allowAnnotations || event.button !== 2) return false;
+    event.preventDefault();
+    annotationStart.current = {
+      color: annotationColor(event),
+      from: square,
+      pointerId: event.pointerId,
+    };
+    setAnnotationPreview({ color: annotationColor(event), from: square, to: square });
+    event.currentTarget.setPointerCapture(event.pointerId);
+    return true;
   };
 
   const startDrag = (event: PointerEvent<HTMLButtonElement>, square: string, image: string): void => {
@@ -211,7 +296,7 @@ export function ChessBoard({
       image,
       moved: false,
       pointerId: event.pointerId,
-      size: bounds.width * .92,
+      size: bounds.width * .96,
       startX: event.clientX,
       startY: event.clientY,
     };
@@ -219,6 +304,13 @@ export function ChessBoard({
   };
 
   const moveDrag = (event: PointerEvent<HTMLButtonElement>): void => {
+    const mark = annotationStart.current;
+    if (mark?.pointerId === event.pointerId) {
+      event.preventDefault();
+      const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-square]");
+      setAnnotationPreview({ color: mark.color, from: mark.from, to: target?.dataset.square ?? mark.from });
+      return;
+    }
     const start = dragStart.current;
     if (!start || start.pointerId !== event.pointerId) return;
     if (!start.moved && Math.hypot(event.clientX - start.startX, event.clientY - start.startY) < 5) return;
@@ -229,6 +321,18 @@ export function ChessBoard({
   };
 
   const endDrag = (event: PointerEvent<HTMLButtonElement>): void => {
+    const mark = annotationStart.current;
+    if (mark?.pointerId === event.pointerId) {
+      event.preventDefault();
+      annotationStart.current = null;
+      const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-square]");
+      const annotation = { color: mark.color, from: mark.from, to: target?.dataset.square ?? mark.from };
+      setAnnotationPreview(null);
+      setAnnotations((current) => current.some((item) => item.from === annotation.from && item.to === annotation.to && item.color === annotation.color)
+        ? current.filter((item) => !(item.from === annotation.from && item.to === annotation.to && item.color === annotation.color))
+        : [...current, annotation]);
+      return;
+    }
     const start = dragStart.current;
     if (!start || start.pointerId !== event.pointerId) return;
     dragStart.current = null;
@@ -240,10 +344,16 @@ export function ChessBoard({
     const destination = target?.dataset.square;
     if (!destination || destination === start.from || !tryMove(start.from, destination)) {
       setSelected(start.from);
+      showInvalidMove(destination ?? start.from);
     }
   };
 
   const cancelDrag = (event: PointerEvent<HTMLButtonElement>): void => {
+    if (annotationStart.current?.pointerId === event.pointerId) {
+      annotationStart.current = null;
+      setAnnotationPreview(null);
+      return;
+    }
     if (dragStart.current?.pointerId !== event.pointerId) return;
     dragStart.current = null;
     setDragPiece(null);
@@ -252,6 +362,8 @@ export function ChessBoard({
   const selectedPiece = selected ? game.get(selected as never) : null;
   const boardStatus = promotionChoice
     ? `Choose a piece for the pawn on ${promotionChoice.to}.`
+    : invalidSquare
+      ? `That piece cannot move to ${invalidSquare}. Try another move.`
     : selected && selectedPiece
       ? `${PIECE_NAMES[selectedPiece.type]} on ${selected} selected. ${targets.size} legal ${targets.size === 1 ? "move" : "moves"}.`
       : interactive ? "Select a piece, then choose its destination. You can also drag pieces." : "";
@@ -263,6 +375,7 @@ export function ChessBoard({
         role="grid"
         aria-label={ariaLabel}
         aria-describedby={statusId}
+        onContextMenu={(event) => { if (allowAnnotations) event.preventDefault(); }}
       >
         {squares.map((square) => {
           const file = square.charCodeAt(0) - 97;
@@ -272,6 +385,16 @@ export function ChessBoard({
           const isLast = lastMove?.slice(0, 2) === square || lastMove?.slice(2, 4) === square;
           const isMovable = interactive && !onSquareSelect && piece?.color === game.turn();
           const isTarget = targets.has(square);
+          const isMoveDestination = lastMove?.slice(2, 4) === square;
+          const moveFrom = lastMove?.slice(0, 2);
+          const fromPoint = moveFrom ? boardPoint(moveFrom, orientation) : null;
+          const toPoint = boardPoint(square, orientation);
+          const moveStyle = isMoveDestination && fromPoint
+            ? {
+                "--move-x": `${(fromPoint.x - toPoint.x) * (100 / .96)}%`,
+                "--move-y": `${(fromPoint.y - toPoint.y) * (100 / .96)}%`,
+              } as CSSProperties
+            : undefined;
           const className = [
             "board-square",
             (file + rank) % 2 === 0 ? "light" : "dark",
@@ -282,6 +405,8 @@ export function ChessBoard({
             dragPiece?.from === square ? "drag-origin" : "",
             isLast ? "last-move" : "",
             highlightedSquares.includes(square) ? "answer-highlight" : "",
+            checkedKing === square ? "in-check" : "",
+            invalidSquare === square ? "invalid-move" : "",
           ].filter(Boolean).join(" ");
           return (
             <button
@@ -296,7 +421,10 @@ export function ChessBoard({
               ref={(element) => { squareRefs.current[square] = element; }}
               onFocus={() => setFocusedSquare(square)}
               onKeyDown={(event) => moveKeyboardFocus(event, square)}
-              onPointerDown={(event) => { if (pieceImage) startDrag(event, square, pieceImage); }}
+              onPointerDown={(event) => {
+                if (startAnnotation(event, square)) return;
+                if (pieceImage) startDrag(event, square, pieceImage);
+              }}
               onPointerMove={moveDrag}
               onPointerUp={endDrag}
               onPointerCancel={cancelDrag}
@@ -307,11 +435,13 @@ export function ChessBoard({
             >
               {pieceImage && (
                 <img
-                  className="piece"
+                  key={isMoveDestination ? `${lastMove}-${fen}` : `${piece?.color}${piece?.type}`}
+                  className={`piece${isMoveDestination ? " moving-piece" : ""}`}
                   src={pieceImage}
                   alt=""
                   aria-hidden="true"
                   draggable={false}
+                  style={moveStyle}
                 />
               )}
               {file === (orientation === "white" ? 0 : 7) && <span className="rank-label" aria-hidden="true">{square[1]}</span>}
@@ -319,6 +449,38 @@ export function ChessBoard({
             </button>
           );
         })}
+        {(annotations.length > 0 || annotationPreview) && (
+          <svg className="board-annotations" viewBox="0 0 8 8" aria-hidden="true">
+            <defs>
+              {(["green", "red", "blue", "yellow"] as const).map((color) => (
+                <marker key={color} id={`${markerId}-${color}`} markerWidth="3.8" markerHeight="3.8" refX="2.8" refY="1.9" orient="auto" markerUnits="strokeWidth">
+                  <path className={`annotation-${color}`} d="M0,0 L3.8,1.9 L0,3.8 z" />
+                </marker>
+              ))}
+            </defs>
+            {[...annotations, ...(annotationPreview ? [annotationPreview] : [])].map((annotation, index) => {
+              const from = boardPoint(annotation.from, orientation);
+              const to = boardPoint(annotation.to, orientation);
+              const preview = index >= annotations.length;
+              if (annotation.from === annotation.to) {
+                return <circle key={`${annotation.from}-${annotation.to}-${annotation.color}-${index}`} className={`annotation-mark annotation-${annotation.color}${preview ? " preview" : ""}`} cx={from.x} cy={from.y} r=".36" />;
+              }
+              const distance = Math.hypot(to.x - from.x, to.y - from.y);
+              const endRatio = Math.max(0, (distance - .28) / distance);
+              return (
+                <line
+                  key={`${annotation.from}-${annotation.to}-${annotation.color}-${index}`}
+                  className={`annotation-mark annotation-${annotation.color}${preview ? " preview" : ""}`}
+                  x1={from.x}
+                  y1={from.y}
+                  x2={from.x + (to.x - from.x) * endRatio}
+                  y2={from.y + (to.y - from.y) * endRatio}
+                  markerEnd={`url(#${markerId}-${annotation.color})`}
+                />
+              );
+            })}
+          </svg>
+        )}
       </div>
       {dragPiece && (
         <img

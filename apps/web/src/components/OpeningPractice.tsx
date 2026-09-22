@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type {
   OpeningCatalogResponse,
+  OpeningCoverageResponse,
   OpeningLessonActiveState,
   OpeningLessonComplete,
   OpeningImportColor,
@@ -16,8 +17,10 @@ import type {
   OpeningReviewActiveState,
   OpeningReviewRecommendation,
   OpeningWhyAnswerResponse,
+  OpeningArchiveResponse,
+  OpeningProgressResponse,
 } from "../../../../packages/contracts/src/api";
-import { get, post } from "../api";
+import { get, patch, post } from "../api";
 import { applyUciMove, getMoveHint } from "../opening-board";
 import { formatMoveLabel, formatOpeningLineContext } from "../training-language";
 import { ChessBoard } from "./ChessBoard";
@@ -33,9 +36,10 @@ type ReviewMode = "due" | "new" | "early";
 
 interface OpeningPracticeProps {
   refreshToken: number;
+  onOpenGames?: () => void;
 }
 
-export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
+export function OpeningPractice({ refreshToken, onOpenGames }: OpeningPracticeProps) {
   const [catalog, setCatalog] = useState<OpeningRepertoireSummary[]>([]);
   const [step, setStep] = useState<OpeningLessonStep | null>(null);
   const [complete, setComplete] = useState<OpeningLessonComplete | null>(null);
@@ -58,6 +62,7 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
   const [showImporter, setShowImporter] = useState(false);
   const [showBuilder, setShowBuilder] = useState(false);
   const [workspaceDetail, setWorkspaceDetail] = useState<OpeningRepertoireDetailResponse | null>(null);
+  const [workspaceLineId, setWorkspaceLineId] = useState<string | null>(null);
   const [importPgn, setImportPgn] = useState("");
   const [importName, setImportName] = useState("");
   const [importColor, setImportColor] = useState<OpeningImportColor>("white");
@@ -71,6 +76,12 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
   const [importMessage, setImportMessage] = useState("");
   const [importError, setImportError] = useState("");
   const [importSubmitting, setImportSubmitting] = useState(false);
+  const [archiveMessage, setArchiveMessage] = useState("");
+  const [coverageSpotlight, setCoverageSpotlight] = useState<OpeningCoverageResponse | null>(null);
+  const [coverageSpotlightLoading, setCoverageSpotlightLoading] = useState(false);
+  const [openingProgress, setOpeningProgress] = useState<OpeningProgressResponse | null>(null);
+  const activeCatalog = catalog.filter((repertoire) => !repertoire.archived);
+  const archivedCatalog = catalog.filter((repertoire) => repertoire.archived);
 
   const showStep = (nextStep: OpeningLessonStep): void => {
     setStep(nextStep);
@@ -114,9 +125,11 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
       get<OpeningLessonActiveState | null>("/api/v1/openings/lessons/active"),
       get<OpeningReviewActiveState | null>("/api/v1/openings/reviews/active"),
       get<OpeningReviewRecommendation>("/api/v1/openings/reviews/recommended"),
-    ]).then(([catalogResponse, active, review, recommended]) => {
+      get<OpeningProgressResponse>("/api/v1/openings/progress"),
+    ]).then(([catalogResponse, active, review, recommended, progress]) => {
       setCatalog(catalogResponse.repertoires);
       setRecommendation(recommended);
+      setOpeningProgress(progress);
       setActiveReview(review);
       setReviewPaused(false);
       setPausedLessonPhase(null);
@@ -137,6 +150,17 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
         setLastMove(null);
         setPhase("catalog");
       }
+      const coverageRepertoireId = recommended.repertoire?.id
+        ?? catalogResponse.repertoires.find((repertoire) => !repertoire.archived)?.id;
+      if (coverageRepertoireId) {
+        setCoverageSpotlightLoading(true);
+        void get<OpeningCoverageResponse>(`/api/v1/openings/repertoires/${coverageRepertoireId}/coverage?rating=1600`)
+          .then(setCoverageSpotlight)
+          .catch(() => setCoverageSpotlight(null))
+          .finally(() => setCoverageSpotlightLoading(false));
+      } else {
+        setCoverageSpotlight(null);
+      }
     }).catch((loadError) => {
       setError(loadError instanceof Error ? loadError.message : "Could not load opening practice");
     }).finally(() => setLoading(false));
@@ -147,6 +171,7 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
     if (step && pausedLessonPhase && !window.confirm("Starting a different guided line will end the paused guided line. Continue?")) return;
     if (!beginSubmission()) return;
     setError("");
+    setArchiveMessage("");
     try {
       const lesson = await post<OpeningLessonStep>(
         `/api/v1/openings/repertoires/${repertoireId}/lessons/start`,
@@ -183,12 +208,13 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
     }
   };
 
-  const openWorkspace = async (repertoireId: string): Promise<void> => {
+  const openWorkspace = async (repertoireId: string, lineId: string | null = null): Promise<void> => {
     if (!beginSubmission()) return;
     setError("");
     try {
       const detail = await get<OpeningRepertoireDetailResponse>(`/api/v1/openings/repertoires/${repertoireId}`);
       setWorkspaceDetail(detail);
+      setWorkspaceLineId(lineId);
       setShowBuilder(false);
       setShowImporter(false);
       requestAnimationFrame(() => document.getElementById("opening-practice")?.scrollIntoView({ behavior: "smooth" }));
@@ -200,11 +226,13 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
   };
 
   const finishBoardBuild = async (repertoireId: string): Promise<void> => {
-    const [updatedCatalog, detail] = await Promise.all([
+    const [updatedCatalog, detail, progress] = await Promise.all([
       get<OpeningCatalogResponse>("/api/v1/openings/catalog"),
       get<OpeningRepertoireDetailResponse>(`/api/v1/openings/repertoires/${repertoireId}`),
+      get<OpeningProgressResponse>("/api/v1/openings/progress"),
     ]);
     setCatalog(updatedCatalog.repertoires);
+    setOpeningProgress(progress);
     setShowBuilder(false);
     setWorkspaceDetail(detail);
   };
@@ -216,10 +244,37 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
     void Promise.all([
       get<OpeningCatalogResponse>("/api/v1/openings/catalog"),
       get<OpeningReviewRecommendation>("/api/v1/openings/reviews/recommended"),
-    ]).then(([catalogResponse, recommended]) => {
+      get<OpeningProgressResponse>("/api/v1/openings/progress"),
+    ]).then(([catalogResponse, recommended, progress]) => {
       setCatalog(catalogResponse.repertoires);
       setRecommendation(recommended);
+      setOpeningProgress(progress);
     }).catch(() => undefined);
+  };
+
+  const setRepertoireArchived = async (repertoire: OpeningRepertoireSummary, archived: boolean): Promise<void> => {
+    if (!beginSubmission()) return;
+    setError("");
+    setArchiveMessage("");
+    try {
+      const result = await patch<OpeningArchiveResponse>(
+        `/api/v1/openings/repertoires/${repertoire.id}/archive`,
+        { archived },
+      );
+      const [catalogResponse, recommended, progress] = await Promise.all([
+        get<OpeningCatalogResponse>("/api/v1/openings/catalog"),
+        get<OpeningReviewRecommendation>("/api/v1/openings/reviews/recommended"),
+        get<OpeningProgressResponse>("/api/v1/openings/progress"),
+      ]);
+      setCatalog(catalogResponse.repertoires);
+      setRecommendation(recommended);
+      setOpeningProgress(progress);
+      setArchiveMessage(result.message);
+    } catch (archiveError) {
+      setError(archiveError instanceof Error ? archiveError.message : "Could not update this repertoire");
+    } finally {
+      endSubmission();
+    }
   };
 
   const startReview = async (repertoireId: string, mode: ReviewMode): Promise<void> => {
@@ -269,10 +324,12 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
     void Promise.all([
       get<OpeningCatalogResponse>("/api/v1/openings/catalog"),
       get<OpeningReviewRecommendation>("/api/v1/openings/reviews/recommended"),
+      get<OpeningProgressResponse>("/api/v1/openings/progress"),
     ])
-      .then(([response, recommended]) => {
+      .then(([response, recommended, progress]) => {
         setCatalog(response.repertoires);
         setRecommendation(recommended);
+        setOpeningProgress(progress);
       })
       .catch(() => undefined);
   };
@@ -470,8 +527,12 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
           "/api/v1/openings/imports/pgn",
           { ...importPayload(), ownershipConfirmed: importPermission },
         );
-      const updatedCatalog = await get<OpeningCatalogResponse>("/api/v1/openings/catalog");
+      const [updatedCatalog, progress] = await Promise.all([
+        get<OpeningCatalogResponse>("/api/v1/openings/catalog"),
+        get<OpeningProgressResponse>("/api/v1/openings/progress"),
+      ]);
       setCatalog(updatedCatalog.repertoires);
+      setOpeningProgress(progress);
       setImportMessage(result.message);
       setImportPreview(null);
       setImportPgn("");
@@ -513,8 +574,10 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
       {!loading && (!activeReview || reviewPaused) && phase === "catalog" && workspaceDetail && !showBuilder && (
         <OpeningLineExplorer
           detail={workspaceDetail}
+          startingLineId={workspaceLineId}
+          initialCoverage={coverageSpotlight?.repertoireId === workspaceDetail.repertoire.id ? coverageSpotlight : null}
           busy={submitting}
-          onBack={() => setWorkspaceDetail(null)}
+          onBack={() => { setWorkspaceDetail(null); setWorkspaceLineId(null); }}
           onPractice={(lineId) => void startLineLesson(workspaceDetail.repertoire.id, lineId)}
           onDetailChanged={setWorkspaceDetail}
           onRepertoireDeleted={finishRepertoireDeletion}
@@ -548,23 +611,65 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
             </div>
           )}
           {!activeReview && !(step && pausedLessonPhase) && recommendation?.available && recommendation.repertoire && (
-            <div className="panel opening-recommendation">
-              <div className="opening-recommendation-copy">
-                <span className="eyebrow">Recommended next</span>
-                <h3>{recommendation.repertoire.name}</h3>
-                <p>{recommendation.message}</p>
-                <div className="opening-recommendation-mix" aria-label="Recommended session contents">
-                  {recommendation.counts.gameMisses > 0 && <span><strong>{recommendation.counts.gameMisses}</strong> from your games</span>}
-                  {recommendation.counts.due > 0 && <span><strong>{recommendation.counts.due}</strong> due</span>}
-                  {recommendation.counts.new > 0 && <span><strong>{recommendation.counts.new}</strong> new</span>}
-                  {recommendation.counts.early > 0 && <span><strong>{recommendation.counts.early}</strong> early review</span>}
+            <div className="opening-cockpit">
+              <div className="panel opening-recommendation">
+                <div className="opening-recommendation-copy">
+                  <span className="eyebrow">Recommended next</span>
+                  <h3>{recommendation.repertoire.name}</h3>
+                  <p>{recommendation.message}</p>
+                  <div className="opening-recommendation-mix" aria-label="Recommended session contents">
+                    {recommendation.counts.gameMisses > 0 && <span><strong>{recommendation.counts.gameMisses}</strong> from your games</span>}
+                    {recommendation.counts.due > 0 && <span><strong>{recommendation.counts.due}</strong> due</span>}
+                    {recommendation.counts.new > 0 && <span><strong>{recommendation.counts.new}</strong> new</span>}
+                    {recommendation.counts.early > 0 && <span><strong>{recommendation.counts.early}</strong> early review</span>}
+                  </div>
                 </div>
+                <button disabled={submitting} onClick={() => void startRecommendedReview()}>
+                  {submitting ? "Starting…" : `Start ${recommendation.counts.total}-position session`}
+                </button>
               </div>
-              <button disabled={submitting} onClick={() => void startRecommendedReview()}>
-                {submitting ? "Starting…" : `Start ${recommendation.counts.total}-position session`}
+              {recommendation.counts.gameMisses > 0 && onOpenGames && (
+                <button className="panel opening-cockpit-action" onClick={onOpenGames}>
+                  <span className="eyebrow">From your games</span>
+                  <strong>{recommendation.counts.gameMisses} repertoire miss{recommendation.counts.gameMisses === 1 ? "" : "es"}</strong>
+                  <small>Inspect what happened and repair the line.</small>
+                </button>
+              )}
+              <button
+                className="panel opening-cockpit-action"
+                disabled={coverageSpotlightLoading || !coverageSpotlight || !recommendation.repertoire}
+                onClick={() => recommendation.repertoire && void openWorkspace(recommendation.repertoire.id)}
+              >
+                <span className="eyebrow">Practical coverage · 1600+</span>
+                <strong>{coverageSpotlightLoading
+                  ? "Checking common replies…"
+                  : coverageSpotlight?.coveragePercent === null || coverageSpotlight?.coveragePercent === undefined
+                    ? "Coverage unavailable"
+                    : `${coverageSpotlight.coveragePercent}% covered`}</strong>
+                <small>{coverageSpotlight?.gaps[0]
+                  ? `Biggest gap: ${coverageSpotlight.gaps[0].moveSan} · ${coverageSpotlight.gaps[0].frequencyPercent}% at that position`
+                  : coverageSpotlight?.message ?? "Open the repertoire to check common replies."}</small>
               </button>
+              {openingProgress?.weakestLines[0] && (
+                <button
+                  className="panel opening-cockpit-action"
+                  onClick={() => void openWorkspace(
+                    openingProgress.weakestLines[0]!.repertoireId,
+                    openingProgress.weakestLines[0]!.lineId,
+                  )}
+                >
+                  <span className="eyebrow">Weak line</span>
+                  <strong>{openingProgress.weakestLines[0].lineTitle}</strong>
+                  <small>{openingProgress.weakestLines[0].gameMisses > 0
+                    ? `Missed in ${openingProgress.weakestLines[0].gameMisses} game${openingProgress.weakestLines[0].gameMisses === 1 ? "" : "s"}`
+                    : openingProgress.weakestLines[0].accuracyPercent === null
+                      ? "Not practised yet"
+                      : `${openingProgress.weakestLines[0].accuracyPercent}% recall accuracy`}</small>
+                </button>
+              )}
             </div>
           )}
+          {archiveMessage && <p className="success opening-catalog-status" role="status">{archiveMessage}</p>}
           <div className="panel opening-import-launch">
             <div>
               <span className="eyebrow">Your repertoire</span>
@@ -727,7 +832,7 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
           </div>
 
           <div className="opening-catalog">
-            {catalog.map((repertoire) => (
+            {activeCatalog.map((repertoire) => (
               <article className="panel opening-card" key={repertoire.id}>
                 <div className="opening-card-topline">
                   <span>{repertoire.learnerColor === "white" ? "Play as White" : "Play as Black"}</span>
@@ -766,13 +871,36 @@ export function OpeningPractice({ refreshToken }: OpeningPracticeProps) {
                   <button className="secondary" disabled={submitting} onClick={() => void openWorkspace(repertoire.id)}>
                     View all lines
                   </button>
+                  <button className="text-button" disabled={submitting} onClick={() => void setRepertoireArchived(repertoire, true)}>
+                    Archive
+                  </button>
                 </div>
                 <p className="opening-review-summary">
                   <strong>{repertoire.review.reviewed}</strong> reviewed · <strong>{repertoire.review.learning}</strong> learning · <strong>{repertoire.review.new}</strong> new
                 </p>
               </article>
             ))}
+            {activeCatalog.length === 0 && (
+              <div className="panel opening-empty-lines">
+                <h3>Everything is archived</h3>
+                <p>Restore a repertoire below or build your own to resume opening practice.</p>
+              </div>
+            )}
           </div>
+          {archivedCatalog.length > 0 && (
+            <details className="panel opening-archive-library">
+              <summary>Archived repertoires <span>{archivedCatalog.length}</span></summary>
+              <p>Archived repertoires stay out of practice and game comparisons. Their lines, notes and progress are preserved.</p>
+              <div className="opening-archive-list">
+                {archivedCatalog.map((repertoire) => (
+                  <div key={repertoire.id}>
+                    <span><strong>{repertoire.name}</strong><small>Play as {repertoire.learnerColor}</small></span>
+                    <button className="secondary" disabled={submitting} onClick={() => void setRepertoireArchived(repertoire, false)}>Restore</button>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
         </>
       )}
 

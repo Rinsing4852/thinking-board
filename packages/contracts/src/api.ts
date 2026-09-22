@@ -29,6 +29,9 @@ export interface OpeningRepertoireSummary {
   decisionCount: number;
   origin: "built_in" | "imported";
   sourceTitle: string | null;
+  archived: boolean;
+  activeLineCount: number;
+  archivedLineCount: number;
   review: OpeningReviewCounts;
 }
 
@@ -42,6 +45,26 @@ export interface OpeningReviewCounts {
 
 export interface OpeningCatalogResponse {
   repertoires: OpeningRepertoireSummary[];
+}
+
+export interface OpeningLineProgress {
+  repertoireId: string;
+  repertoireName: string;
+  lineId: string;
+  lineTitle: string;
+  learnerColor: Color;
+  decisions: number;
+  mastered: number;
+  accuracyPercent: number | null;
+  lapses: number;
+  averageResponseMs: number | null;
+  gameMisses: number;
+}
+
+export interface OpeningProgressResponse {
+  totalLines: number;
+  masteredLines: number;
+  weakestLines: OpeningLineProgress[];
 }
 
 export interface OpeningLineMove {
@@ -77,6 +100,7 @@ export interface OpeningLineDetail {
   moveCount: number;
   learnerDecisionCount: number;
   sanSequence: string;
+  archived: boolean;
   moves: OpeningLineMove[];
 }
 
@@ -96,6 +120,7 @@ export interface OpeningRepertoireDetailResponse {
     origin: "built_in" | "imported";
     sourceTitle: string | null;
     editable: boolean;
+    archived: boolean;
   };
   chapters: OpeningChapterDetail[];
 }
@@ -103,7 +128,14 @@ export interface OpeningRepertoireDetailResponse {
 export interface OpeningLineMutationResponse {
   detail: OpeningRepertoireDetailResponse;
   lineId: string;
+  moveId: string;
   createdBranch: boolean;
+  message: string;
+}
+
+export interface OpeningMoveUndoResponse {
+  detail: OpeningRepertoireDetailResponse;
+  lineId: string;
   message: string;
 }
 
@@ -116,6 +148,19 @@ export interface OpeningLineDeletionResponse {
 
 export interface OpeningRepertoireDeletionResponse {
   deletedRepertoireId: string;
+  message: string;
+}
+
+export interface OpeningArchiveResponse {
+  entity: "repertoire" | "line";
+  id: string;
+  archived: boolean;
+  message: string;
+  detail?: OpeningRepertoireDetailResponse;
+}
+
+export interface OpeningMetadataMutationResponse {
+  detail: OpeningRepertoireDetailResponse;
   message: string;
 }
 

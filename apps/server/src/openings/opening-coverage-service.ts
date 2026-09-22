@@ -4,6 +4,7 @@ import type {
 } from "../../../../packages/contracts/src/api.js";
 import type { SqliteDatabase } from "../db/database.js";
 import { now } from "../lib/ids.js";
+import { ensureActiveProfile } from "../training/profile.js";
 
 type FetchLike = typeof fetch;
 
@@ -48,10 +49,15 @@ export class OpeningCoverageService {
   ) {}
 
   async coverage(repertoireId: string, ratingGroup = 1600): Promise<OpeningCoverageResponse> {
+    const profileId = ensureActiveProfile(this.db);
     if (!RATINGS.has(ratingGroup)) throw new Error("Choose a supported Lichess rating group");
     if (!this.db.prepare("SELECT 1 FROM opening_repertoires WHERE id = ?").get(repertoireId)) {
       throw new Error("Opening repertoire is not available");
     }
+    if (this.db.prepare(`
+      SELECT 1 FROM opening_repertoire_preferences
+      WHERE profile_id = ? AND repertoire_id = ? AND archived_at IS NOT NULL
+    `).get(profileId, repertoireId)) throw new Error("Restore this repertoire before checking coverage");
     if (!this.apiToken) {
       return {
         repertoireId,
@@ -67,7 +73,7 @@ export class OpeningCoverageService {
         message: "Lichess Explorer requires an authorised token. Set LICHESS_API_TOKEN in Docker, then restart the app.",
       };
     }
-    const allPositions = this.positions(repertoireId);
+    const allPositions = this.positions(repertoireId, profileId);
     const positions = allPositions.slice(0, POSITION_LIMIT);
     const gaps: OpeningCoverageGap[] = [];
     let coveredGames = 0;
@@ -75,8 +81,16 @@ export class OpeningCoverageService {
     let positionsAvailable = 0;
     let remoteFailures = 0;
 
-    for (const position of positions) {
-      const result = await this.statistics(position, ratingGroup);
+    const samples: Array<{ position: PositionRow; result: ExplorerResponse | null }> = [];
+    for (let offset = 0; offset < positions.length; offset += 4) {
+      const batch = positions.slice(offset, offset + 4);
+      samples.push(...await Promise.all(batch.map(async (position) => ({
+        position,
+        result: await this.statistics(position, ratingGroup),
+      }))));
+    }
+
+    for (const { position, result } of samples) {
       if (!result) {
         remoteFailures += 1;
         continue;
@@ -89,7 +103,15 @@ export class OpeningCoverageService {
         (this.db.prepare(`
           SELECT move_uci FROM opening_moves
           WHERE repertoire_id = ? AND from_position_id = ? AND role = 'opponent' AND active = 1
-        `).pluck().all(repertoireId, position.id) as string[]),
+            AND EXISTS (
+              SELECT 1 FROM opening_line_moves membership
+              JOIN opening_lines line ON line.id = membership.line_id AND line.active = 1
+              JOIN opening_chapters chapter ON chapter.id = line.chapter_id AND chapter.active = 1
+              LEFT JOIN opening_line_preferences preference
+                ON preference.line_id = line.id AND preference.profile_id = ?
+              WHERE membership.move_id = opening_moves.id AND preference.archived_at IS NULL
+            )
+        `).pluck().all(repertoireId, position.id, profileId) as string[]),
       );
       for (const move of result.moves) {
         const games = move.white + move.draws + move.black;
@@ -130,7 +152,7 @@ export class OpeningCoverageService {
     };
   }
 
-  private positions(repertoireId: string): PositionRow[] {
+  private positions(repertoireId: string, profileId: string): PositionRow[] {
     return this.db.prepare(`
       SELECT p.id, p.fen, MIN(c.title) AS chapter_title, MIN(l.title) AS line_title,
              MIN(olm.ply) AS first_ply
@@ -140,9 +162,12 @@ export class OpeningCoverageService {
       JOIN opening_line_moves olm ON olm.move_id = m.id
       JOIN opening_lines l ON l.id = olm.line_id AND l.active = 1
       JOIN opening_chapters c ON c.id = l.chapter_id AND c.active = 1
+      LEFT JOIN opening_line_preferences preference
+        ON preference.line_id = l.id AND preference.profile_id = ?
+      WHERE preference.archived_at IS NULL
       GROUP BY p.id, p.fen
       ORDER BY first_ply, chapter_title, line_title
-    `).all(repertoireId) as PositionRow[];
+    `).all(repertoireId, profileId) as PositionRow[];
   }
 
   private async statistics(position: PositionRow, ratingGroup: number): Promise<ExplorerResponse | null> {

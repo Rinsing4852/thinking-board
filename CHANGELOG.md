@@ -2,7 +2,40 @@
 
 All notable changes to Thinking Board are recorded here.
 
-## Unreleased
+## 1.2.0 — 2026-09-22
+
+### Board experience
+
+- Moves now glide between squares instead of teleporting, with reduced-motion
+  support for learners who disable animation at operating-system level.
+- Makes illegal destinations reject visibly, highlights a checked king, enlarges
+  the piece artwork and strengthens the board edge and shadow without reducing
+  the playable area.
+- Adds Lichess-style desktop annotations to analysis and repertoire line boards:
+  right-drag for an arrow, right-click for a circle, and use Shift, Alt or
+  Control/Command for alternate colours.
+- Adds a one-click board flip to the independent Stockfish analysis workspace
+  while keeping training boards automatically oriented toward the learner.
+
+### Opening repertoire control and focus
+
+- Adds a compact opening cockpit for the recommended review, repertoire misses
+  from real games, practical Lichess reply coverage and the current weakest
+  line, without expanding the bundled 1.e4 or Modern courses.
+- Adds reversible archive and restore controls for whole repertoires and
+  individual lines. Archived built-in material is preserved but excluded from
+  lessons, reviews, coverage and game matching.
+- Adds personal repertoire and line renaming, line ordering, clean PGN export
+  and one-click undo for the most recently saved move or branch.
+- Measures line-level mastery, recall accuracy, response time, lapses and
+  recurring real-game misses, while aggregating the dashboard queries so larger
+  imported repertoires remain responsive.
+- Checks a connected Lichess account for finished games when My games is opened
+  and the previous sync is at least six hours old; imported games continue
+  through the existing duplicate-safe local analysis queue.
+- Loads practical coverage in parallel batches and carries the result into the
+  repertoire explorer, reducing repeated waits without increasing the stored
+  opening content.
 
 ### Faster opening learning
 

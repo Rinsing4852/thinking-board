@@ -92,9 +92,11 @@ export class OpeningGameService {
              CASE WHEN oi.repertoire_id IS NULL THEN 'built_in' ELSE 'imported' END AS origin
       FROM opening_repertoires r
       LEFT JOIN opening_imports oi ON oi.repertoire_id = r.id
-      WHERE r.learner_color = ?
+      LEFT JOIN opening_repertoire_preferences preference
+        ON preference.repertoire_id = r.id AND preference.profile_id = ?
+      WHERE r.learner_color = ? AND preference.archived_at IS NULL
       ORDER BY origin DESC, r.name
-    `).all(game.player_color) as RepertoireRow[];
+    `).all(profileId, game.player_color) as RepertoireRow[];
 
     this.db.transaction(() => {
       this.db.prepare("DELETE FROM game_opening_matches WHERE game_id = ?").run(gameId);
@@ -232,7 +234,12 @@ export class OpeningGameService {
     `).all(gameId) as GameMoveRow[];
   }
 
-  private expectedMoves(repertoireId: string, positionKey: string, role: "learner" | "opponent"): ExpectedMoveRow[] {
+  private expectedMoves(
+    repertoireId: string,
+    positionKey: string,
+    role: "learner" | "opponent",
+    profileId: string,
+  ): ExpectedMoveRow[] {
     const rows = this.db.prepare(`
       SELECT m.id, m.from_position_id AS position_id, m.move_uci, m.move_san
       FROM opening_positions p
@@ -240,27 +247,35 @@ export class OpeningGameService {
       LEFT JOIN opening_line_moves olm ON olm.move_id = m.id
       LEFT JOIN opening_lines l ON l.id = olm.line_id AND l.active = 1
       LEFT JOIN opening_chapters c ON c.id = l.chapter_id AND c.active = 1
+      LEFT JOIN opening_line_preferences preference
+        ON preference.line_id = l.id AND preference.profile_id = ?
       WHERE p.position_key = ? AND m.repertoire_id = ? AND m.role = ?
+        AND preference.archived_at IS NULL
       ORDER BY CASE m.move_kind WHEN 'primary' THEN 0 WHEN 'alternative' THEN 1 ELSE 2 END,
                COALESCE(c.sort_order, 9999), COALESCE(l.priority, 9999), m.sort_order, m.id
-    `).all(positionKey, repertoireId, role) as ExpectedMoveRow[];
+    `).all(profileId, positionKey, repertoireId, role) as ExpectedMoveRow[];
     const unique = new Map<string, ExpectedMoveRow>();
     for (const row of rows) if (!unique.has(row.id)) unique.set(row.id, row);
     return [...unique.values()];
   }
 
-  private knownTarget(repertoireId: string, fen: string): boolean {
+  private knownTarget(repertoireId: string, fen: string, profileId: string): boolean {
     return Boolean(this.db.prepare(`
       SELECT 1
       FROM opening_positions p
       WHERE p.position_key = ?
         AND EXISTS (
           SELECT 1 FROM opening_moves m
-          WHERE m.repertoire_id = ? AND m.active = 1
+          JOIN opening_line_moves membership ON membership.move_id = m.id
+          JOIN opening_lines line ON line.id = membership.line_id AND line.active = 1
+          JOIN opening_chapters chapter ON chapter.id = line.chapter_id AND chapter.active = 1
+          LEFT JOIN opening_line_preferences preference
+            ON preference.line_id = line.id AND preference.profile_id = ?
+          WHERE m.repertoire_id = ? AND m.active = 1 AND preference.archived_at IS NULL
             AND (m.from_position_id = p.id OR m.to_position_id = p.id)
         )
       LIMIT 1
-    `).get(openingPositionKey(fen), repertoireId));
+    `).get(openingPositionKey(fen), profileId, repertoireId));
   }
 
   private persistMatch(game: GameRow, moves: GameMoveRow[], repertoire: RepertoireRow): void {
@@ -277,6 +292,7 @@ export class OpeningGameService {
         repertoire.id,
         openingPositionKey(move.from_fen),
         isPlayerMove ? "learner" : "opponent",
+        game.profile_id,
       );
       if (expected.length === 0) {
         status = matchedPlies === 0 ? "not_covered" : "repertoire_ended";
@@ -284,7 +300,8 @@ export class OpeningGameService {
         break;
       }
 
-      if (expected.some((candidate) => candidate.move_uci === move.uci) || this.knownTarget(repertoire.id, move.to_fen)) {
+      if (expected.some((candidate) => candidate.move_uci === move.uci)
+        || this.knownTarget(repertoire.id, move.to_fen, game.profile_id)) {
         matchedPlies += 1;
         if (isPlayerMove) matchedPlayerMoves += 1;
         lastBookPly = move.ply;

@@ -36,10 +36,15 @@ and appear wherever that move is studied or reviewed.
 Every repertoire also has a line explorer. It keeps transpositions as shared
 positions internally while presenting complete named lines to the learner, with
 move-by-move board navigation, explanations, and practice for the selected
-branch. The desktop opening studio places the saved repertoire board beside an
-independent analysis board. Local Stockfish suggests candidate ideas and, only
-when requested, Lichess Explorer shows common rated-game replies when a server
-token is configured. Exploration is
+branch. Personal repertoires can be renamed, reordered and exported as a
+complete PGN, including archived lines;
+the most recently added move can be undone. Individual lines or complete
+repertoires—including built-in material—can be archived without losing notes or
+review history, then restored later. The desktop opening studio places the saved repertoire board beside an
+independent analysis board. Local Stockfish suggests candidate ideas and
+Lichess Explorer shows common rated-game replies when a server token is
+configured. The opening home checks practical coverage for the recommended
+repertoire and surfaces the weakest line from review and game evidence. Exploration is
 never saved automatically: deliberately add the tested sequence to the left
 board, write the reason in your own words, then save it to the same graph and
 review schedule. On smaller screens the two workspaces stack vertically.
@@ -65,6 +70,8 @@ Lichess credentials.
 
 The My games workspace can also remember a Lichess username and pull new
 finished games into the same duplicate-safe import and local-analysis pipeline.
+When that workspace is opened, a connected account is checked automatically if
+it has not synced in the previous six hours; manual Sync now remains available.
 Public game sync works without a token. Lichess now requires authentication for
 Opening Explorer, so set `LICHESS_API_TOKEN` to use practical move frequencies
 and coverage analysis. The token stays in the server environment and is never
@@ -159,7 +166,7 @@ curl --fail http://127.0.0.1:8000/api/v1/health
 
 Database migrations run automatically and are tested from every released schema
 version. For reproducible installs, set `APP_VERSION` in `.env` to a numbered
-image tag such as `1.1.1`; `latest` follows the current release. To roll back,
+image tag such as `1.2.0`; `latest` follows the current release. To roll back,
 stop the app, restore `pre-upgrade.sqlite3` with the restore command above, set
 `APP_VERSION` to the previous release, and start Compose again. Never run two
 application versions against the same live database.
@@ -239,14 +246,19 @@ for release notes.
 - A two-board desktop opening studio with a saved repertoire workspace,
   independent Stockfish/Lichess analysis sandbox, deliberate line transfer,
   editable private branches, full line browser and move-by-move explanations.
+- An opening cockpit that recommends the next memory session, exposes repeated
+  game misses, highlights the weakest line and checks practical reply coverage.
+- Safe archive/restore for built-in and personal repertoires and individual
+  lines, plus personal names, line ordering, PGN export and immediate move undo.
 - Direct public Lichess Study or chapter import with safe URL validation,
   chapter selection, variation preservation and an ownership confirmation.
-- Optional username-based Lichess game sync through the official API, feeding
-  the existing duplicate-safe import, analysis and repertoire-deviation review.
+- Optional username-based Lichess game sync through the official API, with a
+  six-hour foreground check when My games is opened, feeding the existing
+  duplicate-safe import, analysis and repertoire-deviation review.
 - Separate Today, Openings, My games and Progress workspaces, so a learner sees
   one clear job at a time while every active lesson or review remains resumable.
 
-Explicitly post-V1: automatic/background platform syncing, authentication,
+Explicitly post-V1: always-on scheduled platform syncing, authentication,
 generated position variants, child mode, native/mobile clients, social features,
 and advanced longitudinal statistics.
 

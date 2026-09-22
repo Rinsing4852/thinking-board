@@ -144,18 +144,30 @@ export class OpeningReviewService {
     newLimit = 5,
   ): OpeningReviewExercise {
     const profileId = ensureActiveProfile(this.db);
-    this.ensureItems(profileId, repertoireId);
     const timestamp = now();
     const repertoire = this.db.prepare(`
-      SELECT id FROM opening_repertoires WHERE id = ?
-    `).get(repertoireId);
+      SELECT repertoire.id
+      FROM opening_repertoires repertoire
+      LEFT JOIN opening_repertoire_preferences preference
+        ON preference.repertoire_id = repertoire.id AND preference.profile_id = ?
+      WHERE repertoire.id = ? AND preference.archived_at IS NULL
+    `).get(profileId, repertoireId);
     if (!repertoire) throw new Error("Opening repertoire is not available");
+    this.ensureItems(profileId, repertoireId);
 
     const due = this.db.prepare(`
       SELECT ori.id FROM opening_review_items ori
       JOIN opening_moves m ON m.id = ori.move_id AND m.active = 1
       WHERE ori.profile_id = ? AND ori.repertoire_id = ? AND ori.knowledge_dimension = 'move'
         AND ori.state <> 0 AND ori.due_at <= ?
+        AND EXISTS (
+          SELECT 1 FROM opening_line_moves membership
+          JOIN opening_lines line ON line.id = membership.line_id AND line.active = 1
+          JOIN opening_chapters chapter ON chapter.id = line.chapter_id AND chapter.active = 1
+          LEFT JOIN opening_line_preferences preference
+            ON preference.line_id = line.id AND preference.profile_id = ori.profile_id
+          WHERE membership.move_id = m.id AND preference.archived_at IS NULL
+        )
       ORDER BY ori.due_at, ori.lapses DESC, COALESCE(ori.average_response_ms, 0) DESC, ori.repetitions
       LIMIT ?
     `).all(profileId, repertoireId, timestamp, sessionSize) as Array<{ id: string }>;
@@ -169,8 +181,11 @@ export class OpeningReviewService {
       JOIN opening_line_moves olm ON olm.move_id = m.id
       JOIN opening_lines l ON l.id = olm.line_id AND l.active = 1
       JOIN opening_chapters c ON c.id = l.chapter_id AND c.active = 1
+      LEFT JOIN opening_line_preferences preference
+        ON preference.line_id = l.id AND preference.profile_id = ori.profile_id
       WHERE ori.profile_id = ? AND ori.repertoire_id = ?
         AND ori.knowledge_dimension = 'move' AND ori.state = 0
+        AND preference.archived_at IS NULL
       GROUP BY ori.id
       ORDER BY chapter_order, line_priority, line_ply, COALESCE(m.frequency, 0) DESC, m.id
       LIMIT ?
@@ -180,6 +195,14 @@ export class OpeningReviewService {
         JOIN opening_moves m ON m.id = ori.move_id AND m.active = 1
         WHERE ori.profile_id = ? AND ori.repertoire_id = ? AND ori.knowledge_dimension = 'move'
           AND ori.state <> 0
+          AND EXISTS (
+            SELECT 1 FROM opening_line_moves membership
+            JOIN opening_lines line ON line.id = membership.line_id AND line.active = 1
+            JOIN opening_chapters chapter ON chapter.id = line.chapter_id AND chapter.active = 1
+            LEFT JOIN opening_line_preferences preference
+              ON preference.line_id = line.id AND preference.profile_id = ori.profile_id
+            WHERE membership.move_id = m.id AND preference.archived_at IS NULL
+          )
         ORDER BY ori.due_at, ori.lapses DESC, COALESCE(ori.average_response_ms, 0) DESC
         LIMIT ?
       `).all(profileId, repertoireId, Math.min(sessionSize, 5)) as Array<{ id: string }>;
@@ -224,6 +247,14 @@ export class OpeningReviewService {
       JOIN opening_moves m ON m.id = ori.move_id AND m.active = 1
       WHERE ori.profile_id = ? AND ori.repertoire_id = ? AND ori.position_id = ?
         AND ori.knowledge_dimension = 'move'
+        AND EXISTS (
+          SELECT 1 FROM opening_line_moves membership
+          JOIN opening_lines line ON line.id = membership.line_id AND line.active = 1
+          JOIN opening_chapters chapter ON chapter.id = line.chapter_id AND chapter.active = 1
+          LEFT JOIN opening_line_preferences preference
+            ON preference.line_id = line.id AND preference.profile_id = ori.profile_id
+          WHERE membership.move_id = m.id AND preference.archived_at IS NULL
+        )
       LIMIT 1
     `).get(profileId, repertoireId, positionId) as {
       id: string; state: number; due_at: string;
@@ -235,10 +266,13 @@ export class OpeningReviewService {
 
   private recommendedSelection(profileId: string, sessionSize: number, newLimit: number): RecommendedSelection | null {
     const repertoires = this.db.prepare(`
-      SELECT id, name, learner_color
-      FROM opening_repertoires
-      ORDER BY learner_color DESC, name
-    `).all() as Array<{ id: string; name: string; learner_color: "white" | "black" }>;
+      SELECT repertoire.id, repertoire.name, repertoire.learner_color
+      FROM opening_repertoires repertoire
+      LEFT JOIN opening_repertoire_preferences preference
+        ON preference.repertoire_id = repertoire.id AND preference.profile_id = ?
+      WHERE preference.archived_at IS NULL
+      ORDER BY repertoire.learner_color DESC, repertoire.name
+    `).all(profileId) as Array<{ id: string; name: string; learner_color: "white" | "black" }>;
     const candidates: RecommendedSelection[] = [];
     const timestamp = now();
 
@@ -284,6 +318,14 @@ export class OpeningReviewService {
          AND grs.repertoire_id = gom.repertoire_id
         WHERE gom.match_rank = 1 AND gom.repertoire_id = ?
           AND gom.status = 'player_deviation' AND gom.expected_move_id IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM opening_line_moves membership
+            JOIN opening_lines line ON line.id = membership.line_id AND line.active = 1
+            JOIN opening_chapters chapter ON chapter.id = line.chapter_id AND chapter.active = 1
+            LEFT JOIN opening_line_preferences preference
+              ON preference.line_id = line.id AND preference.profile_id = ori.profile_id
+            WHERE membership.move_id = m.id AND preference.archived_at IS NULL
+          )
         GROUP BY ori.id
         ORDER BY unreviewed_count DESC, occurrence_count DESC, latest_game DESC, ori.id
         LIMIT ?
@@ -297,6 +339,14 @@ export class OpeningReviewService {
         JOIN opening_moves m ON m.id = ori.move_id AND m.active = 1
         WHERE ori.profile_id = ? AND ori.repertoire_id = ? AND ori.knowledge_dimension = 'move'
           AND ori.state <> 0 AND ori.due_at <= ?
+          AND EXISTS (
+            SELECT 1 FROM opening_line_moves membership
+            JOIN opening_lines line ON line.id = membership.line_id AND line.active = 1
+            JOIN opening_chapters chapter ON chapter.id = line.chapter_id AND chapter.active = 1
+            LEFT JOIN opening_line_preferences preference
+              ON preference.line_id = line.id AND preference.profile_id = ori.profile_id
+            WHERE membership.move_id = m.id AND preference.archived_at IS NULL
+          )
         ORDER BY ori.due_at, ori.lapses DESC, COALESCE(ori.average_response_ms, 0) DESC, ori.repetitions
       `).all(profileId, repertoire.id, timestamp) as Array<{ id: string }>;
       const fresh = this.db.prepare(`
@@ -309,8 +359,11 @@ export class OpeningReviewService {
         JOIN opening_line_moves olm ON olm.move_id = m.id
         JOIN opening_lines l ON l.id = olm.line_id AND l.active = 1
         JOIN opening_chapters c ON c.id = l.chapter_id AND c.active = 1
+        LEFT JOIN opening_line_preferences preference
+          ON preference.line_id = l.id AND preference.profile_id = ori.profile_id
         WHERE ori.profile_id = ? AND ori.repertoire_id = ?
           AND ori.knowledge_dimension = 'move' AND ori.state = 0
+          AND preference.archived_at IS NULL
         GROUP BY ori.id
         ORDER BY chapter_order, line_priority, line_ply, COALESCE(m.frequency, 0) DESC, m.id
       `).all(profileId, repertoire.id) as Array<{ id: string }>;
@@ -319,6 +372,14 @@ export class OpeningReviewService {
         JOIN opening_moves m ON m.id = ori.move_id AND m.active = 1
         WHERE ori.profile_id = ? AND ori.repertoire_id = ? AND ori.knowledge_dimension = 'move'
           AND ori.state <> 0 AND ori.due_at > ?
+          AND EXISTS (
+            SELECT 1 FROM opening_line_moves membership
+            JOIN opening_lines line ON line.id = membership.line_id AND line.active = 1
+            JOIN opening_chapters chapter ON chapter.id = line.chapter_id AND chapter.active = 1
+            LEFT JOIN opening_line_preferences preference
+              ON preference.line_id = line.id AND preference.profile_id = ori.profile_id
+            WHERE membership.move_id = m.id AND preference.archived_at IS NULL
+          )
         ORDER BY ori.due_at, ori.lapses DESC, COALESCE(ori.average_response_ms, 0) DESC
       `).all(profileId, repertoire.id, timestamp) as Array<{ id: string }>;
 
@@ -577,8 +638,11 @@ export class OpeningReviewService {
       JOIN opening_line_moves olm ON olm.move_id = m.id
       JOIN opening_lines l ON l.id = olm.line_id AND l.active = 1
       JOIN opening_chapters c ON c.id = l.chapter_id AND c.active = 1
+      LEFT JOIN opening_line_preferences preference
+        ON preference.line_id = l.id AND preference.profile_id = ?
       WHERE m.repertoire_id = ? AND m.role = 'learner' AND m.active = 1
-    `).all(repertoireId) as CandidateReviewMove[];
+        AND preference.archived_at IS NULL
+    `).all(profileId, repertoireId) as CandidateReviewMove[];
     const canonical = new Map<string, CandidateReviewMove>();
     for (const candidate of candidates) {
       const current = canonical.get(candidate.from_position_id);

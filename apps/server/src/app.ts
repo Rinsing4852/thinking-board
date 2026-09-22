@@ -127,6 +127,8 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
 
   app.get("/api/v1/openings/catalog", async () => openingContent.catalog());
 
+  app.get("/api/v1/openings/progress", async () => openingContent.progress());
+
   app.get("/api/v1/openings/repertoires/:repertoireId", async (request, reply) => {
     try {
       const { repertoireId } = request.params as { repertoireId: string };
@@ -154,6 +156,67 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     }
   });
 
+  app.patch("/api/v1/openings/repertoires/:repertoireId/archive", async (request, reply) => {
+    try {
+      const { repertoireId } = request.params as { repertoireId: string };
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      if (typeof body.archived !== "boolean") throw new Error("Archive state is required");
+      return openingWorkspace.setRepertoireArchived(repertoireId, body.archived);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not update repertoire archive" });
+    }
+  });
+
+  app.patch("/api/v1/openings/repertoires/:repertoireId/lines/:lineId/archive", async (request, reply) => {
+    try {
+      const { repertoireId, lineId } = request.params as { repertoireId: string; lineId: string };
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      if (typeof body.archived !== "boolean") throw new Error("Archive state is required");
+      return openingWorkspace.setLineArchived(repertoireId, lineId, body.archived);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not update line archive" });
+    }
+  });
+
+  app.patch("/api/v1/openings/repertoires/:repertoireId", async (request, reply) => {
+    try {
+      const { repertoireId } = request.params as { repertoireId: string };
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      return openingWorkspace.renameRepertoire(repertoireId, requiredString(body.name, "Repertoire name"));
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not rename repertoire" });
+    }
+  });
+
+  app.patch("/api/v1/openings/repertoires/:repertoireId/lines/:lineId", async (request, reply) => {
+    try {
+      const { repertoireId, lineId } = request.params as { repertoireId: string; lineId: string };
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      const direction = body.direction === "earlier" || body.direction === "later" ? body.direction : undefined;
+      const title = typeof body.title === "string" ? body.title : undefined;
+      if (title === undefined && direction === undefined) throw new Error("Choose a line change");
+      return openingWorkspace.updateLineMetadata(repertoireId, lineId, {
+        ...(title !== undefined ? { title } : {}),
+        ...(direction !== undefined ? { direction } : {}),
+      });
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not update opening line" });
+    }
+  });
+
+  app.get("/api/v1/openings/repertoires/:repertoireId/export.pgn", async (request, reply) => {
+    try {
+      const { repertoireId } = request.params as { repertoireId: string };
+      const exported = openingWorkspace.exportPgn(repertoireId);
+      return reply
+        .type("application/x-chess-pgn; charset=utf-8")
+        .header("Content-Disposition", `attachment; filename="${exported.filename}"`)
+        .send(exported.pgn);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not export repertoire" });
+    }
+  });
+
   app.post("/api/v1/openings/repertoires/:repertoireId/lines/:lineId/moves", async (request, reply) => {
     try {
       const { repertoireId, lineId } = request.params as { repertoireId: string; lineId: string };
@@ -168,6 +231,16 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       });
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not save opening move" });
+    }
+  });
+
+  app.post("/api/v1/openings/repertoires/:repertoireId/lines/:lineId/moves/undo", async (request, reply) => {
+    try {
+      const { repertoireId, lineId } = request.params as { repertoireId: string; lineId: string };
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      return openingWorkspace.undoLastMove(repertoireId, lineId, requiredString(body.moveId, "Move"));
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not undo opening move" });
     }
   });
 
