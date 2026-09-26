@@ -2,6 +2,21 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.3.0 — 2026-09-26
+
+### Practical repertoire intelligence
+
+- Remembers the learner's rating source, closest playing band and whether
+  practical Lichess frequencies should be used while building openings.
+- Applies that playing level automatically to repertoire coverage, the opening
+  studio and subsequent line editing instead of repeatedly defaulting to 1600.
+- Combines common human replies and local Stockfish evaluations into one compact
+  move list, with already-saved repertoire moves clearly identified.
+- Brings those contextual move choices into the existing line explorer's edit
+  mode, so a repertoire can be extended without leaving its board and line map.
+- Keeps practical-data sharing explicit: Lichess frequencies remain opt-in,
+  require the server-side token and send only the current position.
+
 ## 1.2.1 — 2026-09-22
 
 ### Faster repertoire and board navigation

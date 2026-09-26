@@ -224,6 +224,17 @@ export interface OpeningExplorerPositionResponse {
   cached: boolean;
 }
 
+export type OpeningRatingPlatform = "lichess" | "chess_com" | "fide" | "not_sure";
+
+export interface OpeningPlayerPreferences {
+  configured: boolean;
+  ratingGroup: number;
+  platform: OpeningRatingPlatform;
+  useExplorer: boolean;
+  explorerAvailable: boolean;
+  updatedAt: string | null;
+}
+
 export interface LichessConnectionResponse {
   connected: boolean;
   username: string | null;

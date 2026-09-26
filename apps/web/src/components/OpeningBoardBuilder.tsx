@@ -15,6 +15,8 @@ interface BuiltMove {
 }
 
 interface OpeningBoardBuilderProps {
+  ratingGroup: number;
+  useExplorer: boolean;
   onCancel: () => void;
   onSaved: (repertoireId: string) => void;
 }
@@ -34,7 +36,7 @@ function pgnFor(name: string, moves: BuiltMove[]): string {
   return `[Event "${escapedName}"]\n[Repertoire "${escapedName}"]\n[Result "*"]\n\n${tokens.join(" ")} *`;
 }
 
-export function OpeningBoardBuilder({ onCancel, onSaved }: OpeningBoardBuilderProps) {
+export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSaved }: OpeningBoardBuilderProps) {
   const [name, setName] = useState("");
   const [learnerColor, setLearnerColor] = useState<Color>("white");
   const [moves, setMoves] = useState<BuiltMove[]>([]);
@@ -176,7 +178,13 @@ export function OpeningBoardBuilder({ onCancel, onSaved }: OpeningBoardBuilderPr
           </div>
         </section>
 
-        <OpeningAnalysisSandbox baseFen={fen} orientation={learnerColor} onAddMoves={addExploredMoves} />
+        <OpeningAnalysisSandbox
+          baseFen={fen}
+          orientation={learnerColor}
+          ratingGroup={ratingGroup}
+          useExplorer={useExplorer}
+          onAddMoves={addExploredMoves}
+        />
       </div>
     </div>
   );

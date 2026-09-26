@@ -52,6 +52,13 @@ The repertoire library stays compact: each title expands only when its
 statistics, description or actions are needed, leaving more room for the
 recommended session and the board.
 
+Opening settings remember the learner's rating source and closest playing band.
+When practical data is enabled, the studio and line editor combine rated-game
+frequency with local Stockfish evaluation in one move list, mark replies already
+saved in the repertoire and apply the same level automatically to coverage.
+Practical frequencies remain opt-in and only the current position is sent to
+Lichess from the self-hosted server.
+
 The built-in White course contains 29 decision positions across the Italian,
 Alapin Sicilian, French Advance, Caro-Kann Advance, Scandinavian, Modern/Pirc,
 Alekhine and Owen defences. The Black course contains 12 decision positions in

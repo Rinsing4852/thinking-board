@@ -90,6 +90,8 @@ describe("database migrations", () => {
         .toBe("opening_review_mistakes");
       expect(upgraded.connection.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'game_opening_review_states'").pluck().get())
         .toBe("game_opening_review_states");
+      expect(upgraded.connection.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'opening_player_preferences'").pluck().get())
+        .toBe("opening_player_preferences");
       expect(upgraded.connection.pragma("foreign_key_check")).toEqual([]);
       upgraded.close();
     }

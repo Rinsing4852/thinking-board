@@ -45,6 +45,19 @@ async function expectSvgPieces(page: Page, boardName: string): Promise<void> {
 }
 
 test.describe.serial("stable V1 browser journey", () => {
+  test("remembers the player's practical opening level", async ({ page }) => {
+    await page.goto("/#openings");
+    const openings = page.locator("#opening-practice");
+    await expect(openings.getByRole("heading", { name: "Which games should guide your repertoire?" })).toBeVisible();
+    await openings.getByLabel("Rating comes from").selectOption("lichess");
+    await openings.getByLabel("Closest playing level").selectOption("1400");
+    await openings.getByRole("button", { name: "Use these settings" }).click();
+    await expect(openings.getByText("Lichess · 1400+")).toBeVisible();
+    await page.reload();
+    await expect(openings.getByText("Lichess · 1400+")).toBeVisible();
+    await expect(openings.getByRole("button", { name: "Change" })).toBeVisible();
+  });
+
   test("browses complete lines and builds a personal line on the board", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Openings" }).click();
@@ -68,6 +81,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await openings.getByRole("button", { name: "Build on the board" }).click();
     await openings.getByRole("textbox", { name: /Repertoire name/ }).fill("Board-built Italian");
     await expect(openings.getByRole("grid", { name: "Repertoire board" })).toBeVisible();
+    await expect(openings.getByText("Moves to consider", { exact: true })).toBeVisible();
     await expectSvgPieces(page, "Repertoire board");
     await expect(openings.getByRole("grid", { name: "Repertoire board" }).locator("[role='gridcell'][tabindex='0']")).toHaveCount(1);
     await expect(openings.getByRole("grid", { name: "Analysis board" }).locator("[role='gridcell'][tabindex='0']")).toHaveCount(1);
@@ -107,6 +121,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await expect(openings.getByRole("button", { name: "Practise this line" })).toBeEnabled();
 
     await openings.getByRole("button", { name: "Edit lines" }).click();
+    await expect(openings.getByText("Moves to consider", { exact: true })).toBeVisible();
     await openings.getByRole("button", { name: "End", exact: true }).click();
     board = openings.getByRole("grid", { name: "Chess position" });
     await board.getByRole("gridcell", { name: "g1 white knight" }).click();

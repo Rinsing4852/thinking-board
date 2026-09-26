@@ -15,11 +15,14 @@ import type {
 import { get, patch, post, remove } from "../api";
 import { ChessBoard } from "./ChessBoard";
 import { OpeningLearningComment } from "./OpeningLearningComment";
+import { OpeningMoveSuggestions } from "./OpeningMoveSuggestions";
 
 interface OpeningLineExplorerProps {
   detail: OpeningRepertoireDetailResponse;
   startingLineId?: string | null;
   initialCoverage?: OpeningCoverageResponse | null;
+  preferredRatingGroup: number;
+  useExplorer: boolean;
   busy?: boolean;
   onBack: () => void;
   onPractice: (lineId: string) => void;
@@ -31,6 +34,8 @@ export function OpeningLineExplorer({
   detail,
   startingLineId,
   initialCoverage = null,
+  preferredRatingGroup,
+  useExplorer,
   busy = false,
   onBack,
   onPractice,
@@ -54,7 +59,7 @@ export function OpeningLineExplorer({
   const [status, setStatus] = useState("");
   const [localBusy, setLocalBusy] = useState(false);
   const [coverage, setCoverage] = useState<OpeningCoverageResponse | null>(initialCoverage);
-  const [coverageRating, setCoverageRating] = useState(1600);
+  const [coverageRating, setCoverageRating] = useState(preferredRatingGroup);
   const [coverageBusy, setCoverageBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<"line" | "repertoire" | null>(null);
   const [repertoireName, setRepertoireName] = useState(detail.repertoire.name);
@@ -148,6 +153,11 @@ export function OpeningLineExplorer({
   useEffect(() => {
     if (initialCoverage && initialCoverage.ratingGroup === coverageRating) setCoverage(initialCoverage);
   }, [initialCoverage, coverageRating]);
+
+  useEffect(() => {
+    setCoverageRating(preferredRatingGroup);
+    setCoverage((current) => current?.ratingGroup === preferredRatingGroup ? current : null);
+  }, [preferredRatingGroup]);
 
   const chooseLine = (nextLineId: string): void => {
     setLineId(nextLineId);
@@ -336,6 +346,13 @@ export function OpeningLineExplorer({
     });
     return chess.fen();
   }, [displayFen, pendingMove]);
+  const savedMoveUcis = useMemo(() => {
+    const key = displayFen.split(" ").slice(0, 4).join(" ");
+    return allLines.flatMap(({ line: candidate }) => candidate.moves)
+      .filter((move) => move.fenBefore.split(" ").slice(0, 4).join(" ") === key)
+      .map((move) => move.moveUci)
+      .filter((move, index, moves) => moves.indexOf(move) === index);
+  }, [allLines, displayFen]);
 
   if (!line || !selected) {
     return (
@@ -356,15 +373,15 @@ export function OpeningLineExplorer({
           <p>Inspect every saved line, step through the moves, then practise the exact branch you choose.</p>
         </div>
         <div className="opening-workspace-actions">
-          <label className="coverage-rating">
+          {useExplorer && <label className="coverage-rating">
             Explorer rating
             <select value={coverageRating} onChange={(event) => { setCoverageRating(Number(event.target.value)); setCoverage(null); }}>
               {[1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500].map((rating) => <option key={rating} value={rating}>{rating}+</option>)}
             </select>
-          </label>
-          <button className="secondary" disabled={coverageBusy} onClick={() => void loadCoverage()}>
+          </label>}
+          {useExplorer && <button className="secondary" disabled={coverageBusy} onClick={() => void loadCoverage()}>
             {coverageBusy ? "Checking…" : coverage ? "Refresh coverage" : "Check coverage"}
-          </button>
+          </button>}
           {detail.repertoire.editable && (
             <button className={editing ? "active" : "secondary"} onClick={() => { setEditing((value) => !value); setPendingMove(null); }}>
               {editing ? "Finish editing" : "Edit lines"}
@@ -549,6 +566,15 @@ export function OpeningLineExplorer({
         </div>
 
         <aside className="panel opening-move-inspector">
+          {editing && !pendingMove && (
+            <OpeningMoveSuggestions
+              fen={displayFen}
+              ratingGroup={coverageRating}
+              useExplorer={useExplorer}
+              savedMoveUcis={savedMoveUcis}
+              onChooseMove={previewNewMove}
+            />
+          )}
           {pendingMove && (
             <div className="opening-new-move">
               <span className="eyebrow">{ply < line.moveCount ? "New branch" : "Extend line"}</span>

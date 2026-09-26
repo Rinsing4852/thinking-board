@@ -24,6 +24,7 @@ import { OpeningWorkspaceService } from "./openings/opening-workspace-service.js
 import { OpeningCoverageService } from "./openings/opening-coverage-service.js";
 import { OpeningAnalysisService } from "./openings/opening-analysis-service.js";
 import { OpeningExplorerService } from "./openings/opening-explorer-service.js";
+import { OpeningPreferencesService } from "./openings/opening-preferences-service.js";
 import { STARTER_OPENING_CURRICULA } from "./openings/starter-curricula.js";
 import { TrainingService } from "./training/training-service.js";
 import { CandidateTrainingService } from "./training/candidate-training-service.js";
@@ -82,6 +83,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   const openingCoverage = new OpeningCoverageService(database.connection, config.lichessApiToken);
   const openingAnalysis = new OpeningAnalysisService(config);
   const openingExplorer = new OpeningExplorerService(database.connection, config.lichessApiToken);
+  const openingPreferences = new OpeningPreferencesService(database.connection, Boolean(config.lichessApiToken));
   const analysis = new AnalysisService(database.connection, config);
   analysis.backfillWhatChanged();
   analysis.backfillCandidates();
@@ -128,6 +130,21 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   app.get("/api/v1/openings/catalog", async () => openingContent.catalog());
 
   app.get("/api/v1/openings/progress", async () => openingContent.progress());
+
+  app.get("/api/v1/openings/preferences", async () => openingPreferences.get());
+
+  app.patch("/api/v1/openings/preferences", async (request, reply) => {
+    try {
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      return openingPreferences.update({
+        ratingGroup: Number(body.ratingGroup),
+        platform: body.platform as "lichess" | "chess_com" | "fide" | "not_sure",
+        useExplorer: body.useExplorer as boolean,
+      });
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not save opening preferences" });
+    }
+  });
 
   app.get("/api/v1/openings/repertoires/:repertoireId", async (request, reply) => {
     try {

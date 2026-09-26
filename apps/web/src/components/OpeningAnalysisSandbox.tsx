@@ -1,13 +1,9 @@
 import { useEffect, useState } from "react";
 import { Chess } from "chess.js";
 
-import type {
-  Color,
-  OpeningExplorerPositionResponse,
-  OpeningPositionAnalysisResponse,
-} from "../../../../packages/contracts/src/api";
-import { get, post } from "../api";
+import type { Color } from "../../../../packages/contracts/src/api";
 import { ChessBoard } from "./ChessBoard";
+import { OpeningMoveSuggestions } from "./OpeningMoveSuggestions";
 
 export interface SandboxMove {
   moveUci: string;
@@ -19,6 +15,8 @@ export interface SandboxMove {
 interface OpeningAnalysisSandboxProps {
   baseFen: string;
   orientation: Color;
+  ratingGroup: number;
+  useExplorer: boolean;
   onAddMoves: (moves: SandboxMove[]) => void;
 }
 
@@ -33,73 +31,18 @@ function applyMove(fen: string, moveUci: string): { fen: string; san: string } {
   return { fen: chess.fen(), san: move.san };
 }
 
-function scoreLabel(line: OpeningPositionAnalysisResponse["lines"][number]): string {
-  if (line.score.kind === "mate") {
-    return line.score.value > 0 ? `Mate in ${line.score.value}` : `Being mated in ${Math.abs(line.score.value)}`;
-  }
-  const pawns = line.score.value / 100;
-  return `${pawns >= 0 ? "+" : ""}${pawns.toFixed(2)}`;
-}
-
-export function OpeningAnalysisSandbox({ baseFen, orientation, onAddMoves }: OpeningAnalysisSandboxProps) {
+export function OpeningAnalysisSandbox({ baseFen, orientation, ratingGroup, useExplorer, onAddMoves }: OpeningAnalysisSandboxProps) {
   const [fen, setFen] = useState(baseFen);
   const [boardOrientation, setBoardOrientation] = useState(orientation);
   const [moves, setMoves] = useState<SandboxMove[]>([]);
-  const [analysis, setAnalysis] = useState<OpeningPositionAnalysisResponse | null>(null);
-  const [analysisError, setAnalysisError] = useState("");
-  const [analysisBusy, setAnalysisBusy] = useState(false);
-  const [explorer, setExplorer] = useState<OpeningExplorerPositionResponse | null>(null);
-  const [explorerError, setExplorerError] = useState("");
-  const [explorerBusy, setExplorerBusy] = useState(false);
-  const [explorerEnabled, setExplorerEnabled] = useState(false);
-  const [ratingGroup, setRatingGroup] = useState(1600);
+  const [moveError, setMoveError] = useState("");
 
   useEffect(() => {
     setFen(baseFen);
     setMoves([]);
-    setAnalysis(null);
-    setAnalysisError("");
-    setExplorer(null);
-    setExplorerError("");
+    setMoveError("");
   }, [baseFen]);
   useEffect(() => setBoardOrientation(orientation), [orientation]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => {
-      setAnalysisBusy(true);
-      setAnalysisError("");
-      void post<OpeningPositionAnalysisResponse>("/api/v1/openings/analysis", { fen }, controller.signal)
-        .then(setAnalysis)
-        .catch((error: unknown) => {
-          if (!controller.signal.aborted) setAnalysisError(error instanceof Error ? error.message : "Stockfish analysis failed");
-        })
-        .finally(() => { if (!controller.signal.aborted) setAnalysisBusy(false); });
-    }, 350);
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [fen]);
-
-  useEffect(() => {
-    if (!explorerEnabled) return;
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => {
-      setExplorerBusy(true);
-      setExplorerError("");
-      void get<OpeningExplorerPositionResponse>(
-        `/api/v1/openings/explorer?rating=${ratingGroup}&fen=${encodeURIComponent(fen)}`,
-        controller.signal,
-      ).then(setExplorer).catch((error: unknown) => {
-        if (!controller.signal.aborted) setExplorerError(error instanceof Error ? error.message : "Practical frequencies are unavailable");
-      }).finally(() => { if (!controller.signal.aborted) setExplorerBusy(false); });
-    }, 350);
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [explorerEnabled, fen, ratingGroup]);
 
   const playMove = (moveUci: string, suppliedSan?: string): void => {
     try {
@@ -111,8 +54,9 @@ export function OpeningAnalysisSandbox({ baseFen, orientation, onAddMoves }: Ope
         fenAfter: applied.fen,
       }]);
       setFen(applied.fen);
+      setMoveError("");
     } catch (error) {
-      setAnalysisError(error instanceof Error ? error.message : "Could not explore that move");
+      setMoveError(error instanceof Error ? error.message : "Could not explore that move");
     }
   };
 
@@ -167,55 +111,13 @@ export function OpeningAnalysisSandbox({ baseFen, orientation, onAddMoves }: Ope
         {moves.map((move, index) => <b key={`${move.moveUci}-${index}`}>{index % 2 === 0 ? `${Math.floor(index / 2) + 1}. ` : ""}{move.moveSan}</b>)}
       </div>
 
-      <div className="opening-analysis-results">
-        <section>
-          <div className="opening-analysis-title">
-            <div><span className="eyebrow">Local Stockfish</span><strong>Strong candidates</strong></div>
-            {analysisBusy && <small>Analysing…</small>}
-          </div>
-          <p>These are engine-supported ideas, not moves you must memorise.</p>
-          <div className="opening-analysis-lines">
-            {analysis?.lines.map((line) => (
-              <button key={`${fen}-${line.rank}`} onClick={() => playMove(line.moveUci, line.moveSan)}>
-                <span><b>{line.moveSan}</b><small>{line.pvSan.join(" ")}</small></span>
-                <strong>{scoreLabel(line)}</strong>
-              </button>
-            ))}
-          </div>
-          {analysisError && <p className="error">{analysisError}</p>}
-        </section>
-
-        <section>
-          <div className="opening-analysis-title">
-            <div><span className="eyebrow">Practical play</span><strong>Common moves here</strong></div>
-            {explorerEnabled && <label>
-              Rating
-              <select value={ratingGroup} onChange={(event) => setRatingGroup(Number(event.target.value))}>
-                {[1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500].map((rating) => <option key={rating} value={rating}>{rating}+</option>)}
-              </select>
-            </label>}
-          </div>
-          {!explorerEnabled ? (
-            <>
-            <p>Optionally ask Lichess Explorer what players commonly choose. This sends only the current position and requires a server-side Lichess token.</p>
-              <button className="secondary" onClick={() => setExplorerEnabled(true)}>Load Lichess frequencies</button>
-            </>
-          ) : (
-            <>
-              <p>{explorerBusy ? "Loading rated blitz, rapid and classical games…" : explorer?.opening ? `${explorer.opening.eco} · ${explorer.opening.name}` : "Rated blitz, rapid and classical games."}</p>
-              <div className="opening-analysis-lines practical">
-                {explorer?.replies.slice(0, 5).map((reply) => (
-                  <button key={`${fen}-${reply.moveUci}`} onClick={() => playMove(reply.moveUci, reply.moveSan)}>
-                    <span><b>{reply.moveSan}</b><small>{reply.games.toLocaleString()} games</small></span>
-                    <strong>{reply.frequencyPercent}%</strong>
-                  </button>
-                ))}
-              </div>
-              {explorerError && <p className="error">{explorerError}</p>}
-            </>
-          )}
-        </section>
-      </div>
+      <OpeningMoveSuggestions
+        fen={fen}
+        ratingGroup={ratingGroup}
+        useExplorer={useExplorer}
+        onChooseMove={(moveUci, moveSan) => playMove(moveUci, moveSan)}
+      />
+      {moveError && <p className="error">{moveError}</p>}
 
       <button className="opening-add-analysis" disabled={moves.length === 0} onClick={addToRepertoire}>
         Add {moves.length || "explored"} move{moves.length === 1 ? "" : "s"} to my repertoire

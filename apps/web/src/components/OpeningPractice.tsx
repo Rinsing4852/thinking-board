@@ -19,6 +19,7 @@ import type {
   OpeningWhyAnswerResponse,
   OpeningArchiveResponse,
   OpeningProgressResponse,
+  OpeningPlayerPreferences,
 } from "../../../../packages/contracts/src/api";
 import { get, patch, post } from "../api";
 import { applyUciMove, getMoveHint } from "../opening-board";
@@ -29,6 +30,7 @@ import { OpeningExplanation } from "./OpeningExplanation";
 import { OpeningLineExplorer } from "./OpeningLineExplorer";
 import { OpeningReview } from "./OpeningReview";
 import { OpeningLearningComment } from "./OpeningLearningComment";
+import { OpeningPlayerContext } from "./OpeningPlayerContext";
 
 type LessonPhase = "catalog" | "observe" | "move" | "why" | "feedback" | "complete";
 type ActiveLessonPhase = Exclude<LessonPhase, "catalog" | "complete">;
@@ -82,9 +84,15 @@ export function OpeningPractice({ refreshToken, onOpenGames, onFocusChange }: Op
   const [coverageSpotlight, setCoverageSpotlight] = useState<OpeningCoverageResponse | null>(null);
   const [coverageSpotlightLoading, setCoverageSpotlightLoading] = useState(false);
   const [openingProgress, setOpeningProgress] = useState<OpeningProgressResponse | null>(null);
+  const [playerPreferences, setPlayerPreferences] = useState<OpeningPlayerPreferences | null>(null);
   const activeCatalog = catalog.filter((repertoire) => !repertoire.archived);
   const archivedCatalog = catalog.filter((repertoire) => repertoire.archived);
-  const practiceFocused = Boolean((!reviewPaused && activeReview) || (step && phase !== "catalog"));
+  const practiceFocused = Boolean(
+    showBuilder
+    || workspaceDetail
+    || (!reviewPaused && activeReview)
+    || (step && phase !== "catalog"),
+  );
 
   useEffect(() => {
     onFocusChange?.(practiceFocused);
@@ -135,10 +143,12 @@ export function OpeningPractice({ refreshToken, onOpenGames, onFocusChange }: Op
       get<OpeningReviewActiveState | null>("/api/v1/openings/reviews/active"),
       get<OpeningReviewRecommendation>("/api/v1/openings/reviews/recommended"),
       get<OpeningProgressResponse>("/api/v1/openings/progress"),
-    ]).then(([catalogResponse, active, review, recommended, progress]) => {
+      get<OpeningPlayerPreferences>("/api/v1/openings/preferences"),
+    ]).then(([catalogResponse, active, review, recommended, progress, preferences]) => {
       setCatalog(catalogResponse.repertoires);
       setRecommendation(recommended);
       setOpeningProgress(progress);
+      setPlayerPreferences(preferences);
       setActiveReview(review);
       setReviewPaused(false);
       setPausedLessonPhase(null);
@@ -162,9 +172,9 @@ export function OpeningPractice({ refreshToken, onOpenGames, onFocusChange }: Op
       }
       const coverageRepertoireId = recommended.repertoire?.id
         ?? catalogResponse.repertoires.find((repertoire) => !repertoire.archived)?.id;
-      if (coverageRepertoireId) {
+      if (coverageRepertoireId && preferences.useExplorer) {
         setCoverageSpotlightLoading(true);
-        void get<OpeningCoverageResponse>(`/api/v1/openings/repertoires/${coverageRepertoireId}/coverage?rating=1600`)
+        void get<OpeningCoverageResponse>(`/api/v1/openings/repertoires/${coverageRepertoireId}/coverage?rating=${preferences.ratingGroup}`)
           .then(setCoverageSpotlight)
           .catch(() => setCoverageSpotlight(null))
           .finally(() => setCoverageSpotlightLoading(false));
@@ -175,6 +185,18 @@ export function OpeningPractice({ refreshToken, onOpenGames, onFocusChange }: Op
       setError(loadError instanceof Error ? loadError.message : "Could not load opening practice");
     }).finally(() => setLoading(false));
   }, [refreshToken]);
+
+  const updatePlayerPreferences = (preferences: OpeningPlayerPreferences): void => {
+    setPlayerPreferences(preferences);
+    setCoverageSpotlight(null);
+    setCoverageSpotlightLoading(false);
+    const repertoireId = recommendation?.repertoire?.id ?? activeCatalog[0]?.id;
+    if (!preferences.useExplorer || !repertoireId) return;
+    setCoverageSpotlightLoading(true);
+    void get<OpeningCoverageResponse>(
+      `/api/v1/openings/repertoires/${repertoireId}/coverage?rating=${preferences.ratingGroup}`,
+    ).then(setCoverageSpotlight).catch(() => setCoverageSpotlight(null)).finally(() => setCoverageSpotlightLoading(false));
+  };
 
   const startLesson = async (repertoireId: string): Promise<void> => {
     if (activeReview && reviewPaused && !window.confirm("Starting a guided line will end the paused memory session. Continue?")) return;
@@ -579,6 +601,8 @@ export function OpeningPractice({ refreshToken, onOpenGames, onFocusChange }: Op
 
       {!loading && (!activeReview || reviewPaused) && phase === "catalog" && showBuilder && (
         <OpeningBoardBuilder
+          ratingGroup={playerPreferences?.ratingGroup ?? 1600}
+          useExplorer={playerPreferences?.useExplorer ?? false}
           onCancel={() => setShowBuilder(false)}
           onSaved={(repertoireId) => void finishBoardBuild(repertoireId).catch((failure) => {
             setError(failure instanceof Error ? failure.message : "Could not open the saved repertoire");
@@ -591,6 +615,8 @@ export function OpeningPractice({ refreshToken, onOpenGames, onFocusChange }: Op
           detail={workspaceDetail}
           startingLineId={workspaceLineId}
           initialCoverage={coverageSpotlight?.repertoireId === workspaceDetail.repertoire.id ? coverageSpotlight : null}
+          preferredRatingGroup={playerPreferences?.ratingGroup ?? 1600}
+          useExplorer={playerPreferences?.useExplorer ?? false}
           busy={submitting}
           onBack={() => { setWorkspaceDetail(null); setWorkspaceLineId(null); }}
           onPractice={(lineId) => void startLineLesson(workspaceDetail.repertoire.id, lineId)}
@@ -625,6 +651,9 @@ export function OpeningPractice({ refreshToken, onOpenGames, onFocusChange }: Op
               </button>
             </div>
           )}
+          {playerPreferences && (
+            <OpeningPlayerContext preferences={playerPreferences} onSaved={updatePlayerPreferences} />
+          )}
           {!activeReview && !(step && pausedLessonPhase) && recommendation?.available && recommendation.repertoire && (
             <div className="opening-cockpit">
               <div className="panel opening-recommendation">
@@ -650,12 +679,12 @@ export function OpeningPractice({ refreshToken, onOpenGames, onFocusChange }: Op
                   <small>Inspect what happened and repair the line.</small>
                 </button>
               )}
-              <button
+              {playerPreferences?.useExplorer && <button
                 className="panel opening-cockpit-action"
                 disabled={coverageSpotlightLoading || !coverageSpotlight || !recommendation.repertoire}
                 onClick={() => recommendation.repertoire && void openWorkspace(recommendation.repertoire.id)}
               >
-                <span className="eyebrow">Practical coverage · 1600+</span>
+                <span className="eyebrow">Practical coverage · {playerPreferences?.ratingGroup ?? 1600}+</span>
                 <strong>{coverageSpotlightLoading
                   ? "Checking common replies…"
                   : coverageSpotlight?.coveragePercent === null || coverageSpotlight?.coveragePercent === undefined
@@ -664,7 +693,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onFocusChange }: Op
                 <small>{coverageSpotlight?.gaps[0]
                   ? `Biggest gap: ${coverageSpotlight.gaps[0].moveSan} · ${coverageSpotlight.gaps[0].frequencyPercent}% at that position`
                   : coverageSpotlight?.message ?? "Open the repertoire to check common replies."}</small>
-              </button>
+              </button>}
               {openingProgress?.weakestLines[0] && (
                 <button
                   className="panel opening-cockpit-action"

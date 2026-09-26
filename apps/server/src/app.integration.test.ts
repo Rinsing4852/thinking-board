@@ -96,6 +96,64 @@ async function waitForCompleted(app: Awaited<ReturnType<typeof buildApp>>, jobId
 }
 
 describe("vertical slice", () => {
+  it("stores the player's practical opening context", async () => {
+    const appConfig = config(false);
+    appConfig.lichessApiToken = "opening-context-token";
+    const app = await buildApp(appConfig);
+    apps.push(app);
+
+    expect((await app.inject({ method: "GET", url: "/api/v1/openings/preferences" })).json()).toMatchObject({
+      configured: false,
+      ratingGroup: 1600,
+      platform: "not_sure",
+      useExplorer: false,
+      explorerAvailable: true,
+    });
+
+    const saved = await app.inject({
+      method: "PATCH",
+      url: "/api/v1/openings/preferences",
+      payload: { ratingGroup: 1400, platform: "lichess", useExplorer: true },
+    });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json()).toMatchObject({
+      configured: true,
+      ratingGroup: 1400,
+      platform: "lichess",
+      useExplorer: true,
+      explorerAvailable: true,
+      updatedAt: expect.any(String),
+    });
+    expect((await app.inject({ method: "GET", url: "/api/v1/openings/preferences" })).json())
+      .toMatchObject(saved.json());
+
+    expect((await app.inject({
+      method: "PATCH",
+      url: "/api/v1/openings/preferences",
+      payload: { ratingGroup: 1500, platform: "lichess", useExplorer: true },
+    })).statusCode).toBe(400);
+  });
+
+  it("keeps practical frequencies off when no Lichess token is configured", async () => {
+    const app = await buildApp(config(false));
+    apps.push(app);
+
+    expect((await app.inject({ method: "GET", url: "/api/v1/openings/preferences" })).json()).toMatchObject({
+      useExplorer: false,
+      explorerAvailable: false,
+    });
+
+    const response = await app.inject({
+      method: "PATCH",
+      url: "/api/v1/openings/preferences",
+      payload: { ratingGroup: 1600, platform: "lichess", useExplorer: true },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({
+      error: "Add LICHESS_API_TOKEN to Docker before enabling practical frequencies",
+    });
+  });
+
   it("serves the independently authored opening preview catalog", async () => {
     const app = await buildApp(config(false));
     apps.push(app);
