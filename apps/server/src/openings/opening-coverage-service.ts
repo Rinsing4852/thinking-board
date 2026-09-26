@@ -39,7 +39,7 @@ interface CacheRow {
 const RATINGS = new Set([0, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500]);
 const SPEEDS = "blitz,rapid,classical";
 const CACHE_MS = 7 * 24 * 60 * 60 * 1000;
-const POSITION_LIMIT = 16;
+const POSITION_LIMIT = 32;
 
 export class OpeningCoverageService {
   constructor(
@@ -154,20 +154,39 @@ export class OpeningCoverageService {
 
   private positions(repertoireId: string, profileId: string): PositionRow[] {
     return this.db.prepare(`
-      SELECT p.id, p.fen, MIN(c.title) AS chapter_title, MIN(l.title) AS line_title,
-             MIN(olm.ply) AS first_ply
-      FROM opening_positions p
-      JOIN opening_moves m ON m.from_position_id = p.id
-        AND m.repertoire_id = ? AND m.role = 'opponent' AND m.active = 1
-      JOIN opening_line_moves olm ON olm.move_id = m.id
-      JOIN opening_lines l ON l.id = olm.line_id AND l.active = 1
-      JOIN opening_chapters c ON c.id = l.chapter_id AND c.active = 1
-      LEFT JOIN opening_line_preferences preference
-        ON preference.line_id = l.id AND preference.profile_id = ?
-      WHERE preference.archived_at IS NULL
-      GROUP BY p.id, p.fen
+      WITH candidate_positions AS (
+        SELECT p.id, p.fen, c.title AS chapter_title, l.title AS line_title,
+               olm.ply + 1 AS first_ply
+        FROM opening_line_moves olm
+        JOIN opening_moves m ON m.id = olm.move_id
+          AND m.repertoire_id = ? AND m.role = 'learner' AND m.active = 1
+        JOIN opening_positions p ON p.id = m.to_position_id
+        JOIN opening_lines l ON l.id = olm.line_id AND l.active = 1
+        JOIN opening_chapters c ON c.id = l.chapter_id AND c.active = 1
+        LEFT JOIN opening_line_preferences preference
+          ON preference.line_id = l.id AND preference.profile_id = ?
+        WHERE preference.archived_at IS NULL
+
+        UNION ALL
+
+        SELECT p.id, p.fen, c.title AS chapter_title, l.title AS line_title,
+               olm.ply AS first_ply
+        FROM opening_line_moves olm
+        JOIN opening_moves m ON m.id = olm.move_id
+          AND m.repertoire_id = ? AND m.role = 'opponent' AND m.active = 1
+        JOIN opening_positions p ON p.id = m.from_position_id
+        JOIN opening_lines l ON l.id = olm.line_id AND l.active = 1
+        JOIN opening_chapters c ON c.id = l.chapter_id AND c.active = 1
+        LEFT JOIN opening_line_preferences preference
+          ON preference.line_id = l.id AND preference.profile_id = ?
+        WHERE preference.archived_at IS NULL
+      )
+      SELECT id, fen, MIN(chapter_title) AS chapter_title, MIN(line_title) AS line_title,
+             MIN(first_ply) AS first_ply
+      FROM candidate_positions
+      GROUP BY id, fen
       ORDER BY first_ply, chapter_title, line_title
-    `).all(repertoireId, profileId) as PositionRow[];
+    `).all(repertoireId, profileId, repertoireId, profileId) as PositionRow[];
   }
 
   private async statistics(position: PositionRow, ratingGroup: number): Promise<ExplorerResponse | null> {

@@ -403,7 +403,7 @@ export function OpeningLineExplorer({
           <div>
             <span className="eyebrow">Practical coverage · {coverageRating}+ Lichess</span>
             <h3>{coverage.coveragePercent === null ? "No sample yet" : `${coverage.coveragePercent}% of replies covered`}</h3>
-            <p>{coverage.message} This measures replies at saved opponent positions, not the chance of reaching the whole line.</p>
+            <p>{coverage.message} This measures replies at positions reached after your saved moves, not the chance of reaching the whole line.</p>
           </div>
           <div className="opening-coverage-gaps">
             <strong>{coverage.gaps.length > 0 ? "Biggest missing replies" : "No common missing replies found"}</strong>
@@ -569,6 +569,7 @@ export function OpeningLineExplorer({
           {editing && !pendingMove && (
             <OpeningMoveSuggestions
               fen={displayFen}
+              learnerColor={detail.repertoire.learnerColor}
               ratingGroup={coverageRating}
               useExplorer={useExplorer}
               savedMoveUcis={savedMoveUcis}

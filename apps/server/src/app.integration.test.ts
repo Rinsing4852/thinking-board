@@ -670,6 +670,47 @@ describe("vertical slice", () => {
     expect(explorerCalls).toBe(callsAfterFirst);
   });
 
+  it("checks for replies after a pasted repertoire line ends", async () => {
+    globalThis.fetch = (async () => new Response(JSON.stringify({
+      white: 60,
+      draws: 20,
+      black: 20,
+      moves: [{ uci: "g8f6", san: "Nf6", white: 36, draws: 12, black: 12 }],
+    }), { status: 200, headers: { "Content-Type": "application/json" } })) as typeof fetch;
+    const appConfig = config(false);
+    appConfig.lichessApiToken = "coverage-token";
+    const app = await buildApp(appConfig);
+    apps.push(app);
+
+    const imported = await app.inject({
+      method: "POST",
+      url: "/api/v1/openings/imports/pgn",
+      payload: {
+        pgn: `[Event "Short personal line"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 *`,
+        learnerColor: "white",
+        name: "Short personal line",
+        sourceType: "self_authored",
+        sourceTitle: "Built for coverage testing",
+        ownershipConfirmed: true,
+      },
+    });
+    const repertoireId = (imported.json() as { repertoireIds: string[] }).repertoireIds[0]!;
+    const coverage = await app.inject({
+      method: "GET",
+      url: `/api/v1/openings/repertoires/${repertoireId}/coverage?rating=1600`,
+    });
+
+    expect(coverage.statusCode).toBe(200);
+    expect(coverage.json()).toMatchObject({
+      positionsChecked: 2,
+      gaps: expect.arrayContaining([expect.objectContaining({
+        moveUci: "g8f6",
+        lineTitle: "Main line",
+        fen: expect.stringContaining("5N2"),
+      })]),
+    });
+  });
+
   it("serves cached local analysis and current-position practical moves for the opening studio", async () => {
     let explorerCalls = 0;
     globalThis.fetch = (async (input, init) => {
@@ -712,7 +753,15 @@ describe("vertical slice", () => {
       ratingGroup: 1600,
       totalGames: 100,
       opening: { eco: "A00", name: "Starting position" },
-      replies: [{ moveUci: "e2e4", moveSan: "e4", games: 50, frequencyPercent: 50 }],
+      replies: [{
+        moveUci: "e2e4",
+        moveSan: "e4",
+        games: 50,
+        frequencyPercent: 50,
+        whiteWins: 25,
+        draws: 10,
+        blackWins: 15,
+      }],
       cached: false,
     });
     const cached = await app.inject({ method: "GET", url: explorerUrl });

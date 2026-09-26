@@ -41,13 +41,17 @@ complete PGN, including archived lines;
 the most recently added move can be undone. Individual lines or complete
 repertoires—including built-in material—can be archived without losing notes or
 review history, then restored later. The desktop opening studio places the saved repertoire board beside an
-independent analysis board. Local Stockfish suggests candidate ideas and
-Lichess Explorer shows common rated-game replies when a server token is
-configured. The opening home checks practical coverage for the recommended
+guided move choices: one repertoire board asks for the next decision and adds a
+selected move immediately. An independent analysis board opens only when deeper
+investigation is useful. Local Stockfish suggests candidate ideas and Lichess
+Explorer shows common rated-game replies when a server token is configured,
+including an intuitive “1 in N games” frequency and the learner's score from
+the chosen colour. The opening home checks practical coverage for the recommended
 repertoire and surfaces the weakest line from review and game evidence. Exploration is
 never saved automatically: deliberately add the tested sequence to the left
 board, write the reason in your own words, then save it to the same graph and
-review schedule. On smaller screens the two workspaces stack vertically.
+review schedule. On smaller screens the guided board and move evidence stack
+vertically without horizontal scrolling.
 The repertoire library stays compact: each title expands only when its
 statistics, description or actions are needed, leaving more room for the
 recommended session and the board.
@@ -89,6 +93,8 @@ returned to the browser.
 
 Imported games are matched to both built-in and private repertoires by board
 position, so transpositions and authored alternative moves remain valid. Game
+imports from pasted PGN, uploaded PGN files and Lichess sync all use this same
+matching path; platform syncing is not required for repertoire analysis. Game
 review identifies whether the player deviated, the opponent left the prepared
 line, or the repertoire content simply ended. A deviation is never called a
 blunder merely for being different. The review board switches between the
@@ -176,7 +182,7 @@ curl --fail http://127.0.0.1:8000/api/v1/health
 
 Database migrations run automatically and are tested from every released schema
 version. For reproducible installs, set `APP_VERSION` in `.env` to a numbered
-image tag such as `1.2.0`; `latest` follows the current release. To roll back,
+image tag such as `1.4.0`; `latest` follows the current release. To roll back,
 stop the app, restore `pre-upgrade.sqlite3` with the restore command above, set
 `APP_VERSION` to the previous release, and start Compose again. Never run two
 application versions against the same live database.

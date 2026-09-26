@@ -141,6 +141,9 @@ export class OpeningExplorerService {
           moveSan: move.san,
           games,
           frequencyPercent: totalGames > 0 ? Math.round((games / totalGames) * 1000) / 10 : 0,
+          whiteWins: Number(move.white),
+          draws: Number(move.draws),
+          blackWins: Number(move.black),
         };
       }),
       cached,

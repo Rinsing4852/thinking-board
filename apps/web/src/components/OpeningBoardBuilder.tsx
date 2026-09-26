@@ -5,6 +5,7 @@ import type { Color, OpeningImportResponse } from "../../../../packages/contract
 import { post } from "../api";
 import { ChessBoard } from "./ChessBoard";
 import { OpeningAnalysisSandbox, type SandboxMove } from "./OpeningAnalysisSandbox";
+import { OpeningMoveSuggestions } from "./OpeningMoveSuggestions";
 
 interface BuiltMove {
   moveUci: string;
@@ -40,6 +41,7 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
   const [name, setName] = useState("");
   const [learnerColor, setLearnerColor] = useState<Color>("white");
   const [moves, setMoves] = useState<BuiltMove[]>([]);
+  const [analysisOpen, setAnalysisOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const fen = moves.at(-1)?.fenAfter ?? START_FEN;
@@ -52,11 +54,12 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
 
   const addMove = (moveUci: string, moveSan: string): void => {
     const chess = new Chess(fen);
-    chess.move({
+    const played = chess.move({
       from: moveUci.slice(0, 2),
       to: moveUci.slice(2, 4),
       ...(moveUci.length === 5 ? { promotion: moveUci[4] } : {}),
     });
+    if (!played) return;
     setMoves((current) => [...current, { moveUci, moveSan, fenBefore: fen, fenAfter: chess.fen(), note: "" }]);
   };
 
@@ -69,6 +72,7 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
       ...current,
       ...explored.map((move) => ({ ...move, note: "" })),
     ]);
+    setAnalysisOpen(false);
   };
 
   const save = async (): Promise<void> => {
@@ -104,8 +108,8 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
       <div className="panel opening-builder-heading">
         <div>
           <span className="eyebrow">Opening studio</span>
-          <h2>Build and investigate your repertoire</h2>
-          <p>Your repertoire stays on the left. Test engine ideas and common human moves on the right, then deliberately add the line you want to remember.</p>
+          <h2>Build your repertoire one decision at a time</h2>
+          <p>Choose a practical move beside the board or play one directly. Open the analysis board only when you want to investigate a position more deeply.</p>
         </div>
         <button className="secondary" onClick={onCancel}>Cancel</button>
       </div>
@@ -133,8 +137,8 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
       {moves.length > 0 && <p className="opening-studio-lock-note">Building for {learnerColor}. Undo every repertoire move before changing colour.</p>}
       {error && <p className="error" role="alert">{error}</p>}
 
-      <div className="opening-builder-grid opening-studio-grid">
-        <section className="opening-studio-pane repertoire" aria-label="Repertoire builder board">
+      <div className={`opening-builder-grid ${analysisOpen ? "opening-studio-grid" : "opening-guided-grid"}`}>
+        <section className={`opening-studio-pane repertoire${analysisOpen ? "" : " guided"}`} aria-label="Repertoire builder board">
           <div className="candidate-banner opening-studio-banner">
             <div>
               <span>My repertoire</span>
@@ -143,48 +147,71 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
             <strong>{turn === "white" ? "White" : "Black"} to move</strong>
           </div>
           <div className="board-toolbar">
-            <span>Changes here become part of the saved line</span>
-            <button className="text-button" disabled={moves.length === 0} onClick={() => setMoves((current) => current.slice(0, -1))}>Undo last move</button>
+            <span>{analysisOpen ? "Explore separately, then add only the sequence you want" : "A move chosen here is added to this line immediately"}</span>
+            <div>
+              <button className="text-button" onClick={() => setAnalysisOpen((open) => !open)}>{analysisOpen ? "Back to guided choices" : "Open analysis board"}</button>
+              <button className="text-button" disabled={moves.length === 0} onClick={() => setMoves((current) => current.slice(0, -1))}>Undo last move</button>
+            </div>
           </div>
-          <ChessBoard
-            fen={fen}
-            orientation={learnerColor}
-            interactive
-            lastMove={lastMove?.moveUci ?? null}
-            onMove={addMove}
-            ariaLabel="Repertoire board"
-          />
-          <div className="panel opening-builder-form">
-            <div className="opening-builder-moves">
-              {moves.map((move, index) => (
-                <span className={move.fenBefore.split(" ")[1] === (learnerColor === "white" ? "w" : "b") ? "learner" : ""} key={`${move.moveUci}-${index}`}>
-                  {index % 2 === 0 ? `${Math.floor(index / 2) + 1}. ` : ""}{move.moveSan}
-                </span>
-              ))}
-            </div>
-          {lastMove && (
-            <div className="opening-builder-note">
-              <strong>{lastMoveBelongsToLearner ? `Why ${lastMove.moveSan}?` : `What is the idea behind ${lastMove.moveSan}?`}</strong>
-              <p>Add a short explanation if you know it. Leaving this blank is honest and can be filled in later.</p>
-              <textarea
-                rows={4}
-                value={lastMove.note}
-                onChange={(event) => updateLastNote(event.target.value)}
-                placeholder={lastMoveBelongsToLearner ? "For example: Develops with tempo and prepares castling." : "For example: Challenges the centre and opens the bishop."}
+          <div className="opening-guided-content">
+            <div className="opening-guided-board">
+              <ChessBoard
+                fen={fen}
+                orientation={learnerColor}
+                interactive
+                lastMove={lastMove?.moveUci ?? null}
+                onMove={addMove}
+                ariaLabel="Repertoire board"
               />
+              <div className="opening-builder-moves" aria-label="Moves in this line">
+                {moves.map((move, index) => (
+                  <span className={move.fenBefore.split(" ")[1] === (learnerColor === "white" ? "w" : "b") ? "learner" : ""} key={`${move.moveUci}-${index}`}>
+                    {index % 2 === 0 ? `${Math.floor(index / 2) + 1}. ` : ""}{move.moveSan}
+                  </span>
+                ))}
+              </div>
             </div>
-          )}
-          {!lastMove && <p className="opening-builder-empty-note">Make a move directly, or explore on the analysis board and add the line when it makes sense.</p>}
+            <div className="panel opening-builder-form">
+              {!analysisOpen && (
+                <>
+                  <div className="opening-guided-prompt">
+                    <span className="eyebrow">{isLearnerTurn ? "Your repertoire move" : "Opponent reply"}</span>
+                    <strong>{isLearnerTurn ? `What will you play as ${learnerColor}?` : "Which reply do you want to prepare for?"}</strong>
+                    <small>Choose below to add the move immediately. You can undo it at any time.</small>
+                  </div>
+                  <OpeningMoveSuggestions
+                    fen={fen}
+                    learnerColor={learnerColor}
+                    ratingGroup={ratingGroup}
+                    useExplorer={useExplorer}
+                    onChooseMove={addMove}
+                  />
+                </>
+              )}
+              {lastMove && (
+                <div className="opening-builder-note">
+                  <strong>{lastMoveBelongsToLearner ? `Why ${lastMove.moveSan}?` : `What is the idea behind ${lastMove.moveSan}?`}</strong>
+                  <p>Add a short explanation if you know it. Leaving this blank is honest and can be filled in later.</p>
+                  <textarea
+                    rows={4}
+                    value={lastMove.note}
+                    onChange={(event) => updateLastNote(event.target.value)}
+                    placeholder={lastMoveBelongsToLearner ? "For example: Develops with tempo and prepares castling." : "For example: Challenges the centre and opens the bishop."}
+                  />
+                </div>
+              )}
+              {!lastMove && analysisOpen && <p className="opening-builder-empty-note">Explore on the analysis board, then add the sequence when it makes sense.</p>}
+            </div>
           </div>
         </section>
 
-        <OpeningAnalysisSandbox
+        {analysisOpen && <OpeningAnalysisSandbox
           baseFen={fen}
           orientation={learnerColor}
           ratingGroup={ratingGroup}
           useExplorer={useExplorer}
           onAddMoves={addExploredMoves}
-        />
+        />}
       </div>
     </div>
   );

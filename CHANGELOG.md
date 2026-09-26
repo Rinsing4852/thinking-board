@@ -2,6 +2,28 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.4.0 — 2026-09-27
+
+### Guided repertoire building and stronger game feedback
+
+- Makes the repertoire builder a guided, single-board workflow by default:
+  choose a move beside the board or play it directly, then prepare the next
+  opponent reply without transferring moves between two workspaces.
+- Keeps the independent Stockfish board available as an optional analysis view
+  for deeper investigation, annotations and deliberate line transfer.
+- Ranks candidate moves with clearer practical evidence: frequency is shown as
+  both a percentage and an intuitive “1 in N games”, alongside the learner's
+  colour-adjusted score and the local engine evaluation.
+- Checks repertoire coverage after every saved learner move, including lines
+  that currently end before an opponent reply, so missing branches are not
+  hidden merely because the line is unfinished.
+- Makes the pasted-PGN completion message explicitly confirm that repertoire
+  comparison is ready. Pasted games and Lichess-synced games continue through
+  the same duplicate-safe import, matching and analysis pipeline.
+- Prevents stale candidate suggestions appearing briefly after the board
+  position changes and expands automated coverage for terminal positions and
+  practical game-result evidence.
+
 ## 1.3.0 — 2026-09-26
 
 ### Practical repertoire intelligence

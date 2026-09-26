@@ -113,6 +113,7 @@ export function OpeningAnalysisSandbox({ baseFen, orientation, ratingGroup, useE
 
       <OpeningMoveSuggestions
         fen={fen}
+        learnerColor={orientation}
         ratingGroup={ratingGroup}
         useExplorer={useExplorer}
         onChooseMove={(moveUci, moveSan) => playMove(moveUci, moveSan)}

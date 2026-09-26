@@ -33,7 +33,7 @@ export function ImportPanel({ refreshToken, onAnalyzed }: ImportPanelProps) {
       if (generation !== pollGeneration.current) return;
       setJob(current);
       if (current.status === "completed") {
-        setStatus("Analysis complete. Your exercises are ready below.");
+        setStatus("Analysis complete. Your exercises and repertoire comparison are ready below.");
         setBusy(false);
         onAnalyzed();
         return;

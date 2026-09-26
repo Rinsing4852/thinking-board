@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type {
+  Color,
+  OpeningExplorerReply,
   OpeningExplorerPositionResponse,
   OpeningPositionAnalysisResponse,
 } from "../../../../packages/contracts/src/api";
@@ -8,10 +10,22 @@ import { get, post } from "../api";
 
 interface OpeningMoveSuggestionsProps {
   fen: string;
+  learnerColor: Color;
   ratingGroup: number;
   useExplorer: boolean;
   savedMoveUcis?: string[];
   onChooseMove: (moveUci: string, moveSan: string) => void;
+}
+
+function frequencyLabel(reply: OpeningExplorerReply | undefined): string {
+  if (!reply || reply.frequencyPercent <= 0) return "—";
+  return `1 in ${Math.max(1, Math.round(100 / reply.frequencyPercent))}`;
+}
+
+function learnerScore(reply: OpeningExplorerReply | undefined, learnerColor: Color): string {
+  if (!reply || reply.games <= 0) return "—";
+  const wins = learnerColor === "white" ? reply.whiteWins : reply.blackWins;
+  return `${Math.round(((wins + reply.draws / 2) / reply.games) * 100)}%`;
 }
 
 function scoreLabel(line: OpeningPositionAnalysisResponse["lines"][number] | undefined): string {
@@ -25,6 +39,7 @@ function scoreLabel(line: OpeningPositionAnalysisResponse["lines"][number] | und
 
 export function OpeningMoveSuggestions({
   fen,
+  learnerColor,
   ratingGroup,
   useExplorer,
   savedMoveUcis = [],
@@ -39,10 +54,10 @@ export function OpeningMoveSuggestions({
 
   useEffect(() => {
     const controller = new AbortController();
+    setAnalysis(null);
+    setAnalysisBusy(true);
+    setAnalysisError("");
     const timer = window.setTimeout(() => {
-      setAnalysis(null);
-      setAnalysisBusy(true);
-      setAnalysisError("");
       void post<OpeningPositionAnalysisResponse>("/api/v1/openings/analysis", { fen }, controller.signal)
         .then(setAnalysis)
         .catch((error: unknown) => {
@@ -64,10 +79,10 @@ export function OpeningMoveSuggestions({
       return;
     }
     const controller = new AbortController();
+    setExplorer(null);
+    setExplorerBusy(true);
+    setExplorerError("");
     const timer = window.setTimeout(() => {
-      setExplorer(null);
-      setExplorerBusy(true);
-      setExplorerError("");
       void get<OpeningExplorerPositionResponse>(
         `/api/v1/openings/explorer?rating=${ratingGroup}&fen=${encodeURIComponent(fen)}`,
         controller.signal,
@@ -112,7 +127,7 @@ export function OpeningMoveSuggestions({
         {(analysisBusy || explorerBusy) && <small>Updating…</small>}
       </div>
       <div className="opening-suggestion-labels" aria-hidden="true">
-        <span>Move</span><span>{useExplorer ? `${ratingGroup}+ games` : "Practical"}</span><span>Engine</span>
+        <span>Move</span><span>{useExplorer ? `Seen at ${ratingGroup}+` : "Seen"}</span><span>Your score</span><span>Engine</span>
       </div>
       <div className="opening-suggestion-list">
         {candidates.map((candidate) => (
@@ -123,13 +138,21 @@ export function OpeningMoveSuggestions({
             key={candidate.moveUci}
             onClick={() => onChooseMove(candidate.moveUci, candidate.moveSan)}
           >
-            <span><strong>{candidate.moveSan}</strong>{candidate.engine?.rank === 1 && <small>Stockfish choice</small>}</span>
-            <span>{candidate.saved
-              ? "Saved"
-              : candidate.practical
-                ? `${candidate.practical.frequencyPercent}%`
-                : "—"}</span>
-            <span>{scoreLabel(candidate.engine)}</span>
+            <span>
+              <strong>{candidate.moveSan}</strong>
+              {candidate.saved
+                ? <small>Already saved</small>
+                : candidate.engine?.rank === 1 && <small>Stockfish choice</small>}
+            </span>
+            <span>
+              <strong>{frequencyLabel(candidate.practical)}</strong>
+              {candidate.practical && <small>{candidate.practical.frequencyPercent}% · {candidate.practical.games.toLocaleString()} games</small>}
+            </span>
+            <span>
+              <strong>{learnerScore(candidate.practical, learnerColor)}</strong>
+              {candidate.practical && <small>win + ½ draw</small>}
+            </span>
+            <span><strong>{scoreLabel(candidate.engine)}</strong></span>
           </button>
         ))}
         {!analysisBusy && !explorerBusy && candidates.length === 0 && !analysisError && !explorerError && (

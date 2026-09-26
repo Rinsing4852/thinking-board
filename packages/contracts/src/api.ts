@@ -212,6 +212,9 @@ export interface OpeningExplorerReply {
   moveSan: string;
   games: number;
   frequencyPercent: number;
+  whiteWins: number;
+  draws: number;
+  blackWins: number;
 }
 
 export interface OpeningExplorerPositionResponse {
