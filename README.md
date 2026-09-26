@@ -25,8 +25,8 @@ the same session. Correct independent recalls move further into the future;
 missed moves enter a short relearning step.
 
 Practice is designed to stay quick: moves are checked directly on the board,
-wrong attempts reset immediately, the first miss highlights which piece to
-move, and another miss shows the exact move. Prepared opponent replies and the
+wrong attempts reset immediately and remain marked in red, the first miss
+highlights which piece to move, and another miss shows the exact move. Prepared opponent replies and the
 next exercise play automatically, so normal practice needs no Continue or
 confirmation buttons. Every
 repertoire move can also carry a private, editable learning comment in the
@@ -48,6 +48,9 @@ repertoire and surfaces the weakest line from review and game evidence. Explorat
 never saved automatically: deliberately add the tested sequence to the left
 board, write the reason in your own words, then save it to the same graph and
 review schedule. On smaller screens the two workspaces stack vertically.
+The repertoire library stays compact: each title expands only when its
+statistics, description or actions are needed, leaving more room for the
+recommended session and the board.
 
 The built-in White course contains 29 decision positions across the Italian,
 Alapin Sicilian, French Advance, Caro-Kann Advance, Scandinavian, Modern/Pirc,

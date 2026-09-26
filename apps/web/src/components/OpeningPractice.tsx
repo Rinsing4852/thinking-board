@@ -37,9 +37,10 @@ type ReviewMode = "due" | "new" | "early";
 interface OpeningPracticeProps {
   refreshToken: number;
   onOpenGames?: () => void;
+  onFocusChange?: (focused: boolean) => void;
 }
 
-export function OpeningPractice({ refreshToken, onOpenGames }: OpeningPracticeProps) {
+export function OpeningPractice({ refreshToken, onOpenGames, onFocusChange }: OpeningPracticeProps) {
   const [catalog, setCatalog] = useState<OpeningRepertoireSummary[]>([]);
   const [step, setStep] = useState<OpeningLessonStep | null>(null);
   const [complete, setComplete] = useState<OpeningLessonComplete | null>(null);
@@ -52,6 +53,7 @@ export function OpeningPractice({ refreshToken, onOpenGames }: OpeningPracticePr
   const [lastMove, setLastMove] = useState<string | null>(null);
   const [moveNotice, setMoveNotice] = useState("");
   const [hintSquare, setHintSquare] = useState<string | null>(null);
+  const [rejectedMove, setRejectedMove] = useState<string | null>(null);
   const [moveFeedback, setMoveFeedback] = useState<OpeningMoveAnswerResponse | null>(null);
   const [whyFeedback, setWhyFeedback] = useState<OpeningWhyAnswerResponse | null>(null);
   const [pendingNext, setPendingNext] = useState<OpeningLessonState | null>(null);
@@ -82,12 +84,19 @@ export function OpeningPractice({ refreshToken, onOpenGames }: OpeningPracticePr
   const [openingProgress, setOpeningProgress] = useState<OpeningProgressResponse | null>(null);
   const activeCatalog = catalog.filter((repertoire) => !repertoire.archived);
   const archivedCatalog = catalog.filter((repertoire) => repertoire.archived);
+  const practiceFocused = Boolean((!reviewPaused && activeReview) || (step && phase !== "catalog"));
+
+  useEffect(() => {
+    onFocusChange?.(practiceFocused);
+    return () => onFocusChange?.(false);
+  }, [onFocusChange, practiceFocused]);
 
   const showStep = (nextStep: OpeningLessonStep): void => {
     setStep(nextStep);
     setComplete(null);
     setMoveNotice("");
     setHintSquare(null);
+    setRejectedMove(null);
     setMoveFeedback(nextStep.moveAnswer);
     setWhyFeedback(null);
     setPendingNext(null);
@@ -143,6 +152,7 @@ export function OpeningPractice({ refreshToken, onOpenGames }: OpeningPracticePr
         setComplete(null);
         setMoveNotice("");
         setHintSquare(null);
+        setRejectedMove(null);
         setMoveFeedback(null);
         setWhyFeedback(null);
         setPendingNext(null);
@@ -372,6 +382,7 @@ export function OpeningPractice({ refreshToken, onOpenGames }: OpeningPracticePr
       );
       setMoveNotice("");
       setHintSquare(null);
+      setRejectedMove(null);
       setMoveFeedback(result);
       setDisplayFen(result.fenAfterMove);
       setLastMove(result.repertoireMove.moveUci);
@@ -390,11 +401,13 @@ export function OpeningPractice({ refreshToken, onOpenGames }: OpeningPracticePr
       const hint = getMoveHint(step.fenToMove, step.acceptedMoves[0]?.moveUci ?? "");
       setMoveNotice(`${san} is not part of this repertoire here. Try again — move the ${hint.piece}.`);
       setHintSquare(hint.square);
+      setRejectedMove(uci);
       setDisplayFen(step.fenToMove);
       setLastMove(step.opponentMove?.moveUci ?? null);
       return;
     }
     setDisplayFen(applyUciMove(step.fenToMove, uci));
+    setRejectedMove(null);
     setLastMove(uci);
     void checkMove(uci);
   };
@@ -403,6 +416,7 @@ export function OpeningPractice({ refreshToken, onOpenGames }: OpeningPracticePr
     if (!step) return;
     const hint = getMoveHint(step.fenToMove, step.acceptedMoves[0]?.moveUci ?? "");
     setHintSquare(hint.square);
+    setRejectedMove(null);
     setMoveNotice(`Hint: move the ${hint.piece} on ${hint.square}.`);
   };
 
@@ -411,6 +425,7 @@ export function OpeningPractice({ refreshToken, onOpenGames }: OpeningPracticePr
     const answer = step.acceptedMoves[0];
     if (!answer) return;
     setMoveNotice(`The repertoire move is ${answer.moveSan}.`);
+    setRejectedMove(null);
     setDisplayFen(applyUciMove(step.fenToMove, answer.moveUci));
     setLastMove(answer.moveUci);
     void checkMove(answer.moveUci);
@@ -547,7 +562,7 @@ export function OpeningPractice({ refreshToken, onOpenGames }: OpeningPracticePr
   };
 
   return (
-    <section className={`opening-practice-section ${showBuilder ? "studio-active" : ""}`} id="opening-practice">
+    <section className={`opening-practice-section ${showBuilder ? "studio-active" : ""}${practiceFocused ? " practice-active" : ""}`} id="opening-practice">
       {!showBuilder && !activeReview && !step && <div className="training-copy opening-heading">
         <div>
           <span className="eyebrow">Understand your opening</span>
@@ -825,59 +840,76 @@ export function OpeningPractice({ refreshToken, onOpenGames }: OpeningPracticePr
             </div>
           )}
 
-          <div className="panel opening-mode-guide opening-mode-guide-global" aria-label="Ways to practise a repertoire">
-            <p><strong>Quick practice</strong><span>Play continuously; replies and the next position are automatic.</span></p>
-            <p><strong>Study line</strong><span>Walk through one complete line and connect every move to its purpose.</span></p>
-            <p><strong>Browse lines</strong><span>Inspect every saved branch without starting a lesson.</span></p>
-          </div>
+          <details className="panel opening-mode-guide opening-mode-guide-global" aria-label="Ways to practise a repertoire">
+            <summary>How the three practice options differ</summary>
+            <div>
+              <p><strong>Quick practice</strong><span>Play continuously; replies and the next position are automatic.</span></p>
+              <p><strong>Study line</strong><span>Walk through one complete line and connect every move to its purpose.</span></p>
+              <p><strong>Browse lines</strong><span>Inspect every saved branch without starting a lesson.</span></p>
+            </div>
+          </details>
 
           <div className="opening-catalog">
             {activeCatalog.map((repertoire) => (
               <article className="panel opening-card" key={repertoire.id}>
-                <div className="opening-card-topline">
-                  <span>{repertoire.learnerColor === "white" ? "Play as White" : "Play as Black"}</span>
-                  <small>{repertoire.origin === "imported" ? "Private import" : repertoire.status === "preview" ? "Starter preview" : "Published"}</small>
-                </div>
-                <h3>{repertoire.name}</h3>
-                <p>{repertoire.summary}</p>
-                {repertoire.sourceTitle && <p className="opening-source">Source: {repertoire.sourceTitle}</p>}
-                <div className="opening-tags">
-                  {repertoire.style.map((style) => <span key={style}>{style.replaceAll("-", " ")}</span>)}
-                </div>
-                <dl className="opening-facts">
-                  <div><dt>For</dt><dd>{repertoire.audienceLabel}</dd></div>
-                  <div><dt>Memory</dt><dd>{repertoire.memoryBurden}</dd></div>
-                  <div><dt>Training positions</dt><dd>{repertoire.decisionCount}</dd></div>
-                </dl>
-                <div className="opening-card-actions">
-                  <button disabled={submitting} onClick={() => void startReview(
-                    repertoire.id,
-                    repertoire.review.due > 0 ? "due" : repertoire.review.new > 0 ? "new" : "early",
-                  )}>
-                    {submitting ? "Starting…" : repertoire.review.due > 0
-                      ? repertoire.review.due > 10
-                        ? `Review 10 of ${repertoire.review.due} due`
-                        : `Review ${repertoire.review.due} due`
-                      : repertoire.review.new > 0 ? `Practise ${Math.min(5, repertoire.review.new)} new moves` : "Review early"}
-                  </button>
-                  {repertoire.review.due > 0 && repertoire.review.new > 0 && (
-                    <button className="secondary" disabled={submitting} onClick={() => void startReview(repertoire.id, "new")}>
-                      Practise {Math.min(5, repertoire.review.new)} new instead
-                    </button>
-                  )}
-                  <button className="secondary" disabled={submitting} onClick={() => void startLesson(repertoire.id)}>
-                    {repertoire.origin === "imported" ? "Study a full line" : "Study line in order"}
-                  </button>
-                  <button className="secondary" disabled={submitting} onClick={() => void openWorkspace(repertoire.id)}>
-                    View all lines
-                  </button>
-                  <button className="text-button" disabled={submitting} onClick={() => void setRepertoireArchived(repertoire, true)}>
-                    Archive
-                  </button>
-                </div>
-                <p className="opening-review-summary">
-                  <strong>{repertoire.review.reviewed}</strong> reviewed · <strong>{repertoire.review.learning}</strong> learning · <strong>{repertoire.review.new}</strong> new
-                </p>
+                <details className="opening-card-details">
+                  <summary>
+                    <span>
+                      <strong>{repertoire.name}</strong>
+                      <small>Play as {repertoire.learnerColor}</small>
+                    </span>
+                    <span className="opening-card-summary-status">{repertoire.review.due > 0
+                      ? `${repertoire.review.due} due`
+                      : repertoire.review.new > 0
+                        ? `${repertoire.review.new} new`
+                        : "Ready to review"}</span>
+                  </summary>
+                  <div className="opening-card-body">
+                    <div className="opening-card-topline">
+                      <span>{repertoire.learnerColor === "white" ? "Play as White" : "Play as Black"}</span>
+                      <small>{repertoire.origin === "imported" ? "Private import" : repertoire.status === "preview" ? "Starter preview" : "Published"}</small>
+                    </div>
+                    <p>{repertoire.summary}</p>
+                    {repertoire.sourceTitle && <p className="opening-source">Source: {repertoire.sourceTitle}</p>}
+                    <div className="opening-tags">
+                      {repertoire.style.map((style) => <span key={style}>{style.replaceAll("-", " ")}</span>)}
+                    </div>
+                    <dl className="opening-facts">
+                      <div><dt>For</dt><dd>{repertoire.audienceLabel}</dd></div>
+                      <div><dt>Memory</dt><dd>{repertoire.memoryBurden}</dd></div>
+                      <div><dt>Training positions</dt><dd>{repertoire.decisionCount}</dd></div>
+                    </dl>
+                    <div className="opening-card-actions">
+                      <button disabled={submitting} onClick={() => void startReview(
+                        repertoire.id,
+                        repertoire.review.due > 0 ? "due" : repertoire.review.new > 0 ? "new" : "early",
+                      )}>
+                        {submitting ? "Starting…" : repertoire.review.due > 0
+                          ? repertoire.review.due > 10
+                            ? `Review 10 of ${repertoire.review.due} due`
+                            : `Review ${repertoire.review.due} due`
+                          : repertoire.review.new > 0 ? `Practise ${Math.min(5, repertoire.review.new)} new moves` : "Review early"}
+                      </button>
+                      {repertoire.review.due > 0 && repertoire.review.new > 0 && (
+                        <button className="secondary" disabled={submitting} onClick={() => void startReview(repertoire.id, "new")}>
+                          Practise {Math.min(5, repertoire.review.new)} new instead
+                        </button>
+                      )}
+                      <button className="secondary" disabled={submitting} onClick={() => void startLesson(repertoire.id)}>
+                        {repertoire.origin === "imported" ? "Study a full line" : "Study line in order"}
+                      </button>
+                      <button className="secondary" disabled={submitting} onClick={() => void openWorkspace(repertoire.id)}>
+                        View all lines
+                      </button>
+                      <button className="text-button" disabled={submitting} onClick={() => void setRepertoireArchived(repertoire, true)}>
+                        Archive
+                      </button>
+                    </div>
+                    <p className="opening-review-summary">
+                      <strong>{repertoire.review.reviewed}</strong> reviewed · <strong>{repertoire.review.learning}</strong> learning · <strong>{repertoire.review.new}</strong> new
+                    </p>
+                  </div>
+                </details>
               </article>
             ))}
             {activeCatalog.length === 0 && (
@@ -910,7 +942,10 @@ export function OpeningPractice({ refreshToken, onOpenGames }: OpeningPracticePr
             <div>
               <span className="eyebrow">{step.repertoire.name}</span>
               <h3>{step.chapter.title}</h3>
-              <p>{step.chapter.introduction}</p>
+              <details className="opening-lesson-context">
+                <summary>About this line</summary>
+                <p>{step.chapter.introduction}</p>
+              </details>
             </div>
             <div className="opening-progress">
               <div className="opening-progress-topline">
@@ -931,7 +966,11 @@ export function OpeningPractice({ refreshToken, onOpenGames }: OpeningPracticePr
               <div className="candidate-banner">
                 <div>
                   <span>{phase === "observe" ? "Before the opponent's move" : phase === "feedback" ? "Repertoire move shown" : `${step.learnerColor === "white" ? "White" : "Black"} to move`}</span>
-                  <small>You are {step.learnerColor === "white" ? "White" : "Black"}. Your side is nearest.</small>
+                  <small>You are {step.learnerColor === "white" ? "White" : "Black"} · {phase === "observe"
+                    ? "watch what changes"
+                    : phase === "move"
+                      ? submitting ? "checking your move…" : "play now — moves are checked immediately"
+                      : "the lesson move is shown"}</small>
                 </div>
                 <strong>{phase === "observe"
                   ? "Notice their reply"
@@ -939,25 +978,19 @@ export function OpeningPractice({ refreshToken, onOpenGames }: OpeningPracticePr
                     ? formatMoveLabel(step.moveNumber, step.learnerColor, moveFeedback.repertoireMove.moveSan)
                     : formatMoveLabel(step.moveNumber, step.learnerColor)}</strong>
               </div>
-              <div className="board-toolbar">
-                <span>{phase === "observe"
-                  ? "Look at the position before advancing"
-                  : phase === "move"
-                    ? submitting ? "Checking your move…" : "Play a move — it is checked immediately"
-                    : "The lesson's move is displayed"}</span>
-              </div>
-              <div className="opening-line-context" aria-label="Moves leading to this position">
-                <span>Position reached after</span>
-                <strong>{formatOpeningLineContext(step.movesBefore)}</strong>
-              </div>
               <ChessBoard
                 fen={displayFen}
                 orientation={step.learnerColor}
                 interactive={phase === "move" && !submitting}
                 lastMove={lastMove}
                 highlightedSquares={hintSquare ? [hintSquare] : []}
+                rejectedMove={rejectedMove}
                 onMove={playLessonMove}
               />
+              <div className="opening-line-context below-board" aria-label="Moves leading to this position">
+                <span>Position reached after</span>
+                <strong>{formatOpeningLineContext(step.movesBefore)}</strong>
+              </div>
             </div>
 
             <div className="panel question-card opening-question-card" aria-live="polite">

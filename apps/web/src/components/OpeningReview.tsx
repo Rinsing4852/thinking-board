@@ -53,6 +53,7 @@ export function OpeningReview({ initial, onComplete, onPause }: OpeningReviewPro
   );
   const [moveNotice, setMoveNotice] = useState("");
   const [hintSquares, setHintSquares] = useState<string[]>([]);
+  const [rejectedMove, setRejectedMove] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [autoAdvancePaused, setAutoAdvancePaused] = useState(false);
@@ -62,6 +63,7 @@ export function OpeningReview({ initial, onComplete, onPause }: OpeningReviewPro
     setFeedback(null);
     setMoveNotice("");
     setHintSquares([]);
+    setRejectedMove(null);
     setObserving(Boolean(next.opponentMove));
     setAssisted(false);
     setWrongAttempts(0);
@@ -94,6 +96,7 @@ export function OpeningReview({ initial, onComplete, onPause }: OpeningReviewPro
       );
       setMoveNotice("");
       setHintSquares([]);
+      setRejectedMove(null);
       setFeedback(result);
       setDisplayFen(result.fenAfterMove);
       setLastMove(result.repertoireMove.moveUci);
@@ -126,6 +129,7 @@ export function OpeningReview({ initial, onComplete, onPause }: OpeningReviewPro
     if (!accepted) {
       const nextAttempt = wrongAttempts + 1;
       showProgressiveHint(nextAttempt, san);
+      setRejectedMove(uci);
       setDisplayFen(exercise.fenToMove);
       setLastMove(exercise.opponentMove?.moveUci ?? null);
       setSubmitting(true);
@@ -141,6 +145,7 @@ export function OpeningReview({ initial, onComplete, onPause }: OpeningReviewPro
       return;
     }
     setDisplayFen(applyUciMove(exercise.fenToMove, uci));
+    setRejectedMove(null);
     setLastMove(uci);
     void checkMove(uci);
   };
@@ -154,6 +159,7 @@ export function OpeningReview({ initial, onComplete, onPause }: OpeningReviewPro
         `/api/v1/openings/reviews/${exercise.sessionId}/reveal`,
       );
       setFeedback(result);
+      setRejectedMove(null);
       setDisplayFen(result.fenAfterMove);
       setLastMove(result.repertoireMove.moveUci);
       window.dispatchEvent(new Event("training-completed"));
@@ -255,22 +261,15 @@ export function OpeningReview({ initial, onComplete, onPause }: OpeningReviewPro
               <span>{observing
                 ? "Before the opponent’s move"
                 : showingReference ? "Repertoire move shown" : `${exercise.learnerColor === "white" ? "White" : "Black"} to move`}</span>
-              <small>You are {exercise.learnerColor}. Your side is nearest.</small>
+              <small>You are {exercise.learnerColor} · {observing
+                ? "watch what changes"
+                : feedback
+                  ? "the repertoire response is shown"
+                  : submitting ? "checking your move…" : "play now — moves are checked immediately"}</small>
             </div>
             <strong>{showingReference
               ? formatMoveLabel(exercise.moveNumber, exercise.learnerColor, referenceSan)
               : formatMoveLabel(exercise.moveNumber, exercise.learnerColor)}</strong>
-          </div>
-          <div className="board-toolbar">
-            <span>{observing
-              ? "Notice what their move changes"
-              : feedback
-                ? "The repertoire response is displayed"
-                : submitting ? "Checking your move…" : "Your turn — play on the board"}</span>
-          </div>
-          <div className="opening-line-context" aria-label="Moves leading to this position">
-            <span>Position reached after</span>
-            <strong>{formatOpeningLineContext(exercise.movesBefore)}</strong>
           </div>
           <ChessBoard
             fen={displayFen}
@@ -278,8 +277,13 @@ export function OpeningReview({ initial, onComplete, onPause }: OpeningReviewPro
             interactive={!observing && !feedback && !submitting}
             lastMove={lastMove}
             highlightedSquares={hintSquares}
+            rejectedMove={rejectedMove}
             onMove={playRecallMove}
           />
+          <div className="opening-line-context below-board" aria-label="Moves leading to this position">
+            <span>Position reached after</span>
+            <strong>{formatOpeningLineContext(exercise.movesBefore)}</strong>
+          </div>
         </div>
 
         <div className="panel question-card opening-question-card" aria-live="polite">

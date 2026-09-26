@@ -24,6 +24,7 @@ function initialView(): AppView {
 
 export function App() {
   const [view, setView] = useState<AppView>(initialView);
+  const [openingFocusActive, setOpeningFocusActive] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
   const [trainingRequest, setTrainingRequest] = useState<{ itemId: string; requestId: number } | null>(null);
   const [activeMode, setActiveMode] = useState("blunder_check");
@@ -91,7 +92,7 @@ export function App() {
 
   return (
     <>
-      <header className="site-header">
+      <header className={`site-header${openingFocusActive ? " practice-hidden" : ""}`}>
         <a className="brand" href="#today" onClick={() => navigate("today")}>
           <span className="brand-mark">♞</span>
           <span>Thinking Board</span>
@@ -106,7 +107,7 @@ export function App() {
         <span className="local-badge">Local engine · no cloud</span>
       </header>
 
-      <main className={`app-view app-view-${view}`}>
+      <main className={`app-view app-view-${view}${openingFocusActive ? " app-view-practice-focus" : ""}`}>
         {view === "today" && (
           <>
             <section className="hero hero-compact">
@@ -156,7 +157,7 @@ export function App() {
           </>
         )}
 
-        {view === "openings" && <OpeningPractice refreshToken={refreshToken} onOpenGames={() => setView("games")} />}
+        {view === "openings" && <OpeningPractice refreshToken={refreshToken} onOpenGames={() => setView("games")} onFocusChange={setOpeningFocusActive} />}
 
         {view === "games" && (
           <>

@@ -2,6 +2,21 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.2.1 — 2026-09-22
+
+### Faster repertoire and board navigation
+
+- Replaces tall repertoire tiles with a compact title list. Each repertoire
+  expands in place only when its description, statistics or actions are needed.
+- Collapses the practice-mode explanation by default and reduces active-lesson
+  chrome so the board appears substantially higher on desktop and mobile.
+- Moves the played line beneath the board, matching the visual hierarchy used
+  by leading chess interfaces while keeping the current decision above it.
+- Marks both squares of a legal but incorrect repertoire move in red while the
+  progressive hint highlights the piece that should move.
+- Moves rank coordinates to the right edge and file coordinates to the left
+  edge, matching the familiar Lichess layout.
+
 ## 1.2.0 — 2026-09-22
 
 ### Board experience

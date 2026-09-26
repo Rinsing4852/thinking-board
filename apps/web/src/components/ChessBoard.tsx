@@ -77,6 +77,7 @@ interface ChessBoardProps {
   lastMove?: string | null;
   selectedSquare?: string | null;
   highlightedSquares?: string[];
+  rejectedMove?: string | null;
   allowAnnotations?: boolean;
   onMove?: (uci: string, san: string) => void;
   onSquareSelect?: (square: string) => void;
@@ -117,6 +118,7 @@ export function ChessBoard({
   lastMove,
   selectedSquare,
   highlightedSquares = [],
+  rejectedMove,
   allowAnnotations = false,
   onMove,
   onSquareSelect,
@@ -383,6 +385,7 @@ export function ChessBoard({
           const piece = game.get(square as never);
           const pieceImage = piece ? PIECE_IMAGES[`${piece.color}${piece.type}`] : null;
           const isLast = lastMove?.slice(0, 2) === square || lastMove?.slice(2, 4) === square;
+          const isRejected = rejectedMove?.slice(0, 2) === square || rejectedMove?.slice(2, 4) === square;
           const isMovable = interactive && !onSquareSelect && piece?.color === game.turn();
           const isTarget = targets.has(square);
           const isMoveDestination = lastMove?.slice(2, 4) === square;
@@ -405,6 +408,7 @@ export function ChessBoard({
             dragPiece?.from === square ? "drag-origin" : "",
             isLast ? "last-move" : "",
             highlightedSquares.includes(square) ? "answer-highlight" : "",
+            isRejected ? "rejected-move" : "",
             checkedKing === square ? "in-check" : "",
             invalidSquare === square ? "invalid-move" : "",
           ].filter(Boolean).join(" ");
@@ -444,7 +448,7 @@ export function ChessBoard({
                   style={moveStyle}
                 />
               )}
-              {file === (orientation === "white" ? 0 : 7) && <span className="rank-label" aria-hidden="true">{square[1]}</span>}
+              {file === (orientation === "white" ? 7 : 0) && <span className="rank-label" aria-hidden="true">{square[1]}</span>}
               {rank === (orientation === "white" ? 0 : 7) && <span className="file-label" aria-hidden="true">{square[0]}</span>}
             </button>
           );

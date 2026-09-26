@@ -50,6 +50,9 @@ test.describe.serial("stable V1 browser journey", () => {
     await page.getByRole("button", { name: "Openings" }).click();
     const openings = page.locator("#opening-practice");
     const starter = openings.locator("article").filter({ hasText: "Practical 1.e4 Repertoire" });
+    await expect(starter.locator(".opening-card-body")).toBeHidden();
+    expect(await starter.evaluate((card) => card.getBoundingClientRect().height)).toBeLessThan(100);
+    await starter.locator("summary").click();
     await starter.getByRole("button", { name: "View all lines" }).click();
     await expect(openings.getByRole("heading", { name: "Practical 1.e4 Repertoire", level: 2 })).toBeVisible();
     await expect(openings.getByText("1. e4 e5 2. Nf3 Nc6 3. Bc4", { exact: false })).toBeVisible();
@@ -154,6 +157,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await page.getByRole("button", { name: "Openings" }).click();
     const openings = page.locator("#opening-practice");
     let starter = openings.locator("article").filter({ hasText: "Practical 1.e4 Repertoire" });
+    await starter.locator("summary").click();
     await starter.getByRole("button", { name: "Archive", exact: true }).click();
     await expect(starter).toBeHidden();
     const archiveLibrary = openings.locator("details.opening-archive-library");
@@ -163,6 +167,7 @@ test.describe.serial("stable V1 browser journey", () => {
     starter = openings.locator("article").filter({ hasText: "Practical 1.e4 Repertoire" });
     await expect(starter).toBeVisible();
 
+    await starter.locator("summary").click();
     await starter.getByRole("button", { name: "View all lines" }).click();
     await openings.getByRole("button", { name: "Archive this line" }).click();
     await expect(openings.getByText(/Black develops the bishop first was archived/i)).toBeVisible();
@@ -191,8 +196,8 @@ test.describe.serial("stable V1 browser journey", () => {
     await openings.getByRole("checkbox", { name: /I own this material/ }).check();
     await openings.getByRole("button", { name: "Import private repertoire" }).click();
     await expect(openings.getByText("2 private repertoires imported and ready to practise.")).toBeVisible();
-    await expect(openings.getByRole("heading", { name: "Browser repertoire — White" })).toBeVisible();
-    await expect(openings.getByRole("heading", { name: "Browser repertoire — Black" })).toBeVisible();
+    await expect(openings.getByText("Browser repertoire — White", { exact: true })).toBeVisible();
+    await expect(openings.getByText("Browser repertoire — Black", { exact: true })).toBeVisible();
   });
 
   test("reviews opening positions with spaced repetition and clear feedback", async ({ page }) => {
@@ -201,8 +206,10 @@ test.describe.serial("stable V1 browser journey", () => {
     const openings = page.locator("#opening-practice");
     const starter = openings.locator("article").filter({ hasText: "Practical 1.e4 Repertoire" });
     await expect(openings.getByLabel("Ways to practise a repertoire")).toHaveCount(1);
+    await starter.locator("summary").click();
     await starter.getByRole("button", { name: "Practise 5 new moves" }).click();
     await expect(openings.getByText("Step 1 of 5")).toBeVisible();
+    await expect(page.locator(".site-header")).toHaveClass(/practice-hidden/);
     await expect(openings.getByRole("heading", { name: "Find the move from its purpose." })).toBeVisible();
     await expect(openings.getByText("Correct moves continue automatically", { exact: false })).toBeVisible();
 
@@ -210,6 +217,8 @@ test.describe.serial("stable V1 browser journey", () => {
     await board.getByRole("gridcell", { name: "g1 white knight" }).click();
     await board.getByRole("gridcell", { name: "f3 empty" }).click();
     await expect(openings.getByText("Try again", { exact: true })).toBeVisible();
+    await expect(board.getByRole("gridcell", { name: "g1 white knight" })).toHaveClass(/rejected-move/);
+    await expect(board.getByRole("gridcell", { name: "f3 empty" })).toHaveClass(/rejected-move/);
     await expect(board.getByRole("gridcell", { name: "e2 white pawn" })).toHaveClass(/answer-highlight/);
     await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
     await board.getByRole("gridcell", { name: "e4 empty" }).click();
@@ -226,7 +235,7 @@ test.describe.serial("stable V1 browser journey", () => {
     ];
     for (const [index, decision] of decisions.entries()) {
       await expect(openings.getByText(`Step ${index + 2} of 6`)).toBeVisible({ timeout: 5_000 });
-      await expect(openings.getByText("Your turn — play on the board")).toBeVisible({ timeout: 5_000 });
+      await expect(openings.getByText("play now — moves are checked immediately", { exact: false })).toBeVisible({ timeout: 5_000 });
       board = openings.getByRole("grid", { name: "Chess position" });
       await board.getByRole("gridcell", { name: decision.from }).click();
       await board.getByRole("gridcell", { name: decision.to }).click();
@@ -239,6 +248,8 @@ test.describe.serial("stable V1 browser journey", () => {
     const assistedScore = scores.locator("div").filter({ hasText: "answers shown or helped" });
     await expect(assistedScore.getByText("1", { exact: true })).toBeVisible();
     await openings.getByRole("button", { name: "Back to opening choices" }).click();
+    await expect(page.locator(".site-header")).not.toHaveClass(/practice-hidden/);
+    await starter.locator("summary").click();
     await expect(starter.getByText("5 reviewed", { exact: false })).toBeVisible();
   });
 
@@ -248,6 +259,7 @@ test.describe.serial("stable V1 browser journey", () => {
     const openings = page.locator("#opening-practice");
     await expect(openings.getByRole("heading", { name: "Opening Practice" })).toBeVisible();
     const starter = openings.locator("article").filter({ hasText: "Practical 1.e4 Repertoire" });
+    await starter.locator("summary").click();
     await starter.getByRole("button", { name: "Study line in order" }).click();
     await expect(openings.getByText("Decision 1 of 6")).toBeVisible();
     await openings.getByRole("button", { name: "Pause" }).click();
@@ -256,6 +268,7 @@ test.describe.serial("stable V1 browser journey", () => {
       expect(dialog.message()).toContain("end the paused guided line");
       await dialog.dismiss();
     });
+    await starter.locator("summary").click();
     await starter.getByRole("button", { name: "Study line in order" }).click();
     await expect(openings.getByText("Guided line paused")).toBeVisible();
     await openings.getByRole("button", { name: "Resume guided line" }).click();
