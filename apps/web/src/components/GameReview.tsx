@@ -53,6 +53,7 @@ interface Review {
 
 interface GameReviewProps {
   refreshToken: number;
+  focusToken: number;
   onTrain: (itemId: string) => void;
   onOpeningPracticeStarted: () => void;
 }
@@ -243,7 +244,7 @@ function OpeningConnectionCard({
   );
 }
 
-export function GameReview({ refreshToken, onTrain, onOpeningPracticeStarted }: GameReviewProps) {
+export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPracticeStarted }: GameReviewProps) {
   const [games, setGames] = useState<GameSummary[]>([]);
   const [review, setReview] = useState<Review | null>(null);
   const [concepts, setConcepts] = useState<Concept[]>([]);
@@ -277,6 +278,11 @@ export function GameReview({ refreshToken, onTrain, onOpeningPracticeStarted }: 
       .catch((loadError: unknown) => setError(loadError instanceof Error ? loadError.message : "Could not load opening inbox"));
     void get<{ concepts: Concept[] }>("/api/v1/concepts").then((data) => setConcepts(data.concepts)).catch(() => undefined);
   }, [refreshToken]);
+
+  useEffect(() => {
+    if (focusToken === 0 || games.length === 0) return;
+    requestAnimationFrame(() => document.getElementById("opening-inbox")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }, [focusToken, games.length, inbox]);
 
   const saveDiagnosis = async (itemId: string, thinking: string, tactic: string): Promise<void> => {
     const conceptIds = [thinking, tactic].filter(Boolean);
@@ -324,7 +330,7 @@ export function GameReview({ refreshToken, onTrain, onOpeningPracticeStarted }: 
 
   if (games.length === 0) return null;
   return (
-    <section className="review-section">
+    <section className="review-section" id="opening-inbox">
       <div className="panel-heading">
         <div>
           <span className="eyebrow">From your games</span>

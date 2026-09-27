@@ -26,6 +26,7 @@ export function App() {
   const [view, setView] = useState<AppView>(initialView);
   const [openingFocusActive, setOpeningFocusActive] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
+  const [gameReviewFocusToken, setGameReviewFocusToken] = useState(0);
   const [trainingRequest, setTrainingRequest] = useState<{ itemId: string; requestId: number } | null>(null);
   const [activeMode, setActiveMode] = useState("blunder_check");
   const [session, setSession] = useState<TrainingSessionResponse | null>(null);
@@ -54,6 +55,10 @@ export function App() {
   const refresh = (): void => {
     setTrainingRequest(null);
     setRefreshToken((value) => value + 1);
+  };
+  const refreshAfterGameAnalysis = (): void => {
+    refresh();
+    setGameReviewFocusToken((value) => value + 1);
   };
   const trainItem = (itemId: string): void => {
     setSession(null);
@@ -157,7 +162,7 @@ export function App() {
           </>
         )}
 
-        {view === "openings" && <OpeningPractice refreshToken={refreshToken} onOpenGames={() => setView("games")} onFocusChange={setOpeningFocusActive} />}
+        {view === "openings" && <OpeningPractice refreshToken={refreshToken} onOpenGames={() => navigate("games")} onFocusChange={setOpeningFocusActive} />}
 
         {view === "games" && (
           <>
@@ -168,10 +173,11 @@ export function App() {
             </div>
             <GameReview
               refreshToken={refreshToken}
+              focusToken={gameReviewFocusToken}
               onTrain={trainItem}
               onOpeningPracticeStarted={openStartedOpeningPractice}
             />
-            <ImportPanel refreshToken={refreshToken} onAnalyzed={refresh} />
+            <ImportPanel refreshToken={refreshToken} onAnalyzed={refreshAfterGameAnalysis} />
           </>
         )}
 

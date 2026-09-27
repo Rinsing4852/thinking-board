@@ -2,6 +2,24 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.5.0 — 2026-09-27
+
+### Board-first opening cockpit
+
+- Rebuilds the Openings home around a persistent board and one compact task
+  panel, keeping practice, repertoire repair and creation visible together.
+- Turns the largest practical coverage gap into a direct preparation action:
+  the relevant line and exact position open automatically with the common
+  opponent reply ready to save, followed by a prompt to choose your response.
+- Explains practical frequency as both a percentage and an intuitive “1 in N
+  games” so less experienced players can judge which branches matter.
+- Moves player-level settings and collapsed repertoire management beneath the
+  daily opening task, reducing setup and library controls competing for focus.
+- Takes the player directly to the opening inbox after pasted or synced games
+  finish analysis, making repertoire feedback the visible next step.
+- Adds exact position lookup tests covering initial, intermediate and terminal
+  line positions, plus desktop and mobile visual quality checks.
+
 ## 1.4.0 — 2026-09-27
 
 ### Guided repertoire building and stronger game feedback

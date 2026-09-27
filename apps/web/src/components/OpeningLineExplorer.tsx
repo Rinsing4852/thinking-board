@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Chess } from "chess.js";
 
 import type {
+  OpeningCoverageGap,
   OpeningCoverageResponse,
   OpeningLineDeletionResponse,
   OpeningLineDetail,
@@ -13,6 +14,7 @@ import type {
   OpeningMoveUndoResponse,
 } from "../../../../packages/contracts/src/api";
 import { get, patch, post, remove } from "../api";
+import { findPlyAtFen } from "../opening-line-position";
 import { ChessBoard } from "./ChessBoard";
 import { OpeningLearningComment } from "./OpeningLearningComment";
 import { OpeningMoveSuggestions } from "./OpeningMoveSuggestions";
@@ -20,6 +22,7 @@ import { OpeningMoveSuggestions } from "./OpeningMoveSuggestions";
 interface OpeningLineExplorerProps {
   detail: OpeningRepertoireDetailResponse;
   startingLineId?: string | null;
+  startingGap?: OpeningCoverageGap | null;
   initialCoverage?: OpeningCoverageResponse | null;
   preferredRatingGroup: number;
   useExplorer: boolean;
@@ -33,6 +36,7 @@ interface OpeningLineExplorerProps {
 export function OpeningLineExplorer({
   detail,
   startingLineId,
+  startingGap = null,
   initialCoverage = null,
   preferredRatingGroup,
   useExplorer,
@@ -46,12 +50,23 @@ export function OpeningLineExplorer({
     () => detail.chapters.flatMap((chapter) => chapter.lines.map((line) => ({ chapter, line }))),
     [detail],
   );
-  const initial = allLines.find(({ line }) => line.id === startingLineId) ?? allLines[0];
+  const gapPlyForLine = (candidate: OpeningLineDetail, gap: OpeningCoverageGap): number | null => {
+    return findPlyAtFen(candidate.moves, gap.fen);
+  };
+  const gapInitial = startingGap
+    ? allLines.find(({ line: candidate }) => candidate.title === startingGap.lineTitle && gapPlyForLine(candidate, startingGap) !== null)
+      ?? allLines.find(({ line: candidate }) => gapPlyForLine(candidate, startingGap) !== null)
+    : undefined;
+  const initial = gapInitial ?? allLines.find(({ line }) => line.id === startingLineId) ?? allLines[0];
+  const initialPly = initial && startingGap ? gapPlyForLine(initial.line, startingGap) ?? 0 : 0;
   const [lineId, setLineId] = useState(initial?.line.id ?? "");
   const [lineLibraryOpen, setLineLibraryOpen] = useState(false);
-  const [ply, setPly] = useState(0);
-  const [editing, setEditing] = useState(false);
-  const [pendingMove, setPendingMove] = useState<{ uci: string; san: string } | null>(null);
+  const [ply, setPly] = useState(initialPly);
+  const [editing, setEditing] = useState(Boolean(startingGap));
+  const [pendingMove, setPendingMove] = useState<{ uci: string; san: string } | null>(startingGap
+    ? { uci: startingGap.moveUci, san: startingGap.moveSan }
+    : null);
+  const [preparingGap, setPreparingGap] = useState<OpeningCoverageGap | null>(startingGap);
   const [branchTitle, setBranchTitle] = useState("");
   const [newExplanation, setNewExplanation] = useState("");
   const [editingExplanation, setEditingExplanation] = useState(false);
@@ -166,6 +181,7 @@ export function OpeningLineExplorer({
     setEditingExplanation(false);
     setStatus("");
     setLastMutation(null);
+    setPreparingGap(null);
     setLineLibraryOpen(false);
   };
 
@@ -175,6 +191,28 @@ export function OpeningLineExplorer({
     setEditingExplanation(false);
     setStatus("");
     setLastMutation(null);
+    setPreparingGap(null);
+  };
+
+  const focusCoverageGap = (gap: OpeningCoverageGap): void => {
+    const target = allLines.find(({ line: candidate }) => candidate.title === gap.lineTitle && gapPlyForLine(candidate, gap) !== null)
+      ?? allLines.find(({ line: candidate }) => gapPlyForLine(candidate, gap) !== null);
+    if (!target) {
+      setStatus("That source position is no longer in a saved line. Refresh coverage and try again.");
+      return;
+    }
+    const targetPly = gapPlyForLine(target.line, gap);
+    if (targetPly === null) return;
+    setLineId(target.line.id);
+    setPly(targetPly);
+    setEditing(true);
+    setPendingMove({ uci: gap.moveUci, san: gap.moveSan });
+    setPreparingGap(gap);
+    setBranchTitle("");
+    setNewExplanation("");
+    setEditingExplanation(false);
+    setLastMutation(null);
+    setStatus("");
   };
 
   const previewNewMove = (uci: string, san: string): void => {
@@ -204,7 +242,10 @@ export function OpeningLineExplorer({
       setPendingMove(null);
       setNewExplanation("");
       setBranchTitle("");
-      setStatus(result.message);
+      setStatus(preparingGap
+        ? `${preparingGap.moveSan} is now in this branch. The board has moved forward—choose your response next.`
+        : result.message);
+      setPreparingGap(null);
       setLastMutation({
         lineId: result.lineId,
         moveId: result.moveId,
@@ -408,14 +449,7 @@ export function OpeningLineExplorer({
           <div className="opening-coverage-gaps">
             <strong>{coverage.gaps.length > 0 ? "Biggest missing replies" : "No common missing replies found"}</strong>
             {coverage.gaps.slice(0, 5).map((gap) => (
-              <button key={`${gap.positionId}-${gap.moveUci}`} onClick={() => {
-                const target = allLines.find(({ line: candidate }) => candidate.title === gap.lineTitle);
-                if (target) {
-                  setLineId(target.line.id);
-                  const targetPly = target.line.moves.find((move) => move.fenBefore.split(" ").slice(0, 4).join(" ") === gap.fen.split(" ").slice(0, 4).join(" "))?.ply;
-                  if (targetPly) choosePly(targetPly - 1);
-                }
-              }}>
+              <button key={`${gap.positionId}-${gap.moveUci}`} onClick={() => focusCoverageGap(gap)}>
                 <span><b>{gap.moveSan}</b> after {gap.lineTitle}</span>
                 <small>{gap.frequencyPercent}% at this position</small>
               </button>
@@ -578,9 +612,11 @@ export function OpeningLineExplorer({
           )}
           {pendingMove && (
             <div className="opening-new-move">
-              <span className="eyebrow">{ply < line.moveCount ? "New branch" : "Extend line"}</span>
+              <span className="eyebrow">{preparingGap ? "Common reply to prepare" : ply < line.moveCount ? "New branch" : "Extend line"}</span>
               <h3>{pendingMove.san}</h3>
-              <p>{ply < line.moveCount
+              <p>{preparingGap
+                ? `Opponents choose this in ${preparingGap.frequencyPercent}% of games at this position. Save it, then choose how your repertoire should answer.`
+                : ply < line.moveCount
                 ? "This move differs from the saved continuation. Saving creates another line and keeps the original."
                 : "This move will be added after the current end of the line."}</p>
               {ply < line.moveCount && <label>Branch name<input value={branchTitle} onChange={(event) => setBranchTitle(event.target.value)} placeholder={`${line.title} — ${pendingMove.san} branch`} /></label>}
@@ -590,7 +626,7 @@ export function OpeningLineExplorer({
               </label>
               <div className="answer-actions">
                 <button disabled={localBusy} onClick={() => void saveNewMove()}>{localBusy ? "Saving…" : "Save move"}</button>
-                <button className="secondary" disabled={localBusy} onClick={() => setPendingMove(null)}>Choose another</button>
+                <button className="secondary" disabled={localBusy} onClick={() => { setPendingMove(null); setPreparingGap(null); }}>Choose another</button>
               </div>
             </div>
           )}

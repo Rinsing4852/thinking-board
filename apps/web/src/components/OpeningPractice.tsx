@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type {
   OpeningCatalogResponse,
   OpeningCoverageResponse,
+  OpeningCoverageGap,
   OpeningLessonActiveState,
   OpeningLessonComplete,
   OpeningImportColor,
@@ -31,6 +32,7 @@ import { OpeningLineExplorer } from "./OpeningLineExplorer";
 import { OpeningReview } from "./OpeningReview";
 import { OpeningLearningComment } from "./OpeningLearningComment";
 import { OpeningPlayerContext } from "./OpeningPlayerContext";
+import { OpeningHomeCockpit } from "./OpeningHomeCockpit";
 
 type LessonPhase = "catalog" | "observe" | "move" | "why" | "feedback" | "complete";
 type ActiveLessonPhase = Exclude<LessonPhase, "catalog" | "complete">;
@@ -67,6 +69,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onFocusChange }: Op
   const [showBuilder, setShowBuilder] = useState(false);
   const [workspaceDetail, setWorkspaceDetail] = useState<OpeningRepertoireDetailResponse | null>(null);
   const [workspaceLineId, setWorkspaceLineId] = useState<string | null>(null);
+  const [workspaceGap, setWorkspaceGap] = useState<OpeningCoverageGap | null>(null);
   const [importPgn, setImportPgn] = useState("");
   const [importName, setImportName] = useState("");
   const [importColor, setImportColor] = useState<OpeningImportColor>("white");
@@ -240,13 +243,18 @@ export function OpeningPractice({ refreshToken, onOpenGames, onFocusChange }: Op
     }
   };
 
-  const openWorkspace = async (repertoireId: string, lineId: string | null = null): Promise<void> => {
+  const openWorkspace = async (
+    repertoireId: string,
+    lineId: string | null = null,
+    gap: OpeningCoverageGap | null = null,
+  ): Promise<void> => {
     if (!beginSubmission()) return;
     setError("");
     try {
       const detail = await get<OpeningRepertoireDetailResponse>(`/api/v1/openings/repertoires/${repertoireId}`);
       setWorkspaceDetail(detail);
       setWorkspaceLineId(lineId);
+      setWorkspaceGap(gap);
       setShowBuilder(false);
       setShowImporter(false);
       requestAnimationFrame(() => document.getElementById("opening-practice")?.scrollIntoView({ behavior: "smooth" }));
@@ -267,10 +275,12 @@ export function OpeningPractice({ refreshToken, onOpenGames, onFocusChange }: Op
     setOpeningProgress(progress);
     setShowBuilder(false);
     setWorkspaceDetail(detail);
+    setWorkspaceGap(null);
   };
 
   const finishRepertoireDeletion = (repertoireId: string): void => {
     setWorkspaceDetail(null);
+    setWorkspaceGap(null);
     setCatalog((current) => current.filter((repertoire) => repertoire.id !== repertoireId));
     setRecommendation(null);
     void Promise.all([
@@ -585,14 +595,6 @@ export function OpeningPractice({ refreshToken, onOpenGames, onFocusChange }: Op
 
   return (
     <section className={`opening-practice-section ${showBuilder ? "studio-active" : ""}${practiceFocused ? " practice-active" : ""}`} id="opening-practice">
-      {!showBuilder && !activeReview && !step && <div className="training-copy opening-heading">
-        <div>
-          <span className="eyebrow">Understand your opening</span>
-          <h2>Opening Practice</h2>
-        </div>
-        <p>Build one dependable repertoire as White with 1.e4 and one as Black with the Modern Defence. New moves are explained before they enter memory review.</p>
-      </div>}
-
       {loading && <div className="panel opening-loading">Loading opening practice…</div>}
 
       {!loading && activeReview && !reviewPaused && (
@@ -614,11 +616,12 @@ export function OpeningPractice({ refreshToken, onOpenGames, onFocusChange }: Op
         <OpeningLineExplorer
           detail={workspaceDetail}
           startingLineId={workspaceLineId}
+          startingGap={workspaceGap}
           initialCoverage={coverageSpotlight?.repertoireId === workspaceDetail.repertoire.id ? coverageSpotlight : null}
           preferredRatingGroup={playerPreferences?.ratingGroup ?? 1600}
           useExplorer={playerPreferences?.useExplorer ?? false}
           busy={submitting}
-          onBack={() => { setWorkspaceDetail(null); setWorkspaceLineId(null); }}
+          onBack={() => { setWorkspaceDetail(null); setWorkspaceLineId(null); setWorkspaceGap(null); }}
           onPractice={(lineId) => void startLineLesson(workspaceDetail.repertoire.id, lineId)}
           onDetailChanged={setWorkspaceDetail}
           onRepertoireDeleted={finishRepertoireDeletion}
@@ -651,83 +654,27 @@ export function OpeningPractice({ refreshToken, onOpenGames, onFocusChange }: Op
               </button>
             </div>
           )}
+          {!activeReview && !(step && pausedLessonPhase) && (
+            <OpeningHomeCockpit
+              recommendation={recommendation}
+              coverage={coverageSpotlight}
+              coverageLoading={coverageSpotlightLoading}
+              progress={openingProgress}
+              preferences={playerPreferences}
+              busy={submitting}
+              importOpen={showImporter}
+              onStartRecommended={() => void startRecommendedReview()}
+              onOpenGames={onOpenGames}
+              onOpenGap={(gap) => { if (coverageSpotlight) void openWorkspace(coverageSpotlight.repertoireId, null, gap); }}
+              onOpenWeakLine={(repertoireId, lineId) => void openWorkspace(repertoireId, lineId)}
+              onBuild={() => { setShowBuilder(true); setShowImporter(false); }}
+              onImport={() => setShowImporter((shown) => !shown)}
+            />
+          )}
           {playerPreferences && (
             <OpeningPlayerContext preferences={playerPreferences} onSaved={updatePlayerPreferences} />
           )}
-          {!activeReview && !(step && pausedLessonPhase) && recommendation?.available && recommendation.repertoire && (
-            <div className="opening-cockpit">
-              <div className="panel opening-recommendation">
-                <div className="opening-recommendation-copy">
-                  <span className="eyebrow">Recommended next</span>
-                  <h3>{recommendation.repertoire.name}</h3>
-                  <p>{recommendation.message}</p>
-                  <div className="opening-recommendation-mix" aria-label="Recommended session contents">
-                    {recommendation.counts.gameMisses > 0 && <span><strong>{recommendation.counts.gameMisses}</strong> from your games</span>}
-                    {recommendation.counts.due > 0 && <span><strong>{recommendation.counts.due}</strong> due</span>}
-                    {recommendation.counts.new > 0 && <span><strong>{recommendation.counts.new}</strong> new</span>}
-                    {recommendation.counts.early > 0 && <span><strong>{recommendation.counts.early}</strong> early review</span>}
-                  </div>
-                </div>
-                <button disabled={submitting} onClick={() => void startRecommendedReview()}>
-                  {submitting ? "Starting…" : `Start ${recommendation.counts.total}-position session`}
-                </button>
-              </div>
-              {recommendation.counts.gameMisses > 0 && onOpenGames && (
-                <button className="panel opening-cockpit-action" onClick={onOpenGames}>
-                  <span className="eyebrow">From your games</span>
-                  <strong>{recommendation.counts.gameMisses} repertoire miss{recommendation.counts.gameMisses === 1 ? "" : "es"}</strong>
-                  <small>Inspect what happened and repair the line.</small>
-                </button>
-              )}
-              {playerPreferences?.useExplorer && <button
-                className="panel opening-cockpit-action"
-                disabled={coverageSpotlightLoading || !coverageSpotlight || !recommendation.repertoire}
-                onClick={() => recommendation.repertoire && void openWorkspace(recommendation.repertoire.id)}
-              >
-                <span className="eyebrow">Practical coverage · {playerPreferences?.ratingGroup ?? 1600}+</span>
-                <strong>{coverageSpotlightLoading
-                  ? "Checking common replies…"
-                  : coverageSpotlight?.coveragePercent === null || coverageSpotlight?.coveragePercent === undefined
-                    ? "Coverage unavailable"
-                    : `${coverageSpotlight.coveragePercent}% covered`}</strong>
-                <small>{coverageSpotlight?.gaps[0]
-                  ? `Biggest gap: ${coverageSpotlight.gaps[0].moveSan} · ${coverageSpotlight.gaps[0].frequencyPercent}% at that position`
-                  : coverageSpotlight?.message ?? "Open the repertoire to check common replies."}</small>
-              </button>}
-              {openingProgress?.weakestLines[0] && (
-                <button
-                  className="panel opening-cockpit-action"
-                  onClick={() => void openWorkspace(
-                    openingProgress.weakestLines[0]!.repertoireId,
-                    openingProgress.weakestLines[0]!.lineId,
-                  )}
-                >
-                  <span className="eyebrow">Weak line</span>
-                  <strong>{openingProgress.weakestLines[0].lineTitle}</strong>
-                  <small>{openingProgress.weakestLines[0].gameMisses > 0
-                    ? `Missed in ${openingProgress.weakestLines[0].gameMisses} game${openingProgress.weakestLines[0].gameMisses === 1 ? "" : "s"}`
-                    : openingProgress.weakestLines[0].accuracyPercent === null
-                      ? "Not practised yet"
-                      : `${openingProgress.weakestLines[0].accuracyPercent}% recall accuracy`}</small>
-                </button>
-              )}
-            </div>
-          )}
           {archiveMessage && <p className="success opening-catalog-status" role="status">{archiveMessage}</p>}
-          <div className="panel opening-import-launch">
-            <div>
-              <span className="eyebrow">Your repertoire</span>
-              <h3>Bring in lines from your own PGN</h3>
-              <p>Build on the board, paste a PGN, or import a public Lichess Study link. Variations become browsable practice lines.</p>
-            </div>
-            <div className="opening-import-actions">
-              <button onClick={() => { setShowBuilder(true); setShowImporter(false); }}>Build on the board</button>
-              <button className="secondary" onClick={() => setShowImporter((shown) => !shown)}>
-                {showImporter ? "Close importer" : "Import opening PGN"}
-              </button>
-            </div>
-          </div>
-
           {showImporter && (
             <div className="panel opening-importer">
               <div className="opening-importer-heading">
