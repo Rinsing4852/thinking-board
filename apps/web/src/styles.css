@@ -164,6 +164,11 @@ select { min-width: 200px; background: #101512; color: #e6ece7; border: 1px soli
 .opening-home-tasks { display: grid; gap: 1rem; min-height: 100%; padding: 1.25rem; }
 .opening-home-heading h2 { margin: .35rem 0; }
 .opening-home-heading p { margin: 0; color: var(--ink-soft); line-height: 1.5; }
+.opening-home-progress { display: flex; align-items: center; gap: .65rem; margin-top: .8rem; }
+.opening-home-progress > span { width: min(180px, 42%); height: 6px; overflow: hidden; border-radius: 999px; background: #101512; }
+.opening-home-progress i { display: block; height: 100%; border-radius: inherit; background: var(--lime); }
+.opening-home-progress small { color: var(--ink-soft); }
+.opening-home-progress strong { color: #eef4ef; }
 .opening-home-primary { display: grid; gap: .85rem; padding: 1rem; border: 1px solid rgba(201,243,107,.42); border-radius: 12px; background: linear-gradient(135deg, rgba(201,243,107,.08), #101512 68%); }
 .opening-home-primary.empty { border-color: var(--line); background: #101512; }
 .opening-home-primary h3 { margin: .3rem 0; font-size: 1.25rem; }
@@ -215,6 +220,12 @@ button.opening-home-action.primary-route { border-color: rgba(201,243,107,.4); b
 .opening-card-details > summary strong { overflow: hidden; color: #fff; font-size: 1.08rem; text-overflow: ellipsis; white-space: nowrap; }
 .opening-card-details > summary small { color: var(--ink-soft); font-size: .72rem; text-transform: capitalize; }
 .opening-card-summary-status { padding: .32rem .52rem; border-radius: 999px; background: rgba(201,243,107,.08); color: var(--lime); font-size: .72rem; font-weight: 800; white-space: nowrap; }
+.opening-card-summary-progress { display: flex; align-items: center; gap: .45rem; margin-top: .25rem; }
+.opening-card-summary-progress progress { width: min(120px, 42vw); height: 5px; border: 0; border-radius: 999px; overflow: hidden; accent-color: var(--lime); }
+.opening-card-summary-progress progress::-webkit-progress-bar { background: #101512; }
+.opening-card-summary-progress progress::-webkit-progress-value { background: var(--lime); }
+.opening-card-summary-progress progress::-moz-progress-bar { background: var(--lime); }
+.opening-card-summary-progress em { color: var(--ink-soft); font-size: .66rem; font-style: normal; font-weight: 600; white-space: nowrap; }
 .opening-card-body { padding: 1rem 1.15rem 1.15rem; border-top: 1px solid var(--line); }
 .opening-card-body > p { color: var(--ink-soft); line-height: 1.55; }
 .opening-card-topline { width: 100%; display: flex; justify-content: space-between; color: var(--lime); font: .72rem ui-monospace, monospace; text-transform: uppercase; letter-spacing: .08em; }
@@ -311,6 +322,7 @@ button.opening-reason:hover { border-color: var(--lime); }
 .opening-complete-scores div { display: grid; gap: .25rem; padding: 1rem; background: #101512; border-radius: 10px; }
 .opening-complete-scores strong { color: var(--lime); font-size: 1.6rem; }
 .opening-complete-scores span { color: var(--ink-soft); font-size: .72rem; text-transform: uppercase; }
+.opening-complete-actions { justify-content: center; }
 .opening-workspace, .opening-builder { display: grid; gap: 1rem; }
 .opening-workspace-heading, .opening-builder-heading { display: flex; align-items: center; justify-content: space-between; gap: 2rem; }
 .opening-workspace-heading h2, .opening-builder-heading h2 { margin: .45rem 0; }

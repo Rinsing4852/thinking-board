@@ -49,6 +49,9 @@ export function OpeningHomeCockpit({
   const weakLine = progress?.weakestLines[0] ?? null;
   const repertoire = recommendation?.repertoire ?? null;
   const orientation = repertoire?.learnerColor ?? weakLine?.learnerColor ?? "white";
+  const masteredPercent = progress && progress.totalLines > 0
+    ? Math.round((progress.masteredLines / progress.totalLines) * 100)
+    : 0;
 
   return (
     <div className={`opening-home-shell${gap ? " has-focus-board" : " task-only"}`}>
@@ -81,6 +84,12 @@ export function OpeningHomeCockpit({
           <span className="eyebrow">Understand your opening</span>
           <h2>Opening Practice</h2>
           <p>One useful task at a time: prepare likely replies, repair game misses, and remember the ideas behind your moves.</p>
+          {progress && progress.totalLines > 0 && (
+            <div className="opening-home-progress" aria-label={`${progress.masteredLines} of ${progress.totalLines} opening lines mastered`}>
+              <span><i style={{ width: `${masteredPercent}%` }} /></span>
+              <small><strong>{progress.masteredLines} of {progress.totalLines}</strong> lines mastered</small>
+            </div>
+          )}
         </div>
 
         {recommendation?.available && repertoire ? (

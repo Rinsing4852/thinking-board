@@ -285,6 +285,7 @@ test.describe.serial("stable V1 browser journey", () => {
     const openings = page.locator("#opening-practice");
     const starter = openings.locator("article").filter({ hasText: "Practical 1.e4 Repertoire" });
     await expect(openings.getByLabel("Ways to practise a repertoire")).toHaveCount(1);
+    await expect(starter.getByLabel("0 of 29 positions practised")).toBeVisible();
     await starter.locator("summary").click();
     await starter.getByRole("button", { name: "Practise 5 new moves" }).click();
     await expect(openings.getByText("Step 1 of 5")).toBeVisible();
@@ -326,8 +327,10 @@ test.describe.serial("stable V1 browser journey", () => {
     await expect(scores.getByText("5", { exact: true })).toBeVisible();
     const assistedScore = scores.locator("div").filter({ hasText: "answers shown or helped" });
     await expect(assistedScore.getByText("1", { exact: true })).toBeVisible();
+    await expect(openings.getByRole("button", { name: "Practice another set" })).toBeVisible();
     await openings.getByRole("button", { name: "Back to opening choices" }).click();
     await expect(page.locator(".site-header")).not.toHaveClass(/practice-hidden/);
+    await expect(starter.getByLabel("5 of 29 positions practised")).toBeVisible();
     await starter.locator("summary").click();
     await expect(starter.getByText("5 reviewed", { exact: false })).toBeVisible();
   });

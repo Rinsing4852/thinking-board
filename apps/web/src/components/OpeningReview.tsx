@@ -19,6 +19,7 @@ interface OpeningReviewProps {
   initial: OpeningReviewActiveState;
   onComplete: () => void;
   onPause: () => void;
+  onPracticeMore: () => void;
 }
 
 function initialBoard(active: OpeningReviewActiveState): string {
@@ -39,7 +40,7 @@ function dueLabel(nextDueAt: string, outcome: "remembered" | "learning" | "again
   return `Next scheduled review: ${due.toLocaleDateString(undefined, { day: "numeric", month: "short" })}.`;
 }
 
-export function OpeningReview({ initial, onComplete, onPause }: OpeningReviewProps) {
+export function OpeningReview({ initial, onComplete, onPause, onPracticeMore }: OpeningReviewProps) {
   const initialExercise = initial.kind === "feedback" ? initial.exercise : initial;
   const [exercise, setExercise] = useState<OpeningReviewExercise>(initialExercise);
   const [feedback, setFeedback] = useState<OpeningReviewFeedback | null>(initial.kind === "feedback" ? initial : null);
@@ -226,7 +227,10 @@ export function OpeningReview({ initial, onComplete, onPause }: OpeningReviewPro
           <div><strong>{complete.introduced}</strong><span>answers shown or helped</span></div>
           <div><strong>{complete.lapses}</strong><span>moves to revisit</span></div>
         </div>
-        <button onClick={onComplete}>Back to opening choices</button>
+        <div className="answer-actions opening-complete-actions">
+          <button onClick={onPracticeMore}>Practice another set</button>
+          <button className="secondary" onClick={onComplete}>Back to opening choices</button>
+        </div>
       </div>
     );
   }

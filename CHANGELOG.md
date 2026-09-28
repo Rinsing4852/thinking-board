@@ -2,6 +2,25 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.5.1 — 2026-09-28
+
+### Faster mobile opening practice
+
+- Removes the passive opening board from the phone home screen and puts the
+  recommended practice task first. A board appears on desktop only when it
+  represents a real repertoire gap with a direct preparation action.
+- Makes played-game analysis unmistakable from Openings: one tap now reaches
+  the pasted-PGN and Lichess import workspace, with the paste form first.
+- Moves playing level and practical-frequency preferences into a compact
+  settings disclosure after initial setup, while clearly separating played
+  games from repertoire-line imports.
+- Fixes tap and drag interaction on touch boards without triggering mobile text
+  selection, long-press callouts or an extra confirmation button.
+- Shows line mastery and per-repertoire practice progress at a glance, and adds
+  a one-tap way to begin another short set when practice finishes.
+- Extends browser coverage for mobile navigation, touch taps, touch drags,
+  selection prevention, progress visibility and the streamlined review flow.
+
 ## 1.5.0 — 2026-09-27
 
 ### Board-first opening cockpit

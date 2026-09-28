@@ -599,7 +599,13 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
       {loading && <div className="panel opening-loading">Loading opening practice…</div>}
 
       {!loading && activeReview && !reviewPaused && (
-        <OpeningReview initial={activeReview} onComplete={finishReview} onPause={() => setReviewPaused(true)} />
+        <OpeningReview
+          key={activeReview.sessionId}
+          initial={activeReview}
+          onComplete={finishReview}
+          onPause={() => setReviewPaused(true)}
+          onPracticeMore={() => void startRecommendedReview()}
+        />
       )}
 
       {!loading && (!activeReview || reviewPaused) && phase === "catalog" && showBuilder && (
@@ -843,6 +849,17 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
                     <span>
                       <strong>{repertoire.name}</strong>
                       <small>Play as {repertoire.learnerColor}</small>
+                      <span
+                        className="opening-card-summary-progress"
+                        aria-label={`${repertoire.review.total - repertoire.review.new} of ${repertoire.review.total} positions practised`}
+                      >
+                        <progress
+                          aria-hidden="true"
+                          value={repertoire.review.total - repertoire.review.new}
+                          max={Math.max(1, repertoire.review.total)}
+                        />
+                        <em>{repertoire.review.total - repertoire.review.new}/{repertoire.review.total} practised</em>
+                      </span>
                     </span>
                     <span className="opening-card-summary-status">{repertoire.review.due > 0
                       ? `${repertoire.review.due} due`
