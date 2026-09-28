@@ -41,10 +41,11 @@ type ReviewMode = "due" | "new" | "early";
 interface OpeningPracticeProps {
   refreshToken: number;
   onOpenGames?: () => void;
+  onAnalyzeGame?: () => void;
   onFocusChange?: (focused: boolean) => void;
 }
 
-export function OpeningPractice({ refreshToken, onOpenGames, onFocusChange }: OpeningPracticeProps) {
+export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFocusChange }: OpeningPracticeProps) {
   const [catalog, setCatalog] = useState<OpeningRepertoireSummary[]>([]);
   const [step, setStep] = useState<OpeningLessonStep | null>(null);
   const [complete, setComplete] = useState<OpeningLessonComplete | null>(null);
@@ -665,6 +666,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onFocusChange }: Op
               importOpen={showImporter}
               onStartRecommended={() => void startRecommendedReview()}
               onOpenGames={onOpenGames}
+              onAnalyzeGame={onAnalyzeGame}
               onOpenGap={(gap) => { if (coverageSpotlight) void openWorkspace(coverageSpotlight.repertoireId, null, gap); }}
               onOpenWeakLine={(repertoireId, lineId) => void openWorkspace(repertoireId, lineId)}
               onBuild={() => { setShowBuilder(true); setShowImporter(false); }}
@@ -672,7 +674,15 @@ export function OpeningPractice({ refreshToken, onOpenGames, onFocusChange }: Op
             />
           )}
           {playerPreferences && (
-            <OpeningPlayerContext preferences={playerPreferences} onSaved={updatePlayerPreferences} />
+            <details className="panel opening-settings" open={!playerPreferences.configured}>
+              <summary>
+                <span><strong>Opening settings</strong><small>Playing level and common-move data</small></span>
+                <b>{playerPreferences.configured
+                  ? `${playerPreferences.ratingGroup}+ · common moves ${playerPreferences.useExplorer ? "on" : "off"}`
+                  : "Set up"}</b>
+              </summary>
+              <OpeningPlayerContext preferences={playerPreferences} onSaved={updatePlayerPreferences} />
+            </details>
           )}
           {archiveMessage && <p className="success opening-catalog-status" role="status">{archiveMessage}</p>}
           {showImporter && (
@@ -680,9 +690,9 @@ export function OpeningPractice({ refreshToken, onOpenGames, onFocusChange }: Op
               <div className="opening-importer-heading">
                 <div>
                   <span className="eyebrow">Private import</span>
-                  <h3>Create a trainable repertoire</h3>
+                  <h3>Import repertoire lines</h3>
                 </div>
-                <p>This does not connect to or scrape Chessable. Enter lines you are permitted to use and write book explanations in your own words.</p>
+                <p>Paste opening lines from your own PGN or import a Lichess Study. This is for preparation—not a played game you want analysed.</p>
               </div>
 
               <div className="opening-import-fields">

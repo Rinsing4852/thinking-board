@@ -60,6 +60,13 @@ export function App() {
     refresh();
     setGameReviewFocusToken((value) => value + 1);
   };
+  const openGamesAt = (targetId: "import" | "opening-inbox"): void => {
+    setView("games");
+    window.history.replaceState(null, "", "#games");
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }));
+  };
   const trainItem = (itemId: string): void => {
     setSession(null);
     setActiveMode("blunder_check");
@@ -162,7 +169,12 @@ export function App() {
           </>
         )}
 
-        {view === "openings" && <OpeningPractice refreshToken={refreshToken} onOpenGames={() => navigate("games")} onFocusChange={setOpeningFocusActive} />}
+        {view === "openings" && <OpeningPractice
+          refreshToken={refreshToken}
+          onOpenGames={() => openGamesAt("opening-inbox")}
+          onAnalyzeGame={() => openGamesAt("import")}
+          onFocusChange={setOpeningFocusActive}
+        />}
 
         {view === "games" && (
           <>
@@ -171,13 +183,13 @@ export function App() {
               <h1>Import. Analyse. Learn.</h1>
               <p>Compare your latest games with your repertoire, practise the first missed decision, then review important thinking mistakes.</p>
             </div>
+            <ImportPanel refreshToken={refreshToken} onAnalyzed={refreshAfterGameAnalysis} />
             <GameReview
               refreshToken={refreshToken}
               focusToken={gameReviewFocusToken}
               onTrain={trainItem}
               onOpeningPracticeStarted={openStartedOpeningPractice}
             />
-            <ImportPanel refreshToken={refreshToken} onAnalyzed={refreshAfterGameAnalysis} />
           </>
         )}
 

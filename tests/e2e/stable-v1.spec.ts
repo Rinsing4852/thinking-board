@@ -52,10 +52,71 @@ test.describe.serial("stable V1 browser journey", () => {
     await openings.getByLabel("Rating comes from").selectOption("lichess");
     await openings.getByLabel("Closest playing level").selectOption("1400");
     await openings.getByRole("button", { name: "Use these settings" }).click();
-    await expect(openings.getByText("Lichess · 1400+")).toBeVisible();
+    await expect(openings.getByText("1400+ · common moves off")).toBeVisible();
     await page.reload();
+    await expect(openings.getByText("1400+ · common moves off")).toBeVisible();
+    await openings.locator("details.opening-settings > summary").click();
     await expect(openings.getByText("Lichess · 1400+")).toBeVisible();
     await expect(openings.getByRole("button", { name: "Change" })).toBeVisible();
+  });
+
+  test("keeps mobile opening actions above the board and routes played PGNs clearly", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/#openings");
+    const openings = page.locator("#opening-practice");
+    await expect(openings.getByRole("grid", { name: "Opening focus board" })).toBeHidden();
+    await expect(openings.getByRole("button", { name: /Analyse a played game/ })).toBeVisible();
+    await openings.getByRole("button", { name: /Analyse a played game/ }).click();
+    await expect(page).toHaveURL(/#games$/);
+    await expect(page.getByRole("heading", { name: "Paste a game (PGN)" })).toBeVisible();
+    await expect(page.getByLabel("PGN text")).toBeVisible();
+  });
+
+  test("supports tap and drag moves on a touch board without selecting page text", async ({ browser }) => {
+    const context = await browser.newContext({
+      hasTouch: true,
+      isMobile: true,
+      viewport: { width: 390, height: 844 },
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto("/#openings");
+      const openings = page.locator("#opening-practice");
+      await openings.getByRole("button", { name: "Build on the board" }).click();
+      const board = openings.getByRole("grid", { name: "Repertoire board" });
+      const boardStyles = await board.evaluate((element) => {
+        const styles = getComputedStyle(element);
+        return { touchAction: styles.touchAction, userSelect: styles.userSelect };
+      });
+      expect(boardStyles).toEqual({ touchAction: "none", userSelect: "none" });
+
+      const e2 = board.getByRole("gridcell", { name: "e2 white pawn" });
+      const e4 = board.getByRole("gridcell", { name: "e4 empty" });
+      await e2.scrollIntoViewIfNeeded();
+      const e2Box = await e2.boundingBox();
+      const e4Box = await e4.boundingBox();
+      if (!e2Box || !e4Box) throw new Error("Touch board squares are not visible");
+      await page.touchscreen.tap(e2Box.x + e2Box.width / 2, e2Box.y + e2Box.height / 2);
+      await page.touchscreen.tap(e4Box.x + e4Box.width / 2, e4Box.y + e4Box.height / 2);
+      await expect(board.getByRole("gridcell", { name: "e4 white pawn" })).toBeVisible();
+
+      const e7 = board.getByRole("gridcell", { name: "e7 black pawn" });
+      const e5 = board.getByRole("gridcell", { name: "e5 empty" });
+      const e7Box = await e7.boundingBox();
+      const e5Box = await e5.boundingBox();
+      if (!e7Box || !e5Box) throw new Error("Touch board squares are not visible");
+      const client = await context.newCDPSession(page);
+      const from = { x: e7Box.x + e7Box.width / 2, y: e7Box.y + e7Box.height / 2 };
+      const to = { x: e5Box.x + e5Box.width / 2, y: e5Box.y + e5Box.height / 2 };
+      await client.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [from] });
+      await client.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 }] });
+      await client.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [to] });
+      await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      await expect(board.getByRole("gridcell", { name: "e5 black pawn" })).toBeVisible();
+      expect(await page.evaluate(() => window.getSelection()?.toString() ?? "")).toBe("");
+    } finally {
+      await context.close();
+    }
   });
 
   test("browses complete lines and builds a personal line on the board", async ({ page }) => {
@@ -198,7 +259,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await page.goto("/");
     await page.getByRole("button", { name: "Openings" }).click();
     const openings = page.locator("#opening-practice");
-    await openings.getByRole("button", { name: "Import opening PGN" }).click();
+    await openings.getByRole("button", { name: "Import repertoire lines" }).click();
     await openings.getByRole("textbox", { name: /Repertoire name/ }).fill("Browser repertoire");
     await openings.getByLabel("Practise as").selectOption("both");
     await openings.getByRole("textbox", { name: /Source title/ }).fill("My private reading notes");

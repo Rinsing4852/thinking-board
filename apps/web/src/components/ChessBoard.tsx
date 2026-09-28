@@ -284,7 +284,7 @@ export function ChessBoard({
       pointerId: event.pointerId,
     };
     setAnnotationPreview({ color: annotationColor(event), from: square, to: square });
-    event.currentTarget.setPointerCapture(event.pointerId);
+    if (event.pointerType === "mouse") event.currentTarget.setPointerCapture(event.pointerId);
     return true;
   };
 
@@ -302,7 +302,7 @@ export function ChessBoard({
       startX: event.clientX,
       startY: event.clientY,
     };
-    event.currentTarget.setPointerCapture(event.pointerId);
+    if (event.pointerType === "mouse") event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const moveDrag = (event: PointerEvent<HTMLButtonElement>): void => {

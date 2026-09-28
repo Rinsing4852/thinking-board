@@ -1,5 +1,3 @@
-import { Chess } from "chess.js";
-
 import type {
   OpeningCoverageGap,
   OpeningCoverageResponse,
@@ -19,13 +17,12 @@ interface OpeningHomeCockpitProps {
   importOpen: boolean;
   onStartRecommended: () => void;
   onOpenGames: (() => void) | undefined;
+  onAnalyzeGame: (() => void) | undefined;
   onOpenGap: (gap: OpeningCoverageGap) => void;
   onOpenWeakLine: (repertoireId: string, lineId: string) => void;
   onBuild: () => void;
   onImport: () => void;
 }
-
-const START_FEN = new Chess().fen();
 
 function frequencyLabel(percent: number): string {
   if (percent <= 0) return "rarely played";
@@ -42,6 +39,7 @@ export function OpeningHomeCockpit({
   importOpen,
   onStartRecommended,
   onOpenGames,
+  onAnalyzeGame,
   onOpenGap,
   onOpenWeakLine,
   onBuild,
@@ -53,8 +51,8 @@ export function OpeningHomeCockpit({
   const orientation = repertoire?.learnerColor ?? weakLine?.learnerColor ?? "white";
 
   return (
-    <div className="opening-home-shell">
-      <section className="opening-home-board-pane" aria-label="Opening position preview">
+    <div className={`opening-home-shell${gap ? " has-focus-board" : " task-only"}`}>
+      {gap && <section className="opening-home-board-pane" aria-label="Opening position preview">
         <div className="candidate-banner">
           <div>
             <span>{repertoire?.name ?? "Your opening repertoire"}</span>
@@ -63,19 +61,20 @@ export function OpeningHomeCockpit({
           <strong>{orientation === "white" ? "White" : "Black"}</strong>
         </div>
         <ChessBoard
-          fen={gap?.fen ?? START_FEN}
+          fen={gap.fen}
           orientation={orientation}
           interactive={false}
           ariaLabel="Opening focus board"
         />
         <div className="opening-home-board-caption">
-          <span className="eyebrow">{gap ? "Biggest repertoire gap" : "Your board"}</span>
-          <strong>{gap ? `${gap.moveSan} is not covered yet` : "Build, understand, then remember"}</strong>
-          <small>{gap
-            ? `${gap.frequencyPercent}% at this position · ${frequencyLabel(gap.frequencyPercent)}`
-            : "Your next practice task will appear here."}</small>
+          <span>
+            <span className="eyebrow">Biggest repertoire gap</span>
+            <strong>{gap.moveSan} is not covered yet</strong>
+            <small>{gap.frequencyPercent}% at this position · {frequencyLabel(gap.frequencyPercent)}</small>
+          </span>
+          <button onClick={() => onOpenGap(gap)}>Prepare this reply</button>
         </div>
-      </section>
+      </section>}
 
       <section className="panel opening-home-tasks">
         <div className="opening-home-heading">
@@ -91,10 +90,10 @@ export function OpeningHomeCockpit({
               <h3>{repertoire.name}</h3>
               <p>{recommendation.message}</p>
               <div className="opening-recommendation-mix" aria-label="Recommended session contents">
-                {recommendation.counts.gameMisses > 0 && <span><strong>{recommendation.counts.gameMisses}</strong> from games</span>}
-                {recommendation.counts.due > 0 && <span><strong>{recommendation.counts.due}</strong> due</span>}
-                {recommendation.counts.new > 0 && <span><strong>{recommendation.counts.new}</strong> new</span>}
-                {recommendation.counts.early > 0 && <span><strong>{recommendation.counts.early}</strong> early</span>}
+                {recommendation.counts.gameMisses > 0 && <span><strong>{recommendation.counts.gameMisses}</strong> from your games</span>}
+                {recommendation.counts.due > 0 && <span><strong>{recommendation.counts.due}</strong> due moves</span>}
+                {recommendation.counts.new > 0 && <span><strong>{recommendation.counts.new}</strong> new moves</span>}
+                {recommendation.counts.early > 0 && <span><strong>{recommendation.counts.early}</strong> extra review</span>}
               </div>
             </div>
             <button disabled={busy} onClick={onStartRecommended}>
@@ -112,6 +111,12 @@ export function OpeningHomeCockpit({
         )}
 
         <div className="opening-home-actions">
+          {onAnalyzeGame && (
+            <button className="opening-home-action primary-route" onClick={onAnalyzeGame}>
+              <span><b>Analyse a played game</b><small>Paste a game PGN or sync Lichess, then compare it with your repertoire.</small></span>
+              <strong>Paste PGN →</strong>
+            </button>
+          )}
           {recommendation && recommendation.counts.gameMisses > 0 && onOpenGames && (
             <button className="opening-home-action" onClick={onOpenGames}>
               <span><b>Repair game misses</b><small>{recommendation.counts.gameMisses} position{recommendation.counts.gameMisses === 1 ? "" : "s"} from your play</small></span>
@@ -135,10 +140,10 @@ export function OpeningHomeCockpit({
         </div>
 
         <div className="opening-home-create">
-          <span>Add or change your preparation</span>
+          <span>Build or import repertoire</span>
           <div>
             <button className="secondary" onClick={onBuild}>Build on the board</button>
-            <button className="text-button" onClick={onImport}>{importOpen ? "Close importer" : "Import opening PGN"}</button>
+            <button className="text-button" onClick={onImport}>{importOpen ? "Close importer" : "Import repertoire lines"}</button>
           </div>
         </div>
       </section>
