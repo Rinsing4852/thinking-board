@@ -23,6 +23,20 @@ const OPENING_REPERTOIRE_PGN = `[Event "My French notes"]
 1. e4 e6 {Black builds a solid centre.}
 2. d4 d5 (2... c5 3. d5) 3. Nc3 *`;
 
+const PRIVATE_LICHESS_STUDY_PGN = `[Event "My Private Study: Italian"]
+[StudyName "My Private Study"]
+[ChapterName "Italian"]
+[Result "*"]
+
+1. e4 e5 (1... c5 2. Nf3) 2. Nf3 *
+
+[Event "My Private Study: Caro-Kann"]
+[StudyName "My Private Study"]
+[ChapterName "Caro-Kann"]
+[Result "*"]
+
+1. e4 c6 2. d4 d5 *`;
+
 const ITALIAN_DEVIATION = `[Event "Opening connection"]
 [White "Alice"]
 [Black "Bob"]
@@ -289,6 +303,80 @@ describe("vertical slice", () => {
 
     const duplicate = await app.inject({ method: "POST", url: "/api/v1/openings/imports/pgn", payload });
     expect(duplicate.json()).toMatchObject({ imported: 0, duplicates: 1 });
+  });
+
+  it("authenticates, previews, and imports a private multi-chapter Lichess Study", async () => {
+    const authorizationHeaders: Array<string | null> = [];
+    globalThis.fetch = (async (input, init) => {
+      expect(String(input)).toBe("https://lichess.org/api/study/abcdefgh.pgn?comments=true&variations=true&clocks=false");
+      authorizationHeaders.push(new Headers(init?.headers).get("Authorization"));
+      return new Response(PRIVATE_LICHESS_STUDY_PGN, {
+        status: 200,
+        headers: { "Content-Type": "application/x-chess-pgn" },
+      });
+    }) as typeof fetch;
+    const appConfig = config(false);
+    appConfig.lichessApiToken = "private-study-token";
+    const app = await buildApp(appConfig);
+    apps.push(app);
+
+    const preview = await app.inject({
+      method: "POST",
+      url: "/api/v1/openings/imports/lichess/preview",
+      payload: {
+        studyUrl: "https://lichess.org/study/abcdefgh",
+        learnerColor: "white",
+      },
+    });
+    expect(preview.statusCode).toBe(200);
+    expect(preview.json()).toMatchObject({
+      suggestedName: "My Private Study",
+      chapterCount: 2,
+      lineCount: 3,
+      chapters: [
+        expect.objectContaining({ title: "Italian", lineCount: 2 }),
+        expect.objectContaining({ title: "Caro-Kann", lineCount: 1 }),
+      ],
+    });
+
+    const imported = await app.inject({
+      method: "POST",
+      url: "/api/v1/openings/imports/lichess",
+      payload: {
+        studyUrl: "https://lichess.org/study/abcdefgh",
+        learnerColor: "white",
+        selectedChapterIndexes: [0, 1],
+        ownershipConfirmed: true,
+      },
+    });
+    expect(imported.statusCode).toBe(200);
+    expect(imported.json()).toMatchObject({ imported: 1, duplicates: 0 });
+    const repertoireId = (imported.json() as { repertoireIds: string[] }).repertoireIds[0]!;
+    const detail = await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}` });
+    expect(detail.json()).toMatchObject({
+      repertoire: { name: "My Private Study", sourceTitle: "https://lichess.org/study/abcdefgh" },
+      chapters: [
+        expect.objectContaining({ title: "Italian", lines: expect.arrayContaining([expect.objectContaining({ title: "Variation 2" })]) }),
+        expect.objectContaining({ title: "Caro-Kann" }),
+      ],
+    });
+    const importedDetail = detail.json() as { chapters: Array<{ title: string; lines: Array<{ id: string; title: string }> }> };
+    const italianVariation = importedDetail.chapters
+      .find((chapter) => chapter.title === "Italian")?.lines
+      .find((line) => line.title === "Variation 2");
+    expect(italianVariation).toBeDefined();
+    const practice = await app.inject({
+      method: "POST",
+      url: `/api/v1/openings/repertoires/${repertoireId}/lines/${italianVariation!.id}/lessons/start`,
+    });
+    expect(practice.statusCode).toBe(200);
+    expect(practice.json()).toMatchObject({
+      repertoire: { name: "My Private Study" },
+      chapter: { title: "Italian" },
+      lineTitle: "Variation 2",
+      learnerColor: "white",
+    });
+    expect(authorizationHeaders).toEqual(["Bearer private-study-token", "Bearer private-study-token"]);
   });
 
   it("edits a private repertoire without overwriting its original line", async () => {

@@ -36,6 +36,20 @@ const STUDY_WITH_INTRO = `[Event "Introduction"]
 
 1. e4 e5 2. Nf3 *`;
 
+const LICHESS_STUDY_PGN = `[Event "My Private Study: Italian"]
+[StudyName "My Private Study"]
+[ChapterName "Italian"]
+[Result "*"]
+
+1. e4 e5 (1... c5 2. Nf3) 2. Nf3 *
+
+[Event "My Private Study: Caro-Kann"]
+[StudyName "My Private Study"]
+[ChapterName "Caro-Kann"]
+[Result "*"]
+
+1. e4 c6 2. d4 d5 *`;
+
 const tempDirectories: string[] = [];
 
 afterEach(() => {
@@ -94,6 +108,13 @@ describe("opening PGN parsing", () => {
     })]);
     expect(preview.warnings).toEqual(expect.arrayContaining([expect.stringMatching(/without moves will be skipped/i)]));
     database.close();
+  });
+
+  it("uses Lichess StudyName and ChapterName headers for multi-chapter imports", () => {
+    const parsed = parseOpeningPgn(LICHESS_STUDY_PGN);
+    expect(parsed.suggestedName).toBe("My Private Study");
+    expect(parsed.chapters.map((chapter) => chapter.title)).toEqual(["Italian", "Caro-Kann"]);
+    expect(parsed.chapters[0]?.lines).toHaveLength(2);
   });
 });
 

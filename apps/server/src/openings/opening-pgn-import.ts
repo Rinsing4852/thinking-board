@@ -264,7 +264,7 @@ export function parseOpeningPgn(pgn: string, selectedChapterIndexes?: number[]):
     if (lines.length === 0) throw new Error(`Chapter ${index + 1} contains no moves`);
     if (headers.Variation) lines[0]!.title = cleanText(headers.Variation, "Main line");
     return {
-      title: cleanText(headers.Chapter ?? headers.Opening ?? headers.Event, `Chapter ${index + 1}`),
+      title: cleanText(headers.ChapterName ?? headers.Chapter ?? headers.Opening ?? headers.Event, `Chapter ${index + 1}`),
       introduction: cleanText(headers.Description, "A private repertoire chapter imported from PGN."),
       lines,
     };
@@ -283,7 +283,7 @@ export function parseOpeningPgn(pgn: string, selectedChapterIndexes?: number[]):
   }));
   const firstHeaders = parseHeaders(chunks[0]!);
   return {
-    suggestedName: cleanText(firstHeaders.Repertoire ?? firstHeaders.Opening ?? firstHeaders.Event, `${first.san} personal repertoire`),
+    suggestedName: cleanText(firstHeaders.Repertoire ?? firstHeaders.StudyName ?? firstHeaders.Opening ?? firstHeaders.Event, `${first.san} personal repertoire`),
     firstMoveUci: first.uci,
     firstMoveSan: first.san,
     fingerprint: sha256(JSON.stringify(canonical)),

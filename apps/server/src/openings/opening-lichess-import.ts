@@ -45,6 +45,7 @@ export function resolveLichessStudyUrl(value: string): LichessStudyReference {
 export class OpeningLichessImportService {
   constructor(
     private readonly openingImports: OpeningPgnImportService,
+    private readonly apiToken?: string,
     private readonly fetcher: typeof fetch = fetch,
   ) {}
 
@@ -91,11 +92,23 @@ export class OpeningLichessImportService {
 
   private async download(reference: LichessStudyReference): Promise<string> {
     const response = await this.fetcher(reference.exportUrl, {
-      headers: { Accept: "application/x-chess-pgn" },
+      headers: {
+        Accept: "application/x-chess-pgn",
+        ...(this.apiToken ? { Authorization: `Bearer ${this.apiToken}` } : {}),
+      },
       signal: AbortSignal.timeout(12_000),
     });
     if (!response.ok) {
-      if (response.status === 404) throw new Error("Lichess could not find that public study or chapter");
+      if (response.status === 401 || response.status === 403) {
+        throw new Error(this.apiToken
+          ? "Lichess refused the configured token or it cannot read this study. Create a token with study:read, update LICHESS_API_TOKEN, then restart the app."
+          : "This Lichess Study requires authentication. Configure LICHESS_API_TOKEN with study:read, then restart the app.");
+      }
+      if (response.status === 404) {
+        throw new Error(this.apiToken
+          ? "Lichess could not find that study, or the configured Lichess account cannot access it."
+          : "Lichess could not access that study. If it is private or unlisted, configure LICHESS_API_TOKEN with study:read.");
+      }
       throw new Error(`Lichess Study download failed with status ${response.status}`);
     }
     const declaredSize = Number(response.headers.get("content-length") ?? 0);

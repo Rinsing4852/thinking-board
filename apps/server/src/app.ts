@@ -75,7 +75,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   const openingContent = new OpeningContentService(database.connection);
   openingContent.sync(STARTER_OPENING_CURRICULA);
   const openingImports = new OpeningPgnImportService(database.connection, openingContent);
-  const openingLichessImports = new OpeningLichessImportService(openingImports);
+  const openingLichessImports = new OpeningLichessImportService(openingImports, config.lichessApiToken);
   const openingTraining = new OpeningTrainingService(database.connection);
   const openingReviews = new OpeningReviewService(database.connection);
   const openingGames = new OpeningGameService(database.connection);

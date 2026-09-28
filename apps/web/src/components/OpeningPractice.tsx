@@ -762,7 +762,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
                     onChange={(event) => { setLichessStudyUrl(event.target.value); setImportPreview(null); setSelectedChapterIndexes([]); }}
                     placeholder="https://lichess.org/study/abcdefgh"
                   />
-                  <small>Public studies work without a token. A chapter link imports only that chapter.</small>
+                  <small>Public studies work without a token. Private studies use the server's study:read token. A chapter link imports only that chapter.</small>
                 </label>
               ) : <label className="opening-pgn-label">
                 Opening PGN

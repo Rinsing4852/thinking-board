@@ -75,12 +75,14 @@ its chapters and variations before importing. PGN comments are shown as
 personal notes; unexplained moves are labelled honestly instead of receiving
 invented strategic claims.
 
-Public Lichess Studies can be imported directly from a study or chapter URL.
+Public and private Lichess Studies can be imported directly from a study or chapter URL.
 The server uses Lichess's official PGN export endpoint, enforces an HTTPS
 `lichess.org` allow-list, a timeout and the same 5 MB limit, then shows a
 chapter-selection preview before anything is stored. Text-only chapters are
-skipped. Private studies are not accessed because V1 does not request or store
-Lichess credentials.
+skipped. Public studies need no credentials. Private and unlisted studies use
+the optional server-side `LICHESS_API_TOKEN`; create it with only Lichess's
+`study:read` permission. The token is sent only to the validated Lichess export
+endpoint and is never returned to the browser.
 
 The My games workspace can also remember a Lichess username and pull new
 finished games into the same duplicate-safe import and local-analysis pipeline.
@@ -182,7 +184,7 @@ curl --fail http://127.0.0.1:8000/api/v1/health
 
 Database migrations run automatically and are tested from every released schema
 version. For reproducible installs, set `APP_VERSION` in `.env` to a numbered
-image tag such as `1.5.1`; `latest` follows the current release. To roll back,
+image tag such as `1.5.2`; `latest` follows the current release. To roll back,
 stop the app, restore `pre-upgrade.sqlite3` with the restore command above, set
 `APP_VERSION` to the previous release, and start Compose again. Never run two
 application versions against the same live database.
@@ -235,7 +237,7 @@ for release notes.
 | `STOCKFISH_HASH_MB` | `128` | Stockfish hash allocation |
 | `ACCEPTABLE_TOLERANCE_CP` | `40` | Reply distance from the best line |
 | `MEANINGFUL_LOSS_CP` | `150` | Minimum centipawn loss for consideration |
-| `LICHESS_API_TOKEN` | empty | Server-side token required for Lichess Explorer; optional for public game sync |
+| `LICHESS_API_TOKEN` | empty | Server-side token for Lichess Explorer and private/unlisted Study imports; use `study:read` for Study access |
 
 ## V1 features
 
@@ -266,8 +268,9 @@ for release notes.
   game misses, highlights the weakest line and checks practical reply coverage.
 - Safe archive/restore for built-in and personal repertoires and individual
   lines, plus personal names, line ordering, PGN export and immediate move undo.
-- Direct public Lichess Study or chapter import with safe URL validation,
-  chapter selection, variation preservation and an ownership confirmation.
+- Direct public, unlisted or private Lichess Study and chapter import with safe
+  URL validation, optional `study:read` authentication, chapter selection,
+  variation preservation and an ownership confirmation.
 - Optional username-based Lichess game sync through the official API, with a
   six-hour foreground check when My games is opened, feeding the existing
   duplicate-safe import, analysis and repertoire-deviation review.

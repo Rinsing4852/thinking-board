@@ -2,6 +2,21 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.5.2 — 2026-09-28
+
+### Private Lichess Study imports
+
+- Authenticates Lichess Study and chapter exports with the optional server-side
+  token, enabling private and unlisted studies when it has `study:read`.
+- Keeps public Study imports working without a token and sends credentials only
+  to strictly validated HTTPS Lichess Study export URLs.
+- Gives actionable errors for missing authentication, refused permissions and
+  studies that the configured account cannot access without exposing secrets.
+- Preserves Lichess `StudyName` and `ChapterName` metadata so multi-chapter
+  repertoires retain useful organisation after import.
+- Adds unit and route-level coverage for authenticated full studies, individual
+  chapters, variations, chapter selection and immediate line practice.
+
 ## 1.5.1 — 2026-09-28
 
 ### Faster mobile opening practice
