@@ -2,10 +2,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { Chess } from "chess.js";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { Database } from "../db/database.js";
 import { OpeningContentService } from "./opening-content-service.js";
+import { openingPositionKey } from "./opening-content.js";
 import { OpeningPgnImportService, parseOpeningPgn } from "./opening-pgn-import.js";
 
 const BOOK_PGN = `[Event "My book notes"]
@@ -119,6 +121,24 @@ describe("opening PGN parsing", () => {
 });
 
 describe("opening PGN import persistence", () => {
+  it("reuses an existing board position even when it has a workspace-generated id", () => {
+    const { database, importer } = services();
+    const start = new Chess().fen();
+    database.connection.prepare(`
+      INSERT INTO opening_positions(id, position_key, fen, side_to_move)
+      VALUES ('workspace-position', ?, ?, 'white')
+    `).run(openingPositionKey(start), start);
+
+    expect(() => importer.import({
+      pgn: BOOK_PGN,
+      learnerColor: "white",
+      name: "Existing position test",
+      ownershipConfirmed: true,
+    })).not.toThrow();
+    expect(database.connection.pragma("foreign_key_check")).toEqual([]);
+    database.close();
+  });
+
   it("previews and imports both sides as private, deduplicated repertoires", () => {
     const { database, importer, content } = services();
     const input = {

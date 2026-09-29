@@ -2,6 +2,17 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.5.3 — 2026-09-29
+
+### Reliable Study persistence
+
+- Reuses the actual SQLite ID for a board position that already exists from
+  interactive repertoire building when importing a PGN or Lichess Study.
+- Prevents a foreign-key failure when imported Study lines overlap positions
+  previously created in the repertoire builder.
+- Adds a regression test using an existing workspace-generated position and
+  verifies database referential integrity after import.
+
 ## 1.5.2 — 2026-09-28
 
 ### Private Lichess Study imports

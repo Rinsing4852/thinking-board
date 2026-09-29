@@ -258,13 +258,23 @@ export class OpeningContentService {
     `).run(curriculum.id);
     this.db.prepare("DELETE FROM opening_sources WHERE repertoire_id = ?").run(curriculum.id);
 
+    const storedPositionIds = new Map<string, string>();
     for (const position of compiled.positions) {
       this.db.prepare(`
         INSERT INTO opening_positions(id, position_key, fen, side_to_move)
         VALUES (?, ?, ?, ?)
         ON CONFLICT(position_key) DO UPDATE SET fen = excluded.fen, side_to_move = excluded.side_to_move
       `).run(position.id, position.key, position.fen, position.sideToMove);
+      const storedId = this.db.prepare("SELECT id FROM opening_positions WHERE position_key = ?")
+        .pluck().get(position.key) as string | undefined;
+      if (!storedId) throw new Error(`Opening position was not stored: ${position.key}`);
+      storedPositionIds.set(position.id, storedId);
     }
+    const storedPositionId = (compiledId: string): string => {
+      const storedId = storedPositionIds.get(compiledId);
+      if (!storedId) throw new Error(`Compiled opening references missing position ${compiledId}`);
+      return storedId;
+    };
 
     const movesById = new Map(compiled.moves.map((move) => [move.id, move]));
     const moveOrder = new Map<string, number>();
@@ -288,8 +298,8 @@ export class OpeningContentService {
       `).run(
         move.id,
         curriculum.id,
-        move.fromPositionId,
-        move.toPositionId,
+        storedPositionId(move.fromPositionId),
+        storedPositionId(move.toPositionId),
         move.moveUci,
         move.san,
         move.role,
@@ -333,7 +343,7 @@ export class OpeningContentService {
         chapter.slug,
         chapter.title,
         chapter.introduction,
-        chapter.rootPositionId,
+        storedPositionId(chapter.rootPositionId),
         chapterIndex,
       );
 
