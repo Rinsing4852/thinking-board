@@ -86,6 +86,13 @@ export class OpeningGameService {
 
   matchGame(gameId: string, profileId: string): GameOpeningConnection | null {
     const game = this.game(gameId, profileId);
+    const revision = Number(this.db.prepare("SELECT revision FROM opening_match_revision WHERE id = 1").pluck().get());
+    const cached = this.db.prepare(`SELECT 1 FROM game_opening_match_cache
+      WHERE game_id = ? AND profile_id = ? AND repertoire_revision = ?`).get(gameId, profileId, revision);
+    if (cached) {
+      const best = this.bestMatch(gameId);
+      return best ? this.toConnection(best) : null;
+    }
     const moves = this.moves(gameId);
     const repertoires = this.db.prepare(`
       SELECT r.id, r.name, r.learner_color,
@@ -101,6 +108,9 @@ export class OpeningGameService {
     this.db.transaction(() => {
       this.db.prepare("DELETE FROM game_opening_matches WHERE game_id = ?").run(gameId);
       for (const repertoire of repertoires) this.persistMatch(game, moves, repertoire);
+      this.db.prepare(`INSERT INTO game_opening_match_cache(game_id, profile_id, repertoire_revision)
+        VALUES (?, ?, ?) ON CONFLICT(game_id) DO UPDATE SET profile_id = excluded.profile_id,
+        repertoire_revision = excluded.repertoire_revision`).run(gameId, profileId, revision);
     })();
 
     const best = this.bestMatch(gameId);
@@ -212,6 +222,26 @@ export class OpeningGameService {
       }
     })();
     return this.inbox(profileId);
+  }
+
+  markGameReviewed(profileId: string, gameId: string, repertoireId: string): void {
+    const match = this.bestMatch(gameId);
+    if (!match || match.repertoire_id !== repertoireId) return;
+    const game = this.db.prepare("SELECT 1 FROM games WHERE id = ? AND profile_id = ?").get(gameId, profileId);
+    if (!game) return;
+    const signature = this.matchSignature(this.toConnection(match));
+    const timestamp = now();
+    this.db.prepare(`
+      INSERT INTO game_opening_review_states(
+        profile_id, game_id, repertoire_id, match_signature,
+        reviewed_at, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(game_id, repertoire_id) DO UPDATE SET
+        profile_id = excluded.profile_id,
+        match_signature = excluded.match_signature,
+        reviewed_at = excluded.reviewed_at,
+        updated_at = excluded.updated_at
+    `).run(profileId, gameId, repertoireId, signature, timestamp, timestamp, timestamp);
   }
 
   private game(gameId: string, profileId: string): GameRow {

@@ -19,7 +19,10 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
   publish:
+    needs: verify
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository

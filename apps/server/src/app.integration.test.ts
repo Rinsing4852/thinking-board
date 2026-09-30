@@ -110,6 +110,109 @@ async function waitForCompleted(app: Awaited<ReturnType<typeof buildApp>>, jobId
 }
 
 describe("vertical slice", () => {
+  it("finishes a short assisted drill instead of immediately repeating the shown answer forever", async () => {
+    const app = await buildApp(config(false));
+    apps.push(app);
+    const imported = (await app.inject({ method: "POST", url: "/api/v1/openings/imports/pgn", payload: {
+      pgn: '[Event "One move"]\n[Result "*"]\n\n1. e4 *', learnerColor: "white", name: "One move",
+      sourceType: "self_authored", sourceTitle: "My notes", ownershipConfirmed: true,
+    } })).json();
+    const started = (await app.inject({ method: "POST",
+      url: `/api/v1/openings/repertoires/${imported.repertoireIds[0]}/reviews/start` })).json();
+    const shown = (await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${started.sessionId}/reveal` })).json();
+    expect(shown).toMatchObject({ outcome: "learning", lapseQueued: false });
+    const completed = (await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${started.sessionId}/continue`,
+      payload: { queueEntryId: started.queueEntryId } })).json();
+    expect(completed).toMatchObject({ kind: "complete", introduced: 1, remembered: 0 });
+  });
+
+  it("persists requested hints and move reveals without completing the answer", async () => {
+    const app = await buildApp(config(false));
+    apps.push(app);
+    const started = (await app.inject({ method: "POST",
+      url: "/api/v1/openings/repertoires/repertoire.white-e4-principled/reviews/start", payload: { mode: "new" } })).json();
+    for (const kind of ["piece", "move"]) {
+      const help = await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${started.sessionId}/help`,
+        payload: { kind, queueEntryId: started.queueEntryId } });
+      expect(help.statusCode).toBe(200);
+      expect(help.json()).toMatchObject({ kind: "exercise", assistance: { pieceHint: true, moveShown: kind === "move" } });
+    }
+    const restored = (await app.inject({ method: "GET", url: "/api/v1/openings/reviews/active" })).json();
+    expect(restored).toMatchObject({ kind: "exercise", assistance: { pieceHint: true, moveShown: true } });
+    const answer = await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${started.sessionId}/move`,
+      payload: { moveUci: "e2e4", assisted: false, queueEntryId: started.queueEntryId } });
+    expect(answer.json()).toMatchObject({ outcome: "learning", assisted: true, revealed: true });
+    const repeated = await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${started.sessionId}/move`,
+      payload: { moveUci: "e2e4", queueEntryId: started.queueEntryId } });
+    expect(repeated.json()).toEqual(answer.json());
+    const first = await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${started.sessionId}/continue`,
+      payload: { queueEntryId: started.queueEntryId } });
+    const retry = await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${started.sessionId}/continue`,
+      payload: { queueEntryId: started.queueEntryId } });
+    expect(retry.json()).toEqual(first.json());
+  });
+
+  it("credits the actual alternative move without mastering another branch", async () => {
+    const appConfig = config(false);
+    const app = await buildApp(appConfig);
+    apps.push(app);
+    const imported = (await app.inject({ method: "POST", url: "/api/v1/openings/imports/pgn", payload: {
+      pgn: OPENING_REPERTOIRE_PGN, learnerColor: "black", name: "Branch evidence", sourceType: "self_authored",
+      sourceTitle: "My notes", ownershipConfirmed: true,
+    } })).json();
+    const repertoireId = imported.repertoireIds[0];
+    const detail = (await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}` })).json();
+    const lines = detail.chapters.flatMap((chapter: { lines: Array<{ id: string; moves: Array<{ moveUci: string; id: string }> }> }) => chapter.lines);
+    const branch = lines.find((line: { moves: Array<{ moveUci: string }> }) => line.moves.some((move) => move.moveUci === "c7c5"));
+    const main = lines.find((line: { moves: Array<{ moveUci: string }> }) => line.moves.some((move) => move.moveUci === "d7d5"));
+    const start = (await app.inject({ method: "POST", url: `/api/v1/openings/repertoires/${repertoireId}/lines/${branch.id}/reviews/start` })).json();
+    await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${start.sessionId}/move`, payload: { moveUci: "e7e6" } });
+    const position = (await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${start.sessionId}/continue` })).json();
+    const db = new BetterSqlite3(appConfig.databasePath);
+    const c5 = branch.moves.find((move: { moveUci: string }) => move.moveUci === "c7c5");
+    const d5 = main.moves.find((move: { moveUci: string }) => move.moveUci === "d7d5");
+    db.prepare("UPDATE opening_move_annotations SET summary = 'My c5 explanation' WHERE move_id = ?").run(c5.id);
+    // Convert this queue entry to position recall, where both saved moves are accepted.
+    db.prepare("UPDATE opening_review_queue SET expected_move_id = NULL, source_line_id = NULL WHERE id = ?").run(position.queueEntryId);
+    const feedback = (await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${start.sessionId}/move`, payload: { moveUci: "c7c5" } })).json();
+    expect(feedback).toMatchObject({ outcome: "remembered", repertoireMove: { moveId: c5.id, moveUci: "c7c5" },
+      explanation: { summary: "My c5 explanation" } });
+    expect(db.prepare("SELECT repetitions FROM opening_move_review_cards WHERE move_id = ?").pluck().get(c5.id)).toBe(1);
+    expect(db.prepare("SELECT repetitions FROM opening_move_review_cards WHERE move_id = ?").pluck().get(d5.id)).toBeUndefined();
+    const progress = (await app.inject({ method: "GET", url: "/api/v1/openings/progress" })).json();
+    expect(progress.lines.find((line: { lineId: string }) => line.lineId === branch.id)).toMatchObject({ accuracyPercent: 100, mastered: 0 });
+    db.close();
+  });
+
+  it("reuses game matches until the repertoire graph or archive state changes", async () => {
+    const appConfig = config(false);
+    const app = await buildApp(appConfig);
+    apps.push(app);
+    await app.inject({ method: "POST", url: "/api/v1/imports/pgn", payload: { pgn: ITALIAN_DEVIATION, playerName: "Alice" } });
+    expect((await app.inject({ method: "GET", url: "/api/v1/openings/game-inbox" })).statusCode).toBe(200);
+    const db = new BetterSqlite3(appConfig.databasePath);
+    const before = db.prepare("SELECT id FROM game_opening_matches ORDER BY id").pluck().all();
+    expect((await app.inject({ method: "GET", url: "/api/v1/openings/game-inbox" })).statusCode).toBe(200);
+    expect(db.prepare("SELECT id FROM game_opening_matches ORDER BY id").pluck().all()).toEqual(before);
+    await app.inject({ method: "PATCH", url: "/api/v1/openings/repertoires/repertoire.white-e4-principled/archive", payload: { archived: true } });
+    expect((await app.inject({ method: "GET", url: "/api/v1/openings/game-inbox" })).statusCode).toBe(200);
+    expect(db.prepare("SELECT id FROM game_opening_matches WHERE repertoire_id = 'repertoire.white-e4-principled'").all()).toEqual([]);
+    db.close();
+  });
+
+  it("varies bounded line rehearsals and rejects archived repertoires", async () => {
+    const app = await buildApp(config(false));
+    apps.push(app);
+    const start = async () => app.inject({ method: "POST",
+      url: "/api/v1/openings/repertoires/repertoire.white-e4-principled/reviews/tree/start" });
+    const first = (await start()).json();
+    const second = (await start()).json();
+    expect(first.lineRun.lineId).not.toBe(second.lineRun.lineId);
+    expect(second.totalPositions).toBeLessThanOrEqual(8);
+    await app.inject({ method: "PATCH", url: "/api/v1/openings/repertoires/repertoire.white-e4-principled/archive", payload: { archived: true } });
+    expect((await start()).statusCode).toBe(400);
+  });
+
   it("stores the player's practical opening context", async () => {
     const appConfig = config(false);
     appConfig.lichessApiToken = "opening-context-token";
@@ -986,6 +1089,65 @@ describe("vertical slice", () => {
     expect(fresh.json()).toMatchObject({ kind: "exercise", totalPositions: 5, learningStage: "new" });
   });
 
+  it("practises one selected line continuously and keeps its branch move exact", async () => {
+    const app = await buildApp(config(false));
+    apps.push(app);
+    const imported = await app.inject({
+      method: "POST",
+      url: "/api/v1/openings/imports/pgn",
+      payload: {
+        pgn: OPENING_REPERTOIRE_PGN,
+        learnerColor: "black",
+        name: "Exact French line",
+        sourceType: "self_authored",
+        sourceTitle: "My board",
+        ownershipConfirmed: true,
+      },
+    });
+    const repertoireId = (imported.json() as { repertoireIds: string[] }).repertoireIds[0]!;
+    const detail = await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}` });
+    const lines = (detail.json() as {
+      chapters: Array<{ lines: Array<{ id: string; moves: Array<{ moveUci: string }> }> }>;
+    }).chapters.flatMap((chapter) => chapter.lines);
+    const c5Line = lines.find((line) => line.moves.some((move) => move.moveUci === "c7c5"));
+    expect(c5Line).toBeDefined();
+
+    const started = await app.inject({
+      method: "POST",
+      url: `/api/v1/openings/repertoires/${repertoireId}/lines/${c5Line!.id}/reviews/start`,
+    });
+    expect(started.statusCode, started.body).toBe(200);
+    expect(started.json()).toMatchObject({
+      kind: "exercise",
+      totalPositions: 2,
+      acceptedMoves: [{ moveUci: "e7e6" }],
+    });
+    const sessionId = (started.json() as { sessionId: string }).sessionId;
+    await app.inject({
+      method: "POST",
+      url: `/api/v1/openings/reviews/${sessionId}/move`,
+      payload: { moveUci: "e7e6" },
+    });
+    const continued = await app.inject({
+      method: "POST",
+      url: `/api/v1/openings/reviews/${sessionId}/continue`,
+    });
+    expect(continued.json()).toMatchObject({
+      kind: "exercise",
+      positionNumber: 2,
+      acceptedMoves: [{ moveUci: "c7c5" }],
+      introduction: { repertoireMove: { moveUci: "c7c5" } },
+    });
+
+    const branchMistake = await app.inject({
+      method: "POST",
+      url: `/api/v1/openings/reviews/${sessionId}/mistakes`,
+      payload: { moveUci: "d7d5" },
+    });
+    expect(branchMistake.statusCode).toBe(200);
+    expect(branchMistake.json()).toMatchObject({ moveUci: "d7d5", attemptNumber: 1 });
+  });
+
   it("records an honest answer reveal as assisted learning", async () => {
     const appConfig = config(false);
     const app = await buildApp(appConfig);
@@ -1422,8 +1584,8 @@ describe("vertical slice", () => {
       counts: {
         gameMisses: 1,
         due: 1,
-        new: 3,
-        total: 5,
+        new: 5,
+        total: 7,
       },
       message: expect.stringMatching(/game mistakes come first/i),
     });
@@ -1436,7 +1598,7 @@ describe("vertical slice", () => {
     expect(started.json()).toMatchObject({
       kind: "exercise",
       repertoire: { id: "repertoire.white-e4-principled" },
-      totalPositions: 5,
+      totalPositions: 7,
       practiceReason: {
         kind: "game_miss",
         label: "Missed in 2 of your games",

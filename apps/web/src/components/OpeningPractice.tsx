@@ -223,22 +223,23 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
     }
   };
 
-  const startLineLesson = async (repertoireId: string, lineId: string): Promise<void> => {
-    if (activeReview && reviewPaused && !window.confirm("Starting this guided line will end the paused memory session. Continue?")) return;
-    if (step && pausedLessonPhase && !window.confirm("Starting this guided line will end the paused guided line. Continue?")) return;
+  const startLinePractice = async (repertoireId: string, lineId: string): Promise<void> => {
+    if (activeReview && reviewPaused && !window.confirm("Starting this line will end the paused memory session. Continue?")) return;
+    if (step && pausedLessonPhase && !window.confirm("Starting this line will end the paused guided line. Continue?")) return;
     if (!beginSubmission()) return;
     setError("");
     try {
-      const lesson = await post<OpeningLessonStep>(
-        `/api/v1/openings/repertoires/${repertoireId}/lines/${lineId}/lessons/start`,
+      const review = await post<OpeningReviewActiveState>(
+        `/api/v1/openings/repertoires/${repertoireId}/lines/${lineId}/reviews/start`,
       );
-      setActiveReview(null);
+      setStep(null);
+      setPausedLessonPhase(null);
+      setActiveReview(review);
       setReviewPaused(false);
       setWorkspaceDetail(null);
-      showStep(lesson);
       requestAnimationFrame(() => document.getElementById("opening-practice")?.scrollIntoView({ behavior: "smooth" }));
     } catch (startError) {
-      setError(startError instanceof Error ? startError.message : "Could not start this opening line");
+      setError(startError instanceof Error ? startError.message : "Could not practise this opening line");
     } finally {
       endSubmission();
     }
@@ -361,6 +362,27 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
     }
   };
 
+  const startTreePractice = async (repertoireId: string): Promise<void> => {
+    if (step && pausedLessonPhase && !window.confirm("Starting a repertoire run will end the paused guided line. Continue?")) return;
+    if (activeReview && reviewPaused && !window.confirm("Starting a repertoire run will end the paused memory session. Continue?")) return;
+    if (!beginSubmission()) return;
+    setError("");
+    try {
+      const review = await post<OpeningReviewActiveState>(
+        `/api/v1/openings/repertoires/${repertoireId}/reviews/tree/start`,
+      );
+      setStep(null);
+      setPausedLessonPhase(null);
+      setActiveReview(review);
+      setReviewPaused(false);
+      requestAnimationFrame(() => document.getElementById("opening-practice")?.scrollIntoView({ behavior: "smooth" }));
+    } catch (startError) {
+      setError(startError instanceof Error ? startError.message : "Could not start repertoire run");
+    } finally {
+      endSubmission();
+    }
+  };
+
   const finishReview = (): void => {
     setActiveReview(null);
     setReviewPaused(false);
@@ -431,9 +453,8 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
     if (!step || submittingRef.current) return;
     const accepted = step.acceptedMoves.some((move) => move.moveUci === uci);
     if (!accepted) {
-      const hint = getMoveHint(step.fenToMove, step.acceptedMoves[0]?.moveUci ?? "");
-      setMoveNotice(`${san} is not part of this repertoire here. Try again — move the ${hint.piece}.`);
-      setHintSquare(hint.square);
+      setMoveNotice(`${san} is not one of your saved moves here. Try again, or ask for a hint.`);
+      setHintSquare(null);
       setRejectedMove(uci);
       setDisplayFen(step.fenToMove);
       setLastMove(step.opponentMove?.moveUci ?? null);
@@ -602,6 +623,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
         <OpeningReview
           key={activeReview.sessionId}
           initial={activeReview}
+          boardSounds={playerPreferences?.boardSounds ?? false}
           onComplete={finishReview}
           onPause={() => setReviewPaused(true)}
           onPracticeMore={() => void startRecommendedReview()}
@@ -627,9 +649,10 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
           initialCoverage={coverageSpotlight?.repertoireId === workspaceDetail.repertoire.id ? coverageSpotlight : null}
           preferredRatingGroup={playerPreferences?.ratingGroup ?? 1600}
           useExplorer={playerPreferences?.useExplorer ?? false}
+          lineProgress={openingProgress?.lines ?? []}
           busy={submitting}
           onBack={() => { setWorkspaceDetail(null); setWorkspaceLineId(null); setWorkspaceGap(null); }}
-          onPractice={(lineId) => void startLineLesson(workspaceDetail.repertoire.id, lineId)}
+          onPractice={(lineId) => void startLinePractice(workspaceDetail.repertoire.id, lineId)}
           onDetailChanged={setWorkspaceDetail}
           onRepertoireDeleted={finishRepertoireDeletion}
         />
@@ -671,6 +694,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
               busy={submitting}
               importOpen={showImporter}
               onStartRecommended={() => void startRecommendedReview()}
+              onStartRun={(repertoireId) => void startTreePractice(repertoireId)}
               onOpenGames={onOpenGames}
               onAnalyzeGame={onAnalyzeGame}
               onOpenGap={(gap) => { if (coverageSpotlight) void openWorkspace(coverageSpotlight.repertoireId, null, gap); }}
@@ -900,6 +924,9 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
                       )}
                       <button className="secondary" disabled={submitting} onClick={() => void startLesson(repertoire.id)}>
                         {repertoire.origin === "imported" ? "Study a full line" : "Study line in order"}
+                      </button>
+                      <button className="secondary" disabled={submitting} onClick={() => void startTreePractice(repertoire.id)}>
+                        Practise a varied line
                       </button>
                       <button className="secondary" disabled={submitting} onClick={() => void openWorkspace(repertoire.id)}>
                         View all lines

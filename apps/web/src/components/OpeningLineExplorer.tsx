@@ -7,6 +7,7 @@ import type {
   OpeningLineDeletionResponse,
   OpeningLineDetail,
   OpeningLineMutationResponse,
+  OpeningLineProgress,
   OpeningRepertoireDeletionResponse,
   OpeningRepertoireDetailResponse,
   OpeningArchiveResponse,
@@ -15,6 +16,7 @@ import type {
 } from "../../../../packages/contracts/src/api";
 import { get, patch, post, remove } from "../api";
 import { findPlyAtFen } from "../opening-line-position";
+import { countTranspositions } from "../opening-transpositions";
 import { ChessBoard } from "./ChessBoard";
 import { OpeningLearningComment } from "./OpeningLearningComment";
 import { OpeningMoveSuggestions } from "./OpeningMoveSuggestions";
@@ -26,6 +28,7 @@ interface OpeningLineExplorerProps {
   initialCoverage?: OpeningCoverageResponse | null;
   preferredRatingGroup: number;
   useExplorer: boolean;
+  lineProgress: OpeningLineProgress[];
   busy?: boolean;
   onBack: () => void;
   onPractice: (lineId: string) => void;
@@ -40,6 +43,7 @@ export function OpeningLineExplorer({
   initialCoverage = null,
   preferredRatingGroup,
   useExplorer,
+  lineProgress,
   busy = false,
   onBack,
   onPractice,
@@ -50,6 +54,11 @@ export function OpeningLineExplorer({
     () => detail.chapters.flatMap((chapter) => chapter.lines.map((line) => ({ chapter, line }))),
     [detail],
   );
+  const progressByLine = useMemo(
+    () => new Map(lineProgress.map((progress) => [progress.lineId, progress])),
+    [lineProgress],
+  );
+  const transpositionsByLine = useMemo(() => countTranspositions(allLines.map(({ line }) => line)), [allLines]);
   const gapPlyForLine = (candidate: OpeningLineDetail, gap: OpeningCoverageGap): number | null => {
     return findPlyAtFen(candidate.moves, gap.fen);
   };
@@ -88,9 +97,14 @@ export function OpeningLineExplorer({
   const deleteDialogRef = useRef<HTMLDivElement>(null);
   const selected = allLines.find(({ line }) => line.id === lineId) ?? initial;
   const line: OpeningLineDetail | undefined = selected?.line;
+  const selectedProgress = line ? progressByLine.get(line.id) : undefined;
+  const selectedTranspositions = line ? transpositionsByLine.get(line.id) ?? 0 : 0;
   const selectedLineIndex = selected?.chapter.lines.findIndex((candidate) => candidate.id === lineId) ?? -1;
   const currentMove = ply > 0 ? line?.moves[ply - 1] : undefined;
   const displayFen = currentMove?.fenAfter ?? line?.moves[0]?.fenBefore ?? "start";
+  const equivalentLines = allLines.filter(({ line: candidate }) => candidate.id !== lineId && !candidate.archived)
+    .map(({ line: candidate }) => ({ line: candidate, ply: findPlyAtFen(candidate.moves, displayFen) }))
+    .filter((candidate): candidate is { line: OpeningLineDetail; ply: number } => candidate.ply !== null);
 
   const setLineArchived = async (archived: boolean): Promise<void> => {
     if (!line || localBusy) return;
@@ -553,7 +567,22 @@ export function OpeningLineExplorer({
                     onClick={() => chooseLine(candidate.id)}
                   >
                     <strong>{candidate.title}</strong>
-                    <span>{candidate.archived ? "Archived · " : ""}{candidate.learnerDecisionCount} decisions · {candidate.moveCount} moves</span>
+                    <span>{candidate.archived ? "Archived · " : ""}{candidate.learnerDecisionCount} moves to learn · {candidate.moveCount} moves in line</span>
+                    {progressByLine.get(candidate.id) && (() => {
+                      const progress = progressByLine.get(candidate.id)!;
+                      const state = progress.mastered === progress.decisions
+                        ? "mastered"
+                        : progress.accuracyPercent === null
+                          ? "new"
+                          : progress.due > 0 || progress.accuracyPercent < 80
+                            ? "weak"
+                            : "learning";
+                      return <small className={`opening-line-mastery ${state}`}>
+                        {state === "mastered" ? "Secure for now" : state === "new" ? "New" : state === "weak" ? "Needs review" : "Learning"}
+                        {` · ${progress.mastered}/${progress.decisions}`}
+                        {(transpositionsByLine.get(candidate.id) ?? 0) > 0 ? ` · ${transpositionsByLine.get(candidate.id)} transposition${transpositionsByLine.get(candidate.id) === 1 ? "" : "s"}` : ""}
+                      </small>;
+                    })()}
                   </button>
                 ))}
               </div>
@@ -565,7 +594,11 @@ export function OpeningLineExplorer({
           <div className="candidate-banner">
             <div>
               <span>{selected.chapter.title}</span>
-              <small>You are {detail.repertoire.learnerColor}. Your side is nearest.</small>
+              <small>You are {detail.repertoire.learnerColor}. Your side is nearest.{selectedProgress
+                ? ` ${selectedProgress.mastered}/${selectedProgress.decisions} moves secure for now.`
+                : ""}{selectedTranspositions > 0
+                ? ` ${selectedTranspositions} position${selectedTranspositions === 1 ? "" : "s"} can be reached by another move order.`
+                : ""}</small>
             </div>
             <strong>{ply === 0 ? "Starting position" : `${ply} / ${line.moveCount}`}</strong>
           </div>
@@ -597,6 +630,13 @@ export function OpeningLineExplorer({
               </button>
             ))}
           </div>
+          {equivalentLines.length > 0 && <details className="opening-equivalent-lines">
+            <summary>Other lines reaching this position ({equivalentLines.length})</summary>
+            {equivalentLines.map((candidate) => <button className="text-button" key={candidate.line.id}
+              onClick={() => { chooseLine(candidate.line.id); setPly(candidate.ply); }}>
+              {candidate.line.title} — view this position
+            </button>)}
+          </details>}
         </div>
 
         <aside className="panel opening-move-inspector">

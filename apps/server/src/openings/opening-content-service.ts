@@ -141,22 +141,36 @@ export class OpeningContentService {
     const reviewByLine = new Map((this.db.prepare(`
       SELECT membership.line_id,
              COUNT(DISTINCT move.id) AS decisions,
-             COUNT(DISTINCT CASE WHEN item.state = 2 THEN move.id END) AS mastered,
+             COUNT(DISTINCT CASE WHEN item.state = 2 AND item.repetitions >= 3
+               AND item.stability >= 7 AND item.due_at > ? THEN move.id END) AS mastered,
+             COUNT(DISTINCT CASE WHEN item.state <> 0 AND item.due_at <= ? THEN move.id END) AS due,
              COALESCE(SUM(item.lapses), 0) AS lapses,
              AVG(item.average_response_ms) AS average_response_ms
       FROM opening_line_moves membership
       JOIN opening_moves move ON move.id = membership.move_id AND move.active = 1 AND move.role = 'learner'
-      LEFT JOIN opening_review_items item
-        ON item.move_id = move.id AND item.profile_id = ? AND item.knowledge_dimension = 'move'
+      LEFT JOIN opening_move_review_cards item
+        ON item.move_id = move.id AND item.profile_id = ?
       GROUP BY membership.line_id
-    `).all(profileId) as Array<{
-      line_id: string; decisions: number; mastered: number; lapses: number; average_response_ms: number | null;
+    `).all(now(), now(), profileId) as Array<{
+      line_id: string; decisions: number; mastered: number; due: number; lapses: number; average_response_ms: number | null;
     }>).map((row) => [row.line_id, row]));
     const attemptsByLine = new Map((this.db.prepare(`
-      SELECT membership.line_id, COUNT(*) AS attempts, SUM(event.correct) AS correct
-      FROM opening_review_events event
-      JOIN opening_review_items item ON item.id = event.review_item_id AND item.profile_id = ?
-      JOIN opening_line_moves membership ON membership.move_id = item.move_id
+      WITH evidence AS (
+        SELECT event.*, COALESCE(played.id, queue.expected_move_id, item.move_id) AS target_move_id
+        FROM opening_review_events event
+        JOIN opening_review_items item ON item.id = event.review_item_id AND item.profile_id = ?
+        JOIN opening_review_queue queue ON queue.id = event.queue_entry_id
+        LEFT JOIN opening_moves played ON event.correct = 1 AND played.repertoire_id = item.repertoire_id
+          AND played.from_position_id = item.position_id AND played.move_uci = event.played_move_uci
+      ), recent AS (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY target_move_id ORDER BY created_at DESC, id DESC) AS recency
+        FROM evidence
+      )
+      SELECT membership.line_id, COUNT(*) AS attempts,
+        SUM(CASE WHEN event.correct = 1 AND event.assisted = 0 THEN 1 ELSE 0 END) AS correct
+      FROM recent event
+      JOIN opening_line_moves membership ON membership.move_id = event.target_move_id
+      WHERE event.recency <= 20
       GROUP BY membership.line_id
     `).all(profileId) as Array<{ line_id: string; attempts: number; correct: number | null }>)
       .map((row) => [row.line_id, row]));
@@ -170,7 +184,7 @@ export class OpeningContentService {
       .map((row) => [row.line_id, Number(row.game_misses)]));
     const progress = lines.map((line): OpeningLineProgress => {
       const review = reviewByLine.get(line.line_id) ?? {
-        decisions: 0, mastered: 0, lapses: 0, average_response_ms: null,
+        decisions: 0, mastered: 0, due: 0, lapses: 0, average_response_ms: null,
       };
       const attempts = attemptsByLine.get(line.line_id) ?? { attempts: 0, correct: null };
       const gameMisses = missesByLine.get(line.line_id) ?? 0;
@@ -188,6 +202,7 @@ export class OpeningContentService {
         lapses: Number(review.lapses),
         averageResponseMs: review.average_response_ms === null ? null : Math.round(Number(review.average_response_ms)),
         gameMisses,
+        due: Number(review.due),
       };
     }).filter((line) => line.decisions > 0);
     progress.sort((left, right) =>
@@ -200,7 +215,8 @@ export class OpeningContentService {
     return {
       totalLines: progress.length,
       masteredLines: progress.filter((line) => line.mastered === line.decisions && line.decisions > 0).length,
-      weakestLines: progress.slice(0, 5),
+      lines: progress,
+      weakestLines: progress.filter((line) => line.mastered < line.decisions).slice(0, 5),
     };
   }
 

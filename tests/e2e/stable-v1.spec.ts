@@ -231,6 +231,42 @@ test.describe.serial("stable V1 browser journey", () => {
     await expect(openings.getByRole("heading", { name: "Board-built Italian", level: 3 })).toBeHidden();
   });
 
+  test("practises a chosen line as a continuous board drill", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Openings" }).click();
+    const openings = page.locator("#opening-practice");
+    const starter = openings.locator("article").filter({ hasText: "Modern Defence with 1...g6" });
+    await starter.locator("summary").click();
+    await starter.getByRole("button", { name: "View all lines" }).click();
+    await openings.getByRole("button", { name: "Practise this line" }).click();
+
+    await expect(openings.getByText("Today’s opening practice", { exact: true })).toBeVisible();
+    await expect(openings.getByText("Step 1 of", { exact: false })).toBeVisible();
+    await expect(openings.getByRole("button", { name: "Hint: show the piece" })).toBeVisible();
+    await expect(openings.getByRole("button", { name: "Show move" })).toBeVisible();
+    await expect(openings.getByText("EXPLAIN", { exact: true })).toBeHidden();
+
+    let state = await (await page.request.get("/api/v1/openings/reviews/active")).json() as {
+      kind: "exercise" | "feedback";
+      sessionId: string;
+      acceptedMoves?: Array<{ moveUci: string }>;
+    };
+    for (let decision = 0; decision < 20; decision += 1) {
+      if (state.kind === "exercise") {
+        const answered = await page.request.post(`/api/v1/openings/reviews/${state.sessionId}/move`, {
+          data: { moveUci: state.acceptedMoves![0]!.moveUci },
+        });
+        expect(answered.ok()).toBe(true);
+      }
+      const continued = await page.request.post(`/api/v1/openings/reviews/${state.sessionId}/continue`);
+      expect(continued.ok()).toBe(true);
+      const next = await continued.json() as typeof state | { kind: "complete" };
+      if (next.kind === "complete") break;
+      state = next;
+    }
+    expect(await (await page.request.get("/api/v1/openings/reviews/active")).json()).toBeNull();
+  });
+
   test("archives and restores built-in repertoires and individual lines", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Openings" }).click();
@@ -299,11 +335,13 @@ test.describe.serial("stable V1 browser journey", () => {
     await expect(openings.getByText("Try again", { exact: true })).toBeVisible();
     await expect(board.getByRole("gridcell", { name: "g1 white knight" })).toHaveClass(/rejected-move/);
     await expect(board.getByRole("gridcell", { name: "f3 empty" })).toHaveClass(/rejected-move/);
+    await expect(board.getByRole("gridcell", { name: "e2 white pawn" })).not.toHaveClass(/answer-highlight/);
+    await openings.getByRole("button", { name: "Hint: show the piece" }).click();
     await expect(board.getByRole("gridcell", { name: "e2 white pawn" })).toHaveClass(/answer-highlight/);
     await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
     await board.getByRole("gridcell", { name: "e4 empty" }).click();
     await expect(openings.getByText("Learning", { exact: true })).toBeVisible();
-    await expect(openings.getByText("Next position is loading automatically…")).toBeVisible();
+    await expect(openings.getByText("Continuing automatically…")).toBeVisible();
     await expect(openings.getByText("Step 2 of 6")).toBeVisible({ timeout: 5_000 });
 
     const decisions = [
@@ -359,6 +397,9 @@ test.describe.serial("stable V1 browser journey", () => {
     await board.getByRole("gridcell", { name: "g1 white knight" }).click();
     await board.getByRole("gridcell", { name: "f3 empty" }).click();
     await expect(openings.getByText("Try again", { exact: true })).toBeVisible();
+    await expect(openings.getByText(/ask for a hint/i)).toBeVisible();
+    await expect(board.getByRole("gridcell", { name: "e2 white pawn" })).not.toHaveClass(/answer-highlight/);
+    await openings.getByRole("button", { name: "Hint: show the piece" }).click();
     await expect(openings.getByText(/move the pawn/i)).toBeVisible();
     await expect(board.getByRole("gridcell", { name: "e2 white pawn" })).toHaveClass(/answer-highlight/);
     await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
@@ -455,7 +496,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await page.getByRole("button", { name: "Repertoire: e4" }).click();
     await expect(differenceBoard.getByRole("gridcell", { name: "e4 white pawn" })).toBeVisible();
     await page.getByRole("button", { name: "Practise e4 now" }).click();
-    await expect(page.getByText("Today’s opening practice", { exact: true })).toBeVisible();
+    await expect(page.locator("#opening-practice .opening-review")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Find the move from its purpose." })).toBeVisible();
     await expectSquareBoard(page);
   });

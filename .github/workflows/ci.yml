@@ -1,9 +1,9 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
+  workflow_call:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -18,7 +18,21 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm run check
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:e2e
       - run: docker build -t thinking-board:ci .
+      - name: Smoke-test container, persistent data and local Stockfish
+        run: |
+          docker volume create thinking-board-ci-data
+          docker run -d --name thinking-board-ci -p 127.0.0.1:18000:8000 -v thinking-board-ci-data:/app/data thinking-board:ci
+          node scripts/container-smoke.mjs http://127.0.0.1:18000
+          docker restart thinking-board-ci
+          node scripts/container-smoke.mjs http://127.0.0.1:18000 --existing
+      - name: Container diagnostics and cleanup
+        if: always()
+        run: |
+          docker logs thinking-board-ci || true
+          docker rm -f thinking-board-ci || true
+          docker volume rm thinking-board-ci-data || true

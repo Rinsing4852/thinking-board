@@ -108,6 +108,8 @@ select { min-width: 200px; background: #101512; color: #e6ece7; border: 1px soli
 .opening-practice-section { border-top: 1px solid var(--line); padding: 6rem 0; scroll-margin-top: 84px; }
 .opening-practice-section.studio-active { padding-top: 1.5rem; }
 .app-view-openings .opening-practice-section.practice-active { padding-top: 1rem; }
+.opening-practice-section.practice-active { padding-bottom: 1rem; }
+.app-view-practice-focus ~ footer { display: none; }
 .opening-practice-section.practice-active .opening-trainer-layout {
   grid-template-columns: clamp(420px, 68vh, 680px) minmax(300px, 1fr);
   gap: 1.5rem;
@@ -265,6 +267,11 @@ button.opening-home-action.primary-route { border-color: rgba(201,243,107,.4); b
 .opening-lesson-context summary { cursor: pointer; font-weight: 700; }
 .opening-lesson-context p { margin: .55rem 0 0; }
 .opening-review .opening-lesson-title > div:first-child p { display: none; }
+.opening-board-prompt { margin: 0 0 .5rem; min-height: 2.8em; color: var(--ink-soft); font-size: .85rem; line-height: 1.4; }
+.opening-line-mastery { display: block; margin-top: .35rem; color: var(--ink-soft); font-size: .75rem; }
+.opening-line-mastery.mastered { color: var(--lime); }
+.opening-line-mastery.weak { color: var(--orange); }
+.opening-recall-help { position: sticky; bottom: 0; z-index: 7; background: var(--panel); padding: .6rem 0; }
 .opening-progress { display: grid; gap: .5rem; }
 .opening-progress-topline { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .opening-progress-topline .text-button { padding: .2rem; }
@@ -788,8 +795,24 @@ footer { border-top: 1px solid var(--line); padding: 2rem 4vw; color: #69756d; d
   .opening-lesson-title { grid-template-columns: 1fr; gap: 1rem; }
   .opening-trainer-layout .board-column { grid-row: 1; }
   .opening-trainer-layout .opening-question-card { grid-row: 2; min-height: 0; }
-  .opening-review .opening-lesson-title { gap: .65rem; }
+  .opening-review .opening-lesson-title { grid-template-columns: minmax(0, 1fr) auto; gap: .65rem; padding: .65rem .8rem; }
+  .opening-review .opening-lesson-title > div:first-child .eyebrow { display: none; }
+  .opening-review .opening-lesson-title h3 { font-size: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .opening-review .opening-progress { gap: .2rem; font-size: .8rem; }
+  .opening-review .opening-progress small { max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .65rem; }
+  .opening-review .opening-progress progress { display: none; }
   .opening-review .opening-lesson-title > div:first-child p { display: none; }
+  .opening-review .board-column { width: min(100%, 520px); justify-self: center; }
+  .opening-review .candidate-banner { padding: .6rem .75rem; }
+  .opening-review .candidate-banner small { display: none; }
+  .opening-review .below-board { display: none; }
+  .opening-review .opening-question-card { padding: .85rem; }
+  .opening-review .opening-question-card .step-number { display: none; }
+  .opening-review .opening-question-card .instruction { display: none; }
+  .opening-review .opening-question-card h3 { font-size: 1.1rem; margin: .4rem 0; }
+  .opening-review .opening-question-card .opening-move-result { padding: .5rem .65rem; margin-bottom: 0; font-size: .8rem; }
+  .opening-review .opening-recall-help { margin-top: 0; padding: .4rem 0; gap: .35rem; }
+  .opening-review .opening-recall-help button { font-size: .8rem; padding: .6rem; min-height: 44px; }
   .opening-workspace-heading, .opening-builder-heading { align-items: start; flex-direction: column; }
   .opening-workspace-actions { justify-content: flex-start; }
   .opening-edit-guide, .opening-delete-confirm { align-items: stretch; flex-direction: column; }

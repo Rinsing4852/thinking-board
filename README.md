@@ -25,13 +25,19 @@ the same session. Correct independent recalls move further into the future;
 missed moves enter a short relearning step.
 
 Practice is designed to stay quick: moves are checked directly on the board,
-wrong attempts reset immediately and remain marked in red, the first miss
-highlights which piece to move, and another miss shows the exact move. Prepared opponent replies and the
+wrong attempts reset immediately and remain marked in red without revealing the
+answer. Request a piece-only hint or deliberately choose Show move, then play
+the shown move yourself. Requested help survives page reloads and never counts
+as independent recall. Prepared opponent replies and the
 next exercise play automatically, so normal practice needs no Continue or
 confirmation buttons. Every
 repertoire move can also carry a private, editable learning comment in the
 learner's own words. These comments remain separate from the source material
 and appear wherever that move is studied or reviewed.
+
+Same-session retries are separated by at least two other positions and capped
+at two per move. If the set is too short, the scheduled review handles the retry
+instead of trapping the learner in an immediate reveal-and-repeat loop.
 
 Every repertoire also has a line explorer. It keeps transpositions as shared
 positions internally while presenting complete named lines to the learner, with
@@ -55,6 +61,23 @@ vertically without horizontal scrolling.
 The repertoire library stays compact: each title expands only when its
 statistics, description or actions are needed, leaving more room for the
 recommended session and the board.
+
+Selected-line recall measures the exact branch move separately from position
+recall, which accepts any active saved reply. Transpositions share the same
+move evidence, while alternative replies do not borrow each other's progress.
+“Secure for now” requires multiple reviews, at least a week of stability and a
+review date still in the future; it is not a promise of permanent mastery.
+Varied line practice selects a bounded saved line using average learning need,
+available authored frequencies and recent rehearsals. It avoids replaying the
+previous line when another is available. It is a line rehearsal, not an engine
+game or a live opponent simulation. Session depth and the amount of new material
+are adjustable in opening settings.
+
+Practice progresses automatically unless you pause, open an explanation or
+edit a comment. A manual pause always has a Resume action. Failed requests stop
+automatic progression and provide a retry; duplicate answer/next-position
+requests from the current interface do not grade twice or skip positions.
+Game/repertoire matches are cached until the graph or its visibility changes.
 
 Opening settings remember the learner's rating source and closest playing band.
 When practical data is enabled, the studio and line editor combine rated-game
@@ -172,6 +195,11 @@ docker compose up -d
 
 ## Upgrade and rollback
 
+Publishing the Docker image now depends on passing typechecks, tests, Chromium
+journeys, focused mobile WebKit practice tests and a real-container Stockfish
+and persistent-volume restart smoke test against the same commit. Automated
+mobile testing supplements, rather than replaces, testing on a physical phone.
+
 Before upgrading, create a backup inside the persistent data directory, then
 pull and restart the published image:
 
@@ -184,7 +212,7 @@ curl --fail http://127.0.0.1:8000/api/v1/health
 
 Database migrations run automatically and are tested from every released schema
 version. For reproducible installs, set `APP_VERSION` in `.env` to a numbered
-image tag such as `1.5.3`; `latest` follows the current release. To roll back,
+image tag such as `1.5.4`; `latest` follows the current release. To roll back,
 stop the app, restore `pre-upgrade.sqlite3` with the restore command above, set
 `APP_VERSION` to the previous release, and start Compose again. Never run two
 application versions against the same live database.

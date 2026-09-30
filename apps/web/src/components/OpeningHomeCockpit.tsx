@@ -16,6 +16,7 @@ interface OpeningHomeCockpitProps {
   busy: boolean;
   importOpen: boolean;
   onStartRecommended: () => void;
+  onStartRun: (repertoireId: string) => void;
   onOpenGames: (() => void) | undefined;
   onAnalyzeGame: (() => void) | undefined;
   onOpenGap: (gap: OpeningCoverageGap) => void;
@@ -38,6 +39,7 @@ export function OpeningHomeCockpit({
   busy,
   importOpen,
   onStartRecommended,
+  onStartRun,
   onOpenGames,
   onAnalyzeGame,
   onOpenGap,
@@ -85,9 +87,9 @@ export function OpeningHomeCockpit({
           <h2>Opening Practice</h2>
           <p>One useful task at a time: prepare likely replies, repair game misses, and remember the ideas behind your moves.</p>
           {progress && progress.totalLines > 0 && (
-            <div className="opening-home-progress" aria-label={`${progress.masteredLines} of ${progress.totalLines} opening lines mastered`}>
+            <div className="opening-home-progress" aria-label={`${progress.masteredLines} of ${progress.totalLines} opening lines secure for now`}>
               <span><i style={{ width: `${masteredPercent}%` }} /></span>
-              <small><strong>{progress.masteredLines} of {progress.totalLines}</strong> lines mastered</small>
+              <small><strong>{progress.masteredLines} of {progress.totalLines}</strong> lines secure for now</small>
             </div>
           )}
         </div>
@@ -105,9 +107,14 @@ export function OpeningHomeCockpit({
                 {recommendation.counts.early > 0 && <span><strong>{recommendation.counts.early}</strong> extra review</span>}
               </div>
             </div>
-            <button disabled={busy} onClick={onStartRecommended}>
-              {busy ? "Starting…" : `Start ${recommendation.counts.total}-position practice`}
-            </button>
+            <div className="answer-actions opening-home-primary-actions">
+              <button disabled={busy} onClick={onStartRecommended}>
+                {busy ? "Starting…" : `Start ${recommendation.counts.total}-position practice`}
+              </button>
+              <button className="secondary" disabled={busy} onClick={() => onStartRun(repertoire.id)}>
+                Practise a varied line
+              </button>
+            </div>
           </div>
         ) : (
           <div className="opening-home-primary empty">

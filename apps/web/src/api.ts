@@ -1,5 +1,7 @@
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(url, options);
+  const timeout = AbortSignal.timeout(30_000);
+  const signal = options?.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
+  const response = await fetch(url, { ...options, signal });
   if (!response.ok) {
     const body = await response.json().catch(() => ({})) as { error?: string };
     throw new Error(body.error ?? `Request failed (${response.status})`);

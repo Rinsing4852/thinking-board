@@ -59,11 +59,13 @@ export interface OpeningLineProgress {
   lapses: number;
   averageResponseMs: number | null;
   gameMisses: number;
+  due: number;
 }
 
 export interface OpeningProgressResponse {
   totalLines: number;
   masteredLines: number;
+  lines: OpeningLineProgress[];
   weakestLines: OpeningLineProgress[];
 }
 
@@ -235,6 +237,9 @@ export interface OpeningPlayerPreferences {
   platform: OpeningRatingPlatform;
   useExplorer: boolean;
   explorerAvailable: boolean;
+  newMovesPerSession: number;
+  practiceDepth: number;
+  boardSounds: boolean;
   updatedAt: string | null;
 }
 
@@ -478,6 +483,7 @@ export interface OpeningReviewRecommendation {
 export interface OpeningReviewExercise {
   kind: "exercise";
   sessionId: string;
+  queueEntryId: string;
   repertoire: { id: string; name: string };
   learnerColor: Color;
   positionNumber: number;
@@ -485,6 +491,7 @@ export interface OpeningReviewExercise {
   presentationKind: "scheduled" | "lapse_repeat";
   learningStage: "new" | "learning" | "review";
   practiceReason: { kind: OpeningReviewReasonKind; label: string };
+  lineRun: { lineId: string; lineTitle: string } | null;
   fenBeforeOpponent: string;
   fenToMove: string;
   opponentMove: OpeningReviewOpponentMove | null;
@@ -492,6 +499,7 @@ export interface OpeningReviewExercise {
   moveNumber: number;
   prompt: string;
   acceptedMoves: OpeningAcceptedMove[];
+  assistance: { pieceHint: boolean; moveShown: boolean };
   introduction: {
     repertoireMove: { moveId: string; moveUci: string; moveSan: string };
     fenAfterMove: string;
@@ -515,7 +523,7 @@ export interface OpeningReviewFeedback {
   assisted: boolean;
   revealed: boolean;
   playedMove: { moveUci: string; moveSan: string };
-  repertoireMove: { moveUci: string; moveSan: string };
+  repertoireMove: { moveId: string; moveUci: string; moveSan: string };
   fenAfterMove: string;
   message: string;
   explanation: {

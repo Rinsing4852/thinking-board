@@ -13,10 +13,19 @@ export default defineConfig({
     screenshot: "only-on-failure",
     ...devices["Desktop Chrome"],
   },
-  webServer: {
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    { name: "webkit", testMatch: "opening-quality.spec.ts", use: { ...devices["iPhone 13"] } },
+  ],
+  webServer: [{
     command: "node tests/e2e-server.mjs",
     url: "http://127.0.0.1:8191/api/v1/health",
     timeout: 30_000,
     reuseExistingServer: false,
-  },
+  }, {
+    command: "E2E_PORT=8192 node tests/e2e-server.mjs",
+    url: "http://127.0.0.1:8192/api/v1/health",
+    timeout: 30_000,
+    reuseExistingServer: false,
+  }],
 });

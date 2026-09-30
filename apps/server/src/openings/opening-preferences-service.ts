@@ -10,6 +10,9 @@ interface PreferenceRow {
   rating_group: number;
   platform: OpeningRatingPlatform;
   use_explorer: number;
+  new_moves_per_session: number;
+  practice_depth: number;
+  board_sounds: number;
   updated_at: string;
 }
 
@@ -22,7 +25,8 @@ export class OpeningPreferencesService {
   get(): OpeningPlayerPreferences {
     const profileId = ensureActiveProfile(this.db);
     const row = this.db.prepare(`
-      SELECT rating_group, platform, use_explorer, updated_at
+      SELECT rating_group, platform, use_explorer, new_moves_per_session,
+             practice_depth, board_sounds, updated_at
       FROM opening_player_preferences
       WHERE profile_id = ?
     `).get(profileId) as PreferenceRow | undefined;
@@ -33,6 +37,9 @@ export class OpeningPreferencesService {
       platform: "not_sure",
       useExplorer: false,
       explorerAvailable: this.explorerAvailable,
+      newMovesPerSession: 5,
+      practiceDepth: 8,
+      boardSounds: false,
       updatedAt: null,
     };
   }
@@ -41,6 +48,9 @@ export class OpeningPreferencesService {
     ratingGroup: number;
     platform: OpeningRatingPlatform;
     useExplorer: boolean;
+    newMovesPerSession?: number;
+    practiceDepth?: number;
+    boardSounds?: boolean;
   }): OpeningPlayerPreferences {
     if (!RATING_GROUPS.has(input.ratingGroup)) throw new Error("Choose a supported rating range");
     if (!PLATFORMS.has(input.platform)) throw new Error("Choose where this rating comes from");
@@ -50,16 +60,35 @@ export class OpeningPreferencesService {
     }
 
     const profileId = ensureActiveProfile(this.db);
+    const current = this.get();
+    const newMovesPerSession = input.newMovesPerSession ?? current.newMovesPerSession;
+    const practiceDepth = input.practiceDepth ?? current.practiceDepth;
+    const boardSounds = input.boardSounds ?? current.boardSounds;
+    if (!Number.isInteger(newMovesPerSession) || newMovesPerSession < 1 || newMovesPerSession > 10) {
+      throw new Error("Choose between 1 and 10 new moves per session");
+    }
+    if (!Number.isInteger(practiceDepth) || practiceDepth < 2 || practiceDepth > 20) {
+      throw new Error("Choose a practice depth between 2 and 20 moves");
+    }
+    if (typeof boardSounds !== "boolean") throw new Error("Choose whether board sounds are enabled");
     const updatedAt = now();
     this.db.prepare(`
-      INSERT INTO opening_player_preferences(profile_id, rating_group, platform, use_explorer, updated_at)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO opening_player_preferences(
+        profile_id, rating_group, platform, use_explorer,
+        new_moves_per_session, practice_depth, board_sounds, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(profile_id) DO UPDATE SET
         rating_group = excluded.rating_group,
         platform = excluded.platform,
         use_explorer = excluded.use_explorer,
+        new_moves_per_session = excluded.new_moves_per_session,
+        practice_depth = excluded.practice_depth,
+        board_sounds = excluded.board_sounds,
         updated_at = excluded.updated_at
-    `).run(profileId, input.ratingGroup, input.platform, input.useExplorer ? 1 : 0, updatedAt);
+    `).run(
+      profileId, input.ratingGroup, input.platform, input.useExplorer ? 1 : 0,
+      newMovesPerSession, practiceDepth, boardSounds ? 1 : 0, updatedAt,
+    );
 
     return {
       configured: true,
@@ -67,6 +96,9 @@ export class OpeningPreferencesService {
       platform: input.platform,
       useExplorer: input.useExplorer,
       explorerAvailable: this.explorerAvailable,
+      newMovesPerSession,
+      practiceDepth,
+      boardSounds,
       updatedAt,
     };
   }
@@ -78,6 +110,9 @@ export class OpeningPreferencesService {
       platform: row.platform,
       useExplorer: row.use_explorer === 1 && this.explorerAvailable,
       explorerAvailable: this.explorerAvailable,
+      newMovesPerSession: row.new_moves_per_session,
+      practiceDepth: row.practice_depth,
+      boardSounds: row.board_sounds === 1,
       updatedAt: row.updated_at,
     };
   }

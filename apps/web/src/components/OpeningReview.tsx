@@ -10,6 +10,7 @@ import type {
 } from "../../../../packages/contracts/src/api";
 import { post } from "../api";
 import { applyUciMove, getMoveHint } from "../opening-board";
+import { useOpeningReviewFlow } from "../opening-review-flow";
 import { formatMoveLabel, formatOpeningLineContext } from "../training-language";
 import { ChessBoard } from "./ChessBoard";
 import { OpeningExplanation } from "./OpeningExplanation";
@@ -17,9 +18,32 @@ import { OpeningLearningComment } from "./OpeningLearningComment";
 
 interface OpeningReviewProps {
   initial: OpeningReviewActiveState;
+  boardSounds?: boolean;
   onComplete: () => void;
   onPause: () => void;
   onPracticeMore: () => void;
+}
+
+function signalBoardResult(correct: boolean): void {
+  if (typeof window === "undefined") return;
+  navigator.vibrate?.(correct ? 18 : [20, 24, 20]);
+  try {
+    const context = new AudioContext();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.value = correct ? 620 : 210;
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.035, context.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.12);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.13);
+    oscillator.addEventListener("ended", () => void context.close());
+  } catch {
+    // Audio feedback is optional; practice must continue if the browser blocks it.
+  }
 }
 
 function initialBoard(active: OpeningReviewActiveState): string {
@@ -27,8 +51,8 @@ function initialBoard(active: OpeningReviewActiveState): string {
   return active.opponentMove ? active.fenBeforeOpponent : active.fenToMove;
 }
 
-function dueLabel(nextDueAt: string, outcome: "remembered" | "learning" | "again"): string {
-  if (outcome !== "remembered") {
+function dueLabel(nextDueAt: string, lapseQueued: boolean): string {
+  if (lapseQueued) {
     return "This position has been placed back into today’s session for an unassisted recall.";
   }
   const due = new Date(nextDueAt);
@@ -40,24 +64,37 @@ function dueLabel(nextDueAt: string, outcome: "remembered" | "learning" | "again
   return `Next scheduled review: ${due.toLocaleDateString(undefined, { day: "numeric", month: "short" })}.`;
 }
 
-export function OpeningReview({ initial, onComplete, onPause, onPracticeMore }: OpeningReviewProps) {
+export function OpeningReview({ initial, boardSounds = false, onComplete, onPause, onPracticeMore }: OpeningReviewProps) {
   const initialExercise = initial.kind === "feedback" ? initial.exercise : initial;
   const [exercise, setExercise] = useState<OpeningReviewExercise>(initialExercise);
   const [feedback, setFeedback] = useState<OpeningReviewFeedback | null>(initial.kind === "feedback" ? initial : null);
   const [complete, setComplete] = useState<OpeningReviewComplete | null>(null);
   const [observing, setObserving] = useState(initial.kind === "exercise" && Boolean(initial.opponentMove));
-  const [assisted, setAssisted] = useState(false);
-  const [wrongAttempts, setWrongAttempts] = useState(0);
+  const [assisted, setAssisted] = useState(initialExercise.assistance.pieceHint);
+  const [hintShown, setHintShown] = useState(initialExercise.assistance.pieceHint);
+  const [moveShown, setMoveShown] = useState(initialExercise.assistance.moveShown);
   const [displayFen, setDisplayFen] = useState(initialBoard(initial));
   const [lastMove, setLastMove] = useState<string | null>(
     initial.kind === "feedback" ? initial.repertoireMove.moveUci : null,
   );
-  const [moveNotice, setMoveNotice] = useState("");
-  const [hintSquares, setHintSquares] = useState<string[]>([]);
+  const initialHint = getMoveHint(initialExercise.fenToMove, initialExercise.introduction.repertoireMove.moveUci);
+  const [moveNotice, setMoveNotice] = useState(initialExercise.assistance.moveShown
+    ? `Play ${initialExercise.introduction.repertoireMove.moveSan} yourself, then try to remember it later without help.`
+    : initialExercise.assistance.pieceHint ? `Hint: move the ${initialHint.piece} on ${initialHint.square}.` : "");
+  const [hintSquares, setHintSquares] = useState<string[]>(initialExercise.assistance.moveShown
+    ? [initialHint.square, initialExercise.introduction.repertoireMove.moveUci.slice(2, 4)]
+    : initialExercise.assistance.pieceHint ? [initialHint.square] : []);
   const [rejectedMove, setRejectedMove] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
-  const [autoAdvancePaused, setAutoAdvancePaused] = useState(false);
+  const flow = useOpeningReviewFlow();
+  const [visible, setVisible] = useState(!document.hidden);
+  useEffect(() => {
+    const update = () => setVisible(!document.hidden);
+    document.addEventListener("visibilitychange", update);
+    return () => document.removeEventListener("visibilitychange", update);
+  }, []);
+  const submitting = flow.pending;
+  const error = flow.error;
+  const autoAdvancePaused = flow.paused;
 
   const showExercise = (next: OpeningReviewExercise): void => {
     setExercise(next);
@@ -67,8 +104,9 @@ export function OpeningReview({ initial, onComplete, onPause, onPracticeMore }: 
     setRejectedMove(null);
     setObserving(Boolean(next.opponentMove));
     setAssisted(false);
-    setWrongAttempts(0);
-    setAutoAdvancePaused(false);
+    setHintShown(false);
+    setMoveShown(false);
+    flow.reset();
     setDisplayFen(next.opponentMove ? next.fenBeforeOpponent : next.fenToMove);
     setLastMove(null);
   };
@@ -87,13 +125,11 @@ export function OpeningReview({ initial, onComplete, onPause, onPracticeMore }: 
   }, [observing, exercise.sessionId, exercise.positionNumber, exercise.opponentMove]);
 
   const checkMove = async (moveUci: string): Promise<void> => {
-    if (submitting) return;
-    setSubmitting(true);
-    setError("");
+    if (!flow.begin()) return;
     try {
       const result = await post<OpeningReviewFeedback>(
         `/api/v1/openings/reviews/${exercise.sessionId}/move`,
-        { moveUci, assisted },
+        { moveUci, assisted, queueEntryId: exercise.queueEntryId },
       );
       setMoveNotice("");
       setHintSquares([]);
@@ -102,98 +138,86 @@ export function OpeningReview({ initial, onComplete, onPause, onPracticeMore }: 
       setDisplayFen(result.fenAfterMove);
       setLastMove(result.repertoireMove.moveUci);
       window.dispatchEvent(new Event("training-completed"));
+      flow.finish();
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Could not check this opening move");
-    } finally {
-      setSubmitting(false);
+      setDisplayFen(exercise.fenToMove);
+      setLastMove(exercise.opponentMove?.moveUci ?? null);
+      flow.fail(failure instanceof Error ? failure.message : "Could not save your move. Try playing it again.");
     }
   };
 
-  const showProgressiveHint = (attemptNumber: number, playedSan: string): void => {
+  const showHelp = async (kind: "piece" | "move"): Promise<void> => {
+    if (!flow.begin()) return;
+    try {
+      await post<OpeningReviewExercise>(`/api/v1/openings/reviews/${exercise.sessionId}/help`,
+        { kind, queueEntryId: exercise.queueEntryId });
     const expected = exercise.introduction.repertoireMove;
     const hint = getMoveHint(exercise.fenToMove, expected.moveUci);
-    setWrongAttempts(attemptNumber);
     setAssisted(true);
-    if (attemptNumber <= 1) {
-      setHintSquares([hint.square]);
-      setMoveNotice(`${playedSan} is not in your repertoire here. Try the highlighted ${hint.piece}.`);
-      return;
+    setHintShown(true);
+    setRejectedMove(null);
+    setMoveShown(kind === "move");
+    setHintSquares(kind === "move" ? [hint.square, expected.moveUci.slice(2, 4)] : [hint.square]);
+    setMoveNotice(kind === "move"
+      ? `Play ${expected.moveSan} yourself, then try to remember it later without help.`
+      : `Hint: move the ${hint.piece} on ${hint.square}.`);
+      flow.finish();
+    } catch (failure) {
+      flow.fail(failure instanceof Error ? failure.message : "Could not save your hint. Try again.");
     }
-    const destination = expected.moveUci.slice(2, 4);
-    setHintSquares([hint.square, destination]);
-    setMoveNotice(`Try ${expected.moveSan}: move the ${hint.piece} from ${hint.square} to ${destination}.`);
   };
 
   const playRecallMove = (uci: string, san: string): void => {
     if (submitting) return;
     const accepted = exercise.acceptedMoves.some((move) => move.moveUci === uci);
     if (!accepted) {
-      const nextAttempt = wrongAttempts + 1;
-      showProgressiveHint(nextAttempt, san);
+      if (boardSounds) signalBoardResult(false);
+      setAssisted(true);
+      setMoveNotice(exercise.lineRun
+        ? `${san} is not the move in this branch. It may be playable or belong to another line. Try again, or ask for a hint.`
+        : `${san} is not one of your saved moves here. This does not mean it is a bad chess move. Try again, or ask for a hint.`);
+      setHintSquares([]);
+      setHintShown(false);
       setRejectedMove(uci);
       setDisplayFen(exercise.fenToMove);
       setLastMove(exercise.opponentMove?.moveUci ?? null);
-      setSubmitting(true);
-      setError("");
+      if (!flow.begin()) return;
       void post<OpeningReviewMistakeResponse>(
         `/api/v1/openings/reviews/${exercise.sessionId}/mistakes`,
-        { moveUci: uci },
-      ).then((result) => {
-        if (result.attemptNumber !== nextAttempt) showProgressiveHint(result.attemptNumber, san);
-      }).catch((failure) => {
-        setError(failure instanceof Error ? failure.message : "Could not record this attempt");
-      }).finally(() => setSubmitting(false));
+        { moveUci: uci, queueEntryId: exercise.queueEntryId },
+      ).then(() => flow.finish()).catch((failure) => {
+        flow.fail(failure instanceof Error ? failure.message : "Could not record this attempt");
+      });
       return;
     }
+    if (boardSounds) signalBoardResult(true);
     setDisplayFen(applyUciMove(exercise.fenToMove, uci));
     setRejectedMove(null);
     setLastMove(uci);
     void checkMove(uci);
   };
 
-  const revealMove = async (): Promise<void> => {
-    if (submitting) return;
-    setSubmitting(true);
-    setError("");
-    try {
-      const result = await post<OpeningReviewFeedback>(
-        `/api/v1/openings/reviews/${exercise.sessionId}/reveal`,
-      );
-      setFeedback(result);
-      setRejectedMove(null);
-      setDisplayFen(result.fenAfterMove);
-      setLastMove(result.repertoireMove.moveUci);
-      window.dispatchEvent(new Event("training-completed"));
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Could not reveal this opening move");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const continueReview = async (): Promise<void> => {
-    if (submitting) return;
-    setSubmitting(true);
-    setError("");
+    if (!flow.begin()) return;
     try {
       const next = await post<OpeningReviewState>(
         `/api/v1/openings/reviews/${exercise.sessionId}/continue`,
+        { queueEntryId: exercise.queueEntryId },
       );
       if (next.kind === "complete") setComplete(next);
       else showExercise(next);
+      flow.finish();
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Could not continue the opening review");
-    } finally {
-      setSubmitting(false);
+      flow.fail(failure instanceof Error ? failure.message : "Could not continue the opening review");
     }
   };
 
   useEffect(() => {
-    if (!feedback || autoAdvancePaused || submitting) return;
-    const delay = feedback.outcome === "remembered" ? 1600 : 2800;
+    if (!feedback || !flow.canAdvance || !visible) return;
+    const delay = feedback.outcome === "remembered" ? 650 : 1500;
     const timer = window.setTimeout(() => void continueReview(), delay);
     return () => window.clearTimeout(timer);
-  }, [feedback, autoAdvancePaused, submitting]);
+  }, [feedback, flow.canAdvance, visible]);
 
   const updateLearningComment = (comment: string | null): void => {
     setExercise((current) => ({
@@ -254,12 +278,18 @@ export function OpeningReview({ initial, onComplete, onPause, onPracticeMore }: 
           <progress aria-label={`Opening practice progress: step ${exercise.positionNumber} of ${exercise.totalPositions}`} value={exercise.positionNumber - 1} max={exercise.totalPositions} />
           <small>{exercise.presentationKind === "lapse_repeat"
             ? "Unassisted retry"
-            : exercise.practiceReason.label}</small>
+            : exercise.lineRun
+              ? `Line run · ${exercise.lineRun.lineTitle}`
+              : exercise.practiceReason.label}</small>
         </div>
       </div>
 
       <div className="trainer-layout opening-trainer-layout">
         <div className="board-column">
+          <p className="opening-board-prompt" role="status">{observing
+            ? "Watch your opponent’s reply."
+            : feedback ? `${feedback.repertoireMove.moveSan} — ${feedback.outcome === "remembered" ? "remembered" : "we’ll practise this again"}`
+              : submitting ? "Saving your answer…" : moveNotice || "Your move — play your prepared reply."}</p>
           <div className="candidate-banner">
             <div>
               <span>{observing
@@ -284,6 +314,14 @@ export function OpeningReview({ initial, onComplete, onPause, onPracticeMore }: 
             rejectedMove={rejectedMove}
             onMove={playRecallMove}
           />
+          {!observing && !feedback && <div className="answer-actions opening-recall-help">
+            <button className="secondary" disabled={submitting || hintShown} onClick={() => void showHelp("piece")}>
+              {hintShown ? "Piece highlighted" : "Hint: show the piece"}
+            </button>
+            <button className="text-button opening-show-answer" disabled={submitting || moveShown} onClick={() => void showHelp("move")}>
+              {moveShown ? "Move highlighted — play it" : "Show move"}
+            </button>
+          </div>}
           <div className="opening-line-context below-board" aria-label="Moves leading to this position">
             <span>Position reached after</span>
             <strong>{formatOpeningLineContext(exercise.movesBefore)}</strong>
@@ -310,16 +348,13 @@ export function OpeningReview({ initial, onComplete, onPause, onPracticeMore }: 
                   <p>{exercise.introduction.explanation.summary}</p>
                 </div>
               )}
-              <p className="instruction">Play directly on the board. Correct moves continue automatically; a mistake gives you progressively clearer help.</p>
+              <p className="instruction">Play directly on the board. Correct moves continue automatically. After a mistake, try again or choose Hint or Show move.</p>
               {moveNotice && (
                 <div className="opening-move-result outside_repertoire" role="status">
-                  <strong>{wrongAttempts > 1 ? "Here is the move" : "Try again"}</strong>
+                  <strong>{hintShown ? "Hint" : "Try again"}</strong>
                   <p>{moveNotice}</p>
                 </div>
               )}
-              <button className="text-button opening-show-answer" disabled={submitting} onClick={() => void revealMove()}>
-                Show answer
-              </button>
             </>
           )}
 
@@ -333,25 +368,27 @@ export function OpeningReview({ initial, onComplete, onPause, onPracticeMore }: 
               <p className="opening-feedback-summary"><strong>Why:</strong> {feedback.explanation.summary}</p>
               <details
                 className="opening-feedback-details"
-                onToggle={(event) => setAutoAdvancePaused(event.currentTarget.open)}
+                onToggle={(event) => flow.pause("explanation", event.currentTarget.open)}
               >
                 <summary>See the full explanation</summary>
                 <OpeningExplanation explanation={feedback.explanation} showSummary={false} showPersonalComment={false} />
               </details>
               <OpeningLearningComment
                 repertoireId={exercise.repertoire.id}
-                moveId={exercise.introduction.repertoireMove.moveId}
+                moveId={feedback.repertoireMove.moveId}
                 comment={feedback.explanation.personalComment}
-                onEditingChange={setAutoAdvancePaused}
+                onEditingChange={(editing) => flow.pause("comment", editing)}
                 onSaved={updateLearningComment}
               />
-              <p className="opening-next-due">{dueLabel(feedback.nextDueAt, feedback.outcome)}</p>
+              <p className="opening-next-due">{dueLabel(feedback.nextDueAt, feedback.lapseQueued)}</p>
               <div className="answer-actions opening-feedback-actions">
-                <span className="opening-flow-status">{autoAdvancePaused ? "Auto-advance paused" : "Next position is loading automatically…"}</span>
-                {!autoAdvancePaused && <button className="text-button" onClick={() => setAutoAdvancePaused(true)}>Keep this open</button>}
-                <button className="text-button" disabled={submitting} onClick={() => void continueReview()}>
-                  {submitting ? "Loading…" : "Next position"}
+                <span className="opening-flow-status">{error ? "Practice stopped — retry when ready" : autoAdvancePaused ? "Auto-advance paused" : "Continuing automatically…"}</span>
+                <button className="text-button" onClick={() => flow.pause("manual", !flow.manualPause)}>
+                  {flow.manualPause ? "Resume automatic practice" : "Keep this open"}
                 </button>
+                {error && <button className="text-button" disabled={submitting} onClick={() => void continueReview()}>
+                  {submitting ? "Loading…" : "Try loading the next position again"}
+                </button>}
               </div>
             </div>
           )}

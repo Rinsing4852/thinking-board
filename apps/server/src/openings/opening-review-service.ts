@@ -12,6 +12,7 @@ import type {
 import type { SqliteDatabase } from "../db/database.js";
 import { id, now } from "../lib/ids.js";
 import { activeProfileId, ensureActiveProfile } from "../training/profile.js";
+import { selectPracticeLine, type LineCandidate } from "./opening-line-selection.js";
 import {
   OPENING_SCHEDULER_VERSION,
   scheduleOpeningReview,
@@ -25,6 +26,7 @@ interface ReviewItemRow extends StoredOpeningReviewCard {
   position_id: string;
   move_id: string;
   average_response_ms: number | null;
+  target_move_id: string;
   move_uci: string;
   move_san: string;
   from_fen: string;
@@ -49,6 +51,10 @@ interface ActiveQueueRow {
   sequence: number;
   presentation_kind: "scheduled" | "lapse_repeat";
   started_at: string;
+  source_line_id: string | null;
+  expected_move_id: string | null;
+  piece_hint: number;
+  move_shown: number;
 }
 
 interface EventRow {
@@ -79,6 +85,17 @@ interface RecommendedSelection {
   unreviewedGameMisses: number;
 }
 
+interface SelectedReviewItem {
+  id: string;
+  expectedMoveId?: string;
+  sourceLineId?: string;
+}
+
+interface PracticePacing {
+  newMovesPerSession: number;
+  practiceDepth: number;
+}
+
 function applyLegalMove(fen: string, moveUci: string): { san: string; fen: string } {
   if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(moveUci)) throw new Error("Choose a legal move on the board");
   try {
@@ -103,9 +120,10 @@ function averageResponse(previous: number | null, repetitions: number, responseM
 export class OpeningReviewService {
   constructor(private readonly db: SqliteDatabase) {}
 
-  recommendation(sessionSize = 10, newLimit = 3): OpeningReviewRecommendation {
+  recommendation(sessionSize = 10, newLimit?: number): OpeningReviewRecommendation {
     const profileId = ensureActiveProfile(this.db);
-    const recommendation = this.recommendedSelection(profileId, sessionSize, newLimit);
+    const resolvedNewLimit = newLimit ?? this.practicePacing(profileId).newMovesPerSession;
+    const recommendation = this.recommendedSelection(profileId, sessionSize, resolvedNewLimit);
     if (!recommendation) {
       return {
         available: false,
@@ -122,9 +140,10 @@ export class OpeningReviewService {
     };
   }
 
-  startRecommended(sessionSize = 10, newLimit = 3): OpeningReviewExercise {
+  startRecommended(sessionSize = 10, newLimit?: number): OpeningReviewExercise {
     const profileId = ensureActiveProfile(this.db);
-    const recommendation = this.recommendedSelection(profileId, sessionSize, newLimit);
+    const resolvedNewLimit = newLimit ?? this.practicePacing(profileId).newMovesPerSession;
+    const recommendation = this.recommendedSelection(profileId, sessionSize, resolvedNewLimit);
     if (!recommendation || recommendation.selected.length === 0) {
       throw new Error("There are no opening positions available to practise");
     }
@@ -141,9 +160,10 @@ export class OpeningReviewService {
     repertoireId: string,
     mode: OpeningReviewStartMode = "auto",
     sessionSize = 10,
-    newLimit = 5,
+    newLimit?: number,
   ): OpeningReviewExercise {
     const profileId = ensureActiveProfile(this.db);
+    const resolvedNewLimit = newLimit ?? this.practicePacing(profileId).newMovesPerSession;
     const timestamp = now();
     const repertoire = this.db.prepare(`
       SELECT repertoire.id
@@ -189,7 +209,7 @@ export class OpeningReviewService {
       GROUP BY ori.id
       ORDER BY chapter_order, line_priority, line_ply, COALESCE(m.frequency, 0) DESC, m.id
       LIMIT ?
-    `).all(profileId, repertoireId, Math.min(sessionSize, newLimit)) as Array<{ id: string }>;
+    `).all(profileId, repertoireId, Math.min(sessionSize, resolvedNewLimit)) as Array<{ id: string }>;
     const early = (): Array<{ id: string }> => this.db.prepare(`
         SELECT ori.id FROM opening_review_items ori
         JOIN opening_moves m ON m.id = ori.move_id AND m.active = 1
@@ -233,6 +253,133 @@ export class OpeningReviewService {
     if (selected.length === 0) throw new Error("This repertoire has no learner moves to review");
 
     return this.createSession(profileId, repertoireId, selected, pool, null);
+  }
+
+  startLine(repertoireId: string, lineId: string, maxDecisions?: number): OpeningReviewExercise {
+    const profileId = ensureActiveProfile(this.db);
+    const line = this.db.prepare(`
+      SELECT line.id
+      FROM opening_lines line
+      JOIN opening_chapters chapter ON chapter.id = line.chapter_id AND chapter.active = 1
+      LEFT JOIN opening_line_preferences preference
+        ON preference.line_id = line.id AND preference.profile_id = ?
+      LEFT JOIN opening_repertoire_preferences repertoire_preference
+        ON repertoire_preference.repertoire_id = chapter.repertoire_id AND repertoire_preference.profile_id = ?
+      WHERE line.id = ? AND chapter.repertoire_id = ? AND line.active = 1
+        AND preference.archived_at IS NULL AND repertoire_preference.archived_at IS NULL
+    `).get(profileId, profileId, lineId, repertoireId);
+    if (!line) throw new Error("This opening line is not available to practise");
+
+    this.ensureItems(profileId, repertoireId);
+    const selected = this.db.prepare(`
+      SELECT review.id, move.id AS expected_move_id
+      FROM opening_line_moves membership
+      JOIN opening_moves move ON move.id = membership.move_id
+        AND move.active = 1 AND move.role = 'learner'
+      JOIN opening_review_items review
+        ON review.profile_id = ?
+       AND review.repertoire_id = move.repertoire_id
+       AND review.position_id = move.from_position_id
+       AND review.knowledge_dimension = 'move'
+      WHERE membership.line_id = ?
+      ORDER BY membership.ply
+    `).all(profileId, lineId) as Array<{ id: string; expected_move_id: string }>;
+    if (selected.length === 0) throw new Error("This line has no learner moves to practise");
+    const limited = maxDecisions ? selected.slice(0, maxDecisions) : selected;
+
+    return this.createSession(
+      profileId,
+      repertoireId,
+      limited.map((item) => ({
+        id: item.id,
+        expectedMoveId: item.expected_move_id,
+        sourceLineId: lineId,
+      })),
+      "early",
+      null,
+    );
+  }
+
+  startTree(repertoireId: string): OpeningReviewExercise {
+    const profileId = ensureActiveProfile(this.db);
+    const { practiceDepth } = this.practicePacing(profileId);
+    this.ensureItems(profileId, repertoireId);
+    const rows = this.db.prepare(`
+      SELECT line.id AS line_id, line.priority, membership.ply,
+             move.role, move.frequency,
+             review.state, review.due_at, review.lapses, review.average_response_ms
+      FROM opening_lines line
+      JOIN opening_chapters chapter ON chapter.id = line.chapter_id
+        AND chapter.repertoire_id = ? AND chapter.active = 1
+      JOIN opening_line_moves membership ON membership.line_id = line.id
+      JOIN opening_moves move ON move.id = membership.move_id AND move.active = 1
+      LEFT JOIN opening_move_review_cards review
+        ON review.profile_id = ?
+       AND review.move_id = move.id
+      LEFT JOIN opening_line_preferences preference
+        ON preference.line_id = line.id AND preference.profile_id = ?
+      WHERE line.active = 1 AND preference.archived_at IS NULL
+      ORDER BY line.priority, line.id, membership.ply
+    `).all(repertoireId, profileId, profileId) as Array<{
+      line_id: string;
+      priority: number;
+      ply: number;
+      role: "learner" | "opponent";
+      frequency: number | null;
+      state: number | null;
+      due_at: string | null;
+      lapses: number | null;
+      average_response_ms: number | null;
+    }>;
+    const candidates = new Map<string, LineCandidate>();
+    const timestamp = now();
+    for (const row of rows) {
+      const candidate = candidates.get(row.line_id) ?? {
+        lineId: row.line_id,
+        priority: row.priority,
+        practicalWeight: 1,
+        urgency: 0,
+        decisions: 0,
+      };
+      if (candidate.decisions >= practiceDepth) continue;
+      if (row.role === "opponent") {
+        candidate.practicalWeight *= Math.max(0.08, row.frequency ?? 0.35);
+      } else {
+        candidate.decisions += 1;
+        candidate.urgency += row.state === null || row.state === 0
+          ? 3
+          : row.due_at && row.due_at <= timestamp
+            ? 6
+            : row.state === 1 || row.state === 3 ? 4 : 1;
+        candidate.urgency += Math.min(6, Number(row.lapses ?? 0) * 2);
+        if (Number(row.average_response_ms ?? 0) > 20_000) candidate.urgency += 2;
+      }
+      candidates.set(row.line_id, candidate);
+    }
+    const recentLines = this.db.prepare(`
+      SELECT queue.source_line_id FROM opening_review_sessions session
+      JOIN opening_review_queue queue ON queue.session_id = session.id AND queue.sequence = 0
+      WHERE session.profile_id = ? AND session.repertoire_id = ? AND queue.source_line_id IS NOT NULL
+      ORDER BY session.started_at DESC, session.rowid DESC LIMIT 8
+    `).pluck().all(profileId, repertoireId) as string[];
+    const selected = selectPracticeLine([...candidates.values()].filter((line) => line.decisions > 0), recentLines);
+    if (!selected) throw new Error("This repertoire has no active lines to practise");
+    return this.startLine(repertoireId, selected.lineId, practiceDepth);
+  }
+
+  focus(sessionId: string): { profileId: string; repertoireId: string; gameId: string } | null {
+    const profileId = activeProfileId(this.db);
+    if (!profileId) return null;
+    const row = this.db.prepare(`
+      SELECT profile_id, repertoire_id, focus_game_id
+      FROM opening_review_sessions
+      WHERE id = ? AND profile_id = ? AND status = 'active' AND focus_game_id IS NOT NULL
+    `).get(sessionId, profileId) as {
+      profile_id: string;
+      repertoire_id: string;
+      focus_game_id: string;
+    } | undefined;
+    return row ? { profileId: row.profile_id, repertoireId: row.repertoire_id, gameId: row.focus_game_id } : null;
   }
 
   startPosition(repertoireId: string, positionId: string, gameId: string): OpeningReviewExercise {
@@ -432,7 +579,7 @@ export class OpeningReviewService {
   private createSession(
     profileId: string,
     repertoireId: string,
-    selected: Array<{ id: string }>,
+    selected: SelectedReviewItem[],
     pool: "due" | "new" | "mixed" | "early",
     focusGameId: string | null,
   ): OpeningReviewExercise {
@@ -457,9 +604,16 @@ export class OpeningReviewService {
       selected.forEach((item, sequence) => {
         this.db.prepare(`
           INSERT INTO opening_review_queue(
-            id, session_id, review_item_id, sequence, presentation_kind, status, started_at
-          ) VALUES (?, ?, ?, ?, 'scheduled', ?, ?)
-        `).run(id(), sessionId, item.id, sequence, sequence === 0 ? "active" : "pending", sequence === 0 ? timestamp : null);
+            id, session_id, review_item_id, sequence, presentation_kind, status, started_at,
+            source_line_id, expected_move_id
+          ) VALUES (?, ?, ?, ?, 'scheduled', ?, ?, ?, ?)
+        `).run(
+          id(), sessionId, item.id, sequence,
+          sequence === 0 ? "active" : "pending",
+          sequence === 0 ? timestamp : null,
+          item.sourceLineId ?? null,
+          item.expectedMoveId ?? null,
+        );
       });
     })();
     return this.exercise(this.activeQueue(sessionId));
@@ -470,7 +624,8 @@ export class OpeningReviewService {
     if (!profileId) return null;
     const queue = this.db.prepare(`
       SELECT s.id AS session_id, s.repertoire_id, r.name AS repertoire_name, r.learner_color,
-             q.id AS queue_id, q.review_item_id, q.sequence, q.presentation_kind, q.started_at
+             q.id AS queue_id, q.review_item_id, q.sequence, q.presentation_kind, q.started_at,
+             q.source_line_id, q.expected_move_id, q.piece_hint, q.move_shown
       FROM opening_review_sessions s
       JOIN opening_repertoires r ON r.id = s.repertoire_id
       JOIN opening_review_queue q ON q.session_id = s.id AND q.status = 'active'
@@ -493,21 +648,22 @@ export class OpeningReviewService {
     return event ? this.feedback(resumedQueue, event) : this.exercise(resumedQueue);
   }
 
-  answer(sessionId: string, moveUci: string, assisted = false, revealed = false): OpeningReviewFeedback {
+  answer(sessionId: string, moveUci: string, assisted = false, revealed = false, queueEntryId?: string): OpeningReviewFeedback {
     const queue = this.activeQueue(sessionId);
-    if (this.event(queue.queue_id)) throw new Error("This opening position has already been answered");
-    const item = this.item(queue.review_item_id);
+    if (queueEntryId && queue.queue_id !== queueEntryId) throw new Error("This position has changed. Reload the current practice position.");
+    const existing = this.event(queue.queue_id);
+    if (existing) {
+      if (existing.played_move_uci === moveUci) return this.feedback(queue, existing);
+      throw new Error("This opening position has already been answered");
+    }
+    const item = this.item(queue.review_item_id, queue.expected_move_id);
     const played = applyLegalMove(item.from_fen, moveUci);
-    const accepted = this.db.prepare(`
-      SELECT 1 FROM opening_moves
-      WHERE repertoire_id = ? AND from_position_id = ? AND move_uci = ?
-        AND role = 'learner' AND active = 1
-    `).get(item.repertoire_id, item.position_id, moveUci);
-    const correct = Boolean(accepted);
+    const correct = this.isAcceptedMove(queue, item, moveUci);
     const previousMistake = Boolean(this.db.prepare(`
       SELECT 1 FROM opening_review_mistakes WHERE queue_entry_id = ? LIMIT 1
     `).get(queue.queue_id));
-    const effectiveAssisted = assisted || previousMistake;
+    const effectiveAssisted = assisted || previousMistake || queue.piece_hint === 1 || queue.move_shown === 1;
+    revealed ||= queue.move_shown === 1;
     const independentRecall = correct && !effectiveAssisted;
     const answeredAt = now();
     const responseMs = Math.max(0, Date.parse(answeredAt) - Date.parse(queue.started_at));
@@ -515,6 +671,15 @@ export class OpeningReviewService {
     let repeatQueued = false;
 
     this.db.transaction(() => {
+      const recalledMove = correct ? this.db.prepare(`
+        SELECT id FROM opening_moves WHERE repertoire_id = ? AND from_position_id = ? AND move_uci = ?
+      `).get(item.repertoire_id, item.position_id, moveUci) as { id: string } : { id: item.target_move_id };
+      this.saveMoveRecall(item.profile_id, recalledMove.id, independentRecall, answeredAt, responseMs);
+      // An exact branch answer also supplies evidence for the broader question:
+      // can the learner recall any saved move in this position?
+      const positionItem = queue.expected_move_id ? this.item(queue.review_item_id) : item;
+      const positionSchedule = queue.expected_move_id
+        ? scheduleOpeningReview(positionItem, independentRecall, answeredAt, responseMs) : scheduled;
       this.db.prepare(`
         UPDATE opening_review_items SET
           scheduler_version = ?, state = ?, due_at = ?, stability = ?, difficulty = ?,
@@ -523,17 +688,17 @@ export class OpeningReviewService {
         WHERE id = ?
       `).run(
         OPENING_SCHEDULER_VERSION,
-        scheduled.card.state,
-        scheduled.card.dueAt,
-        scheduled.card.stability,
-        scheduled.card.difficulty,
-        scheduled.card.scheduledDays,
-        scheduled.card.learningSteps,
-        scheduled.card.repetitions,
-        scheduled.card.lapses,
-        scheduled.card.lastReviewedAt,
-        scheduled.result,
-        averageResponse(item.average_response_ms, item.repetitions, responseMs),
+        positionSchedule.card.state,
+        positionSchedule.card.dueAt,
+        positionSchedule.card.stability,
+        positionSchedule.card.difficulty,
+        positionSchedule.card.scheduledDays,
+        positionSchedule.card.learningSteps,
+        positionSchedule.card.repetitions,
+        positionSchedule.card.lapses,
+        positionSchedule.card.lastReviewedAt,
+        positionSchedule.result,
+        averageResponse(positionItem.average_response_ms, positionItem.repetitions, responseMs),
         answeredAt,
         item.id,
       );
@@ -550,18 +715,27 @@ export class OpeningReviewService {
         correct ? 1 : 0, effectiveAssisted ? 1 : 0, revealed ? 1 : 0, scheduled.rating, responseMs, item.state,
         scheduled.card.state, scheduled.card.dueAt, answeredAt,
       );
-      if (!independentRecall && !this.db.prepare(`
+      const interveningPositions = Number(this.db.prepare(`
+        SELECT COUNT(*) FROM opening_review_queue WHERE session_id = ? AND status = 'pending'
+          AND (review_item_id <> ? OR expected_move_id IS NOT ?)
+      `).pluck().get(sessionId, item.id, queue.expected_move_id));
+      const repeats = Number(this.db.prepare(`
+        SELECT COUNT(*) FROM opening_review_queue WHERE session_id = ? AND review_item_id = ?
+          AND expected_move_id IS ? AND presentation_kind = 'lapse_repeat'
+      `).pluck().get(sessionId, item.id, queue.expected_move_id));
+      if (!independentRecall && interveningPositions >= 2 && repeats < 2 && !this.db.prepare(`
         SELECT 1 FROM opening_review_queue
-        WHERE session_id = ? AND review_item_id = ? AND status = 'pending'
-      `).get(sessionId, item.id)) {
+        WHERE session_id = ? AND review_item_id = ? AND expected_move_id IS ? AND status = 'pending'
+      `).get(sessionId, item.id, queue.expected_move_id)) {
         const sequence = Number(this.db.prepare(`
           SELECT COALESCE(MAX(sequence), -1) + 1 FROM opening_review_queue WHERE session_id = ?
         `).pluck().get(sessionId));
         this.db.prepare(`
           INSERT INTO opening_review_queue(
-            id, session_id, review_item_id, sequence, presentation_kind, status
-          ) VALUES (?, ?, ?, ?, 'lapse_repeat', 'pending')
-        `).run(id(), sessionId, item.id, sequence);
+            id, session_id, review_item_id, sequence, presentation_kind, status,
+            source_line_id, expected_move_id
+          ) VALUES (?, ?, ?, ?, 'lapse_repeat', 'pending', ?, ?)
+        `).run(id(), sessionId, item.id, sequence, queue.source_line_id, queue.expected_move_id);
         repeatQueued = true;
       }
     })();
@@ -572,14 +746,9 @@ export class OpeningReviewService {
   recordMistake(sessionId: string, moveUci: string): OpeningReviewMistakeResponse {
     const queue = this.activeQueue(sessionId);
     if (this.event(queue.queue_id)) throw new Error("This opening position has already been answered");
-    const item = this.item(queue.review_item_id);
+    const item = this.item(queue.review_item_id, queue.expected_move_id);
     const played = applyLegalMove(item.from_fen, moveUci);
-    const accepted = this.db.prepare(`
-      SELECT 1 FROM opening_moves
-      WHERE repertoire_id = ? AND from_position_id = ? AND move_uci = ?
-        AND role = 'learner' AND active = 1
-    `).get(item.repertoire_id, item.position_id, moveUci);
-    if (accepted) throw new Error("That is an accepted repertoire move");
+    if (this.isAcceptedMove(queue, item, moveUci)) throw new Error("That is an accepted repertoire move");
 
     const createdAt = now();
     const responseMs = Math.max(0, Date.parse(createdAt) - Date.parse(queue.started_at));
@@ -600,11 +769,33 @@ export class OpeningReviewService {
 
   reveal(sessionId: string): OpeningReviewFeedback {
     const queue = this.activeQueue(sessionId);
-    const item = this.item(queue.review_item_id);
+    const item = this.item(queue.review_item_id, queue.expected_move_id);
     return this.answer(sessionId, item.move_uci, true, true);
   }
 
-  continue(sessionId: string): OpeningReviewState {
+  help(sessionId: string, kind: "piece" | "move", queueEntryId: string): OpeningReviewExercise {
+    const queue = this.activeQueue(sessionId);
+    if (queue.queue_id !== queueEntryId || this.event(queue.queue_id)) throw new Error("This position has already changed");
+    this.db.prepare(`UPDATE opening_review_queue SET piece_hint = 1, move_shown = MAX(move_shown, ?) WHERE id = ?`)
+      .run(kind === "move" ? 1 : 0, queue.queue_id);
+    return this.exercise(this.activeQueue(sessionId));
+  }
+
+  continue(sessionId: string, queueEntryId?: string): OpeningReviewState {
+    if (queueEntryId) {
+      const previous = this.db.prepare(`
+        SELECT q.status, s.status AS session_status FROM opening_review_queue q JOIN opening_review_sessions s ON s.id = q.session_id
+        WHERE q.id = ? AND s.id = ? AND s.profile_id = ?
+      `).get(queueEntryId, sessionId, activeProfileId(this.db)) as { status: string; session_status: string } | undefined;
+      if (!previous) throw new Error("Practice position not found");
+      if (previous.status === "completed") {
+        if (previous.session_status === "abandoned") throw new Error("This practice session has been replaced");
+        const active = this.active();
+        if (active?.sessionId === sessionId && active.kind === "exercise") return active;
+        if (previous.session_status === "completed") return this.complete(sessionId);
+        throw new Error("Practice has already advanced. Reload to return to your current answer.");
+      }
+    }
     const queue = this.activeQueue(sessionId);
     if (!this.event(queue.queue_id)) throw new Error("Answer the opening position before continuing");
     const timestamp = now();
@@ -675,11 +866,23 @@ export class OpeningReviewService {
     })();
   }
 
+  private practicePacing(profileId: string): PracticePacing {
+    const row = this.db.prepare(`
+      SELECT new_moves_per_session, practice_depth
+      FROM opening_player_preferences WHERE profile_id = ?
+    `).get(profileId) as { new_moves_per_session: number; practice_depth: number } | undefined;
+    return {
+      newMovesPerSession: row?.new_moves_per_session ?? 5,
+      practiceDepth: row?.practice_depth ?? 8,
+    };
+  }
+
   private activeQueue(sessionId: string): ActiveQueueRow {
     const profileId = activeProfileId(this.db);
     const row = this.db.prepare(`
       SELECT s.id AS session_id, s.repertoire_id, r.name AS repertoire_name, r.learner_color,
-             q.id AS queue_id, q.review_item_id, q.sequence, q.presentation_kind, q.started_at
+             q.id AS queue_id, q.review_item_id, q.sequence, q.presentation_kind, q.started_at,
+             q.source_line_id, q.expected_move_id, q.piece_hint, q.move_shown
       FROM opening_review_sessions s
       JOIN opening_repertoires r ON r.id = s.repertoire_id
       JOIN opening_review_queue q ON q.session_id = s.id AND q.status = 'active'
@@ -689,23 +892,72 @@ export class OpeningReviewService {
     return row;
   }
 
-  private item(itemId: string): ReviewItemRow {
+  private item(itemId: string, expectedMoveId: string | null = null): ReviewItemRow {
     const row = this.db.prepare(`
-      SELECT ori.*, m.move_uci, m.move_san, before.fen AS from_fen, after.fen AS to_fen,
+      SELECT ori.*, target.id AS target_move_id,
+             target.move_uci, target.move_san, before.fen AS from_fen, after.fen AS to_fen,
              r.learner_color, r.name AS repertoire_name, a.summary, a.changes_json,
              a.resulting_plan, a.tactical_warning, a.common_mistake,
              lc.comment AS personal_comment
       FROM opening_review_items ori
-      JOIN opening_moves m ON m.id = ori.move_id
-      JOIN opening_positions before ON before.id = m.from_position_id
-      JOIN opening_positions after ON after.id = m.to_position_id
+      JOIN opening_moves target ON target.id = COALESCE(?, ori.move_id)
+        AND target.repertoire_id = ori.repertoire_id
+        AND target.from_position_id = ori.position_id
+      JOIN opening_positions before ON before.id = target.from_position_id
+      JOIN opening_positions after ON after.id = target.to_position_id
       JOIN opening_repertoires r ON r.id = ori.repertoire_id
-      JOIN opening_move_annotations a ON a.move_id = m.id
-      LEFT JOIN opening_learning_comments lc ON lc.move_id = m.id AND lc.profile_id = ori.profile_id
+      JOIN opening_move_annotations a ON a.move_id = target.id
+      LEFT JOIN opening_learning_comments lc ON lc.move_id = target.id AND lc.profile_id = ori.profile_id
       WHERE ori.id = ?
-    `).get(itemId) as ReviewItemRow | undefined;
+    `).get(expectedMoveId, itemId) as ReviewItemRow | undefined;
     if (!row) throw new Error("Opening review item not found");
+    if (expectedMoveId) Object.assign(row, this.moveCard(row.profile_id, expectedMoveId));
     return row;
+  }
+
+  private moveCard(profileId: string, moveId: string): StoredOpeningReviewCard & { average_response_ms: number | null } {
+    return this.db.prepare(`SELECT * FROM opening_move_review_cards WHERE profile_id = ? AND move_id = ?`)
+      .get(profileId, moveId) as StoredOpeningReviewCard & { average_response_ms: number | null } | undefined
+      ?? { state: 0, due_at: now(), stability: 0, difficulty: 0, scheduled_days: 0,
+        learning_steps: 0, repetitions: 0, lapses: 0, last_reviewed_at: null, average_response_ms: null };
+  }
+
+  private saveMoveRecall(profileId: string, moveId: string, independent: boolean, timestamp: string, responseMs: number): void {
+    const previous = this.moveCard(profileId, moveId);
+    const scheduled = scheduleOpeningReview(previous, independent, timestamp, responseMs);
+    const card = scheduled.card;
+    this.db.prepare(`
+      INSERT INTO opening_move_review_cards(profile_id, move_id, scheduler_version, state, due_at,
+        stability, difficulty, scheduled_days, learning_steps, repetitions, lapses, last_reviewed_at, last_result, average_response_ms)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(profile_id, move_id) DO UPDATE SET scheduler_version = excluded.scheduler_version,
+        state = excluded.state, due_at = excluded.due_at, stability = excluded.stability,
+        difficulty = excluded.difficulty, scheduled_days = excluded.scheduled_days,
+        learning_steps = excluded.learning_steps, repetitions = excluded.repetitions, lapses = excluded.lapses,
+        last_reviewed_at = excluded.last_reviewed_at, last_result = excluded.last_result,
+        average_response_ms = excluded.average_response_ms
+    `).run(profileId, moveId, OPENING_SCHEDULER_VERSION, card.state, card.dueAt, card.stability,
+      card.difficulty, card.scheduledDays, card.learningSteps, card.repetitions, card.lapses,
+      card.lastReviewedAt, scheduled.result, averageResponse(previous.average_response_ms, previous.repetitions, responseMs));
+  }
+
+  private isAcceptedMove(queue: ActiveQueueRow, item: ReviewItemRow, moveUci: string): boolean {
+    if (queue.expected_move_id) return moveUci === item.move_uci;
+    return this.acceptedMoves(item).some((move) => move.moveUci === moveUci);
+  }
+
+  private acceptedMoves(item: ReviewItemRow): Array<{ moveUci: string; moveSan: string }> {
+    return this.db.prepare(`
+      SELECT DISTINCT move.move_uci AS moveUci, move.move_san AS moveSan
+      FROM opening_moves move
+      JOIN opening_line_moves membership ON membership.move_id = move.id
+      JOIN opening_lines line ON line.id = membership.line_id AND line.active = 1
+      JOIN opening_chapters chapter ON chapter.id = line.chapter_id AND chapter.active = 1
+      LEFT JOIN opening_line_preferences preference ON preference.line_id = line.id AND preference.profile_id = ?
+      WHERE move.repertoire_id = ? AND move.from_position_id = ? AND move.role = 'learner' AND move.active = 1
+        AND preference.archived_at IS NULL
+      ORDER BY move.move_kind, move.sort_order, move.move_san
+    `).all(item.profile_id, item.repertoire_id, item.position_id) as Array<{ moveUci: string; moveSan: string }>;
   }
 
   private event(queueId: string): EventRow | undefined {
@@ -716,9 +968,9 @@ export class OpeningReviewService {
   }
 
   private exercise(queue: ActiveQueueRow): OpeningReviewExercise {
-    const item = this.item(queue.review_item_id);
+    const item = this.item(queue.review_item_id, queue.expected_move_id);
     const context = this.db.prepare(`
-      SELECT target.line_id, target.ply AS target_ply,
+      SELECT target.line_id, l.title AS line_title, target.ply AS target_ply,
              previous.role AS previous_role, previous.move_uci AS previous_uci,
              previous.move_san AS previous_san, previous_before.fen AS previous_fen
       FROM opening_line_moves target
@@ -728,11 +980,12 @@ export class OpeningReviewService {
         ON previous_link.line_id = target.line_id AND previous_link.ply = target.ply - 1
       LEFT JOIN opening_moves previous ON previous.id = previous_link.move_id
       LEFT JOIN opening_positions previous_before ON previous_before.id = previous.from_position_id
-      WHERE target.move_id = ?
-      ORDER BY c.sort_order, l.priority, target.ply
+      WHERE target.move_id = ? AND (? IS NULL OR target.line_id = ?)
+      ORDER BY CASE WHEN target.line_id = ? THEN 0 ELSE 1 END, c.sort_order, l.priority, target.ply
       LIMIT 1
-    `).get(item.move_id) as {
+    `).get(item.target_move_id, queue.source_line_id, queue.source_line_id, queue.source_line_id) as {
       line_id: string;
+      line_title: string;
       target_ply: number;
       previous_role: "learner" | "opponent" | null;
       previous_uci: string | null;
@@ -782,7 +1035,7 @@ export class OpeningReviewService {
       FROM ranked_matches
       WHERE match_rank = 1 AND repertoire_id = ? AND expected_move_id = ?
         AND status = 'player_deviation'
-    `).pluck().get(item.profile_id, item.repertoire_id, item.move_id));
+    `).pluck().get(item.profile_id, item.repertoire_id, item.target_move_id));
     const practiceReason = queue.presentation_kind === "lapse_repeat"
       ? { kind: "retry" as const, label: "Retrying this move without help" }
       : gameMissCount > 0
@@ -803,16 +1056,13 @@ export class OpeningReviewService {
       commonMistake: item.common_mistake,
       personalComment: item.personal_comment,
     };
-    const acceptedMoves = this.db.prepare(`
-      SELECT move_uci AS moveUci, move_san AS moveSan
-      FROM opening_moves
-      WHERE repertoire_id = ? AND from_position_id = ?
-        AND role = 'learner' AND active = 1
-      ORDER BY CASE move_kind WHEN 'primary' THEN 0 ELSE 1 END, sort_order, move_san
-    `).all(item.repertoire_id, item.position_id) as Array<{ moveUci: string; moveSan: string }>;
+    const acceptedMoves = queue.expected_move_id
+      ? [{ moveUci: item.move_uci, moveSan: item.move_san }]
+      : this.acceptedMoves(item);
     return {
       kind: "exercise",
       sessionId: queue.session_id,
+      queueEntryId: queue.queue_id,
       repertoire: { id: queue.repertoire_id, name: queue.repertoire_name },
       learnerColor: queue.learner_color,
       positionNumber: completed + 1,
@@ -820,6 +1070,7 @@ export class OpeningReviewService {
       presentationKind: queue.presentation_kind,
       learningStage,
       practiceReason,
+      lineRun: queue.source_line_id && context ? { lineId: context.line_id, lineTitle: context.line_title } : null,
       fenBeforeOpponent: hasOpponentContext ? context!.previous_fen! : item.from_fen,
       fenToMove: item.from_fen,
       opponentMove: hasOpponentContext
@@ -829,8 +1080,9 @@ export class OpeningReviewService {
       moveNumber: Number.parseInt(item.from_fen.split(" ")[5] ?? "1", 10),
       prompt: "Recall your repertoire move for this position.",
       acceptedMoves,
+      assistance: { pieceHint: queue.piece_hint === 1, moveShown: queue.move_shown === 1 },
       introduction: {
-        repertoireMove: { moveId: item.move_id, moveUci: item.move_uci, moveSan: item.move_san },
+        repertoireMove: { moveId: item.target_move_id, moveUci: item.move_uci, moveSan: item.move_san },
         fenAfterMove: item.to_fen,
         explanation,
       },
@@ -838,7 +1090,11 @@ export class OpeningReviewService {
   }
 
   private feedback(queue: ActiveQueueRow, event: EventRow, lapseQueued = false): OpeningReviewFeedback {
-    const item = this.item(queue.review_item_id);
+    const reference = this.item(queue.review_item_id, queue.expected_move_id);
+    const played = event.correct === 1 ? this.db.prepare(`
+      SELECT id FROM opening_moves WHERE repertoire_id = ? AND from_position_id = ? AND move_uci = ?
+    `).get(reference.repertoire_id, reference.position_id, event.played_move_uci) as { id: string } | undefined : undefined;
+    const item = played ? this.item(queue.review_item_id, played.id) : reference;
     const exercise = this.exercise(queue);
     const exactMove = event.played_move_uci === item.move_uci;
     const outcome = event.correct === 0 ? "again" : event.assisted === 1 ? "learning" : "remembered";
@@ -852,8 +1108,8 @@ export class OpeningReviewService {
       assisted: event.assisted === 1,
       revealed: event.revealed === 1,
       playedMove: { moveUci: event.played_move_uci, moveSan: event.played_move_san },
-      repertoireMove: { moveUci: item.move_uci, moveSan: item.move_san },
-      fenAfterMove: item.to_fen,
+      repertoireMove: { moveId: item.target_move_id, moveUci: item.move_uci, moveSan: item.move_san },
+      fenAfterMove: event.correct === 1 ? applyLegalMove(item.from_fen, event.played_move_uci).fen : item.to_fen,
       message: outcome === "learning"
         ? event.revealed === 1
           ? "You chose to reveal the repertoire move. Study why it works; this position will return later for an unassisted recall."
@@ -874,7 +1130,9 @@ export class OpeningReviewService {
         personalComment: item.personal_comment,
       },
       nextDueAt: event.next_due_at,
-      lapseQueued: lapseQueued || queue.presentation_kind === "lapse_repeat" || outcome !== "remembered",
+      lapseQueued: lapseQueued || Boolean(this.db.prepare(`SELECT 1 FROM opening_review_queue
+        WHERE session_id = ? AND review_item_id = ? AND expected_move_id IS ? AND status = 'pending'`)
+        .get(queue.session_id, queue.review_item_id, queue.expected_move_id)),
     };
   }
 

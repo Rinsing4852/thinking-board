@@ -2,6 +2,39 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.5.4 — 2026-09-30
+
+### Frictionless line practice
+
+- Makes **Practise this line** a continuous board drill that follows the exact
+  selected branch, while preserving guided line study as the separate place to
+  stop and explain why each move works.
+- Keeps the answer hidden after a wrong move so the player can try again
+  unaided, request a piece-only hint, or deliberately reveal the full move.
+- Advances automatically after a correct move with a shorter confirmation,
+  then plays the next opponent reply without requiring a Continue button.
+- Stores the selected line and expected branch move on the review queue so
+  transpositions and alternative saved moves cannot silently switch the line
+  being practised.
+- Adds regression and browser coverage for exact-branch practice, learner-led
+  hints, automatic continuation and safe database migration.
+- Persists piece hints and shown answers, requires learners to execute shown
+  moves, and makes answer/advance retries safe without duplicate grading.
+- Separates exact-move recall from any-reply position recall; fixes alternative
+  move explanations, comments and branch progress attribution.
+- Adds independent pause controls, explicit Resume, offline recovery, bounded
+  request timeouts and foreground-only automatic progression.
+- Spaces same-session retries by at least two other positions and caps repeats
+  so a short drill can finish honestly without an immediate answer-memory loop.
+- Adds adjustable learning load, bounded varied-line rehearsal without
+  consecutive branch repetition, conservative “Secure for now” indicators and
+  navigation between lines reaching the same position.
+- Adds graph-revision caching to avoid rematching every game on each inbox read.
+- Makes Docker publishing depend on all checks and real-container persistence
+  and Stockfish smoke tests; adds focused WebKit/mobile regression coverage.
+- Updates compatible transitive dependencies to resolve the reported
+  brace-expansion and fast-uri security advisories.
+
 ## 1.5.3 — 2026-09-29
 
 ### Reliable Study persistence

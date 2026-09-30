@@ -19,6 +19,7 @@ import { OpeningGameService } from "./openings/opening-game-service.js";
 import { OpeningPgnImportService } from "./openings/opening-pgn-import.js";
 import { OpeningLichessImportService } from "./openings/opening-lichess-import.js";
 import { OpeningReviewService } from "./openings/opening-review-service.js";
+import { registerOpeningReviewRoutes } from "./openings/opening-review-routes.js";
 import { OpeningTrainingService } from "./openings/opening-training-service.js";
 import { OpeningWorkspaceService } from "./openings/opening-workspace-service.js";
 import { OpeningCoverageService } from "./openings/opening-coverage-service.js";
@@ -133,13 +134,24 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
 
   app.get("/api/v1/openings/preferences", async () => openingPreferences.get());
 
-  app.patch("/api/v1/openings/preferences", async (request, reply) => {
+  app.patch("/api/v1/openings/preferences", { schema: { body: {
+    type: "object", additionalProperties: false, required: ["ratingGroup", "platform", "useExplorer"],
+    properties: {
+      ratingGroup: { type: "integer", enum: [1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500] },
+      platform: { type: "string", enum: ["lichess", "chess_com", "fide", "not_sure"] },
+      useExplorer: { type: "boolean" }, newMovesPerSession: { type: "integer", minimum: 1, maximum: 10 },
+      practiceDepth: { type: "integer", minimum: 2, maximum: 20 }, boardSounds: { type: "boolean" },
+    },
+  } } }, async (request, reply) => {
     try {
       const body = (request.body ?? {}) as Record<string, unknown>;
       return openingPreferences.update({
         ratingGroup: Number(body.ratingGroup),
         platform: body.platform as "lichess" | "chess_com" | "fide" | "not_sure",
         useExplorer: body.useExplorer as boolean,
+        ...(body.newMovesPerSession === undefined ? {} : { newMovesPerSession: Number(body.newMovesPerSession) }),
+        ...(body.practiceDepth === undefined ? {} : { practiceDepth: Number(body.practiceDepth) }),
+        ...(body.boardSounds === undefined ? {} : { boardSounds: body.boardSounds as boolean }),
       });
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not save opening preferences" });
@@ -427,91 +439,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     }
   });
 
-  app.get("/api/v1/openings/reviews/active", async () => openingReviews.active());
-
-  app.get("/api/v1/openings/reviews/recommended", async () => {
-    const profileId = ensureActiveProfile(database.connection);
-    openingGames.inbox(profileId);
-    return openingReviews.recommendation();
-  });
-
-  app.post("/api/v1/openings/reviews/recommended/start", async (request, reply) => {
-    try {
-      const profileId = ensureActiveProfile(database.connection);
-      openingGames.inbox(profileId);
-      return openingReviews.startRecommended();
-    } catch (error) {
-      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not start recommended opening practice" });
-    }
-  });
-
-  app.post("/api/v1/openings/reviews/:sessionId/resume", async (request, reply) => {
-    try {
-      const { sessionId } = request.params as { sessionId: string };
-      return openingReviews.resume(sessionId);
-    } catch (error) {
-      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not resume opening review" });
-    }
-  });
-
-  app.post("/api/v1/openings/repertoires/:repertoireId/reviews/start", async (request, reply) => {
-    try {
-      const { repertoireId } = request.params as { repertoireId: string };
-      const body = (request.body ?? {}) as { mode?: unknown };
-      const mode = body.mode ?? "auto";
-      if (mode !== "auto" && mode !== "due" && mode !== "new" && mode !== "early") {
-        throw new Error("Review mode must be due, new, or early");
-      }
-      return openingReviews.start(repertoireId, mode);
-    } catch (error) {
-      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not start opening review" });
-    }
-  });
-
-  app.post("/api/v1/openings/reviews/:sessionId/move", async (request, reply) => {
-    try {
-      const { sessionId } = request.params as { sessionId: string };
-      const body = request.body as { moveUci?: unknown; assisted?: unknown };
-      if (body?.assisted !== undefined && typeof body.assisted !== "boolean") {
-        throw new Error("Assisted must be true or false");
-      }
-      return openingReviews.answer(
-        sessionId,
-        requiredString(body?.moveUci, "Move"),
-        body?.assisted === true,
-      );
-    } catch (error) {
-      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not check opening review" });
-    }
-  });
-
-  app.post("/api/v1/openings/reviews/:sessionId/mistakes", async (request, reply) => {
-    try {
-      const { sessionId } = request.params as { sessionId: string };
-      const body = request.body as { moveUci?: unknown };
-      return openingReviews.recordMistake(sessionId, requiredString(body?.moveUci, "Move"));
-    } catch (error) {
-      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not record opening mistake" });
-    }
-  });
-
-  app.post("/api/v1/openings/reviews/:sessionId/continue", async (request, reply) => {
-    try {
-      const { sessionId } = request.params as { sessionId: string };
-      return openingReviews.continue(sessionId);
-    } catch (error) {
-      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not continue opening review" });
-    }
-  });
-
-  app.post("/api/v1/openings/reviews/:sessionId/reveal", async (request, reply) => {
-    try {
-      const { sessionId } = request.params as { sessionId: string };
-      return openingReviews.reveal(sessionId);
-    } catch (error) {
-      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not reveal opening move" });
-    }
-  });
+  registerOpeningReviewRoutes(app, database.connection, openingReviews, openingGames);
 
   app.post("/api/v1/imports/pgn/preview", async (request, reply) => {
     try {
