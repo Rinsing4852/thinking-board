@@ -33,6 +33,7 @@ import { OpeningReview } from "./OpeningReview";
 import { OpeningLearningComment } from "./OpeningLearningComment";
 import { OpeningPlayerContext } from "./OpeningPlayerContext";
 import { OpeningHomeCockpit } from "./OpeningHomeCockpit";
+import { OpeningSourceUpdate } from "./OpeningSourceUpdate";
 
 type LessonPhase = "catalog" | "observe" | "move" | "why" | "feedback" | "complete";
 type ActiveLessonPhase = Exclude<LessonPhase, "catalog" | "complete">;
@@ -294,6 +295,24 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
       setRecommendation(recommended);
       setOpeningProgress(progress);
     }).catch(() => undefined);
+  };
+
+  const finishSourceUpdate = async (repertoireId: string): Promise<void> => {
+    const [catalogResponse, recommended, progress, review] = await Promise.all([
+      get<OpeningCatalogResponse>("/api/v1/openings/catalog"),
+      get<OpeningReviewRecommendation>("/api/v1/openings/reviews/recommended"),
+      get<OpeningProgressResponse>("/api/v1/openings/progress"),
+      get<OpeningReviewActiveState | null>("/api/v1/openings/reviews/active"),
+    ]);
+    setCatalog(catalogResponse.repertoires);
+    setRecommendation(recommended);
+    setOpeningProgress(progress);
+    setActiveReview(review);
+    setCoverageSpotlight(null);
+    if (step?.repertoire.id === repertoireId) {
+      const lesson = await get<OpeningLessonActiveState | null>("/api/v1/openings/lessons/active");
+      if (!lesson) { setStep(null); setPausedLessonPhase(null); }
+    }
   };
 
   const setRepertoireArchived = async (repertoire: OpeningRepertoireSummary, archived: boolean): Promise<void> => {
@@ -938,6 +957,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
                     <p className="opening-review-summary">
                       <strong>{repertoire.review.reviewed}</strong> reviewed · <strong>{repertoire.review.learning}</strong> learning · <strong>{repertoire.review.new}</strong> new
                     </p>
+                    {repertoire.origin === "imported" && <OpeningSourceUpdate repertoire={repertoire} onUpdated={() => finishSourceUpdate(repertoire.id)} />}
                   </div>
                 </details>
               </article>

@@ -26,7 +26,7 @@ export class OpeningContentService {
     const rows = this.db.prepare(`
       SELECT r.id, r.slug, r.name, r.learner_color, r.first_move_uci, r.first_move_san,
              r.summary, r.audience_label, r.style_json, r.memory_burden,
-             r.content_version, r.status, oi.source_title,
+             r.content_version, r.status, oi.source_title, oi.source_updated_at,
              COUNT(DISTINCT CASE WHEN c.active = 1 THEN c.id END) AS chapter_count
       FROM opening_repertoires r
       LEFT JOIN opening_imports oi ON oi.repertoire_id = r.id
@@ -102,6 +102,7 @@ export class OpeningContentService {
           decisionCount,
           origin: row.source_title === null || row.source_title === undefined ? "built_in" : "imported",
           sourceTitle: row.source_title === null || row.source_title === undefined ? null : String(row.source_title),
+          sourceUpdatedAt: row.source_updated_at ? String(row.source_updated_at) : null,
           archived: archivedIds.has(repertoireId),
           activeLineCount: Number(lineCounts?.active_count ?? 0),
           archivedLineCount: Number(lineCounts?.archived_count ?? 0),

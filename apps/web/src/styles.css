@@ -150,6 +150,20 @@ select { min-width: 200px; background: #101512; color: #e6ece7; border: 1px soli
 .opening-permission { display: grid; grid-template-columns: auto 1fr; align-items: start; gap: .7rem; color: #dce4dd; line-height: 1.45; font-size: .82rem; }
 .opening-permission input { margin-top: .2rem; accent-color: var(--lime); }
 .opening-source { flex: 0 0 auto !important; margin: -.2rem 0 .4rem; font-size: .78rem; }
+.opening-source-update, .opening-source-update-form, .opening-update-preview { display: grid; gap: .8rem; min-width: 0; }
+.opening-source-update { border-top: 1px solid var(--line); padding-top: 1rem; }
+.opening-source-update small { color: var(--ink-soft); }
+.opening-source-update-form { padding-top: .5rem; }
+.opening-source-update-form h4, .opening-source-update-form p { margin: 0; }
+.opening-source-update-form p { color: var(--ink-soft); line-height: 1.5; }
+.opening-source-update-form label:not(.opening-permission) { display: grid; gap: .45rem; }
+.opening-source-update-form input:not([type="checkbox"]), .opening-source-update-form select, .opening-source-update-form textarea {
+  width: 100%; min-width: 0; background: #101512; color: #e6ece7; border: 1px solid var(--line); border-radius: 8px; padding: .7rem;
+}
+.opening-source-update-form textarea { resize: vertical; font: .82rem/1.5 ui-monospace, "SFMono-Regular", Consolas, monospace; }
+.opening-update-preview { padding: 1rem; border: 1px solid var(--line); border-radius: 10px; }
+.opening-update-preview ul { padding-left: 1.25rem; margin: 0; line-height: 1.5; }
+.opening-update-preview summary { cursor: pointer; }
 .success { color: var(--lime); }
 .opening-recommendation-mix { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .2rem; }
 .opening-recommendation-mix span { padding: .35rem .55rem; border: 1px solid var(--line); border-radius: 999px; color: var(--ink-soft); font-size: .72rem; }

@@ -29,6 +29,7 @@ export interface OpeningRepertoireSummary {
   decisionCount: number;
   origin: "built_in" | "imported";
   sourceTitle: string | null;
+  sourceUpdatedAt?: string | null;
   archived: boolean;
   activeLineCount: number;
   archivedLineCount: number;
@@ -377,6 +378,24 @@ export interface OpeningImportResponse {
   repertoireIds: string[];
   imported: number;
   duplicates: number;
+  message: string;
+}
+
+export interface OpeningUpdatePreviewResponse {
+  previewId: string;
+  repertoireId: string;
+  addedLines: number;
+  extendedLines: number;
+  retainedLines: number;
+  updatedNotes: number;
+  addedMoves: number;
+  chapters: Array<{ title: string; lineCount: number }>;
+  warnings: string[];
+}
+
+export interface OpeningUpdateResponse {
+  repertoireId: string;
+  sourceUpdatedAt: string;
   message: string;
 }
 

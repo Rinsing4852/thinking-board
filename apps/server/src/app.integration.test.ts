@@ -110,6 +110,54 @@ async function waitForCompleted(app: Awaited<ReturnType<typeof buildApp>>, jobId
 }
 
 describe("vertical slice", () => {
+  it("previews and confirms a PGN source update through the API without creating another repertoire", async () => {
+    const app = await buildApp(config(false));
+    apps.push(app);
+    const imported = (await app.inject({ method: "POST", url: "/api/v1/openings/imports/pgn", payload: {
+      pgn: OPENING_REPERTOIRE_PGN, learnerColor: "white", sourceTitle: "My French notes", ownershipConfirmed: true,
+    } })).json();
+    const repertoireId = imported.repertoireIds[0];
+    const base = `/api/v1/openings/repertoires/${repertoireId}`;
+    const updatedPgn = OPENING_REPERTOIRE_PGN.replace("Black builds a solid centre.", "Black prepares to challenge the centre.").replace("3. Nc3 *", "3. Nc3 Nf6 4. e5 *");
+    const preview = await app.inject({ method: "POST", url: `${base}/updates/preview`, payload: { pgn: updatedPgn } });
+    expect(preview.statusCode).toBe(200);
+    expect(preview.json()).toMatchObject({ extendedLines: 1, updatedNotes: 1 });
+    const payload = { previewId: preview.json().previewId, ownershipConfirmed: true };
+    expect((await app.inject({ method: "POST", url: `${base}/updates`, payload: { ...payload, ownershipConfirmed: false } })).statusCode).toBe(400);
+    const applied = await app.inject({ method: "POST", url: `${base}/updates`, payload });
+    expect(applied.statusCode).toBe(200);
+    expect((await app.inject({ method: "POST", url: `${base}/updates`, payload })).json()).toEqual(applied.json());
+    const detail = (await app.inject({ method: "GET", url: base })).json();
+    expect(detail.chapters[0].lines).toHaveLength(2);
+    expect(detail.chapters[0].lines[0].moves.at(-1).moveSan).toBe("e5");
+    const catalogue = (await app.inject({ method: "GET", url: "/api/v1/openings/catalog" })).json();
+    expect(catalogue.repertoires.filter((repertoire: { origin: string }) => repertoire.origin === "imported")).toHaveLength(1);
+  });
+
+  it("refreshes a private study once and applies its preview without downloading again", async () => {
+    const settings = config(false);
+    settings.lichessApiToken = "test-private-study-token";
+    const pgn = '[Event "Private Italian"]\n[ChapterName "Italian"]\n[ChapterURL "https://lichess.org/study/abcdefgh/ABCDEFGH"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 *';
+    let downloads = 0;
+    globalThis.fetch = async (url, options) => {
+      expect(String(url)).toContain("variations=true");
+      expect(options?.headers).toMatchObject({ Authorization: "Bearer test-private-study-token" });
+      downloads += 1;
+      return new Response(pgn.replace("2. Nf3 *", "2. Nf3 Nc6 3. Bc4 *"));
+    };
+    const app = await buildApp(settings);
+    apps.push(app);
+    const repertoireId = (await app.inject({ method: "POST", url: "/api/v1/openings/imports/pgn", payload: {
+      pgn, learnerColor: "white", sourceType: "lichess_study", sourceTitle: "https://lichess.org/study/abcdefgh", ownershipConfirmed: true,
+    } })).json().repertoireIds[0];
+    const base = `/api/v1/openings/repertoires/${repertoireId}/updates`;
+    const preview = await app.inject({ method: "POST", url: `${base}/preview`, payload: { studyUrl: "https://lichess.org/study/abcdefgh" } });
+    expect(preview.statusCode).toBe(200);
+    const applied = await app.inject({ method: "POST", url: base, payload: { previewId: preview.json().previewId, ownershipConfirmed: true } });
+    expect(applied.statusCode).toBe(200);
+    expect(downloads).toBe(1);
+  });
+
   it("finishes a short assisted drill instead of immediately repeating the shown answer forever", async () => {
     const app = await buildApp(config(false));
     apps.push(app);

@@ -2,6 +2,26 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.5.5 — 2026-09-30
+
+### Update imported repertoires without starting again
+
+- Adds **Update from source** to private repertoire cards, using a Lichess Study
+  link or pasted opening PGN. Preview new/extended lines and changed source notes
+  before confirming the update.
+- Updates the existing repertoire in place, retaining review cards, solve history,
+  personal comments, custom line names, local branches and archive preferences.
+  Lines absent from the refreshed source are kept for manual review or archiving.
+- Refreshes only previously selected Lichess chapters, using stable chapter IDs
+  so renamed/reordered chapters are not duplicated. Supports older imports.
+- Confirms the exact downloaded preview snapshot, rejects stale/expired previews,
+  and safely handles repeated confirmation requests. Changed content ends current
+  practice sessions without deleting their recorded results; unchanged content
+  leaves practice running.
+- Stops treating PGN drawing directives such as `[%csl Gc7]` as written reasons.
+  Prose comments remain available; rendering imported arrows/squares is not added.
+- Adds source-update, API, migration and desktop/mobile browser regression checks.
+
 ## 1.5.4 — 2026-09-30
 
 ### Frictionless line practice

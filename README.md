@@ -95,7 +95,7 @@ and a practical warning where relevant.
 
 Paste a PGN or choose a `.pgn` file, select White, Black, or both, and preview
 its chapters and variations before importing. PGN comments are shown as
-personal notes; unexplained moves are labelled honestly instead of receiving
+source notes; unexplained moves are labelled honestly instead of receiving
 invented strategic claims.
 
 Public and private Lichess Studies can be imported directly from a study or chapter URL.
@@ -106,6 +106,17 @@ skipped. Public studies need no credentials. Private and unlisted studies use
 the optional server-side `LICHESS_API_TOKEN`; create it with only Lichess's
 `study:read` permission. The token is sent only to the validated Lichess export
 endpoint and is never returned to the browser.
+
+To refresh an existing imported repertoire, expand its card and choose **Update
+from source**. Use its Lichess Study link or paste the updated opening PGN, then
+preview and confirm. This merges new variations, extends recognised source lines
+and refreshes source comments in place, without resetting your learning progress,
+personal notes, custom line names or archived lines. Missing source lines and
+locally added branches are retained; archive unwanted lines yourself. A Lichess
+refresh checks only chapters already imported, not every chapter in the study.
+Updates are manual, not automatic background syncing. Confirmation uses the exact
+previewed source snapshot and expires after 30 minutes. Any practice session for
+changed content ends safely; recorded results remain. Nothing is published externally.
 
 The My games workspace can also remember a Lichess username and pull new
 finished games into the same duplicate-safe import and local-analysis pipeline.
@@ -212,7 +223,7 @@ curl --fail http://127.0.0.1:8000/api/v1/health
 
 Database migrations run automatically and are tested from every released schema
 version. For reproducible installs, set `APP_VERSION` in `.env` to a numbered
-image tag such as `1.5.4`; `latest` follows the current release. To roll back,
+image tag such as `1.5.5`; `latest` follows the current release. To roll back,
 stop the app, restore `pre-upgrade.sqlite3` with the restore command above, set
 `APP_VERSION` to the previous release, and start Compose again. Never run two
 application versions against the same live database.

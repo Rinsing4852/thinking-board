@@ -18,6 +18,8 @@ import { OpeningContentService } from "./openings/opening-content-service.js";
 import { OpeningGameService } from "./openings/opening-game-service.js";
 import { OpeningPgnImportService } from "./openings/opening-pgn-import.js";
 import { OpeningLichessImportService } from "./openings/opening-lichess-import.js";
+import { OpeningUpdateService } from "./openings/opening-update-service.js";
+import { registerOpeningUpdateRoutes } from "./openings/opening-update-routes.js";
 import { OpeningReviewService } from "./openings/opening-review-service.js";
 import { registerOpeningReviewRoutes } from "./openings/opening-review-routes.js";
 import { OpeningTrainingService } from "./openings/opening-training-service.js";
@@ -77,6 +79,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   openingContent.sync(STARTER_OPENING_CURRICULA);
   const openingImports = new OpeningPgnImportService(database.connection, openingContent);
   const openingLichessImports = new OpeningLichessImportService(openingImports, config.lichessApiToken);
+  registerOpeningUpdateRoutes(app, new OpeningUpdateService(database.connection, openingLichessImports));
   const openingTraining = new OpeningTrainingService(database.connection);
   const openingReviews = new OpeningReviewService(database.connection);
   const openingGames = new OpeningGameService(database.connection);

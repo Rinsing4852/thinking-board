@@ -34,6 +34,7 @@ interface ImportLine {
 }
 
 interface ImportChapter {
+  sourceKey: string;
   title: string;
   introduction: string;
   lines: ImportLine[];
@@ -101,6 +102,12 @@ function parseHeaders(chunk: string): Record<string, string> {
     headers[match[1]!] = match[2]!.replace(/\\"/g, "\"").replace(/\\\\/g, "\\");
   }
   return headers;
+}
+
+export function openingPgnChapterSourceKey(chunk: string, index = 0): string {
+  const headers = parseHeaders(chunk);
+  return headers.ChapterURL?.match(/^https:\/\/lichess\.org\/study\/[A-Za-z0-9]{8}\/([A-Za-z0-9]{8})\/?$/)?.[1]
+    ?? cleanText(headers.ChapterName ?? headers.Chapter ?? headers.Opening ?? headers.Event, `Chapter ${index + 1}`);
 }
 
 function movetext(chunk: string): string {
@@ -264,6 +271,7 @@ export function parseOpeningPgn(pgn: string, selectedChapterIndexes?: number[]):
     if (lines.length === 0) throw new Error(`Chapter ${index + 1} contains no moves`);
     if (headers.Variation) lines[0]!.title = cleanText(headers.Variation, "Main line");
     return {
+      sourceKey: openingPgnChapterSourceKey(chunk, index),
       title: cleanText(headers.ChapterName ?? headers.Chapter ?? headers.Opening ?? headers.Event, `Chapter ${index + 1}`),
       introduction: cleanText(headers.Description, "A private repertoire chapter imported from PGN."),
       lines,
@@ -271,6 +279,9 @@ export function parseOpeningPgn(pgn: string, selectedChapterIndexes?: number[]):
   });
 
   const allLines = chapters.flatMap((chapter) => chapter.lines);
+  if (new Set(chapters.map(chapter => chapter.sourceKey)).size !== chapters.length) {
+    throw new Error("Give each PGN chapter a distinct ChapterName or Lichess ChapterURL so its future updates can be matched safely.");
+  }
   const first = allLines[0]?.moves[0];
   if (!first) throw new Error("The PGN contains no opening moves");
   const differentFirstMove = allLines.find((line) => line.moves[0]?.uci !== first.uci);
@@ -292,6 +303,7 @@ export function parseOpeningPgn(pgn: string, selectedChapterIndexes?: number[]):
 }
 
 function explanationFor(move: ImportMove, learnerColor: Color, preferredComment: string | null): MoveExplanation {
+  preferredComment = preferredComment?.replace(/\[%[^\]]*\]/g, "").trim() || null;
   const mover: Color = move.fenBefore.split(" ")[1] === "b" ? "black" : "white";
   const isLearner = mover === learnerColor;
   if (preferredComment) {
@@ -314,7 +326,7 @@ function explanationFor(move: ImportMove, learnerColor: Color, preferredComment:
   };
 }
 
-function buildCurriculum(
+export function buildImportedCurriculum(
   parsed: ParsedOpeningPgn,
   color: Color,
   requestedName: string,
@@ -467,6 +479,10 @@ export class OpeningPgnImportService {
       throw new Error("Confirm that you own or have permission to use this material before importing it");
     }
     const prepared = this.prepare(input);
+    return this.db.transaction(() => this.persistImport(input.pgn, prepared))();
+  }
+
+  private persistImport(originalPgn: string, prepared: PreparedImport): OpeningImportResponse {
     const repertoireIds: string[] = [];
     let imported = 0;
     let duplicates = 0;
@@ -494,9 +510,15 @@ export class OpeningPgnImportService {
         prepared.sourceType,
         prepared.sourceTitle,
         prepared.sourceAuthor,
-        input.pgn,
+        originalPgn,
         now(),
       );
+      const compiled = compileOpeningCurriculum(curriculum);
+      prepared.parsed.chapters.forEach((chapter, index) => {
+        this.db.prepare(`INSERT INTO opening_import_chapters(repertoire_id, source_key, chapter_id)
+          VALUES (?, ?, ?) ON CONFLICT(repertoire_id, source_key) DO UPDATE SET chapter_id = excluded.chapter_id`)
+          .run(curriculum.id, chapter.sourceKey, compiled.chapters[index]!.id);
+      });
       repertoireIds.push(curriculum.id);
       imported += 1;
     }
@@ -523,7 +545,7 @@ export class OpeningPgnImportService {
     const sourceTitle = cleanText(input.sourceTitle, "Personal PGN", 160);
     const sourceAuthor = input.sourceAuthor?.trim() ? cleanText(input.sourceAuthor, "", 120) : null;
     const colors: Color[] = input.learnerColor === "both" ? ["white", "black"] : [input.learnerColor];
-    const curricula = colors.map((color) => buildCurriculum(
+    const curricula = colors.map((color) => buildImportedCurriculum(
       parsed,
       color,
       requestedName,

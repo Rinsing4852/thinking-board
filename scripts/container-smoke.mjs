@@ -45,4 +45,29 @@ const analysis = await request("/api/v1/openings/analysis", { fen: "rnbqkbnr/ppp
 assert(analysis.lines.length > 0, "Real local Stockfish must supply candidates");
 const catalog = await request("/api/v1/openings/catalog");
 assert(catalog.repertoires.length >= 2, "Opening curriculum must load");
+const openingPgn = '[Event "Container source update"]\n[Result "*"]\n\n1. e4 {Control the centre.} e5 2. Nf3 Nc6 3. Bc4 *';
+let repertoireId;
+if (existing) {
+  const repertoire = catalog.repertoires.find(item => item.name === "Container source update");
+  assert(repertoire?.sourceUpdatedAt, "Source update metadata must survive restart");
+  repertoireId = repertoire.id;
+} else {
+  const imported = await request("/api/v1/openings/imports/pgn", {
+    pgn: openingPgn, learnerColor: "white", ownershipConfirmed: true,
+  });
+  repertoireId = imported.repertoireIds[0];
+  const preview = await request(`/api/v1/openings/repertoires/${repertoireId}/updates/preview`, {
+    pgn: openingPgn.replace("Control the centre.", "Open the bishop and control the centre.")
+      .replace("3. Bc4 *", "3. Bc4 Bc5 (3... Nf6 4. Ng5) 4. c3 *"),
+  });
+  assert.equal(preview.addedLines, 1);
+  assert.equal(preview.extendedLines, 1);
+  await request(`/api/v1/openings/repertoires/${repertoireId}/updates`, {
+    previewId: preview.previewId, ownershipConfirmed: true,
+  });
+}
+const repertoire = await request(`/api/v1/openings/repertoires/${repertoireId}`);
+assert.equal(repertoire.chapters[0].lines.length, 2, "Updated opening branches must be persisted");
+assert.equal(repertoire.chapters[0].lines[0].moves[0].explanation.summary,
+  "Open the bishop and control the centre.", "Refreshed source notes must be persisted");
 console.log(`Container smoke passed (${existing ? "persistent restart" : "fresh installation"}, local Stockfish).`);

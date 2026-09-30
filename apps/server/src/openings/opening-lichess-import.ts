@@ -90,6 +90,10 @@ export class OpeningLichessImportService {
     });
   }
 
+  async downloadStudy(studyUrl: string): Promise<string> {
+    return this.download(resolveLichessStudyUrl(studyUrl));
+  }
+
   private async download(reference: LichessStudyReference): Promise<string> {
     const response = await this.fetcher(reference.exportUrl, {
       headers: {
