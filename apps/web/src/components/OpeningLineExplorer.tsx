@@ -17,10 +17,13 @@ import type {
 import { get, patch, post, remove } from "../api";
 import { findPlyAtFen } from "../opening-line-position";
 import { countTranspositions } from "../opening-transpositions";
+import { buildOpeningNavigation, openingGraphKey, openingMoveLabel, savedContinuations, switchLineDestination } from "../opening-navigation";
 import { ChessBoard } from "./ChessBoard";
 import { OpeningLearningComment } from "./OpeningLearningComment";
 import { OpeningMoveSuggestions } from "./OpeningMoveSuggestions";
 import { OpeningPreparationAdvice } from "./OpeningPreparationAdvice";
+import { OpeningBranchNavigation } from "./OpeningBranchNavigation";
+import { OpeningLineLibrary } from "./OpeningLineLibrary";
 
 interface OpeningLineExplorerProps {
   detail: OpeningRepertoireDetailResponse;
@@ -60,6 +63,9 @@ export function OpeningLineExplorer({
     [lineProgress],
   );
   const transpositionsByLine = useMemo(() => countTranspositions(allLines.map(({ line }) => line)), [allLines]);
+  const navigation = useMemo(() => buildOpeningNavigation(detail.chapters), [detail.chapters]);
+  const graphKey = useMemo(() => openingGraphKey(detail.chapters), [detail.chapters]);
+  const coverageGraphRef = useRef(graphKey);
   const gapPlyForLine = (candidate: OpeningLineDetail, gap: OpeningCoverageGap): number | null => {
     return findPlyAtFen(candidate.moves, gap.fen);
   };
@@ -80,6 +86,8 @@ export function OpeningLineExplorer({
   const [branchTitle, setBranchTitle] = useState("");
   const [newExplanation, setNewExplanation] = useState("");
   const [editingExplanation, setEditingExplanation] = useState(false);
+  const [editingComment, setEditingComment] = useState(false);
+  const [returnPositions, setReturnPositions] = useState<Array<{ lineId: string; ply: number }>>([]);
   const [explanationText, setExplanationText] = useState("");
   const [status, setStatus] = useState("");
   const [localBusy, setLocalBusy] = useState(false);
@@ -97,6 +105,7 @@ export function OpeningLineExplorer({
     previousLineId: string;
   } | null>(null);
   const deleteDialogRef = useRef<HTMLDivElement>(null);
+  const coverageRequestRef = useRef<AbortController | null>(null);
   const selected = allLines.find(({ line }) => line.id === lineId) ?? initial;
   const line: OpeningLineDetail | undefined = selected?.line;
   const selectedProgress = line ? progressByLine.get(line.id) : undefined;
@@ -104,9 +113,10 @@ export function OpeningLineExplorer({
   const selectedLineIndex = selected?.chapter.lines.findIndex((candidate) => candidate.id === lineId) ?? -1;
   const currentMove = ply > 0 ? line?.moves[ply - 1] : undefined;
   const displayFen = currentMove?.fenAfter ?? line?.moves[0]?.fenBefore ?? "start";
-  const equivalentLines = allLines.filter(({ line: candidate }) => candidate.id !== lineId && !candidate.archived)
-    .map(({ line: candidate }) => ({ line: candidate, ply: findPlyAtFen(candidate.moves, displayFen) }))
-    .filter((candidate): candidate is { line: OpeningLineDetail; ply: number } => candidate.ply !== null);
+  const navigationBlocked = localBusy || busy || Boolean(pendingMove) || editingExplanation || editingComment;
+  const lineDisplayTitle = navigation.branches.get(lineId)?.title ?? line?.title ?? "";
+  const previousPosition = returnPositions.findLast(position => navigation.lines.has(position.lineId)) ?? null;
+  const sharedMoveCount = currentMove ? navigation.moveUses.get(currentMove.id)?.size ?? 1 : 0;
 
   const setLineArchived = async (archived: boolean): Promise<void> => {
     if (!line || localBusy) return;
@@ -190,9 +200,20 @@ export function OpeningLineExplorer({
     setCoverage((current) => current?.ratingGroup === preferredRatingGroup ? current : null);
   }, [preferredRatingGroup]);
 
-  const chooseLine = (nextLineId: string): void => {
+  useEffect(() => {
+    coverageRequestRef.current?.abort();
+    setCoverageBusy(false);
+    if (coverageGraphRef.current !== graphKey) { setCoverage(null); coverageGraphRef.current = graphKey; }
+    return () => { coverageRequestRef.current?.abort(); };
+  }, [graphKey, coverageRating]);
+
+  const navigateTo = (nextLineId: string, nextPly: number, remember = true): void => {
+    if (navigationBlocked) return;
+    const nextLine = navigation.lines.get(nextLineId)?.line;
+    if (!nextLine) return;
+    if (remember && nextLineId !== lineId) setReturnPositions(previous => [...previous, { lineId, ply }].slice(-20));
     setLineId(nextLineId);
-    setPly(0);
+    setPly(Math.min(nextLine.moveCount, Math.max(0, nextPly)));
     setPendingMove(null);
     setEditingExplanation(false);
     setStatus("");
@@ -201,7 +222,20 @@ export function OpeningLineExplorer({
     setLineLibraryOpen(false);
   };
 
+  const chooseLine = (nextLineId: string): void => {
+    const target = switchLineDestination(navigation, lineId, ply, nextLineId);
+    navigateTo(target.lineId, target.ply);
+  };
+
+  const returnToPreviousLine = (): void => {
+    if (!previousPosition || navigationBlocked) return;
+    const previousIndex = returnPositions.lastIndexOf(previousPosition);
+    setReturnPositions(returnPositions.slice(0, previousIndex));
+    navigateTo(previousPosition.lineId, previousPosition.ply, false);
+  };
+
   const choosePly = (nextPly: number): void => {
+    if (navigationBlocked) return;
     setPly(nextPly);
     setPendingMove(null);
     setEditingExplanation(false);
@@ -211,6 +245,7 @@ export function OpeningLineExplorer({
   };
 
   const focusCoverageGap = (gap: OpeningCoverageGap): void => {
+    if (navigationBlocked) return;
     const target = allLines.find(({ line: candidate }) => candidate.title === gap.lineTitle && gapPlyForLine(candidate, gap) !== null)
       ?? allLines.find(({ line: candidate }) => gapPlyForLine(candidate, gap) !== null);
     if (!target) {
@@ -232,6 +267,9 @@ export function OpeningLineExplorer({
   };
 
   const previewNewMove = (uci: string, san: string): void => {
+    const saved = savedContinuations(navigation, lineId, ply).find(choice => choice.moveUci === uci);
+    if (saved) { navigateTo(saved.target.lineId, saved.target.ply); return; }
+    if (!editing) { setStatus(`${san} is not a saved continuation here. Use Edit lines if you want to add it. No changes were saved.`); return; }
     setPendingMove({ uci, san });
     setNewExplanation("");
     setBranchTitle("");
@@ -372,14 +410,18 @@ export function OpeningLineExplorer({
     if (coverageBusy) return;
     setCoverageBusy(true);
     setStatus("");
+    const controller = new AbortController();
+    coverageRequestRef.current?.abort(); coverageRequestRef.current = controller;
     try {
-      setCoverage(await get<OpeningCoverageResponse>(
+      const result = await get<OpeningCoverageResponse>(
         `/api/v1/openings/repertoires/${detail.repertoire.id}/coverage?rating=${coverageRating}`,
-      ));
+        controller.signal,
+      );
+      if (!controller.signal.aborted) setCoverage(result);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not check practical coverage");
+      if (!controller.signal.aborted) setStatus(error instanceof Error ? error.message : "Could not check practical coverage");
     } finally {
-      setCoverageBusy(false);
+      if (!controller.signal.aborted) setCoverageBusy(false);
     }
   };
 
@@ -409,12 +451,8 @@ export function OpeningLineExplorer({
     return chess.fen();
   }, [displayFen, pendingMove]);
   const savedMoveUcis = useMemo(() => {
-    const key = displayFen.split(" ").slice(0, 4).join(" ");
-    return allLines.flatMap(({ line: candidate }) => candidate.moves)
-      .filter((move) => move.fenBefore.split(" ").slice(0, 4).join(" ") === key)
-      .map((move) => move.moveUci)
-      .filter((move, index, moves) => moves.indexOf(move) === index);
-  }, [allLines, displayFen]);
+    return savedContinuations(navigation, lineId, ply).map(choice => choice.moveUci);
+  }, [navigation, lineId, ply]);
 
   if (!line || !selected) {
     return (
@@ -437,24 +475,24 @@ export function OpeningLineExplorer({
         <div className="opening-workspace-actions">
           {useExplorer && <label className="coverage-rating">
             Explorer rating
-            <select value={coverageRating} onChange={(event) => { setCoverageRating(Number(event.target.value)); setCoverage(null); }}>
-              {[1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500].map((rating) => <option key={rating} value={rating}>{rating}+</option>)}
+            <select value={coverageRating} onChange={(event) => { coverageRequestRef.current?.abort(); setCoverageRating(Number(event.target.value)); setCoverage(null); }}>
+              {[1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500].map((rating) => <option key={rating} value={rating}>{rating} band</option>)}
             </select>
           </label>}
           {useExplorer && <button className="secondary" disabled={coverageBusy} onClick={() => void loadCoverage()}>
             {coverageBusy ? "Checking…" : coverage ? "Refresh coverage" : "Check coverage"}
           </button>}
           {detail.repertoire.editable && (
-            <button className={editing ? "active" : "secondary"} onClick={() => { setEditing((value) => !value); setManageOpen(true); setPendingMove(null); }}>
+            <button disabled={navigationBlocked} className={editing ? "active" : "secondary"} onClick={() => { setEditing((value) => !value); setManageOpen(true); setPendingMove(null); }}>
               {editing ? "Finish editing" : "Edit lines"}
             </button>
           )}
-          <button className="secondary" disabled={localBusy} onClick={() => void setLineArchived(!line.archived)}>
+          <button className="secondary" disabled={navigationBlocked} onClick={() => void setLineArchived(!line.archived)}>
             {localBusy ? "Saving…" : line.archived ? "Restore this line" : "Archive this line"}
           </button>
           <a className="button secondary" href={`/api/v1/openings/repertoires/${detail.repertoire.id}/export.pgn`} download>Export PGN</a>
-          <button className="secondary" onClick={onBack}>Back to repertoires</button>
-          <button disabled={busy || line.archived || line.learnerDecisionCount === 0} onClick={() => onPractice(line.id)}>
+          <button className="secondary" disabled={navigationBlocked} onClick={onBack}>Back to repertoires</button>
+          <button disabled={navigationBlocked || line.archived || line.learnerDecisionCount === 0} onClick={() => onPractice(line.id)}>
             {busy ? "Starting…" : "Practise this line"}
           </button>
         </div>
@@ -463,14 +501,14 @@ export function OpeningLineExplorer({
       {coverage && (
         <div className="panel opening-coverage" role="status">
           <div>
-            <span className="eyebrow">Practical coverage · {coverageRating}+ Lichess</span>
+            <span className="eyebrow">Practical coverage · {coverageRating} band · Lichess</span>
             <h3>{coverage.coveragePercent === null ? "No sample yet" : `${coverage.coveragePercent}% of replies covered`}</h3>
             <p>{coverage.message} This measures replies at positions reached after your saved moves, not the chance of reaching the whole line.</p>
           </div>
           <div className="opening-coverage-gaps">
             <strong>{coverage.gaps.length > 0 ? "Missing replies to consider" : "No common missing replies found"}</strong>
             {coverage.gaps.slice(0, 5).map((gap) => (
-              <button key={`${gap.positionId}-${gap.moveUci}`} onClick={() => focusCoverageGap(gap)}>
+              <button key={`${gap.positionId}-${gap.moveUci}`} disabled={navigationBlocked} onClick={() => focusCoverageGap(gap)}>
                 <span><b>{gap.moveSan}</b> after {gap.lineTitle}</span>
                 <small>{gap.frequencyPercent}% at this position{gap.preparation?.decision?.choice === "unprepared" ? " · left unprepared" : gap.preparation?.priority === "low" ? " · optional" : gap.preparation?.priority === "high" ? " · worth preparing" : ""}</small>
               </button>
@@ -511,12 +549,12 @@ export function OpeningLineExplorer({
         <div className="opening-delete-actions">
             <button
               className="secondary danger-button"
-              disabled={localBusy}
+              disabled={navigationBlocked}
               onClick={() => setDeleteTarget("line")}
             >Delete selected line</button>
             <button
               className="secondary danger-button"
-              disabled={localBusy}
+              disabled={navigationBlocked}
               onClick={() => setDeleteTarget("repertoire")}
             >Delete repertoire</button>
           </div>
@@ -559,54 +597,17 @@ export function OpeningLineExplorer({
         aria-controls="opening-line-library"
         onClick={() => setLineLibraryOpen((open) => !open)}
       >
-        {lineLibraryOpen ? "Hide line list" : `Choose another line · ${line.title}`}
+        {lineLibraryOpen ? "Hide line list" : `Choose another line · ${lineDisplayTitle}`}
       </button>
 
       <div className="opening-workspace-grid">
-        <aside id="opening-line-library" className={`panel opening-line-library ${lineLibraryOpen ? "mobile-open" : ""}`} aria-label="Opening lines">
-          <div className="opening-line-library-title">
-            <strong>Lines</strong>
-            <span>{allLines.length}</span>
-          </div>
-          {detail.chapters.map((chapter) => (
-            <section key={chapter.id}>
-              <h3>{chapter.title}</h3>
-              <p>{chapter.introduction}</p>
-              <div className="opening-line-buttons">
-                {chapter.lines.map((candidate) => (
-                  <button
-                    className={`${candidate.id === line.id ? "active" : ""}${candidate.archived ? " archived" : ""}`.trim()}
-                    key={candidate.id}
-                    onClick={() => chooseLine(candidate.id)}
-                  >
-                    <strong>{candidate.title}</strong>
-                    <span>{candidate.archived ? "Archived · " : ""}{candidate.learnerDecisionCount} moves to learn · {candidate.moveCount} moves in line</span>
-                    {progressByLine.get(candidate.id) && (() => {
-                      const progress = progressByLine.get(candidate.id)!;
-                      const state = progress.mastered === progress.decisions
-                        ? "mastered"
-                        : progress.accuracyPercent === null
-                          ? "new"
-                          : progress.due > 0 || progress.accuracyPercent < 80
-                            ? "weak"
-                            : "learning";
-                      return <small className={`opening-line-mastery ${state}`}>
-                        {state === "mastered" ? "Secure for now" : state === "new" ? "New" : state === "weak" ? "Needs review" : "Learning"}
-                        {` · ${progress.mastered}/${progress.decisions}`}
-                        {(transpositionsByLine.get(candidate.id) ?? 0) > 0 ? ` · ${transpositionsByLine.get(candidate.id)} transposition${transpositionsByLine.get(candidate.id) === 1 ? "" : "s"}` : ""}
-                      </small>;
-                    })()}
-                  </button>
-                ))}
-              </div>
-            </section>
-          ))}
-        </aside>
+        <OpeningLineLibrary chapters={detail.chapters} index={navigation} selectedLineId={line.id}
+          open={lineLibraryOpen} disabled={navigationBlocked} progress={progressByLine} transpositions={transpositionsByLine} onChoose={chooseLine} />
 
         <div className="opening-line-board">
           <div className="candidate-banner">
             <div>
-              <span>{selected.chapter.title}</span>
+              <span>{selected.chapter.title} · {lineDisplayTitle}</span>
               <small>You are {detail.repertoire.learnerColor}. Your side is nearest.{selectedProgress
                 ? ` ${selectedProgress.mastered}/${selectedProgress.decisions} moves secure for now.`
                 : ""}{selectedTranspositions > 0
@@ -616,16 +617,16 @@ export function OpeningLineExplorer({
             <strong>{ply === 0 ? "Starting position" : `${ply} / ${line.moveCount}`}</strong>
           </div>
           <div className="board-toolbar opening-line-controls">
-            <button className="text-button" disabled={ply === 0} onClick={() => choosePly(0)}>Start</button>
-            <button className="text-button" disabled={ply === 0} onClick={() => choosePly(Math.max(0, ply - 1))}>Previous</button>
+            <button className="text-button" disabled={navigationBlocked || ply === 0} onClick={() => choosePly(0)}>Start</button>
+            <button className="text-button" disabled={navigationBlocked || ply === 0} onClick={() => choosePly(Math.max(0, ply - 1))}>Previous</button>
             <span>{currentMove ? `${currentMove.role === "learner" ? "Your move" : "Opponent"}: ${currentMove.moveSan}` : "Choose a move below or step forward"}</span>
-            <button className="text-button" disabled={ply >= line.moveCount} onClick={() => choosePly(Math.min(line.moveCount, ply + 1))}>Next</button>
-            <button className="text-button" disabled={ply >= line.moveCount} onClick={() => choosePly(line.moveCount)}>End</button>
+            <button className="text-button" disabled={navigationBlocked || ply >= line.moveCount} onClick={() => choosePly(Math.min(line.moveCount, ply + 1))}>Next</button>
+            <button className="text-button" disabled={navigationBlocked || ply >= line.moveCount} onClick={() => choosePly(line.moveCount)}>End</button>
           </div>
           <ChessBoard
             fen={pendingFen}
             orientation={detail.repertoire.learnerColor}
-            interactive={editing && !pendingMove}
+            interactive={!navigationBlocked && !line.archived}
             allowAnnotations
             lastMove={pendingMove?.uci ?? currentMove?.moveUci ?? null}
             onMove={previewNewMove}
@@ -635,21 +636,18 @@ export function OpeningLineExplorer({
               <button
                 className={move.ply === ply ? "active" : move.role === "learner" ? "learner" : ""}
                 key={`${line.id}-${move.ply}`}
+                disabled={navigationBlocked}
+                aria-current={move.ply === ply ? "step" : undefined}
                 onClick={() => choosePly(move.ply)}
                 aria-label={`Go to move ${move.ply}: ${move.moveSan}`}
               >
-                {move.ply % 2 === 1 && <small>{Math.ceil(move.ply / 2)}.</small>}
-                {move.moveSan}
+                {openingMoveLabel(move)}
               </button>
             ))}
           </div>
-          {equivalentLines.length > 0 && <details className="opening-equivalent-lines">
-            <summary>Other lines reaching this position ({equivalentLines.length})</summary>
-            {equivalentLines.map((candidate) => <button className="text-button" key={candidate.line.id}
-              onClick={() => { chooseLine(candidate.line.id); setPly(candidate.ply); }}>
-              {candidate.line.title} — view this position
-            </button>)}
-          </details>}
+          <OpeningBranchNavigation index={navigation} lineId={line.id} ply={ply} disabled={navigationBlocked}
+            onNavigate={navigateTo} previous={previousPosition} onReturn={returnToPreviousLine} />
+          {!editing && !line.archived && <p className="opening-inspector-help">Play a saved move on the board to follow its line. To add a new move, choose Edit lines.</p>}
         </div>
 
         <aside className="panel opening-move-inspector">
@@ -688,10 +686,11 @@ export function OpeningLineExplorer({
           )}
           {!pendingMove && <>
           <span className="eyebrow">{currentMove ? currentMove.role === "learner" ? "Your decision" : "Opponent reply" : "Line overview"}</span>
-          <h3>{currentMove?.moveSan ?? line.title}</h3>
+          <h3>{currentMove?.moveSan ?? lineDisplayTitle}</h3>
           {!currentMove && (
             <>
               <p>{line.sanSequence}</p>
+              <details><summary>Chapter notes</summary><p>{selected.chapter.introduction}</p></details>
               <dl>
                 <div><dt>Moves</dt><dd>{line.moveCount}</dd></div>
                 <div><dt>Your decisions</dt><dd>{line.learnerDecisionCount}</dd></div>
@@ -701,6 +700,7 @@ export function OpeningLineExplorer({
           )}
           {currentMove && (
             <div className="opening-inspector-copy">
+              {sharedMoveCount > 1 && <p className="opening-shared-annotation">This move is used in {sharedMoveCount} lines. Its explanation and your learning comment are shared across those lines.</p>}
               <strong>{currentMove.role === "learner" ? "Why this move" : "What they are trying to do"}</strong>
               <p>{currentMove.role === "opponent" && currentMove.explanation.opponentIdea
                 ? currentMove.explanation.opponentIdea
@@ -714,6 +714,7 @@ export function OpeningLineExplorer({
                 repertoireId={detail.repertoire.id}
                 moveId={currentMove.id}
                 comment={currentMove.explanation.personalComment}
+                onEditingChange={setEditingComment}
                 onSaved={(comment) => updateLearningComment(currentMove.id, comment)}
               />
               {detail.repertoire.editable && !editingExplanation && (

@@ -26,6 +26,15 @@ The web application never reads SQLite or invokes Stockfish directly. Analysis
 does not know about React. Shared request and response types live in
 `packages/contracts`, so another frontend can use the same API.
 
+Opening-line browsing uses a frontend-only navigation index built in one pass
+over the saved paths. Interned move-order prefixes distinguish shared history
+from genuine transpositions; normalized board positions locate alternative
+routes, and move IDs identify shared annotations. Focused library and branch
+components consume this index without owning persistence or review scheduling.
+Derived variation labels are display-only, preserving source-update identity.
+Coverage requests are cancelled/guarded when rating or visible graph changes;
+prose-only edits do not invalidate graph coverage.
+
 ## Server modules
 
 - `chess/`: PGN parsing and chess-specific input normalisation.

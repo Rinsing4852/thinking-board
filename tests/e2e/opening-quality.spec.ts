@@ -183,6 +183,135 @@ test("keeps a preparation idea without a line, then shows it after recall when a
   await page.screenshot({ path: testInfo.outputPath("preparation-idea-in-practice.png"), fullPage: true });
 });
 
+async function openNavigationStudy(page: import("@playwright/test").Page, name: string, pgn: string) {
+  const imported = await page.request.post("/api/v1/openings/imports/pgn", { data: {
+    pgn: `[Event "${name}"]\n[Result "*"]\n\n${pgn}`, learnerColor: "white", name, ownershipConfirmed: true,
+  } });
+  expect(imported.ok(), await imported.text()).toBeTruthy();
+  const repertoireId = (await imported.json()).repertoireIds[0];
+  await page.goto("/#openings");
+  const card = page.locator("article.opening-card").filter({ hasText: name });
+  const pause = page.getByRole("button", { name: "Pause", exact: true });
+  await expect(pause.or(card.locator("summary").first())).toBeVisible();
+  if (await pause.isVisible()) await pause.click();
+  await card.locator("summary").first().click();
+  await card.getByRole("button", { name: "View all lines", exact: true }).click();
+  await expect(page.getByRole("heading", { name, level: 2, exact: true })).toBeVisible();
+  return repertoireId;
+}
+
+test("navigates nested variations through shared moves without changing the repertoire", async ({ page }, testInfo) => {
+  const id = await openNavigationStudy(page, `Branch navigation ${testInfo.project.name}`,
+    "1. e4 e5 2. Nf3 Nc6 (2... d6 3. d4 (3. Bc4)) 3. Bb5 a6 *");
+  const before = await (await page.request.get(`/api/v1/openings/repertoires/${id}`)).json();
+  const board = page.getByRole("grid", { name: "Chess position" });
+  const choices = page.getByRole("region", { name: "Saved continuations", exact: true });
+  const library = page.getByRole("complementary", { name: "Opening lines", exact: true });
+  const showLibrary = async () => {
+    const toggle = page.getByRole("button", { name: /Choose another line/ });
+    if (await toggle.isVisible()) await toggle.click();
+  };
+  await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
+  await board.getByRole("gridcell", { name: "e4 empty" }).click();
+  await choices.getByRole("button", { name: "Follow 1...e5", exact: true }).click();
+  await choices.getByRole("button", { name: "Follow 2.Nf3", exact: true }).click();
+  await expect(choices.getByText(/shared by 3 active lines/)).toBeVisible();
+  await expect(choices.getByText(/another move order/)).toBeHidden();
+  await choices.getByRole("button", { name: "Follow 2...Nc6", exact: true }).click();
+  await choices.getByRole("button", { name: "Follow 3.Bb5", exact: true }).click();
+  await showLibrary();
+  await library.getByRole("button", { name: /^2\.\.\.d6 branch/ }).click();
+  // Switching after a fork stops before the differing reply, not at move one.
+  await expect(board.getByRole("gridcell", { name: "e4 white pawn" })).toBeVisible();
+  await expect(board.getByRole("gridcell", { name: "f3 white knight" })).toBeVisible();
+  await expect(board.getByRole("gridcell", { name: "d7 black pawn" })).toBeVisible();
+  await expect(board.getByRole("gridcell", { name: "b8 black knight" })).toBeVisible();
+  await choices.getByRole("button", { name: "Follow 2...d6", exact: true }).click();
+  await choices.getByRole("button", { name: "Follow 3.Bc4", exact: true }).click();
+  await expect(choices.getByText("3.Bc4 branch", { exact: true })).toBeVisible();
+  await expect(board.getByRole("gridcell", { name: "c4 white bishop" })).toBeVisible();
+  await choices.getByRole("button", { name: /Go to branching point/ }).click();
+  await expect(board.getByRole("gridcell", { name: "f1 white bishop" })).toBeVisible();
+  await expect(board.getByRole("gridcell", { name: "d6 black pawn" })).toBeVisible();
+  await choices.getByRole("button", { name: "Back to previous line", exact: true }).click();
+  await expect(choices.getByText("2...d6 branch", { exact: true })).toBeVisible();
+  await showLibrary();
+  await library.getByLabel("Find a line", { exact: true }).fill("Bc4");
+  await expect(library.getByRole("button", { name: /^3\.Bc4 branch/ })).toBeVisible();
+  await expect(library.getByRole("button", { name: /^Main line/ })).toBeHidden();
+  await library.getByRole("button", { name: "Clear line search" }).click();
+  if (await page.getByRole("button", { name: "Hide line list" }).isVisible()) await page.getByRole("button", { name: "Hide line list" }).click();
+  const controls = await page.locator(".opening-line-controls").boundingBox();
+  expect(controls!.height).toBeLessThan(125);
+  await page.screenshot({ path: testInfo.outputPath("shared-branch-navigation.png"), fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
+  expect(await (await page.request.get(`/api/v1/openings/repertoires/${id}`)).json()).toEqual(before);
+});
+
+test("keeps the board when changing move order and protects shared comments while editing", async ({ page }, testInfo) => {
+  await openNavigationStudy(page, `Move order navigation ${testInfo.project.name}`,
+    "1. d4 d5 2. Nf3 (2. c4 e6 3. Nf3 Nf6 4. Nc3) Nf6 3. c4 e6 4. Nc3 *");
+  const board = page.getByRole("grid", { name: "Chess position" });
+  const choices = page.getByRole("region", { name: "Saved continuations", exact: true });
+  await page.getByRole("button", { name: "End", exact: true }).click();
+  await expect(page.getByText(/This move is used in 2 lines/)).toBeVisible();
+  await choices.getByText("Same position, another move order (1)", { exact: true }).click();
+  await page.getByRole("button", { name: "Add comment", exact: true }).click();
+  const note = "Develop both knights before choosing the central pawn break.";
+  await page.getByLabel("Your learning comment", { exact: true }).fill(note);
+  await expect(page.getByRole("button", { name: "Previous", exact: true })).toBeDisabled();
+  await expect(choices.getByRole("button", { name: /same position$/ })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Back to repertoires", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Save comment", exact: true }).click();
+  await choices.getByRole("button", { name: /same position$/ }).click();
+  await expect(board.getByRole("gridcell", { name: "c4 white pawn" })).toBeVisible();
+  await expect(board.getByRole("gridcell", { name: "f3 white knight" })).toBeVisible();
+  await expect(page.getByText(note, { exact: true })).toBeVisible();
+  await expect(choices.getByText("2.c4 branch", { exact: true })).toBeVisible();
+  await choices.getByRole("button", { name: "Back to previous line", exact: true }).click();
+  await expect(choices.getByText("Main line", { exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("shared-comment-move-order.png"), fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
+});
+
+test("discards an older coverage request when the selected rating changes", async ({ page }, testInfo) => {
+  await page.route("**/api/v1/openings/preferences", async route => {
+    const response = await route.fetch();
+    await route.fulfill({ json: { ...await response.json(), useExplorer: true, explorerAvailable: true } });
+  });
+  let manual = false;
+  let delayedStarted!: () => void;
+  const started = new Promise<void>(resolve => { delayedStarted = resolve; });
+  let releaseDelayed!: () => void;
+  const released = new Promise<void>(resolve => { releaseDelayed = resolve; });
+  let delayedFinished!: () => void;
+  const finished = new Promise<void>(resolve => { delayedFinished = resolve; });
+  await page.route("**/api/v1/openings/repertoires/*/coverage?rating=*", async route => {
+    const url = new URL(route.request().url());
+    const ratingGroup = Number(url.searchParams.get("rating"));
+    const result = { repertoireId: url.pathname.split("/")[5], ratingGroup, speeds: ["blitz", "rapid", "classical"],
+      positionsChecked: 1, positionsAvailable: 1, coveragePercent: ratingGroup === 2000 ? 20 : 80,
+      coveredGames: 200, totalGames: 1000, gaps: [], incomplete: false, message: "Test coverage sample." };
+    if (manual && ratingGroup !== 2000) {
+      delayedStarted(); await released;
+      try { await route.fulfill({ json: result }); } catch { /* An aborted browser request may already be gone. */ }
+      delayedFinished();
+    } else await route.fulfill({ json: result });
+  });
+  await openNavigationStudy(page, `Coverage navigation ${testInfo.project.name}`, "1. e4 e5 2. Nf3 Nc6 3. Bb5 *");
+  manual = true;
+  await page.getByRole("button", { name: /^(Check|Refresh) coverage$/ }).click();
+  await started;
+  const failed = page.waitForEvent("requestfailed", { predicate: request => request.url().includes("/coverage?rating=") && !request.url().endsWith("rating=2000") });
+  await page.getByRole("combobox", { name: "Explorer rating", exact: true }).selectOption("2000");
+  await page.getByRole("button", { name: "Check coverage", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "20% of replies covered", exact: true })).toBeVisible();
+  releaseDelayed(); await finished;
+  await failed;
+  await expect(page.getByRole("heading", { name: "20% of replies covered", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "80% of replies covered", exact: true })).toBeHidden();
+});
+
 test("deletes the final line and clears a confirmed library without losing games", async ({ page }, testInfo) => {
   // Own the remaining material too: this test must work without earlier imports.
   const archived = await page.request.post("/api/v1/openings/imports/pgn", { data: {

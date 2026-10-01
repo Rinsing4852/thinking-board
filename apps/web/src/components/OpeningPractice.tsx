@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { openingGraphKey } from "../opening-navigation";
 
 import type {
   OpeningCatalogResponse,
@@ -90,6 +91,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [coverageSpotlight, setCoverageSpotlight] = useState<OpeningCoverageResponse | null>(null);
   const [coverageSpotlightLoading, setCoverageSpotlightLoading] = useState(false);
+  const coverageSpotlightRequestRef = useRef<AbortController | null>(null);
   const [openingProgress, setOpeningProgress] = useState<OpeningProgressResponse | null>(null);
   const [playerPreferences, setPlayerPreferences] = useState<OpeningPlayerPreferences | null>(null);
   const activeCatalog = catalog.filter((repertoire) => !repertoire.archived);
@@ -141,17 +143,35 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
     setSubmitting(false);
   };
 
+  const clearCoverageSpotlight = (): void => {
+    coverageSpotlightRequestRef.current?.abort();
+    setCoverageSpotlight(null); setCoverageSpotlightLoading(false);
+  };
+
+  const loadCoverageSpotlight = (repertoireId: string, ratingGroup: number): void => {
+    clearCoverageSpotlight();
+    const controller = new AbortController(); coverageSpotlightRequestRef.current = controller;
+    setCoverageSpotlightLoading(true);
+    void get<OpeningCoverageResponse>(`/api/v1/openings/repertoires/${repertoireId}/coverage?rating=${ratingGroup}`, controller.signal)
+      .then(result => { if (!controller.signal.aborted) setCoverageSpotlight(result); })
+      .catch(() => { if (!controller.signal.aborted) setCoverageSpotlight(null); })
+      .finally(() => { if (!controller.signal.aborted) setCoverageSpotlightLoading(false); });
+  };
+
   useEffect(() => {
+    const controller = new AbortController();
+    clearCoverageSpotlight();
     setLoading(true);
     setError("");
     void Promise.all([
-      get<OpeningCatalogResponse>("/api/v1/openings/catalog"),
-      get<OpeningLessonActiveState | null>("/api/v1/openings/lessons/active"),
-      get<OpeningReviewActiveState | null>("/api/v1/openings/reviews/active"),
-      get<OpeningReviewRecommendation>("/api/v1/openings/reviews/recommended"),
-      get<OpeningProgressResponse>("/api/v1/openings/progress"),
-      get<OpeningPlayerPreferences>("/api/v1/openings/preferences"),
+      get<OpeningCatalogResponse>("/api/v1/openings/catalog", controller.signal),
+      get<OpeningLessonActiveState | null>("/api/v1/openings/lessons/active", controller.signal),
+      get<OpeningReviewActiveState | null>("/api/v1/openings/reviews/active", controller.signal),
+      get<OpeningReviewRecommendation>("/api/v1/openings/reviews/recommended", controller.signal),
+      get<OpeningProgressResponse>("/api/v1/openings/progress", controller.signal),
+      get<OpeningPlayerPreferences>("/api/v1/openings/preferences", controller.signal),
     ]).then(([catalogResponse, active, review, recommended, progress, preferences]) => {
+      if (controller.signal.aborted) return;
       setCatalog(catalogResponse.repertoires);
       setRecommendation(recommended);
       setOpeningProgress(progress);
@@ -180,30 +200,23 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
       const coverageRepertoireId = recommended.repertoire?.id
         ?? catalogResponse.repertoires.find((repertoire) => !repertoire.archived)?.id;
       if (coverageRepertoireId && preferences.useExplorer) {
-        setCoverageSpotlightLoading(true);
-        void get<OpeningCoverageResponse>(`/api/v1/openings/repertoires/${coverageRepertoireId}/coverage?rating=${preferences.ratingGroup}`)
-          .then(setCoverageSpotlight)
-          .catch(() => setCoverageSpotlight(null))
-          .finally(() => setCoverageSpotlightLoading(false));
+        loadCoverageSpotlight(coverageRepertoireId, preferences.ratingGroup);
       } else {
-        setCoverageSpotlight(null);
+        clearCoverageSpotlight();
       }
     }).catch((loadError) => {
-      setError(loadError instanceof Error ? loadError.message : "Could not load opening practice");
-    }).finally(() => setLoading(false));
+      if (!controller.signal.aborted) setError(loadError instanceof Error ? loadError.message : "Could not load opening practice");
+    }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => { controller.abort(); coverageSpotlightRequestRef.current?.abort(); };
   }, [refreshToken]);
 
   const updatePlayerPreferences = (preferences: OpeningPlayerPreferences): void => {
     setSettingsOpen(false);
     setPlayerPreferences(preferences);
-    setCoverageSpotlight(null);
-    setCoverageSpotlightLoading(false);
+    clearCoverageSpotlight();
     const repertoireId = recommendation?.repertoire?.id ?? activeCatalog[0]?.id;
     if (!preferences.useExplorer || !repertoireId) return;
-    setCoverageSpotlightLoading(true);
-    void get<OpeningCoverageResponse>(
-      `/api/v1/openings/repertoires/${repertoireId}/coverage?rating=${preferences.ratingGroup}`,
-    ).then(setCoverageSpotlight).catch(() => setCoverageSpotlight(null)).finally(() => setCoverageSpotlightLoading(false));
+    loadCoverageSpotlight(repertoireId, preferences.ratingGroup);
   };
 
   const startLesson = async (repertoireId: string): Promise<void> => {
@@ -292,7 +305,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
     setCatalog((current) => current.filter((repertoire) => !deleted.has(repertoire.id)));
     setArchiveMessage(message);
     setOpeningProgress(null);
-    setCoverageSpotlight(null);
+    clearCoverageSpotlight();
     if (step && deleted.has(step.repertoire.id)) { setStep(null); setPausedLessonPhase(null); setPhase("catalog"); }
     setActiveReview(current => current && deleted.has(current.kind === "feedback" ? current.exercise.repertoire.id : current.repertoire.id) ? null : current);
     setRecommendation(null);
@@ -322,7 +335,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
     setRecommendation(recommended);
     setOpeningProgress(progress);
     setActiveReview(review);
-    setCoverageSpotlight(null);
+    clearCoverageSpotlight();
     if (step?.repertoire.id === repertoireId) {
       const lesson = await get<OpeningLessonActiveState | null>("/api/v1/openings/lessons/active");
       if (!lesson) { setStep(null); setPausedLessonPhase(null); }
@@ -347,6 +360,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
       setRecommendation(recommended);
       setOpeningProgress(progress);
       setArchiveMessage(result.message);
+      clearCoverageSpotlight();
     } catch (archiveError) {
       setError(archiveError instanceof Error ? archiveError.message : "Could not update this repertoire");
     } finally {
@@ -686,7 +700,10 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
           busy={submitting}
           onBack={() => { setWorkspaceDetail(null); setWorkspaceLineId(null); setWorkspaceGap(null); }}
           onPractice={(lineId) => void startLinePractice(workspaceDetail.repertoire.id, lineId)}
-          onDetailChanged={setWorkspaceDetail}
+          onDetailChanged={updated => {
+            if (openingGraphKey(updated.chapters) !== openingGraphKey(workspaceDetail.chapters)) clearCoverageSpotlight();
+            setWorkspaceDetail(updated);
+          }}
           onRepertoireDeleted={finishRepertoireDeletion}
         />
       )}

@@ -42,11 +42,20 @@ instead of trapping the learner in an immediate reveal-and-repeat loop.
 Every repertoire also has a line explorer. It keeps transpositions as shared
 positions internally while presenting complete named lines to the learner, with
 move-by-move board navigation, explanations, and practice for the selected
-branch. Personal repertoires can be renamed, reordered and exported as a
+branch. In **View all lines**, play an existing saved move directly on the board
+or choose a **Saved continuation**. Imported variations show their branching
+move and a short preview; **Find a line** searches names and move sequences.
+Changing lines keeps a shared board position, or takes you to the point where
+the two lines separate rather than restarting. **Go to branching point** and
+**Back to previous line** help explore alternatives. Different move orders
+reaching the same position are listed separately from ordinary shared moves.
+Shared comments/explanations are marked; save or cancel an edit before navigating.
+Viewing never adds moves: choose **Edit lines** to author a new continuation.
+Personal repertoires can be renamed, reordered and exported as a
 complete PGN, including archived lines;
 the most recently added move can be undone. Individual lines or complete
 repertoires—including built-in material—can be archived without losing notes or
-review history, then restored later. The desktop opening studio places the saved repertoire board beside an
+review history, then restored later. The desktop opening studio provides
 guided move choices: one repertoire board asks for the next decision and adds a
 selected move immediately. An independent analysis board opens only when deeper
 investigation is useful. Local Stockfish suggests candidate ideas and Lichess

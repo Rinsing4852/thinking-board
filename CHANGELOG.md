@@ -2,6 +2,26 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.5.8 — 2026-10-01
+
+### Navigate branches without losing your place
+
+- Shows imported variations by their branching move and a short continuation,
+  without renaming source lines or changing update identity.
+- Playing a saved move on the viewing board follows its continuation. Shared
+  replies appear once, with their line count; adding new moves still requires
+  explicit editing and saving.
+- Switching lines retains the board when the position is shared, otherwise
+  returns to their branching point. Adds return navigation, line search and
+  separate links for genuinely different move orders reaching the same position.
+- Explains when comments and move explanations are shared across lines and
+  prevents navigation from discarding an unfinished edit.
+- Extracts focused library/navigation components and a tested position index.
+  Cancels superseded coverage requests so older responses cannot overwrite the
+  selected rating or changed repertoire. No schema, scheduler or dependency changes.
+- Keeps mobile board navigation in a compact, touch-sized toolbar. Adds nested
+  variation, transposition, large-library and desktop/mobile regressions.
+
 ## 1.5.7 — 2026-10-01
 
 ### Prepare useful replies, not every legal move

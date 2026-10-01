@@ -66,14 +66,41 @@ Follow-up verification: typecheck, 138 unit/integration tests and production
 build pass; all 26 desktop/mobile browser checks pass. The Docker smoke test
 now includes real game analysis feeding preparation, saved ideas without new
 lines, restart persistence and library clearing with games retained. No live
-installation data is modified. Version 1.5.7 is local until committed/published.
+installation data is modified. Version 1.5.7 was committed and published as
+`b9c30e4`; the release workflow succeeded.
+
+### Follow-up: shared moves and branch navigation
+
+The line explorer now follows existing saved moves directly from its board,
+groups shared continuations and labels generic variations by their branching
+move without changing stored names. Line switching preserves shared positions
+and otherwise returns to the fork. A bounded return history, line search and
+separate actual-transposition links make alternate routes easier to explore.
+Shared annotation warnings and navigation locks protect unfinished edits.
+
+A pure navigation index and focused library/branch components replace repeated
+path scans and inline library rendering. Coverage requests in both the explorer
+and opening home have cancellation and response guards; material graph changes
+invalidate coverage, while notes/names do not. The mobile toolbar no longer
+stacks four navigation buttons into four full-height rows.
+
+This is not yet a complete visual study-tree editor. Browser checks cover nested
+PGN branches, move-order transpositions, shared notes, navigation without writes
+and delayed coverage responses on Chromium and mobile WebKit. No new framework,
+API, migration or scheduler was introduced.
+
+Navigation-pass verification: typecheck, 149 unit/integration tests, production
+build and all 32 browser checks pass. The final Docker image builds successfully;
+local Stockfish and restart/library-clearing checks pass on disposable data.
+The live application and its data are unchanged. No first-time learner study
+has been conducted, so automated checks do not establish competitor parity.
 
 ### Remaining practice/usability priorities
 
 The hidden-answer retry/hint flow, automatic correct-move progression, exact
 branch recall, offline recovery and mobile board behaviour remain covered by
 browser regression tests. Do not add another Check/Continue step to memory
-practice. The highest remaining gains are better branching navigation, clearer
+practice. The highest remaining gains are clearer
 practice-choice labels, fewer duplicated inspector panels and first-time-learner
 validation of purpose/plan explanations. Keep author reasons and personal ideas
 distinct from engine evaluation; do not automatically generate plausible prose.
@@ -84,11 +111,12 @@ distinct from engine evaluation; do not automatically generate plausible prose.
    that exact-line practice expects the selected branch, whereas position recall
    accepts another active saved reply. Validate this with a first-time learner.
 
-2. **Make variations navigable.** Replace generic imported “Variation” labels
-   with the branching move and a short move sequence. Show the common prefix,
-   current branch and alternative saved replies together. Keep the board and
-   next decision ahead of the line list on mobile. Existing transposition links
-   are useful but are not a full study-tree browser.
+2. **Keep navigation context across workspaces.** Branch/fork navigation is now
+   implemented. Next retain the selected line/move across reloads and deep links,
+   and carry the same readable branch labels into practice headers. Keep the
+   board and next decision ahead of secondary management controls on mobile.
+   Validate the new navigation with a first-time learner before adding a full
+   visual study-tree editor.
 
 3. **Improve learning reasons rather than inventing them.** Keep source prose,
    personal notes and missing explanations visibly distinct. Make writing a
@@ -103,11 +131,11 @@ distinct from engine evaluation; do not automatically generate plausible prose.
    may look like new chapters. Extend tests for book-like studies, transpositions,
    renamed chapters and round-trip comments before broadening import features.
 
-5. **Reduce orchestration complexity.** OpeningPractice is roughly 1,200 lines
-   and OpeningLineExplorer roughly 740. Extract library/import loading and
+5. **Reduce orchestration complexity.** Focused line-library/navigation components
+   and stale-coverage guards are now extracted/implemented. Extract import loading and
    practice transitions into focused hooks/reducers without changing behaviour.
-   Add request cancellation or revision guards to prevent older asynchronous
-   coverage results replacing newer state. Keep shared API contracts and thin
+   Retain the new cancellation/revision guards for asynchronous coverage state.
+   Keep shared API contracts and thin
    routes; avoid a general framework rewrite.
 
 6. **Polish accessibility and recovery.** Use consistent inline confirmation,
