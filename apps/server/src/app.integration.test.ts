@@ -118,6 +118,135 @@ async function waitForCompleted(app: Awaited<ReturnType<typeof buildApp>>, jobId
 }
 
 describe("vertical slice", () => {
+  it("assesses an actual opponent surprise, keeps ideas without cards and carries them into later practice", async () => {
+    let calls = 0;
+    globalThis.fetch = (async (input) => {
+      const url = new URL(String(input));
+      expect(url.hostname).toBe("explorer.lichess.org");
+      expect(Number(url.searchParams.get("moves"))).toBeGreaterThan(12);
+      calls++;
+      return new Response(JSON.stringify({ white: 5000, draws: 1000, black: 4000, moves: [
+        { uci: "g8f6", san: "Nf6", white: 3000, draws: 600, black: 2400 },
+        { uci: "d7d6", san: "d6", white: 10, draws: 2, black: 8 },
+      ] }), { status: 200 });
+    }) as typeof fetch;
+    const appConfig = config(true);
+    appConfig.lichessApiToken = "test-explorer-token";
+    let app = await buildApp(appConfig); apps.push(app);
+    const imported = await app.inject({ method: "POST", url: "/api/v1/imports/pgn", payload: {
+      pgn: '[Event "Preparation safety"]\n[White "Alice"]\n[Black "Bob"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 d6 3. d4 *', playerName: "Alice",
+    } });
+    await waitForCompleted(app, imported.json().jobId);
+    expect((await app.inject({ method: "PATCH", url: "/api/v1/openings/preferences", payload: {
+      ratingGroup: 1600, platform: "lichess", useExplorer: true,
+    } })).statusCode).toBe(200);
+    const inbox = (await app.inject({ method: "GET", url: "/api/v1/openings/game-inbox" })).json();
+    const group = inbox.groups.find((item: { opening: { status: string } }) => item.opening.status === "opponent_deviation");
+    expect(group.preparation.frequency.status).toBe("unknown");
+    expect(calls).toBe(0); // Reading the inbox must not block on Lichess.
+    const target = { fen: group.opening.departure.fenBefore, opponentMoveUci: "d7d6", learnerColor: "white",
+      repertoireId: group.opening.repertoire.id, groupKey: group.key };
+    const checked = await app.inject({ method: "POST", url: "/api/v1/openings/preparation/assess", payload: { ...target, refresh: true, analyze: true } });
+    expect(checked.statusCode).toBe(200);
+    expect(checked.json()).toMatchObject({ frequency: { status: "known", percent: 0.2, moveGames: 20, positionGames: 10000 },
+      personal: { occurrences: 1, responsesAnalyzed: 1, responseMistakes: 0 }, priority: "low", recommendation: "optional" });
+    const database = new BetterSqlite3(appConfig.databasePath);
+    const counts = () => ["opening_lines", "opening_review_items", "opening_move_review_cards"]
+      .map(table => database.prepare(`SELECT COUNT(*) FROM ${table}`).pluck().get());
+    const before = counts();
+    const note = "Take the centre and finish development; no deep line needed.";
+    const kept = await app.inject({ method: "PATCH", url: `/api/v1/openings/game-inbox/${group.key}/preparation`, payload: { choice: "idea", note } });
+    expect(kept.statusCode).toBe(200);
+    expect(kept.json()).toMatchObject({ assessment: { decision: { choice: "idea", note } } });
+    expect(kept.json().inbox.groups[0].unreviewedCount).toBe(0);
+    expect(counts()).toEqual(before);
+    await app.close();
+    app = await buildApp(appConfig); apps.push(app);
+    const restored = (await app.inject({ method: "GET", url: "/api/v1/openings/game-inbox" })).json().groups[0];
+    expect(restored.preparation).toMatchObject({ decision: { choice: "idea", note }, personal: { responsesAnalyzed: 1 }, frequency: { status: "known" } });
+    expect(calls).toBe(1);
+    const skipped = await app.inject({ method: "PATCH", url: `/api/v1/openings/game-inbox/${group.key}/preparation`, payload: { choice: "unprepared", note } });
+    expect(skipped.json().assessment.decision.choice).toBe("unprepared");
+    expect(counts()).toEqual(before);
+    const prepared = await app.inject({ method: "POST", url: `/api/v1/openings/game-inbox/${group.key}/prepare`, payload: { replyMoveUci: "d2d4" } });
+    expect(prepared.statusCode).toBe(200);
+    const preparedTarget = prepared.json();
+    const decisions = database.prepare("SELECT repertoire_id, choice, note FROM opening_preparation_decisions WHERE repertoire_id = ?")
+      .all(preparedTarget.repertoire.id);
+    expect(decisions).toEqual([expect.objectContaining({ choice: "line", note })]);
+    let exercise = (await app.inject({ method: "POST", url: `/api/v1/openings/repertoires/${preparedTarget.repertoire.id}/lines/${preparedTarget.lineId}/reviews/start` })).json();
+    for (let index = 0; index < 3 && !exercise.preparationNote; index++) {
+      expect(exercise.kind).toBe("exercise");
+      await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${exercise.sessionId}/move`,
+        payload: { moveUci: exercise.acceptedMoves[0].moveUci, queueEntryId: exercise.queueEntryId } });
+      exercise = (await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${exercise.sessionId}/continue`, payload: { queueEntryId: exercise.queueEntryId } })).json();
+    }
+    expect(exercise.preparationNote).toBe(note);
+    expect(database.pragma("foreign_key_check")).toEqual([]);
+    database.close();
+  });
+
+  it("keeps missing, small and stale Explorer samples uncertain and rejects invalid preparation decisions", async () => {
+    let mode: "missing" | "small" | "failure" = "missing";
+    globalThis.fetch = (async () => {
+      if (mode === "failure") throw new Error("Explorer offline");
+      return new Response(JSON.stringify({ white: mode === "small" ? 10 : 500, draws: 0, black: 0,
+        moves: mode === "small" ? [{ uci: "d7d6", san: "d6", white: 1, draws: 0, black: 0 }] : [] }), { status: 200 });
+    }) as typeof fetch;
+    const appConfig = config(false); appConfig.lichessApiToken = "test-token";
+    const app = await buildApp(appConfig); apps.push(app);
+    await app.inject({ method: "POST", url: "/api/v1/imports/pgn", payload: { pgn: ITALIAN_OPPONENT_DEVIATION, playerName: "Alice" } });
+    await app.inject({ method: "PATCH", url: "/api/v1/openings/preferences", payload: { ratingGroup: 1600, platform: "lichess", useExplorer: true } });
+    const group = (await app.inject({ method: "GET", url: "/api/v1/openings/game-inbox" })).json().groups[0];
+    const target = { fen: group.opening.departure.fenBefore, opponentMoveUci: "d7d6", learnerColor: "white", groupKey: group.key, refresh: true };
+    const missing = (await app.inject({ method: "POST", url: "/api/v1/openings/preparation/assess", payload: target })).json();
+    expect(missing).toMatchObject({ priority: "unknown", frequency: { status: "unknown", percent: null } });
+    mode = "small";
+    const small = (await app.inject({ method: "POST", url: "/api/v1/openings/preparation/assess", payload: target })).json();
+    expect(small).toMatchObject({ priority: "unknown", frequency: { status: "small_sample", percent: 10 } });
+    const database = new BetterSqlite3(appConfig.databasePath);
+    database.prepare("UPDATE opening_explorer_cache SET fetched_at = '2020-01-01T00:00:00.000Z'").run();
+    mode = "failure";
+    const stale = (await app.inject({ method: "POST", url: "/api/v1/openings/preparation/assess", payload: target })).json();
+    expect(stale.frequency.stale).toBe(true); expect(stale.priority).toBe("unknown");
+    for (const payload of [{ choice: "idea", note: " " }, { choice: "line", note: "Not actually saved" }]) {
+      expect((await app.inject({ method: "PATCH", url: `/api/v1/openings/game-inbox/${group.key}/preparation`, payload })).statusCode).toBe(400);
+    }
+    expect((await app.inject({ method: "POST", url: "/api/v1/openings/preparation/assess", payload: { fen: new Chess().fen(), opponentMoveUci: "e2e4", learnerColor: "white" } })).statusCode).toBe(400);
+    await app.inject({ method: "POST", url: "/api/v1/imports/pgn", payload: { pgn: '[White "Other"]\n[Black "Bob"]\n[Result "*"]\n\n1. e4 e5 *', playerName: "Other" } });
+    const otherProfile = (await app.inject({ method: "GET", url: "/api/v1/profiles" })).json().profiles.find((profile: { displayName: string }) => profile.displayName === "Other");
+    await app.inject({ method: "POST", url: `/api/v1/profiles/${otherProfile.id}/activate` });
+    expect((await app.inject({ method: "PATCH", url: `/api/v1/openings/game-inbox/${group.key}/preparation`, payload: { choice: "idea", note: "Private" } })).statusCode).toBe(400);
+    expect(database.prepare("SELECT COUNT(*) FROM opening_preparation_decisions").pluck().get()).toBe(0);
+    database.close();
+  });
+
+  it("reconsiders repeated encounters while preserving a deliberate no-line choice", async () => {
+    const settings = config(false);
+    const app = await buildApp(settings); apps.push(app);
+    await app.inject({ method: "POST", url: "/api/v1/imports/pgn", payload: { pgn: ITALIAN_OPPONENT_DEVIATION, playerName: "Alice" } });
+    const first = (await app.inject({ method: "GET", url: "/api/v1/openings/game-inbox" })).json().groups[0];
+    await app.inject({ method: "PATCH", url: `/api/v1/openings/game-inbox/${first.key}/preparation`, payload: { choice: "unprepared", note: "Use development principles." } });
+    for (const opponent of ["Carol", "Dan"]) {
+      const pgn = ITALIAN_OPPONENT_DEVIATION.replace('[Black "Bob"]', `[Black "${opponent}"]`)
+        .replace("d6 *", opponent === "Carol" ? "d6 3. d4 *" : "d6 3. Bc4 *");
+      const imported = await app.inject({ method: "POST", url: "/api/v1/imports/pgn", payload: { pgn, playerName: "Alice" } });
+      expect(imported.json().imported).toBe(1);
+    }
+    const repeated = (await app.inject({ method: "GET", url: "/api/v1/openings/game-inbox" })).json().groups[0];
+    expect(repeated).toMatchObject({ key: first.key, occurrenceCount: 3, unreviewedCount: 2,
+      preparation: { priority: "high", personal: { occurrences: 3 }, decision: { choice: "unprepared", note: "Use development principles." } } });
+    const database = new BetterSqlite3(settings.databasePath);
+    const reviewsBefore = database.prepare("SELECT COUNT(*) FROM opening_review_sessions").pluck().get();
+    expect(reviewsBefore).toBe(0);
+    const deleted = await app.inject({ method: "DELETE", url: `/api/v1/openings/repertoires/${first.opening.repertoire.id}` });
+    expect(deleted.statusCode).toBe(200);
+    expect(database.prepare("SELECT COUNT(*) FROM opening_preparation_decisions").pluck().get()).toBe(0);
+    expect(database.prepare("SELECT COUNT(*) FROM games").pluck().get()).toBe(3);
+    expect(database.pragma("foreign_key_check")).toEqual([]);
+    database.close();
+  });
+
   it("starts with an empty opening library without silently restoring starter repertoires", async () => {
     const settings = config(false, false);
     const app = await buildApp(settings);

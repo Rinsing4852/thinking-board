@@ -4,9 +4,9 @@ const base = process.argv[2];
 if (!base || !/^http:\/\/127\.0\.0\.1:\d+$/.test(base)) throw new Error("Pass a loopback URL for a disposable smoke-test server");
 const existing = process.argv.includes("--existing");
 const cleared = process.argv.includes("--cleared");
-async function request(path, body) {
+async function request(path, body, method = body === undefined ? "GET" : "POST") {
   const response = await fetch(`${base}${path}`, {
-    method: body === undefined ? "GET" : "POST",
+    method,
     headers: { "Content-Type": "application/json" },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     signal: AbortSignal.timeout(10_000),
@@ -79,6 +79,34 @@ const repertoire = await request(`/api/v1/openings/repertoires/${repertoireId}`)
 assert.equal(repertoire.chapters[0].lines.length, 2, "Updated opening branches must be persisted");
 assert.equal(repertoire.chapters[0].lines[0].moves[0].explanation.summary,
   "Open the bishop and control the centre.", "Refreshed source notes must be persisted");
+const idea = "Develop and take the centre before memorising a deep line.";
+if (!existing) {
+  const imported = await request("/api/v1/imports/pgn", {
+    pgn: '[Event "Container preparation"]\n[White "Container Learner"]\n[Black "Preparation opponent"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 d6 3. d4 *',
+    playerName: "Container Learner",
+  });
+  const job = await waitFor(() => request(`/api/v1/jobs/${imported.jobId}`),
+    result => result.status === "completed" || result.status === "failed");
+  assert.equal(job.status, "completed", job.error ?? "Preparation game analysis must complete");
+}
+const group = (await request("/api/v1/openings/game-inbox")).groups
+  .find(item => item.opening.repertoire.id === repertoireId && item.opening.departure?.moveUci === "d7d6");
+assert(group, "Pasted games must produce an opponent-reply preparation assessment");
+if (existing) {
+  assert.equal(group.preparation.decision.note, idea, "Preparation notes must survive restart");
+  assert.equal(group.unreviewedCount, 0, "Reviewed preparation encounters must survive restart");
+} else {
+  const assessment = await request("/api/v1/openings/preparation/assess", {
+    groupKey: group.key, fen: group.opening.departure.fenBefore, opponentMoveUci: "d7d6",
+    learnerColor: "white", analyze: true,
+  });
+  assert.equal(assessment.frequency.status, "off", "Practical frequencies must remain opt-in");
+  assert.equal(assessment.personal.responsesAnalyzed, 1, "Real game analysis must inform preparation");
+  const saved = await request(`/api/v1/openings/game-inbox/${group.key}/preparation`, { choice: "idea", note: idea }, "PATCH");
+  assert.equal(saved.assessment.decision.note, idea);
+  assert.equal((await request(`/api/v1/openings/repertoires/${repertoireId}`)).chapters[0].lines.length, 2,
+    "Keeping an idea must not add a line");
+}
 if (process.argv.includes("--clear-library")) {
   const before = (await request("/api/v1/games")).games.map(game => game.id).sort();
   await request("/api/v1/openings/library/delete", { confirmed: true, repertoireIds: catalog.repertoires.map(item => item.id) });

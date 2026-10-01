@@ -372,6 +372,7 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
               >
                 <summary>See the full explanation</summary>
                 <OpeningExplanation explanation={feedback.explanation} showSummary={false} showPersonalComment={false} />
+                {exercise.preparationNote && <p className="opening-preparation-choice"><b>Your preparation idea:</b> {exercise.preparationNote}</p>}
               </details>
               <OpeningLearningComment
                 repertoireId={exercise.repertoire.id}

@@ -4,8 +4,10 @@ import type {
   GameOpeningInboxGroup,
   GameOpeningInboxResponse,
   OpeningSurprisePreparationResponse,
+  OpeningPreparationDecisionResponse,
 } from "../../../../packages/contracts/src/api";
 import { OpeningSurprisePrep } from "./OpeningSurprisePrep";
+import { OpeningPreparationAdvice } from "./OpeningPreparationAdvice";
 
 interface OpeningGameInboxProps {
   inbox: GameOpeningInboxResponse | null;
@@ -15,6 +17,7 @@ interface OpeningGameInboxProps {
   onPractice: (gameId: string) => void;
   onMarkReviewed: (groupKey: string) => void;
   onPrepared: (response: OpeningSurprisePreparationResponse) => void;
+  onPreparationDecision: (response: OpeningPreparationDecisionResponse) => void;
 }
 
 function moveLabel(group: GameOpeningInboxGroup): string {
@@ -55,6 +58,7 @@ export function OpeningGameInbox({
   onPractice,
   onMarkReviewed,
   onPrepared,
+  onPreparationDecision,
 }: OpeningGameInboxProps) {
   const [showReviewed, setShowReviewed] = useState(false);
   const [preparingKey, setPreparingKey] = useState<string | null>(null);
@@ -118,6 +122,10 @@ export function OpeningGameInbox({
                 {group.opening.status === "repertoire_ended" && (
                   <p className="opening-inbox-why">This is a content gap, not necessarily a mistake. Inspect the game before expanding the line.</p>
                 )}
+                {canPrepare && departure && <OpeningPreparationAdvice
+                    target={{ fen: departure.fenBefore, opponentMoveUci: departure.moveUci,
+                      learnerColor: group.opening.repertoire.learnerColor, repertoireId: group.opening.repertoire.id }}
+                    initial={group.preparation} groupKey={group.key} onDecision={onPreparationDecision} />}
                 <div className="opening-inbox-actions">
                   <button className="secondary" onClick={() => onInspect(group.latestGameId)}>Inspect latest game</button>
                   {group.opening.practiceAvailable && (

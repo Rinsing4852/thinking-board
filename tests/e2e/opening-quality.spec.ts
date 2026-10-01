@@ -118,6 +118,71 @@ test("previews and applies source changes from an expanded repertoire card", asy
   expect(detail.chapters[0].lines).toHaveLength(2);
 });
 
+test("keeps a preparation idea without a line, then shows it after recall when a line is deliberately added", async ({ page }, testInfo) => {
+  const name = `Practice choices ${testInfo.project.name}`;
+  const player = `Preparation Learner ${testInfo.project.name}`;
+  const firstReply = testInfo.project.name === "webkit" ? "Nf6" : "d5";
+  const opening = await page.request.post("/api/v1/openings/imports/pgn", { data: {
+    pgn: `[Event "${name}"]\n[Result "*"]\n\n1. d4 ${firstReply} 2. c4 e6 3. Nc3 *`,
+    learnerColor: "white", name, ownershipConfirmed: true,
+  } });
+  expect(opening.ok()).toBeTruthy();
+  const repertoireId = (await opening.json()).repertoireIds[0];
+  const game = await page.request.post("/api/v1/imports/pgn", { data: {
+    pgn: `[Event "Played ${name}"]\n[White "${player}"]\n[Black "Opponent"]\n[Result "*"]\n\n1. d4 ${firstReply} 2. c4 h6 3. Nc3 *`, playerName: player,
+  } });
+  expect(game.ok()).toBeTruthy();
+  const profiles = await (await page.request.get("/api/v1/profiles")).json();
+  const learner = profiles.profiles.find((profile: { displayName: string }) => profile.displayName === player);
+  expect((await page.request.post(`/api/v1/profiles/${learner.id}/activate`)).ok()).toBeTruthy();
+  const before = (await (await page.request.get(`/api/v1/openings/repertoires/${repertoireId}`)).json()).chapters[0].lines.length;
+  await page.goto("/#games");
+  const item = page.locator("article.opening-inbox-item").filter({ hasText: name });
+  const advice = item.getByRole("region", { name: "Worth preparing?" });
+  await expect(advice.getByText(/^Frequency unknown/)).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("preparation-choice-inbox.png"), fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
+  await advice.getByRole("button", { name: "Keep an idea instead", exact: true }).click();
+  const note = "Complete development and use the centre; no long line needed.";
+  await advice.getByLabel("Idea to remember", { exact: true }).fill(note);
+  await advice.getByRole("button", { name: "Save idea without a line", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Idea kept. No new line or memory reviews were added.");
+  expect((await (await page.request.get(`/api/v1/openings/repertoires/${repertoireId}`)).json()).chapters[0].lines).toHaveLength(before);
+  await page.reload();
+  await page.getByRole("button", { name: /Show all/ }).click();
+  await expect(advice.getByText(note, { exact: true })).toBeVisible();
+  await item.getByRole("button", { name: "Prepare for h6", exact: true }).click();
+  const board = item.getByRole("grid", { name: "Position after h6" });
+  await board.getByRole("gridcell", { name: "b1 white knight" }).click();
+  await board.getByRole("gridcell", { name: "c3 empty" }).click();
+  await item.getByRole("button", { name: "Save h6 → Nc3", exact: true }).click();
+  const detail = await (await page.request.get(`/api/v1/openings/repertoires/${repertoireId}`)).json();
+  const line = detail.chapters.flatMap((chapter: { lines: Array<{ id: string; moves: Array<{ moveUci: string }> }> }) => chapter.lines)
+    .find((candidate: { moves: Array<{ moveUci: string }> }) => candidate.moves.some(move => move.moveUci === "h7h6"));
+  expect(line).toBeTruthy();
+  const started = await page.request.post(`/api/v1/openings/repertoires/${repertoireId}/lines/${line.id}/reviews/start`);
+  expect(started.ok()).toBeTruthy();
+  await page.goto("/#openings");
+  const resume = page.getByRole("button", { name: "Resume opening practice" });
+  if (await resume.isVisible()) await resume.click();
+  const practice = page.getByRole("grid", { name: "Chess position" });
+  await practice.getByRole("gridcell", { name: "d2 white pawn" }).click();
+  await practice.getByRole("gridcell", { name: "d4 empty" }).click();
+  await expect(page.getByText("Step 2 of 3")).toBeVisible();
+  await expect(practice).toHaveClass(/interactive/);
+  await practice.getByRole("gridcell", { name: "c2 white pawn" }).click();
+  await practice.getByRole("gridcell", { name: "c4 empty" }).click();
+  await expect(page.getByText("Step 3 of 3")).toBeVisible();
+  await expect(practice).toHaveClass(/interactive/);
+  await expect(page.getByText(note, { exact: false })).toBeHidden();
+  await practice.getByRole("gridcell", { name: "b1 white knight" }).click();
+  await practice.getByRole("gridcell", { name: "c3 empty" }).click();
+  await page.getByRole("button", { name: "Keep this open", exact: true }).click();
+  await page.getByText("See the full explanation", { exact: true }).click();
+  await expect(page.getByText(note, { exact: false })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("preparation-idea-in-practice.png"), fullPage: true });
+});
+
 test("deletes the final line and clears a confirmed library without losing games", async ({ page }, testInfo) => {
   // Own the remaining material too: this test must work without earlier imports.
   const archived = await page.request.post("/api/v1/openings/imports/pgn", { data: {

@@ -13,6 +13,8 @@ import type { SqliteDatabase } from "../db/database.js";
 import { id, now } from "../lib/ids.js";
 import { activeProfileId, ensureActiveProfile } from "../training/profile.js";
 import { selectPracticeLine, type LineCandidate } from "./opening-line-selection.js";
+import { openingPositionKey } from "./opening-content.js";
+import { practiceReplyFrequency, preparationNote } from "./opening-preparation-store.js";
 import {
   OPENING_SCHEDULER_VERSION,
   scheduleOpeningReview,
@@ -306,13 +308,14 @@ export class OpeningReviewService {
     this.ensureItems(profileId, repertoireId);
     const rows = this.db.prepare(`
       SELECT line.id AS line_id, line.priority, membership.ply,
-             move.role, move.frequency,
+             move.role, move.frequency, move.move_uci, position.position_key,
              review.state, review.due_at, review.lapses, review.average_response_ms
       FROM opening_lines line
       JOIN opening_chapters chapter ON chapter.id = line.chapter_id
         AND chapter.repertoire_id = ? AND chapter.active = 1
       JOIN opening_line_moves membership ON membership.line_id = line.id
       JOIN opening_moves move ON move.id = membership.move_id AND move.active = 1
+      JOIN opening_positions position ON position.id = move.from_position_id
       LEFT JOIN opening_move_review_cards review
         ON review.profile_id = ?
        AND review.move_id = move.id
@@ -326,12 +329,15 @@ export class OpeningReviewService {
       ply: number;
       role: "learner" | "opponent";
       frequency: number | null;
+      position_key: string;
+      move_uci: string;
       state: number | null;
       due_at: string | null;
       lapses: number | null;
       average_response_ms: number | null;
     }>;
     const candidates = new Map<string, LineCandidate>();
+    const observedFrequencies = new Map<string, number | null>();
     const timestamp = now();
     for (const row of rows) {
       const candidate = candidates.get(row.line_id) ?? {
@@ -343,7 +349,10 @@ export class OpeningReviewService {
       };
       if (candidate.decisions >= practiceDepth) continue;
       if (row.role === "opponent") {
-        candidate.practicalWeight *= Math.max(0.08, row.frequency ?? 0.35);
+        const key = `${row.position_key}|${row.move_uci}`;
+        if (!observedFrequencies.has(key)) observedFrequencies.set(key,
+          practiceReplyFrequency(this.db, profileId, row.position_key, row.move_uci));
+        candidate.practicalWeight *= Math.max(0.08, observedFrequencies.get(key) ?? row.frequency ?? 0.35);
       } else {
         candidate.decisions += 1;
         candidate.urgency += row.state === null || row.state === 0
@@ -1081,6 +1090,7 @@ export class OpeningReviewService {
       prompt: "Recall your repertoire move for this position.",
       acceptedMoves,
       assistance: { pieceHint: queue.piece_hint === 1, moveShown: queue.move_shown === 1 },
+      preparationNote: preparationNote(this.db, item.profile_id, item.repertoire_id, openingPositionKey(item.from_fen)),
       introduction: {
         repertoireMove: { moveId: item.target_move_id, moveUci: item.move_uci, moveSan: item.move_san },
         fenAfterMove: item.to_fen,

@@ -2,11 +2,11 @@ import type {
   OpeningCoverageGap,
   OpeningCoverageResponse,
 } from "../../../../packages/contracts/src/api.js";
+import { Chess } from "chess.js";
 import type { SqliteDatabase } from "../db/database.js";
-import { now } from "../lib/ids.js";
 import { ensureActiveProfile } from "../training/profile.js";
-
-type FetchLike = typeof fetch;
+import { OpeningExplorerService } from "./opening-explorer-service.js";
+import type { OpeningPreparationService } from "./opening-preparation-service.js";
 
 interface PositionRow {
   id: string;
@@ -28,24 +28,19 @@ interface ExplorerResponse {
   draws: number;
   black: number;
   moves: ExplorerMove[];
-}
-
-interface CacheRow {
-  total_games: number;
-  moves_json: string;
-  fetched_at: string;
+  stale: boolean;
 }
 
 const RATINGS = new Set([0, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500]);
 const SPEEDS = "blitz,rapid,classical";
-const CACHE_MS = 7 * 24 * 60 * 60 * 1000;
 const POSITION_LIMIT = 32;
 
 export class OpeningCoverageService {
   constructor(
     private readonly db: SqliteDatabase,
     private readonly apiToken?: string,
-    private readonly fetcher: FetchLike = fetch,
+    private readonly explorer = new OpeningExplorerService(db, apiToken),
+    private readonly preparation?: OpeningPreparationService,
   ) {}
 
   async coverage(repertoireId: string, ratingGroup = 1600): Promise<OpeningCoverageResponse> {
@@ -80,6 +75,7 @@ export class OpeningCoverageService {
     let totalGames = 0;
     let positionsAvailable = 0;
     let remoteFailures = 0;
+    let staleSamples = 0;
 
     const samples: Array<{ position: PositionRow; result: ExplorerResponse | null }> = [];
     for (let offset = 0; offset < positions.length; offset += 4) {
@@ -96,6 +92,7 @@ export class OpeningCoverageService {
         continue;
       }
       const total = result.white + result.draws + result.black;
+      if (result.stale) staleSamples += 1;
       if (total <= 0) continue;
       positionsAvailable += 1;
       totalGames += total;
@@ -113,7 +110,10 @@ export class OpeningCoverageService {
             )
         `).pluck().all(repertoireId, position.id, profileId) as string[]),
       );
+      const legalMoves = new Set(new Chess(position.fen).moves({ verbose: true })
+        .map(move => `${move.from}${move.to}${move.promotion ?? ""}`));
       for (const move of result.moves) {
+        if (!legalMoves.has(move.uci)) continue;
         const games = move.white + move.draws + move.black;
         if (covered.has(move.uci)) coveredGames += games;
         else if (games > 0) {
@@ -125,14 +125,19 @@ export class OpeningCoverageService {
             moveUci: move.uci,
             moveSan: move.san,
             games,
-            frequencyPercent: Math.round((games / total) * 1000) / 10,
+            frequencyPercent: Number(((games / total) * 100).toPrecision(3)),
+            ...(this.preparation ? { preparation: this.preparation.cached({ fen: position.fen,
+              opponentMoveUci: move.uci, learnerColor: position.fen.split(" ")[1] === "w" ? "black" : "white", repertoireId },
+              { ratingGroup, useExplorer: true }) } : {}),
           });
         }
       }
     }
 
-    gaps.sort((left, right) => right.games - left.games || right.frequencyPercent - left.frequencyPercent);
-    const incomplete = allPositions.length > positions.length || remoteFailures > 0;
+    const priority = (gap: OpeningCoverageGap): number => gap.preparation?.decision?.choice === "unprepared" ? -1
+      : { high: 3, medium: 2, unknown: 1, low: 0 }[gap.preparation?.priority ?? "unknown"];
+    gaps.sort((left, right) => priority(right) - priority(left) || right.frequencyPercent - left.frequencyPercent || right.games - left.games);
+    const incomplete = allPositions.length > positions.length || remoteFailures > 0 || staleSamples > 0;
     return {
       repertoireId,
       ratingGroup,
@@ -146,7 +151,7 @@ export class OpeningCoverageService {
       incomplete,
       message: totalGames > 0
         ? incomplete
-          ? "Coverage uses available cached and live Lichess data; some deeper positions were not included."
+          ? "Coverage is partial or uses older cached samples. Refresh before relying on it; not every position has current data."
           : "Coverage compares your saved opponent replies with rated Lichess blitz, rapid and classical games."
         : "No Lichess Explorer sample was available for these positions yet.",
     };
@@ -190,58 +195,13 @@ export class OpeningCoverageService {
   }
 
   private async statistics(position: PositionRow, ratingGroup: number): Promise<ExplorerResponse | null> {
-    const cached = this.db.prepare(`
-      SELECT total_games, moves_json, fetched_at
-      FROM opening_position_statistics
-      WHERE position_id = ? AND rating_group = ? AND speeds = ?
-    `).get(position.id, ratingGroup, SPEEDS) as CacheRow | undefined;
-    if (cached && Date.now() - Date.parse(cached.fetched_at) < CACHE_MS) {
-      return this.fromCache(cached);
-    }
-
     try {
-      const url = new URL("https://explorer.lichess.org/lichess");
-      url.searchParams.set("variant", "standard");
-      url.searchParams.set("fen", position.fen);
-      url.searchParams.set("speeds", SPEEDS);
-      url.searchParams.set("ratings", String(ratingGroup));
-      url.searchParams.set("moves", "12");
-      url.searchParams.set("topGames", "0");
-      url.searchParams.set("recentGames", "0");
-      const response = await this.fetcher(url, {
-        headers: {
-          Accept: "application/json",
-          "User-Agent": "ThinkingBoard/1.0 (self-hosted chess trainer)",
-          ...(this.apiToken ? { Authorization: `Bearer ${this.apiToken}` } : {}),
-        },
-        signal: AbortSignal.timeout(8_000),
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const result = await response.json() as ExplorerResponse;
-      if (!Array.isArray(result.moves)) throw new Error("Invalid explorer response");
-      const total = Number(result.white) + Number(result.draws) + Number(result.black);
-      const timestamp = now();
-      this.db.prepare(`
-        INSERT INTO opening_position_statistics(
-          position_id, rating_group, speeds, total_games, moves_json, fetched_at
-        ) VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(position_id, rating_group, speeds) DO UPDATE SET
-          total_games = excluded.total_games,
-          moves_json = excluded.moves_json,
-          fetched_at = excluded.fetched_at
-      `).run(position.id, ratingGroup, SPEEDS, total, JSON.stringify(result.moves), timestamp);
-      return result;
+      const sample = await this.explorer.position(position.fen, ratingGroup);
+      return { white: sample.totalGames, draws: 0, black: 0, stale: sample.stale ?? false, moves: sample.replies.map(move => ({
+        uci: move.moveUci, san: move.moveSan, white: move.whiteWins, draws: move.draws, black: move.blackWins,
+      })) };
     } catch {
-      return cached ? this.fromCache(cached) : null;
+      return null;
     }
-  }
-
-  private fromCache(row: CacheRow): ExplorerResponse {
-    return {
-      white: row.total_games,
-      draws: 0,
-      black: 0,
-      moves: JSON.parse(row.moves_json) as ExplorerMove[],
-    };
   }
 }

@@ -180,6 +180,35 @@ export interface OpeningCoverageGap {
   moveSan: string;
   games: number;
   frequencyPercent: number;
+  preparation?: OpeningPreparationAssessment;
+}
+
+export type OpeningPreparationChoice = "idea" | "unprepared" | "line";
+
+export interface OpeningPreparationAssessment {
+  priority: "high" | "medium" | "low" | "unknown";
+  recommendation: "prepare_line" | "learn_idea" | "optional" | "inspect";
+  title: string;
+  message: string;
+  reasons: string[];
+  frequency: {
+    status: "known" | "small_sample" | "unknown" | "off" | "unavailable";
+    percent: number | null;
+    moveGames: number | null;
+    positionGames: number;
+    ratingGroup: number;
+    speeds: string[];
+    stale: boolean;
+  };
+  personal: { occurrences: number; responsesAnalyzed: number; responseMistakes: number; opponentMistakes: number };
+  difficulty: "several_replies" | "precise_reply" | "forcing" | "unknown";
+  decision: { choice: OpeningPreparationChoice; note: string; updatedAt: string } | null;
+}
+
+export interface OpeningPreparationDecisionResponse {
+  assessment: OpeningPreparationAssessment;
+  inbox: GameOpeningInboxResponse;
+  message: string;
 }
 
 export interface OpeningCoverageResponse {
@@ -232,6 +261,8 @@ export interface OpeningExplorerPositionResponse {
   opening: { eco: string; name: string } | null;
   replies: OpeningExplorerReply[];
   cached: boolean;
+  fetchedAt?: string;
+  stale?: boolean;
 }
 
 export type OpeningRatingPlatform = "lichess" | "chess_com" | "fide" | "not_sure";
@@ -326,6 +357,7 @@ export interface GameOpeningInboxGroup {
   unreviewedCount: number;
   latestGameId: string;
   occurrences: GameOpeningInboxOccurrence[];
+  preparation?: OpeningPreparationAssessment;
 }
 
 export interface GameOpeningInboxResponse {
@@ -523,6 +555,7 @@ export interface OpeningReviewExercise {
   prompt: string;
   acceptedMoves: OpeningAcceptedMove[];
   assistance: { pieceHint: boolean; moveShown: boolean };
+  preparationNote?: string | null;
   introduction: {
     repertoireMove: { moveId: string; moveUci: string; moveSan: string };
     fenAfterMove: string;

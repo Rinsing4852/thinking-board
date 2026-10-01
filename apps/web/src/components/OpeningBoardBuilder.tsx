@@ -6,6 +6,7 @@ import { post } from "../api";
 import { ChessBoard } from "./ChessBoard";
 import { OpeningAnalysisSandbox, type SandboxMove } from "./OpeningAnalysisSandbox";
 import { OpeningMoveSuggestions } from "./OpeningMoveSuggestions";
+import { OpeningPreparationAdvice } from "./OpeningPreparationAdvice";
 
 interface BuiltMove {
   moveUci: string;
@@ -200,6 +201,9 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
                   />
                 </div>
               )}
+              {lastMove && !lastMoveBelongsToLearner && <OpeningPreparationAdvice target={{
+                fen: lastMove.fenBefore, opponentMoveUci: lastMove.moveUci, learnerColor,
+              }} />}
               {!lastMove && analysisOpen && <p className="opening-builder-empty-note">Explore on the analysis board, then add the sequence when it makes sense.</p>}
             </div>
           </div>

@@ -20,6 +20,7 @@ import { countTranspositions } from "../opening-transpositions";
 import { ChessBoard } from "./ChessBoard";
 import { OpeningLearningComment } from "./OpeningLearningComment";
 import { OpeningMoveSuggestions } from "./OpeningMoveSuggestions";
+import { OpeningPreparationAdvice } from "./OpeningPreparationAdvice";
 
 interface OpeningLineExplorerProps {
   detail: OpeningRepertoireDetailResponse;
@@ -467,11 +468,11 @@ export function OpeningLineExplorer({
             <p>{coverage.message} This measures replies at positions reached after your saved moves, not the chance of reaching the whole line.</p>
           </div>
           <div className="opening-coverage-gaps">
-            <strong>{coverage.gaps.length > 0 ? "Biggest missing replies" : "No common missing replies found"}</strong>
+            <strong>{coverage.gaps.length > 0 ? "Missing replies to consider" : "No common missing replies found"}</strong>
             {coverage.gaps.slice(0, 5).map((gap) => (
               <button key={`${gap.positionId}-${gap.moveUci}`} onClick={() => focusCoverageGap(gap)}>
                 <span><b>{gap.moveSan}</b> after {gap.lineTitle}</span>
-                <small>{gap.frequencyPercent}% at this position</small>
+                <small>{gap.frequencyPercent}% at this position{gap.preparation?.decision?.choice === "unprepared" ? " · left unprepared" : gap.preparation?.priority === "low" ? " · optional" : gap.preparation?.priority === "high" ? " · worth preparing" : ""}</small>
               </button>
             ))}
           </div>
@@ -664,10 +665,13 @@ export function OpeningLineExplorer({
           )}
           {pendingMove && (
             <div className="opening-new-move">
-              <span className="eyebrow">{preparingGap ? "Common reply to prepare" : ply < line.moveCount ? "New branch" : "Extend line"}</span>
+              <span className="eyebrow">{preparingGap ? "Explore this reply" : ply < line.moveCount ? "New branch" : "Extend line"}</span>
               <h3>{pendingMove.san}</h3>
+              {displayFen.split(" ")[1] !== (detail.repertoire.learnerColor === "white" ? "w" : "b") && <OpeningPreparationAdvice
+                target={{ fen: displayFen, opponentMoveUci: pendingMove.uci, learnerColor: detail.repertoire.learnerColor,
+                  repertoireId: detail.repertoire.id }} />}
               <p>{preparingGap
-                ? `Opponents choose this in ${preparingGap.frequencyPercent}% of games at this position. Save it, then choose how your repertoire should answer.`
+                ? `This reply appears in ${preparingGap.frequencyPercent}% of the sampled games at this position. Check whether it deserves preparation. Save only if you want to add a response.`
                 : ply < line.moveCount
                 ? "This move differs from the saved continuation. Saving creates another line and keeps the original."
                 : "This move will be added after the current end of the line."}</p>

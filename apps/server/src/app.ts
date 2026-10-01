@@ -28,6 +28,8 @@ import { OpeningCoverageService } from "./openings/opening-coverage-service.js";
 import { OpeningAnalysisService } from "./openings/opening-analysis-service.js";
 import { OpeningExplorerService } from "./openings/opening-explorer-service.js";
 import { OpeningPreferencesService } from "./openings/opening-preferences-service.js";
+import { OpeningPreparationService } from "./openings/opening-preparation-service.js";
+import { preparationTarget, registerOpeningPreparationRoutes } from "./openings/opening-preparation-routes.js";
 import { TrainingService } from "./training/training-service.js";
 import { CandidateTrainingService } from "./training/candidate-training-service.js";
 import { V1TrainingService } from "./training/v1-training-service.js";
@@ -80,12 +82,15 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   registerOpeningUpdateRoutes(app, new OpeningUpdateService(database.connection, openingLichessImports));
   const openingTraining = new OpeningTrainingService(database.connection);
   const openingReviews = new OpeningReviewService(database.connection);
-  const openingGames = new OpeningGameService(database.connection);
   const openingWorkspace = new OpeningWorkspaceService(database.connection);
-  const openingCoverage = new OpeningCoverageService(database.connection, config.lichessApiToken);
   const openingAnalysis = new OpeningAnalysisService(config);
   const openingExplorer = new OpeningExplorerService(database.connection, config.lichessApiToken);
   const openingPreferences = new OpeningPreferencesService(database.connection, Boolean(config.lichessApiToken));
+  const openingPreparation = new OpeningPreparationService(database.connection, openingPreferences, openingExplorer,
+    openingAnalysis, config.acceptableToleranceCp);
+  const openingGames = new OpeningGameService(database.connection, openingPreparation);
+  const openingCoverage = new OpeningCoverageService(database.connection, config.lichessApiToken, openingExplorer, openingPreparation);
+  registerOpeningPreparationRoutes(app, database.connection, openingGames, openingPreparation);
   const analysis = new AnalysisService(database.connection, config);
   analysis.backfillWhatChanged();
   analysis.backfillCandidates();
@@ -585,14 +590,20 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
         throw new Error("This item is not an opponent reply to prepare");
       }
       const body = (request.body ?? {}) as Record<string, unknown>;
-      const prepared = openingWorkspace.prepareOpponentSurprise({
-        repertoireId: group.opening.repertoire.id,
-        fenBefore: departure.fenBefore,
-        opponentMoveUci: departure.moveUci,
-        replyMoveUci: requiredString(body.replyMoveUci, "Your reply"),
-        opponentSummary: typeof body.opponentSummary === "string" ? body.opponentSummary : undefined,
-        replySummary: typeof body.replySummary === "string" ? body.replySummary : undefined,
-      });
+      const prepared = database.connection.transaction(() => {
+        const result = openingWorkspace.prepareOpponentSurprise({
+          repertoireId: group.opening.repertoire.id,
+          fenBefore: departure.fenBefore,
+          opponentMoveUci: departure.moveUci,
+          replyMoveUci: requiredString(body.replyMoveUci, "Your reply"),
+          opponentSummary: typeof body.opponentSummary === "string" ? body.opponentSummary : undefined,
+          replySummary: typeof body.replySummary === "string" ? body.replySummary : undefined,
+        });
+        openingPreparation.save({ ...preparationTarget(group), repertoireId: result.repertoire.id }, "line",
+          typeof body.replySummary === "string" && body.replySummary.trim()
+            ? body.replySummary : group.preparation?.decision?.note ?? "");
+        return result;
+      })();
       return { ...prepared, inbox: openingGames.inbox(profileId) };
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not prepare this opponent reply" });

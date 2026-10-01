@@ -37,6 +37,47 @@ easier to understand and navigate, not from adding more modes or built-in lines.
 
 ## Recommended next work, in order
 
+### Follow-up: useful preparation, connected to practice
+
+The next pass removes the assumption that every unfamiliar reply needs a saved
+line. A shared preparation service/pure policy now combines position-specific
+frequency, recent personal encounters, immediate-response engine mistakes and
+available reply difficulty. The inbox, game review, builder, line editor and
+coverage reuse this evidence instead of inventing separate priority rules.
+
+The learner may save/edit an idea or leave a reply unprepared. Both choices
+persist without creating lines/cards or recording an attempt. New encounters
+retain that choice while exposing changed evidence. Explicitly preparing a
+response carries the idea into post-answer practice feedback. Due/exact-line
+recall is unchanged; varied rehearsal can use the same fresh cache, offline.
+
+Code changes use focused preparation route/service/policy/store modules and one
+shared UI component. Coverage now reuses Explorer caching rather than owning a
+second network/cache path. Remote requests are explicit and opt-in; unknown,
+small and stale samples never establish rarity. Personal evidence covers the
+last 100 imported games of the chosen colour, including pasted and synced games.
+
+This remains a heuristic, not a proof that an opening response is safe. Top-three
+engine score gaps suggest precision but do not measure human difficulty, and
+only the immediate response is graded. A weak opponent move can still be worth
+understanding. The learner's explicit choice is never silently overwritten.
+
+Follow-up verification: typecheck, 138 unit/integration tests and production
+build pass; all 26 desktop/mobile browser checks pass. The Docker smoke test
+now includes real game analysis feeding preparation, saved ideas without new
+lines, restart persistence and library clearing with games retained. No live
+installation data is modified. Version 1.5.7 is local until committed/published.
+
+### Remaining practice/usability priorities
+
+The hidden-answer retry/hint flow, automatic correct-move progression, exact
+branch recall, offline recovery and mobile board behaviour remain covered by
+browser regression tests. Do not add another Check/Continue step to memory
+practice. The highest remaining gains are better branching navigation, clearer
+practice-choice labels, fewer duplicated inspector panels and first-time-learner
+validation of purpose/plan explanations. Keep author reasons and personal ideas
+distinct from engine evaluation; do not automatically generate plausible prose.
+
 1. **Simplify practice choices.** Keep one recommended memory session as the
    primary action. Present guided line study as “Learn this line and its ideas”
    and move varied rehearsal/management into secondary controls. Explain once

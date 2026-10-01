@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import type {
   GameOpeningConnection,
+  GameOpeningInboxGroup,
   GameOpeningInboxResponse,
   OpeningReviewActiveState,
   OpeningSurprisePreparationResponse,
@@ -9,6 +10,7 @@ import type {
 import { get, patch, post } from "../api";
 import { ChessBoard } from "./ChessBoard";
 import { OpeningGameInbox } from "./OpeningGameInbox";
+import { OpeningPreparationAdvice } from "./OpeningPreparationAdvice";
 import { applyUciMove } from "../opening-board";
 
 interface Concept {
@@ -130,10 +132,12 @@ function OpeningConnectionCard({
   opening,
   starting,
   onPractice,
+  preparationGroup,
 }: {
   opening: GameOpeningConnection;
   starting: boolean;
   onPractice: () => void;
+  preparationGroup?: GameOpeningInboxGroup | undefined;
 }) {
   const [boardView, setBoardView] = useState<"decision" | "played" | "repertoire">("decision");
   useEffect(() => setBoardView("decision"), [opening.matchId]);
@@ -223,6 +227,14 @@ function OpeningConnectionCard({
               <strong className="game-opening-result">You reached the end of the prepared material.</strong>
               <p>The next position is not covered yet. That is a repertoire content gap, not a chess error.</p>
             </>
+          )}
+
+          {opening.departure && opening.departure.moverColor !== opening.repertoire.learnerColor
+            && ["opponent_deviation", "repertoire_ended"].includes(opening.status) && (
+            <details className="opening-game-preparation"><summary>Worth preparing this reply?</summary>
+              <OpeningPreparationAdvice target={{ fen: opening.departure.fenBefore, opponentMoveUci: opening.departure.moveUci,
+                learnerColor: opening.repertoire.learnerColor, repertoireId: opening.repertoire.id }} initial={preparationGroup?.preparation} />
+            </details>
           )}
 
           {opening.status === "in_repertoire" && (
@@ -351,6 +363,7 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
           setStatus(response.message);
           setError("");
         }}
+        onPreparationDecision={response => { setInbox(response.inbox); setStatus(response.message); setError(""); }}
       />
       {status && <p className="success" role="status">{status}</p>}
       {error && <p className="error" role="alert">{error}</p>}
@@ -381,6 +394,7 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
               opening={review.opening}
               starting={openingStarting}
               onPractice={() => void practiceOpening(review.game.id)}
+              preparationGroup={inbox?.groups.find(group => group.occurrences.some(occurrence => occurrence.game.id === review.game.id))}
             />
           )}
           {!review.game.analyzedAt && <div className="panel review-analysis-note"><strong>Opening comparison ready</strong><p>The local engine analysis is still pending. Opening comparison does not need Stockfish.</p></div>}

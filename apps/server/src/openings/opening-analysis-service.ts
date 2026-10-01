@@ -30,6 +30,10 @@ export class OpeningAnalysisService {
     return operation;
   }
 
+  cached(fen: string): OpeningPositionAnalysisResponse | null {
+    return this.cache.get(new Chess(fen).fen()) ?? null;
+  }
+
   async close(): Promise<void> {
     await this.queue;
     await this.engine.close();

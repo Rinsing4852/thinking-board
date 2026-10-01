@@ -127,7 +127,7 @@ export function OpeningMoveSuggestions({
         {(analysisBusy || explorerBusy) && <small>Updating…</small>}
       </div>
       <div className="opening-suggestion-labels" aria-hidden="true">
-        <span>Move</span><span>{useExplorer ? `Seen at ${ratingGroup}+` : "Seen"}</span><span>Your score</span><span>Engine</span>
+        <span>Move</span><span>{useExplorer ? `Seen in ${ratingGroup} band` : "Seen"}</span><span>Your score</span><span>Engine</span>
       </div>
       <div className="opening-suggestion-list">
         {candidates.map((candidate) => (

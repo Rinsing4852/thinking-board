@@ -47,7 +47,16 @@ does not know about React. Shared request and response types live in
   requests, keeping them isolated from persistent game-analysis jobs.
   `OpeningExplorerService` and `OpeningCoverageService` access the official
   Lichess Explorer only after an explicit learner action and cache responses for
-  seven days. Public
+  seven days through one shared `opening_explorer_cache`; listing game follow-ups
+  and starting practice never make remote frequency requests.
+  `OpeningPreparationService` combines cached frequencies, profile-scoped game
+  evidence and existing local engine results. A pure policy module owns the
+  transparent preparation thresholds. Additive migration 027 stores per-player
+  choices/ideas independently of the opening graph and review scheduler.
+  The same contract/component serves the inbox, game review and editing boards;
+  deliberately saved notes appear only after answering in memory practice.
+  Varied rehearsal may read fresh cached frequencies without changing exact-line
+  recall or due queues. Public
   Lichess Study imports use only validated `https://lichess.org/study/...`
   references and the official PGN export endpoint; preview and chapter
   selection happen before the existing private import pipeline persists data.

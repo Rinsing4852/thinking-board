@@ -23,11 +23,12 @@ export function get<T>(url: string, signal?: AbortSignal): Promise<T> {
   return request<T>(url, signal ? { signal } : undefined);
 }
 
-export function patch<T>(url: string, body: unknown): Promise<T> {
+export function patch<T>(url: string, body: unknown, signal?: AbortSignal): Promise<T> {
   return request<T>(url, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    ...(signal ? { signal } : {}),
   });
 }
 

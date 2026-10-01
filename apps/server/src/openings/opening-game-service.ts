@@ -11,6 +11,7 @@ import type { SqliteDatabase } from "../db/database.js";
 import { id, now } from "../lib/ids.js";
 import { openingPositionKey } from "./opening-content.js";
 import { activeProfileId } from "../training/profile.js";
+import type { OpeningPreparationService } from "./opening-preparation-service.js";
 
 interface GameRow {
   id: string;
@@ -82,7 +83,7 @@ const STATUS_PRIORITY: Record<GameOpeningStatus, number> = {
 };
 
 export class OpeningGameService {
-  constructor(private readonly db: SqliteDatabase) {}
+  constructor(private readonly db: SqliteDatabase, private readonly preparation?: OpeningPreparationService) {}
 
   matchGame(gameId: string, profileId: string): GameOpeningConnection | null {
     const game = this.game(gameId, profileId);
@@ -178,8 +179,22 @@ export class OpeningGameService {
       }
     }
 
+    for (const group of groups.values()) {
+      const departure = group.opening.departure;
+      if (departure && departure.moverColor !== group.opening.repertoire.learnerColor && this.preparation) {
+        group.preparation = this.preparation.cached({ fen: departure.fenBefore,
+          opponentMoveUci: departure.moveUci, learnerColor: group.opening.repertoire.learnerColor,
+          repertoireId: group.opening.repertoire.id });
+      }
+    }
+    const priority = (group: GameOpeningInboxGroup): number => {
+      if (group.opening.status === "player_deviation") return 4;
+      if (group.preparation?.decision?.choice === "unprepared") return -1;
+      return { high: 3, medium: 2, unknown: 1, low: 0 }[group.preparation?.priority ?? "unknown"];
+    };
     const ordered = [...groups.values()].sort((left, right) =>
       Number(right.unreviewedCount > 0) - Number(left.unreviewedCount > 0)
+      || priority(right) - priority(left)
       || right.unreviewedCount - left.unreviewedCount
       || right.occurrenceCount - left.occurrenceCount
       || this.gameTime(right.occurrences[0]?.game.playedAt) - this.gameTime(left.occurrences[0]?.game.playedAt));

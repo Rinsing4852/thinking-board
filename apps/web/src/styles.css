@@ -178,6 +178,16 @@ select { min-width: 200px; background: #101512; color: #e6ece7; border: 1px soli
 .opening-library-manager .opening-delete-confirm label { display: grid; gap: .5rem; }
 .opening-library-manager .opening-delete-confirm input { width: 100%; min-width: 0; padding: .7rem; border-radius: 8px; border: 1px solid var(--line); background: #101512; color: #e6ece7; }
 .success { color: var(--lime); }
+.opening-preparation-advice { border: 1px solid var(--line); border-left: 3px solid var(--ink-soft); border-radius: 9px; padding: 1rem; margin: 1rem 0; min-width: 0; }
+.opening-preparation-advice.high { border-left-color: var(--lime); }
+.opening-preparation-advice > strong { display: block; margin-top: .3rem; }
+.opening-preparation-advice p, .opening-preparation-advice li { color: var(--ink-soft); line-height: 1.5; }
+.opening-preparation-advice summary { cursor: pointer; font-size: .85rem; }
+.opening-preparation-advice .answer-actions { flex-wrap: wrap; gap: .6rem; }
+.opening-preparation-advice .answer-actions button { flex: 1 1 170px; }
+.opening-preparation-choice span { display: block; white-space: pre-wrap; overflow-wrap: anywhere; margin-top: .35rem; color: #e6ece7; }
+.opening-preparation-note label { display: grid; gap: .5rem; margin-top: 1rem; }
+.opening-preparation-note textarea { width: 100%; min-width: 0; background: #101512; color: #e6ece7; padding: .7rem; border: 1px solid var(--line); border-radius: 8px; }
 .opening-recommendation-mix { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .2rem; }
 .opening-recommendation-mix span { padding: .35rem .55rem; border: 1px solid var(--line); border-radius: 999px; color: var(--ink-soft); font-size: .72rem; }
 .opening-recommendation-mix strong { color: var(--lime); }

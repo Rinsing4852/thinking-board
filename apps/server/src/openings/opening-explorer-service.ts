@@ -4,6 +4,7 @@ import type { OpeningExplorerPositionResponse } from "../../../../packages/contr
 import type { SqliteDatabase } from "../db/database.js";
 import { now } from "../lib/ids.js";
 import { openingPositionKey } from "./opening-content.js";
+import { EXPLORER_CACHE_MS, EXPLORER_SPEEDS } from "./opening-preparation-policy.js";
 
 type FetchLike = typeof fetch;
 
@@ -32,8 +33,8 @@ interface CacheRow {
 }
 
 const RATINGS = new Set([0, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500]);
-const SPEEDS = "blitz,rapid,classical";
-const CACHE_MS = 7 * 24 * 60 * 60 * 1000;
+const SPEEDS = EXPLORER_SPEEDS;
+const CACHE_MS = EXPLORER_CACHE_MS;
 
 export class OpeningExplorerService {
   constructor(
@@ -42,7 +43,14 @@ export class OpeningExplorerService {
     private readonly fetcher: FetchLike = fetch,
   ) {}
 
-  async position(fenValue: string, ratingGroup = 1600): Promise<OpeningExplorerPositionResponse> {
+  cachedPosition(fen: string, ratingGroup: number): OpeningExplorerPositionResponse | null {
+    const row = this.db.prepare(`SELECT fen, total_games, moves_json, opening_json, fetched_at
+      FROM opening_explorer_cache WHERE position_key = ? AND rating_group = ? AND speeds = ?`)
+      .get(openingPositionKey(fen), ratingGroup, SPEEDS) as CacheRow | undefined;
+    try { return row ? this.fromCache(row, ratingGroup, true) : null; } catch { return null; }
+  }
+
+  async position(fenValue: string, ratingGroup = 1600, refresh = false): Promise<OpeningExplorerPositionResponse> {
     if (!RATINGS.has(ratingGroup)) throw new Error("Choose a supported Lichess rating group");
     let chess: Chess;
     try {
@@ -57,8 +65,8 @@ export class OpeningExplorerService {
       FROM opening_explorer_cache
       WHERE position_key = ? AND rating_group = ? AND speeds = ?
     `).get(key, ratingGroup, SPEEDS) as CacheRow | undefined;
-    if (cached && Date.now() - Date.parse(cached.fetched_at) < CACHE_MS) {
-      return this.fromCache(cached, ratingGroup, true);
+    if (!refresh && cached && Date.now() - Date.parse(cached.fetched_at) < CACHE_MS) {
+      try { return this.fromCache(cached, ratingGroup, true); } catch { /* Refresh a damaged cache entry. */ }
     }
 
     try {
@@ -67,7 +75,8 @@ export class OpeningExplorerService {
       url.searchParams.set("fen", fen);
       url.searchParams.set("speeds", SPEEDS);
       url.searchParams.set("ratings", String(ratingGroup));
-      url.searchParams.set("moves", "12");
+      // Include rare legal replies too; absence still means unknown, never 0%.
+      url.searchParams.set("moves", String(chess.moves().length));
       url.searchParams.set("topGames", "0");
       url.searchParams.set("recentGames", "0");
       const response = await this.fetcher(url, {
@@ -87,7 +96,16 @@ export class OpeningExplorerService {
       }
       const payload = await response.json() as ExplorerPayload;
       if (!Array.isArray(payload.moves)) throw new Error("Lichess Explorer returned an invalid response");
-      const total = Number(payload.white) + Number(payload.draws) + Number(payload.black);
+      const counts = [payload.white, payload.draws, payload.black];
+      if (!counts.every(value => Number.isSafeInteger(value) && value >= 0)
+        || !payload.moves.every(move => typeof move.uci === "string" && typeof move.san === "string"
+          && [move.white, move.draws, move.black].every(value => Number.isSafeInteger(value) && value >= 0))) {
+        throw new Error("Lichess Explorer returned invalid game counts");
+      }
+      const total = counts.reduce((sum, count) => sum + count, 0);
+      if (!Number.isSafeInteger(total) || payload.moves.some(move => move.white + move.draws + move.black > total)) {
+        throw new Error("Lichess Explorer returned inconsistent game counts");
+      }
       const opening = payload.opening
         && typeof payload.opening.eco === "string"
         && typeof payload.opening.name === "string"
@@ -102,22 +120,24 @@ export class OpeningExplorerService {
           moves_json = excluded.moves_json, opening_json = excluded.opening_json,
           fetched_at = excluded.fetched_at
       `).run(key, fen, ratingGroup, SPEEDS, total, JSON.stringify(payload.moves), opening ? JSON.stringify(opening) : null, now());
-      return this.toResponse(fen, ratingGroup, total, payload.moves, opening, false);
+      return { ...this.toResponse(fen, ratingGroup, total, payload.moves, opening, false), fetchedAt: now(), stale: false };
     } catch (error) {
-      if (cached) return this.fromCache(cached, ratingGroup, true);
+      if (cached) {
+        try { return this.fromCache(cached, ratingGroup, true); } catch { /* Do not present a damaged sample. */ }
+      }
       throw error;
     }
   }
 
   private fromCache(row: CacheRow, ratingGroup: number, cached: boolean): OpeningExplorerPositionResponse {
-    return this.toResponse(
+    return { ...this.toResponse(
       row.fen,
       ratingGroup,
       row.total_games,
       JSON.parse(row.moves_json) as ExplorerMove[],
       row.opening_json ? JSON.parse(row.opening_json) as { eco: string; name: string } : null,
       cached,
-    );
+    ), fetchedAt: row.fetched_at, stale: !Number.isFinite(Date.parse(row.fetched_at)) || Date.now() - Date.parse(row.fetched_at) >= CACHE_MS };
   }
 
   private toResponse(
@@ -140,7 +160,7 @@ export class OpeningExplorerService {
           moveUci: move.uci,
           moveSan: move.san,
           games,
-          frequencyPercent: totalGames > 0 ? Math.round((games / totalGames) * 1000) / 10 : 0,
+          frequencyPercent: totalGames > 0 ? Number(((games / totalGames) * 100).toPrecision(3)) : 0,
           whiteWins: Number(move.white),
           draws: Number(move.draws),
           blackWins: Number(move.black),

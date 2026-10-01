@@ -2,6 +2,28 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.5.7 — 2026-10-01
+
+### Prepare useful replies, not every legal move
+
+- Adds shared **Worth preparing?** advice to the game inbox, game review,
+  repertoire builder and line editor. Separates practical frequency, recurring
+  personal encounters, immediate-response mistakes and engine reply difficulty.
+  An uncovered reply is not automatically a chess mistake or a required line.
+- Offers **Keep an idea instead** and **Leave unprepared for now** in the game
+  inbox. Choices and editable notes persist per player and repertoire, clear
+  current occurrences and create no lines, cards or artificial practice results.
+  New encounters can reopen the pattern without silently overriding the choice.
+- Carries saved ideas into post-answer practice explanations when a response
+  is deliberately prepared. Exact-line recall and due review retain their existing
+  rules; varied rehearsal can use fresh cached practical frequencies.
+- Unifies Explorer caching across suggestions, preparation and coverage. Requests
+  all legal replies rather than only the default leading moves. Missing, small,
+  stale or unavailable samples remain uncertain; frequencies describe replies
+  at one position, not the chance of encountering it in any game.
+- Keeps practice offline/local and remote frequency checks opt-in. Adds policy,
+  API, persistence, profile-isolation and desktop/mobile workflow regressions.
+
 ## 1.5.6 — 2026-10-01
 
 ### A clean, user-owned opening library

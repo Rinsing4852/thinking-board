@@ -68,7 +68,8 @@ move evidence, while alternative replies do not borrow each other's progress.
 “Secure for now” requires multiple reviews, at least a week of stability and a
 review date still in the future; it is not a promise of permanent mastery.
 Varied line practice selects a bounded saved line using average learning need,
-available authored frequencies and recent rehearsals. It avoids replaying the
+fresh cached practical frequencies (or authored frequencies when unavailable)
+and recent rehearsals. It avoids replaying the
 previous line when another is available. It is a line rehearsal, not an engine
 game or a live opponent simulation. Session depth and the amount of new material
 are adjustable in opening settings.
@@ -153,6 +154,31 @@ and optionally record the ideas behind both moves. Private repertoires are
 extended directly; built-in material is copied to an editable personal
 repertoire before the branch is saved.
 
+**Worth preparing?** separates an uncovered reply from a mistake. The game
+inbox, review and editing boards use the same assessment: how often the reply
+is played from that position, encounters in your last 100 imported games of
+that colour, mistakes in your immediate response, and available Stockfish reply
+evidence. Pasted and synced games count alike. Click **Check frequency and
+replies** for a local engine check and, if enabled in Opening settings, a
+Lichess frequency refresh. A weak move can still be common or tricky; rarity
+alone never proves that a reply is safe.
+
+In the game inbox, choose **Keep an idea instead** to save/edit a short note,
+or **Leave unprepared for now**. Neither adds a memorisation line or review card.
+Current encounters are marked reviewed, but a future encounter can prompt
+reconsideration while retaining your choice. Deliberately preparing a reply
+preserves the note for the post-answer explanation in practice. These choices
+and their notes are included in database backups, not opening PGN exports.
+
+Popularity is conditional on reaching the displayed position, using the selected
+Lichess rating band and blitz/rapid/classical sample. At least 200 position games
+and five occurrences of the reply are needed for a reliable frequency label;
+missing, small or older-than-seven-day samples are uncertain. Under 1% is rare,
+5% or more is common. Three personal encounters or repeated immediate-response
+mistakes increase priority. These are transparent preparation heuristics, not
+guarantees of safety or a prediction of your next opponent. Due reviews and
+exact-branch practice are never skipped based on popularity.
+
 Opening imports are stored only in this installation. The importer does not
 scrape Chessable or grant rights to third-party material: only import lines and
 notes you own or have permission to use. For books, enter the moves you want to
@@ -231,7 +257,7 @@ curl --fail http://127.0.0.1:8000/api/v1/health
 
 Database migrations run automatically and are tested from every released schema
 version. For reproducible installs, set `APP_VERSION` in `.env` to a numbered
-image tag such as `1.5.6`; `latest` follows the current release. To roll back,
+image tag such as `1.5.6`; `latest` follows the current published release. To roll back,
 stop the app, restore `pre-upgrade.sqlite3` with the restore command above, set
 `APP_VERSION` to the previous release, and start Compose again. Never run two
 application versions against the same live database.

@@ -49,7 +49,8 @@ export function OpeningHomeCockpit({
   onBuild,
   onImport,
 }: OpeningHomeCockpitProps) {
-  const gap = coverage?.gaps[0] ?? null;
+  const gap = coverage?.gaps.find(candidate => candidate.preparation?.decision?.choice !== "unprepared"
+    && (!candidate.preparation || ["high", "medium"].includes(candidate.preparation.priority))) ?? null;
   const weakLine = progress?.weakestLines[0] ?? null;
   const repertoire = recommendation?.repertoire ?? null;
   const orientation = repertoire?.learnerColor ?? weakLine?.learnerColor ?? "white";
@@ -75,11 +76,11 @@ export function OpeningHomeCockpit({
         />
         <div className="opening-home-board-caption">
           <span>
-            <span className="eyebrow">Biggest repertoire gap</span>
+            <span className="eyebrow">Reply worth considering</span>
             <strong>{gap.moveSan} is not covered yet</strong>
             <small>{gap.frequencyPercent}% at this position · {frequencyLabel(gap.frequencyPercent)}</small>
           </span>
-          <button onClick={() => onOpenGap(gap)}>Prepare this reply</button>
+          <button onClick={() => onOpenGap(gap)}>Inspect this reply</button>
         </div>
       </section>}
 
@@ -147,8 +148,8 @@ export function OpeningHomeCockpit({
           )}
           {!libraryEmpty && preferences?.useExplorer && (
             <button className="opening-home-action" disabled={coverageLoading || !gap} onClick={() => gap && onOpenGap(gap)}>
-              <span><b>{coverageLoading ? "Checking common replies…" : gap ? `Prepare for ${gap.moveSan}` : "Common replies covered"}</b><small>{gap ? `${gap.lineTitle} · ${frequencyLabel(gap.frequencyPercent)}` : coverage?.message ?? "No practical gap found."}</small></span>
-              <strong>{gap ? "Add response →" : "✓"}</strong>
+              <span><b>{coverageLoading ? "Checking common replies…" : gap ? `Consider ${gap.moveSan}` : "No priority reply to add"}</b><small>{gap ? `${gap.lineTitle} · ${frequencyLabel(gap.frequencyPercent)}` : "You do not need a line for every legal move. Inspect uncovered replies in the line explorer before deciding."}</small></span>
+              <strong>{gap ? "Consider response →" : "—"}</strong>
             </button>
           )}
           {weakLine && (
