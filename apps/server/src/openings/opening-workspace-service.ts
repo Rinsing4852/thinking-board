@@ -40,6 +40,7 @@ interface LineRow {
   title: string;
   priority: number;
   archived_at: string | null;
+  practice_enabled: number;
 }
 
 interface MoveRow {
@@ -849,13 +850,16 @@ export class OpeningWorkspaceService {
 
   private lines(chapterId: string, profileId: string): OpeningLineDetail[] {
     const lines = this.db.prepare(`
-      SELECT line.id, line.title, line.priority, preference.archived_at
+      SELECT line.id, line.title, line.priority, preference.archived_at,
+             COALESCE(practice.enabled, 1) AS practice_enabled
       FROM opening_lines line
       LEFT JOIN opening_line_preferences preference
         ON preference.line_id = line.id AND preference.profile_id = ?
+      LEFT JOIN opening_line_practice_preferences practice
+        ON practice.line_id = line.id AND practice.profile_id = ?
       WHERE line.chapter_id = ? AND line.active = 1
       ORDER BY CASE WHEN preference.archived_at IS NULL THEN 0 ELSE 1 END, line.priority, line.title
-    `).all(profileId, chapterId) as LineRow[];
+    `).all(profileId, profileId, chapterId) as LineRow[];
     return lines.map((line) => {
       const moves = this.moves(line.id, profileId);
       return {
@@ -866,6 +870,7 @@ export class OpeningWorkspaceService {
         learnerDecisionCount: moves.filter((move) => move.role === "learner").length,
         sanSequence: formatSanSequence(moves),
         archived: line.archived_at !== null,
+        practiceEnabled: line.practice_enabled !== 0,
         moves,
       };
     });

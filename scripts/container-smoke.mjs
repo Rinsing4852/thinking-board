@@ -107,6 +107,25 @@ if (existing) {
   assert.equal((await request(`/api/v1/openings/repertoires/${repertoireId}`)).chapters[0].lines.length, 2,
     "Keeping an idea must not add a line");
 }
+const selectionPath = `/api/v1/openings/repertoires/${repertoireId}/practice-selection`;
+const mainLine = repertoire.chapters[0].lines[0];
+const pausedLine = repertoire.chapters[0].lines[1];
+if (existing) {
+  const selection = await request(selectionPath);
+  assert.equal(selection.lines.find(line => line.lineId === pausedLine.id).enabled, false,
+    "Practice choices must survive restart separately from archives");
+} else {
+  const paused = await request(selectionPath, { lineIds: [pausedLine.id], enabled: false }, "PATCH");
+  assert.equal(paused.enabledCount, 1, "A paused variation must not disable shared moves in another line");
+  assert.equal(paused.lines.find(line => line.lineId === pausedLine.id).frequency.band, "unknown",
+    "Missing samples must never classify a line as rare");
+}
+const pausedDetail = await request(`/api/v1/openings/repertoires/${repertoireId}`);
+assert.equal(pausedDetail.chapters[0].lines[1].archived, false, "Practice pauses must not hide repertoire lines");
+const varied = await request(`/api/v1/openings/repertoires/${repertoireId}/reviews/tree/start`, {});
+assert.equal(varied.lineRun.lineId, mainLine.id, "Automatic varied practice must skip disabled variations");
+const oneOff = await request(`/api/v1/openings/repertoires/${repertoireId}/lines/${pausedLine.id}/reviews/start`, {});
+assert.equal(oneOff.lineRun.lineId, pausedLine.id, "Deliberate one-off practice must remain available");
 if (process.argv.includes("--clear-library")) {
   const before = (await request("/api/v1/games")).games.map(game => game.id).sort();
   await request("/api/v1/openings/library/delete", { confirmed: true, repertoireIds: catalog.repertoires.map(item => item.id) });

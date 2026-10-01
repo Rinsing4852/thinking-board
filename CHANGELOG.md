@@ -2,6 +2,32 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.5.9 — 2026-10-01
+
+### Choose what to practise and see what you recall
+
+- Adds a collapsed **Practice selection and recall** panel inside each repertoire,
+  with per-player line switches and explicit bulk pause/include actions.
+  Paused lines retain notes/history, stay browsable and remain matched against
+  pasted or synced games. Shared moves still practise through enabled lines.
+- Applies participation to automatic memory queues, recommendations, varied runs
+  and guided-line selection. Deliberate one-off line/game practice remains
+  available. Changed selection retires stale sessions without deleting answers
+  or changing due dates; saving an unchanged selection does not retire them.
+- Filters/sorts lines by Common, Uncommon, Rare or Unknown reply evidence, recall,
+  due reviews or chapter order. Filtering the list alone does not alter practice.
+  Practical loading is explicit, cancellable and uses bounded shared-cache batches.
+- Shows the least-common opponent reply at its own position in the selected
+  Lichess band, not a supposed probability of facing the entire line. Incomplete,
+  stale or small samples stay Unknown; frequency alone never disables a line.
+- Shows unaided move accuracy, sample/coverage counts, secure/due moves and
+  response time separately from completed full-line recall. Full-line evidence
+  excludes partial drills, unfinished sessions and paths no longer matching the
+  current line; hints/corrected mistakes do not count as unaided recall.
+- Additive migration 028 stores participation independently of archive and graph
+  preferences. Adds shared-move, player isolation, API, upgrade, recall, mobile
+  workflow and real-container persistence regression coverage.
+
 ## 1.5.8 — 2026-10-01
 
 ### Navigate branches without losing your place

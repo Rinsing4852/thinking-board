@@ -414,6 +414,20 @@ button.danger-confirm { background: #a9362b; border-color: #d45649; color: #fff;
 .opening-line-library section > p { color: var(--ink-soft); font-size: .72rem; line-height: 1.4; margin: 0 0 .65rem; }
 .opening-line-search { display: grid; gap: .35rem; margin: .8rem 0; color: var(--ink-soft); font-size: .8rem; }
 .opening-line-search input { width: 100%; min-width: 0; padding: .65rem; background: #101512; border: 1px solid var(--line); border-radius: 8px; color: #eef4ef; }
+.opening-practice-selection > summary { min-height: 44px; cursor: pointer; font-weight: 700; }
+.opening-selection-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: .75rem; }
+.opening-selection-filters label { display: grid; gap: .4rem; }
+.opening-selection-filters select { width: 100%; min-height: 44px; min-width: 0; }
+.opening-selection-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin: .8rem 0; }
+.opening-selection-lines { display: grid; gap: .65rem; }
+.opening-selection-line { padding: .8rem; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-soft); }
+.opening-selection-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem; }
+.opening-selection-heading .text-button { min-height: 44px; text-align: left; overflow-wrap: anywhere; }
+.opening-selection-heading label { display: flex; align-items: center; gap: .5rem; min-height: 44px; cursor: pointer; }
+.opening-selection-heading input { width: 22px; height: 22px; accent-color: var(--lime); }
+.opening-selection-line p { margin: .5rem 0; }
+.opening-selection-line small { color: var(--ink-soft); }
+.opening-frequency-help { margin-top: .75rem; }
 .opening-line-preview { overflow-wrap: anywhere; }
 .opening-branch-navigation { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: .85rem; margin-top: .6rem; min-width: 0; }
 .opening-branch-heading { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: .5rem; }

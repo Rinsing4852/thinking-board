@@ -124,7 +124,7 @@ export function OpeningHomeCockpit({
             <div>
               <span className="eyebrow">Ready when you are</span>
               <h3>{libraryEmpty ? "Your opening library is empty" : "No scheduled positions right now"}</h3>
-              <p>{libraryEmpty ? "Build moves on the board, paste opening lines as PGN, or bring in your Lichess Study. Then practise the moves and their ideas." : "Review early, inspect a line, or add your own repertoire below."}</p>
+              <p>{libraryEmpty ? "Build moves on the board, paste opening lines as PGN, or bring in your Lichess Study. Then practise the moves and their ideas." : "Open a repertoire’s lines and include them in Practice selection, practise a line once, or add your own moves below."}</p>
               {libraryEmpty && <div className="answer-actions">
                 <button onClick={onImport}>{importOpen ? "Close importer" : "Import repertoire lines"}</button>
                 <button className="secondary" onClick={onBuild}>Build on the board</button>

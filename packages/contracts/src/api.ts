@@ -53,10 +53,13 @@ export interface OpeningLineProgress {
   repertoireName: string;
   lineId: string;
   lineTitle: string;
+  practiceEnabled?: boolean;
   learnerColor: Color;
   decisions: number;
   mastered: number;
   accuracyPercent: number | null;
+  recallAttempts?: number;
+  testedDecisions?: number;
   lapses: number;
   averageResponseMs: number | null;
   gameMisses: number;
@@ -104,7 +107,33 @@ export interface OpeningLineDetail {
   learnerDecisionCount: number;
   sanSequence: string;
   archived: boolean;
+  practiceEnabled?: boolean;
   moves: OpeningLineMove[];
+}
+
+export type OpeningLineFrequencyBand = "common" | "uncommon" | "rare" | "unknown";
+export interface OpeningPracticeLineEvidence {
+  lineId: string;
+  enabled: boolean;
+  frequency: {
+    band: OpeningLineFrequencyBand;
+    percent: number | null;
+    moveLabel: string | null;
+    sampleGames: number | null;
+    knownReplies: number;
+    totalReplies: number;
+  };
+  recall: OpeningLineProgress | null;
+  fullRuns: { completed: number; unaided: number; accuracyPercent: number | null };
+}
+export interface OpeningPracticeSelectionResponse {
+  repertoireId: string;
+  ratingGroup: number;
+  useExplorer: boolean;
+  enabledCount: number;
+  lines: OpeningPracticeLineEvidence[];
+  remainingPositions: number;
+  message: string | null;
 }
 
 export interface OpeningChapterDetail {

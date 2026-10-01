@@ -51,6 +51,34 @@ the two lines separate rather than restarting. **Go to branching point** and
 reaching the same position are listed separately from ordinary shared moves.
 Shared comments/explanations are marked; save or cancel an edit before navigating.
 Viewing never adds moves: choose **Edit lines** to author a new continuation.
+Open **Practice selection and recall** to turn individual lines on/off for
+automatic practice, or pause/include the currently filtered lines together.
+Paused lines stay visible, retain notes and review history, and remain available
+for pasted/synced game analysis. Shared moves remain in automatic practice when
+another enabled line needs them. **Practise this line once** overrides the switch
+for that drill only. Choices belong to the current player, survive restarts and
+source updates, and are independent of archiving. New source lines default on.
+PGN exports do not back up practice switches or recall history; keep a database
+backup to preserve those settings and results.
+Changing participation ends stale practice sessions, preserving recorded results
+and due dates. If every line is paused, include a line or practise one manually.
+
+Frequency filters show Common (at least 5%), Uncommon (1% to below 5%), Rare
+(below 1%) or Unknown. This is the least-common opponent reply in the saved line,
+at that reply's position in the chosen Lichess rating band—not the probability
+of reaching the whole line. All opponent replies need fresh samples of at least
+200 position games and five observations; incomplete/small/stale data stays
+Unknown. Loading frequencies is explicit and cancellable; two positions are
+loaded per bounded request, continuing while progress is made. Offline practice
+does not fetch Lichess. Filtering/sorting the list never silently pauses lines.
+
+Recall shows recent unaided move accuracy (up to 20 answers per move), how many
+moves have actually been tested, secure/due moves and average response time.
+Shared moves contribute to multiple lines. Separate full-line recall uses up to
+20 completed exact-line runs matching the current path; short drills and guided
+lessons do not prove complete-line recall. Hints, shown answers and corrected
+mistakes are not unaided recall. A small sample is not proof of lasting mastery.
+
 Personal repertoires can be renamed, reordered and exported as a
 complete PGN, including archived lines;
 the most recently added move can be undone. Individual lines or complete

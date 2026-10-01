@@ -48,7 +48,7 @@ describe("opening database upgrades", () => {
           .toEqual({ state: 2, repetitions: 4, stability: 12 });
         expect(database.connection.prepare("SELECT COUNT(*) FROM opening_review_events").pluck().get()).toBe(1);
         expect(database.connection.pragma("foreign_key_check")).toEqual([]);
-        expect(database.connection.prepare("SELECT MAX(version) FROM schema_migrations").pluck().get()).toBe(27);
+        expect(database.connection.prepare("SELECT MAX(version) FROM schema_migrations").pluck().get()).toBe(28);
         // Historical position evidence must not falsely prove every alternative.
         expect(database.connection.prepare("SELECT COUNT(*) FROM opening_move_review_cards").pluck().get()).toBe(0);
         database.close();

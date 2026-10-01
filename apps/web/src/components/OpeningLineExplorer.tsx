@@ -24,6 +24,7 @@ import { OpeningMoveSuggestions } from "./OpeningMoveSuggestions";
 import { OpeningPreparationAdvice } from "./OpeningPreparationAdvice";
 import { OpeningBranchNavigation } from "./OpeningBranchNavigation";
 import { OpeningLineLibrary } from "./OpeningLineLibrary";
+import { OpeningPracticeSelection } from "./OpeningPracticeSelection";
 
 interface OpeningLineExplorerProps {
   detail: OpeningRepertoireDetailResponse;
@@ -38,6 +39,7 @@ interface OpeningLineExplorerProps {
   onPractice: (lineId: string) => void;
   onDetailChanged: (detail: OpeningRepertoireDetailResponse) => void;
   onRepertoireDeleted: (repertoireId: string) => void;
+  onPracticeSelectionChanged: () => Promise<void>;
 }
 
 export function OpeningLineExplorer({
@@ -53,6 +55,7 @@ export function OpeningLineExplorer({
   onPractice,
   onDetailChanged,
   onRepertoireDeleted,
+  onPracticeSelectionChanged,
 }: OpeningLineExplorerProps) {
   const allLines = useMemo(
     () => detail.chapters.flatMap((chapter) => chapter.lines.map((line) => ({ chapter, line }))),
@@ -91,6 +94,7 @@ export function OpeningLineExplorer({
   const [explanationText, setExplanationText] = useState("");
   const [status, setStatus] = useState("");
   const [localBusy, setLocalBusy] = useState(false);
+  const [selectionBusy, setSelectionBusy] = useState(false);
   const [coverage, setCoverage] = useState<OpeningCoverageResponse | null>(initialCoverage);
   const [coverageRating, setCoverageRating] = useState(preferredRatingGroup);
   const [coverageBusy, setCoverageBusy] = useState(false);
@@ -113,7 +117,7 @@ export function OpeningLineExplorer({
   const selectedLineIndex = selected?.chapter.lines.findIndex((candidate) => candidate.id === lineId) ?? -1;
   const currentMove = ply > 0 ? line?.moves[ply - 1] : undefined;
   const displayFen = currentMove?.fenAfter ?? line?.moves[0]?.fenBefore ?? "start";
-  const navigationBlocked = localBusy || busy || Boolean(pendingMove) || editingExplanation || editingComment;
+  const navigationBlocked = localBusy || busy || selectionBusy || Boolean(pendingMove) || editingExplanation || editingComment;
   const lineDisplayTitle = navigation.branches.get(lineId)?.title ?? line?.title ?? "";
   const previousPosition = returnPositions.findLast(position => navigation.lines.has(position.lineId)) ?? null;
   const sharedMoveCount = currentMove ? navigation.moveUses.get(currentMove.id)?.size ?? 1 : 0;
@@ -493,7 +497,7 @@ export function OpeningLineExplorer({
           <a className="button secondary" href={`/api/v1/openings/repertoires/${detail.repertoire.id}/export.pgn`} download>Export PGN</a>
           <button className="secondary" disabled={navigationBlocked} onClick={onBack}>Back to repertoires</button>
           <button disabled={navigationBlocked || line.archived || line.learnerDecisionCount === 0} onClick={() => onPractice(line.id)}>
-            {busy ? "Starting…" : "Practise this line"}
+            {busy ? "Starting…" : line.practiceEnabled === false ? "Practise this line once" : "Practise this line"}
           </button>
         </div>
       </div>
@@ -543,6 +547,11 @@ export function OpeningLineExplorer({
           </div>
         </div>
       )}
+      <OpeningPracticeSelection detail={detail} disabled={localBusy || busy || Boolean(pendingMove) || editingExplanation || editingComment}
+        onOpenLine={chooseLine} onBusyChange={setSelectionBusy} onChanged={async () => {
+          onDetailChanged(await get<OpeningRepertoireDetailResponse>(`/api/v1/openings/repertoires/${detail.repertoire.id}`));
+          await onPracticeSelectionChanged();
+        }} />
       <details className="panel opening-management" open={manageOpen} onToggle={event => setManageOpen(event.currentTarget.open)}>
         <summary>Manage lines</summary>
         <p>Archive a line to keep its notes and progress for later. Delete it to remove it permanently. Built-in lines can be deleted too.</p>

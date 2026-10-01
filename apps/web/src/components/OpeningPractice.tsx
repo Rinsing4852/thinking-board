@@ -705,6 +705,16 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
             setWorkspaceDetail(updated);
           }}
           onRepertoireDeleted={finishRepertoireDeletion}
+          onPracticeSelectionChanged={async () => {
+            const [updatedCatalog, recommended, progress, review] = await Promise.all([
+              get<OpeningCatalogResponse>("/api/v1/openings/catalog"),
+              get<OpeningReviewRecommendation>("/api/v1/openings/reviews/recommended"),
+              get<OpeningProgressResponse>("/api/v1/openings/progress"),
+              get<OpeningReviewActiveState | null>("/api/v1/openings/reviews/active"),
+            ]);
+            setCatalog(updatedCatalog.repertoires); setRecommendation(recommended); setOpeningProgress(progress); setActiveReview(review);
+            if (step?.repertoire.id === workspaceDetail.repertoire.id) { setStep(null); setPausedLessonPhase(null); }
+          }}
         />
       )}
 
@@ -936,7 +946,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
                         <em>{repertoire.review.total - repertoire.review.new}/{repertoire.review.total} practised</em>
                       </span>
                     </span>
-                    <span className="opening-card-summary-status">{repertoire.review.due > 0
+                    <span className="opening-card-summary-status">{repertoire.review.total === 0 ? "Practice paused" : repertoire.review.due > 0
                       ? `${repertoire.review.due} due`
                       : repertoire.review.new > 0
                         ? `${repertoire.review.new} new`
@@ -958,7 +968,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
                       <div><dt>Training positions</dt><dd>{repertoire.decisionCount}</dd></div>
                     </dl>
                     <div className="opening-card-actions">
-                      <button disabled={submitting} onClick={() => void startReview(
+                      <button disabled={submitting || repertoire.review.total === 0} onClick={() => void startReview(
                         repertoire.id,
                         repertoire.review.due > 0 ? "due" : repertoire.review.new > 0 ? "new" : "early",
                       )}>
@@ -973,10 +983,10 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
                           Practise {Math.min(5, repertoire.review.new)} new instead
                         </button>
                       )}
-                      <button className="secondary" disabled={submitting} onClick={() => void startLesson(repertoire.id)}>
+                      <button className="secondary" disabled={submitting || repertoire.review.total === 0} onClick={() => void startLesson(repertoire.id)}>
                         {repertoire.origin === "imported" ? "Study a full line" : "Study line in order"}
                       </button>
-                      <button className="secondary" disabled={submitting} onClick={() => void startTreePractice(repertoire.id)}>
+                      <button className="secondary" disabled={submitting || repertoire.review.total === 0} onClick={() => void startTreePractice(repertoire.id)}>
                         Practise a varied line
                       </button>
                       <button className="secondary" disabled={submitting} onClick={() => void openWorkspace(repertoire.id)}>
@@ -989,6 +999,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
                     <p className="opening-review-summary">
                       <strong>{repertoire.review.reviewed}</strong> reviewed · <strong>{repertoire.review.learning}</strong> learning · <strong>{repertoire.review.new}</strong> new
                     </p>
+                    {repertoire.review.total === 0 && <p>Automatic practice is paused. Choose View all lines to include lines or practise one once.</p>}
                     {repertoire.origin === "imported" && <OpeningSourceUpdate repertoire={repertoire} onUpdated={() => finishSourceUpdate(repertoire.id)} />}
                   </div>
                 </details>

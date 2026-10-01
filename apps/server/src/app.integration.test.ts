@@ -2259,4 +2259,37 @@ describe("vertical slice", () => {
     const progressed = await app.inject({ method: "GET", url: `/api/v1/training/sessions/${activeSession.id}` });
     expect(progressed.json()).toMatchObject({ status: "active", completedCount: 1 });
   });
+  it("persists practice switches without changing pasted-game repertoire matching and validates batch boundaries", async () => {
+    const appConfig = config(false, false);
+    const app = await buildApp(appConfig); apps.push(app);
+    await app.inject({ method: "POST", url: "/api/v1/imports/pgn", payload: {
+      pgn: '[Event "Paused branch game"]\n[White "Alice"]\n[Black "Bob"]\n[Result "*"]\n\n1. e4 c5 2. Nf3 d6 3. d4 *', playerName: "Alice",
+    } });
+    const imported = await app.inject({ method: "POST", url: "/api/v1/openings/imports/pgn", payload: {
+      pgn: '[Event "Selection API"]\n[Result "*"]\n\n1. e4 e5 (1... c5 2. Nf3 d6 3. d4) 2. Nf3 Nc6 3. Bc4 *',
+      learnerColor: "white", ownershipConfirmed: true,
+    } });
+    expect(imported.statusCode).toBe(200);
+    const repertoireId = imported.json().repertoireIds[0];
+    const path = `/api/v1/openings/repertoires/${repertoireId}/practice-selection`;
+    const detail = (await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}` })).json();
+    const lines = detail.chapters[0].lines;
+    const gameId = (await app.inject({ method: "GET", url: "/api/v1/games" })).json().games[0].id;
+    const before = (await app.inject({ method: "GET", url: `/api/v1/games/${gameId}/review` })).json().opening;
+    expect(before.status).toBe("in_repertoire");
+    const paused = await app.inject({ method: "PATCH", url: path, payload: { lineIds: [lines[1].id], enabled: false } });
+    expect(paused.statusCode).toBe(200);
+    expect(paused.json().enabledCount).toBe(1);
+    const after = (await app.inject({ method: "GET", url: `/api/v1/games/${gameId}/review` })).json().opening;
+    expect(after).toEqual(before);
+    for (const payload of [{ lineIds: [lines[0].id, "missing"], enabled: false },
+      { lineIds: [lines[0].id, lines[0].id], enabled: false }, { lineIds: [lines[0].id], enabled: "false" }]) {
+      expect((await app.inject({ method: "PATCH", url: path, payload })).statusCode).toBe(400);
+    }
+    expect((await app.inject({ method: "GET", url: path })).json().enabledCount).toBe(1);
+    expect((await app.inject({ method: "POST", url: `${path}/frequencies` })).statusCode).toBe(400);
+    const db = new BetterSqlite3(appConfig.databasePath);
+    expect(db.prepare("SELECT COUNT(*) FROM opening_line_practice_preferences WHERE enabled = 0").pluck().get()).toBe(1);
+    expect(db.pragma("foreign_key_check")).toEqual([]); db.close();
+  });
 });

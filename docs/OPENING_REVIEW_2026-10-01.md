@@ -95,6 +95,32 @@ local Stockfish and restart/library-clearing checks pass on disposable data.
 The live application and its data are unchanged. No first-time learner study
 has been conducted, so automated checks do not establish competitor parity.
 
+### Follow-up: practice participation and honest recall
+
+Version 1.5.9 adds per-player practice switches inside each repertoire, separate
+from archiving and the opening graph. Automatic queues, recommendations, guided
+selection and varied runs skip paused-only material while retaining shared moves
+needed by enabled lines. Deliberate one-off and game-focused review remain
+available. Changing the selection retires stale sessions but preserves answers,
+cards and due dates. Pasted-game repertoire matching is unchanged.
+
+A collapsed panel filters/sorts reply evidence, applies explicit bulk choices
+and distinguishes recent move recall from complete exact-line runs. Tested-move
+and attempt counts expose small samples. Full-line evidence must match every
+current ordered learner move; partial or obsolete paths do not qualify. Remote
+frequency loading is opt-in, bounded, cancellable and deduplicated by position.
+Unknown, stale and small samples cannot automatically mark or disable rare lines.
+The displayed metric is the least-common opponent reply at its own position,
+not a product of probabilities or a promise of whole-line encounter frequency.
+
+Verification: typecheck, production build and 163 unit/integration tests pass,
+including profile isolation, API validation, migration and pasted-game matching.
+All 36 desktop/mobile browser checks pass, including failed-switch recovery.
+Docker tests verify real Stockfish, fresh startup, switch persistence, one-off
+practice and library clearing across restarts. Only disposable test data is used.
+Docker publishing is triggered by committing and pushing the verified release;
+the live installation is updated separately after the publishing checks succeed.
+
 ### Remaining practice/usability priorities
 
 The hidden-answer retry/hint flow, automatic correct-move progression, exact

@@ -15,6 +15,7 @@ import { activeProfileId, ensureActiveProfile } from "../training/profile.js";
 import { selectPracticeLine, type LineCandidate } from "./opening-line-selection.js";
 import { openingPositionKey } from "./opening-content.js";
 import { practiceReplyFrequency, preparationNote } from "./opening-preparation-store.js";
+import { practiceLineEligible } from "./opening-practice-eligibility.js";
 import {
   OPENING_SCHEDULER_VERSION,
   scheduleOpeningReview,
@@ -131,7 +132,7 @@ export class OpeningReviewService {
         available: false,
         repertoire: null,
         counts: { gameMisses: 0, due: 0, new: 0, early: 0, total: 0 },
-        message: "Add at least one learner move to a repertoire to begin opening practice.",
+        message: "Add learner moves or include saved lines in Practice selection to begin automatic opening practice.",
       };
     }
     return {
@@ -147,7 +148,7 @@ export class OpeningReviewService {
     const resolvedNewLimit = newLimit ?? this.practicePacing(profileId).newMovesPerSession;
     const recommendation = this.recommendedSelection(profileId, sessionSize, resolvedNewLimit);
     if (!recommendation || recommendation.selected.length === 0) {
-      throw new Error("There are no opening positions available to practise");
+      throw new Error("No opening positions are enabled for practice. Include a line in Practice selection, or open a line to practise it once.");
     }
     return this.createSession(
       profileId,
@@ -189,6 +190,7 @@ export class OpeningReviewService {
           LEFT JOIN opening_line_preferences preference
             ON preference.line_id = line.id AND preference.profile_id = ori.profile_id
           WHERE membership.move_id = m.id AND preference.archived_at IS NULL
+            AND ${practiceLineEligible("line", "ori.profile_id")}
         )
       ORDER BY ori.due_at, ori.lapses DESC, COALESCE(ori.average_response_ms, 0) DESC, ori.repetitions
       LIMIT ?
@@ -207,7 +209,7 @@ export class OpeningReviewService {
         ON preference.line_id = l.id AND preference.profile_id = ori.profile_id
       WHERE ori.profile_id = ? AND ori.repertoire_id = ?
         AND ori.knowledge_dimension = 'move' AND ori.state = 0
-        AND preference.archived_at IS NULL
+        AND preference.archived_at IS NULL AND ${practiceLineEligible("l", "ori.profile_id")}
       GROUP BY ori.id
       ORDER BY chapter_order, line_priority, line_ply, COALESCE(m.frequency, 0) DESC, m.id
       LIMIT ?
@@ -224,6 +226,7 @@ export class OpeningReviewService {
             LEFT JOIN opening_line_preferences preference
               ON preference.line_id = line.id AND preference.profile_id = ori.profile_id
             WHERE membership.move_id = m.id AND preference.archived_at IS NULL
+              AND ${practiceLineEligible("line", "ori.profile_id")}
           )
         ORDER BY ori.due_at, ori.lapses DESC, COALESCE(ori.average_response_ms, 0) DESC
         LIMIT ?
@@ -252,7 +255,7 @@ export class OpeningReviewService {
       selected = early();
       pool = "early";
     }
-    if (selected.length === 0) throw new Error("This repertoire has no learner moves to review");
+    if (selected.length === 0) throw new Error("No positions are enabled for this review. Include a line in Practice selection, or practise a saved line once.");
 
     return this.createSession(profileId, repertoireId, selected, pool, null);
   }
@@ -272,7 +275,7 @@ export class OpeningReviewService {
     `).get(profileId, profileId, lineId, repertoireId);
     if (!line) throw new Error("This opening line is not available to practise");
 
-    this.ensureItems(profileId, repertoireId);
+    this.ensureItems(profileId, repertoireId, true);
     const selected = this.db.prepare(`
       SELECT review.id, move.id AS expected_move_id
       FROM opening_line_moves membership
@@ -322,8 +325,10 @@ export class OpeningReviewService {
       LEFT JOIN opening_line_preferences preference
         ON preference.line_id = line.id AND preference.profile_id = ?
       WHERE line.active = 1 AND preference.archived_at IS NULL
+        AND NOT EXISTS (SELECT 1 FROM opening_line_practice_preferences disabled
+          WHERE disabled.line_id = line.id AND disabled.profile_id = ? AND disabled.enabled = 0)
       ORDER BY line.priority, line.id, membership.ply
-    `).all(repertoireId, profileId, profileId) as Array<{
+    `).all(repertoireId, profileId, profileId, profileId) as Array<{
       line_id: string;
       priority: number;
       ply: number;
@@ -372,7 +377,7 @@ export class OpeningReviewService {
       ORDER BY session.started_at DESC, session.rowid DESC LIMIT 8
     `).pluck().all(profileId, repertoireId) as string[];
     const selected = selectPracticeLine([...candidates.values()].filter((line) => line.decisions > 0), recentLines);
-    if (!selected) throw new Error("This repertoire has no active lines to practise");
+    if (!selected) throw new Error("No lines are enabled for varied practice. Include a line in Practice selection, or practise a saved line once.");
     return this.startLine(repertoireId, selected.lineId, practiceDepth);
   }
 
@@ -393,7 +398,7 @@ export class OpeningReviewService {
 
   startPosition(repertoireId: string, positionId: string, gameId: string): OpeningReviewExercise {
     const profileId = ensureActiveProfile(this.db);
-    this.ensureItems(profileId, repertoireId);
+    this.ensureItems(profileId, repertoireId, true);
     if (!this.db.prepare("SELECT 1 FROM games WHERE id = ? AND profile_id = ?").get(gameId, profileId)) {
       throw new Error("Game not found");
     }
@@ -481,6 +486,7 @@ export class OpeningReviewService {
             LEFT JOIN opening_line_preferences preference
               ON preference.line_id = line.id AND preference.profile_id = ori.profile_id
             WHERE membership.move_id = m.id AND preference.archived_at IS NULL
+              AND ${practiceLineEligible("line", "ori.profile_id")}
           )
         GROUP BY ori.id
         ORDER BY unreviewed_count DESC, occurrence_count DESC, latest_game DESC, ori.id
@@ -502,6 +508,7 @@ export class OpeningReviewService {
             LEFT JOIN opening_line_preferences preference
               ON preference.line_id = line.id AND preference.profile_id = ori.profile_id
             WHERE membership.move_id = m.id AND preference.archived_at IS NULL
+              AND ${practiceLineEligible("line", "ori.profile_id")}
           )
         ORDER BY ori.due_at, ori.lapses DESC, COALESCE(ori.average_response_ms, 0) DESC, ori.repetitions
       `).all(profileId, repertoire.id, timestamp) as Array<{ id: string }>;
@@ -519,7 +526,7 @@ export class OpeningReviewService {
           ON preference.line_id = l.id AND preference.profile_id = ori.profile_id
         WHERE ori.profile_id = ? AND ori.repertoire_id = ?
           AND ori.knowledge_dimension = 'move' AND ori.state = 0
-          AND preference.archived_at IS NULL
+          AND preference.archived_at IS NULL AND ${practiceLineEligible("l", "ori.profile_id")}
         GROUP BY ori.id
         ORDER BY chapter_order, line_priority, line_ply, COALESCE(m.frequency, 0) DESC, m.id
       `).all(profileId, repertoire.id) as Array<{ id: string }>;
@@ -535,6 +542,7 @@ export class OpeningReviewService {
             LEFT JOIN opening_line_preferences preference
               ON preference.line_id = line.id AND preference.profile_id = ori.profile_id
             WHERE membership.move_id = m.id AND preference.archived_at IS NULL
+              AND ${practiceLineEligible("line", "ori.profile_id")}
           )
         ORDER BY ori.due_at, ori.lapses DESC, COALESCE(ori.average_response_ms, 0) DESC
       `).all(profileId, repertoire.id, timestamp) as Array<{ id: string }>;
@@ -830,7 +838,7 @@ export class OpeningReviewService {
     return nextQueue ? this.exercise(nextQueue) : this.complete(sessionId);
   }
 
-  private ensureItems(profileId: string, repertoireId: string): void {
+  private ensureItems(profileId: string, repertoireId: string, includePaused = false): void {
     const candidates = this.db.prepare(`
       SELECT DISTINCT m.id, m.repertoire_id, m.from_position_id, m.move_kind,
              m.sort_order, m.frequency
@@ -842,7 +850,9 @@ export class OpeningReviewService {
         ON preference.line_id = l.id AND preference.profile_id = ?
       WHERE m.repertoire_id = ? AND m.role = 'learner' AND m.active = 1
         AND preference.archived_at IS NULL
-    `).all(profileId, repertoireId) as CandidateReviewMove[];
+        AND (? = 1 OR NOT EXISTS (SELECT 1 FROM opening_line_practice_preferences disabled
+          WHERE disabled.line_id = l.id AND disabled.profile_id = ? AND disabled.enabled = 0))
+    `).all(profileId, repertoireId, Number(includePaused), profileId) as CandidateReviewMove[];
     const canonical = new Map<string, CandidateReviewMove>();
     for (const candidate of candidates) {
       const current = canonical.get(candidate.from_position_id);
@@ -990,9 +1000,16 @@ export class OpeningReviewService {
       LEFT JOIN opening_moves previous ON previous.id = previous_link.move_id
       LEFT JOIN opening_positions previous_before ON previous_before.id = previous.from_position_id
       WHERE target.move_id = ? AND (? IS NULL OR target.line_id = ?)
+        AND (? IS NOT NULL OR EXISTS (SELECT 1 FROM opening_review_sessions focused
+          WHERE focused.id = ? AND focused.focus_game_id IS NOT NULL) OR (
+          ${practiceLineEligible("l", "?")}
+          AND NOT EXISTS (SELECT 1 FROM opening_line_preferences archived
+            WHERE archived.line_id = l.id AND archived.profile_id = ? AND archived.archived_at IS NOT NULL)
+        ))
       ORDER BY CASE WHEN target.line_id = ? THEN 0 ELSE 1 END, c.sort_order, l.priority, target.ply
       LIMIT 1
-    `).get(item.target_move_id, queue.source_line_id, queue.source_line_id, queue.source_line_id) as {
+    `).get(item.target_move_id, queue.source_line_id, queue.source_line_id,
+      queue.source_line_id, queue.session_id, item.profile_id, item.profile_id, queue.source_line_id) as {
       line_id: string;
       line_title: string;
       target_ply: number;

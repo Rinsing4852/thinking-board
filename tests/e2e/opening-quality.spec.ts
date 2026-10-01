@@ -312,6 +312,81 @@ test("discards an older coverage request when the selected rating changes", asyn
   await expect(page.getByRole("heading", { name: "80% of replies covered", exact: true })).toBeHidden();
 });
 
+test("pauses branches without deleting them and distinguishes move recall from full-line runs", async ({ page }, testInfo) => {
+  const name = `Practice selection ${testInfo.project.name}`;
+  const id = await openNavigationStudy(page, name, "1. e4 e5 (1... c5 2. Nf3 d6 3. d4) 2. Nf3 Nc6 3. Bc4 *");
+  const detail = await (await page.request.get(`/api/v1/openings/repertoires/${id}`)).json();
+  const main = detail.chapters[0].lines[0];
+  const branch = detail.chapters[0].lines[1];
+  // Supply real completed recall evidence through the same API used by the board.
+  let exercise = await (await page.request.post(`/api/v1/openings/repertoires/${id}/lines/${main.id}/reviews/start`)).json();
+  for (;;) {
+    const answer = await page.request.post(`/api/v1/openings/reviews/${exercise.sessionId}/move`, { data: {
+      moveUci: exercise.introduction.repertoireMove.moveUci, queueEntryId: exercise.queueEntryId,
+    } });
+    expect(answer.ok()).toBeTruthy();
+    const next = await (await page.request.post(`/api/v1/openings/reviews/${exercise.sessionId}/continue`, { data: { queueEntryId: exercise.queueEntryId } })).json();
+    if (next.kind === "complete") break;
+    exercise = next;
+  }
+  const panel = page.locator(".opening-practice-selection");
+  await panel.locator("summary").first().click();
+  await expect(panel.getByText("Full-line recall: 100% unaided · 1/1 completed runs", { exact: true })).toBeVisible();
+  await expect(panel.getByText("Full-line recall: no completed full runs yet", { exact: true })).toBeVisible();
+  const paused = panel.getByRole("checkbox", { name: `Practise ${name} · 1...c5 branch`, exact: true });
+  await page.route("**/practice-selection", async route => {
+    if (route.request().method() === "PATCH") await route.fulfill({ status: 503, json: { error: "Selection connection interrupted" } });
+    else await route.continue();
+  });
+  await paused.click();
+  await expect(panel.getByRole("alert")).toContainText("Selection connection interrupted");
+  await expect(paused).toBeChecked();
+  await page.unroute("**/practice-selection");
+  await panel.getByRole("button", { name: "Reload selection", exact: true }).click();
+  await expect(panel.getByRole("alert")).toHaveCount(0);
+  await paused.uncheck();
+  await expect(panel.locator("summary").first()).toContainText("1/2 lines on");
+  const selection = await (await page.request.get(`/api/v1/openings/repertoires/${id}/practice-selection`)).json();
+  expect(selection.lines.find((line: { lineId: string }) => line.lineId === branch.id).enabled).toBe(false);
+  await panel.getByRole("button", { name: "Pause filtered lines (2)", exact: true }).click();
+  await expect(panel.getByText(/No lines are turned on/)).toBeVisible();
+  await expect(panel.getByText("Full-line recall: 100% unaided · 1/1 completed runs", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Practise this line once", exact: true })).toBeEnabled();
+  await panel.getByRole("button", { name: "Include filtered lines (2)", exact: true }).click();
+  await expect(panel.locator("summary").first()).toContainText("2/2 lines on");
+  await page.screenshot({ path: testInfo.outputPath("practice-selection-recall.png"), fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test("filters reply-frequency evidence without silently pausing rare or unknown lines", async ({ page }, testInfo) => {
+  const name = `Frequency selection ${testInfo.project.name}`;
+  await openNavigationStudy(page, name, "1. e4 e5 (1... c5 2. Nf3) (1... c6 2. d4) 2. Nf3 *");
+  await page.route("**/practice-selection", async route => {
+    if (route.request().method() !== "GET") { await route.continue(); return; }
+    const response = await route.fetch(); const data = await response.json();
+    data.lines.forEach((line: { frequency: object }, index: number) => {
+      line.frequency = { band: ["common", "rare", "unknown"][index], percent: [50, 0.5, null][index],
+        moveLabel: index === 0 ? "1...e5" : "1...c5", sampleGames: 1000, knownReplies: index === 2 ? 0 : 1, totalReplies: 1 };
+    });
+    await route.fulfill({ response, json: data });
+  });
+  const panel = page.locator(".opening-practice-selection");
+  await panel.locator("summary").first().click();
+  await expect(panel.locator(".opening-selection-line")).toHaveCount(3);
+  await panel.getByRole("combobox", { name: "Opponent-reply frequency" }).selectOption("rare");
+  await expect(panel.locator(".opening-selection-line")).toHaveCount(1);
+  await expect(panel.getByText(/rare · 1...c5: 0.5% at that position/)).toBeVisible();
+  await expect(panel.getByRole("checkbox")).toBeChecked();
+  await expect(panel.locator("summary").first()).toContainText("3/3 lines on");
+  await panel.getByRole("combobox", { name: "Opponent-reply frequency" }).selectOption("unknown");
+  await expect(panel.locator(".opening-selection-line")).toHaveCount(1);
+  await expect(panel.getByText(/Frequency unknown/)).toBeVisible();
+  await panel.getByRole("combobox", { name: "Opponent-reply frequency" }).selectOption("all");
+  await expect(panel.locator(".opening-selection-line")).toHaveCount(3);
+  await panel.getByRole("combobox", { name: "Sort lines" }).selectOption("frequency");
+  await expect(panel.locator(".opening-selection-line").first()).toContainText("common");
+});
+
 test("deletes the final line and clears a confirmed library without losing games", async ({ page }, testInfo) => {
   // Own the remaining material too: this test must work without earlier imports.
   const archived = await page.request.post("/api/v1/openings/imports/pgn", { data: {

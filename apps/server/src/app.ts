@@ -28,6 +28,8 @@ import { OpeningCoverageService } from "./openings/opening-coverage-service.js";
 import { OpeningAnalysisService } from "./openings/opening-analysis-service.js";
 import { OpeningExplorerService } from "./openings/opening-explorer-service.js";
 import { OpeningPreferencesService } from "./openings/opening-preferences-service.js";
+import { OpeningPracticeSelectionService } from "./openings/opening-practice-selection-service.js";
+import { registerOpeningPracticeSelectionRoutes } from "./openings/opening-practice-selection-routes.js";
 import { OpeningPreparationService } from "./openings/opening-preparation-service.js";
 import { preparationTarget, registerOpeningPreparationRoutes } from "./openings/opening-preparation-routes.js";
 import { TrainingService } from "./training/training-service.js";
@@ -86,6 +88,8 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   const openingAnalysis = new OpeningAnalysisService(config);
   const openingExplorer = new OpeningExplorerService(database.connection, config.lichessApiToken);
   const openingPreferences = new OpeningPreferencesService(database.connection, Boolean(config.lichessApiToken));
+  registerOpeningPracticeSelectionRoutes(app, new OpeningPracticeSelectionService(database.connection,
+    openingWorkspace, openingContent, openingPreferences, openingExplorer));
   const openingPreparation = new OpeningPreparationService(database.connection, openingPreferences, openingExplorer,
     openingAnalysis, config.acceptableToleranceCp);
   const openingGames = new OpeningGameService(database.connection, openingPreparation);

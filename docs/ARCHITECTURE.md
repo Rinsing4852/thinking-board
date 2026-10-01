@@ -35,6 +35,17 @@ Derived variation labels are display-only, preserving source-update identity.
 Coverage requests are cancelled/guarded when rating or visible graph changes;
 prose-only edits do not invalidate graph coverage.
 
+`OpeningPracticeSelectionService` reads per-player line participation and cached
+reply evidence without changing the opening graph, archive state or scheduler.
+Migration 028 stores switches in an independent table, so archive restoration,
+source updates and game matching retain their existing behaviour. A focused SQL
+eligibility predicate applies only to automatic selection; exact one-off and
+game-focused review can deliberately include paused paths. Selection changes
+retire active sessions but preserve events/cards. Full-line recall joins completed
+scheduled queues against the current ordered learner moves, excluding partial or
+obsolete paths. `/repertoires/:id/practice-selection` supports read/batch updates;
+its `/frequencies` action performs at most two explicit shared-cache fetches.
+
 ## Server modules
 
 - `chess/`: PGN parsing and chess-specific input normalisation.

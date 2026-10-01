@@ -45,7 +45,7 @@ export function OpeningLineLibrary({ chapters, index, selectedLineId, open, disa
             <strong>{branch?.title ?? line.title}</strong>
             {shared && <span>Same moves until {openingMoveLabel(shared)}</span>}
             {branch?.preview && <span className="opening-line-preview">{branch.preview}</span>}
-            <span>{line.archived ? "Archived · " : ""}{line.learnerDecisionCount} moves to learn</span>
+            <span>{line.archived ? "Archived · " : line.practiceEnabled === false ? "Practice paused · " : ""}{line.learnerDecisionCount} moves to learn</span>
             {evidence && <small className={`opening-line-mastery ${state}`}>
               {state === "mastered" ? "Secure for now" : state === "new" ? "New" : state === "weak" ? "Needs review" : "Learning"}
               {` · ${evidence.mastered}/${evidence.decisions}`}

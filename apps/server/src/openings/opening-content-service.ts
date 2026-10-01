@@ -6,6 +6,7 @@ import type {
 import type { SqliteDatabase } from "../db/database.js";
 import { now } from "../lib/ids.js";
 import { ensureActiveProfile } from "../training/profile.js";
+import { practiceLineEligible } from "./opening-practice-eligibility.js";
 import {
   compileOpeningCurriculum,
   type CompiledOpeningCurriculum,
@@ -42,17 +43,18 @@ export class OpeningContentService {
       SELECT repertoire.id AS repertoire_id,
              COUNT(DISTINCT CASE WHEN preference.archived_at IS NULL THEN line.id END) AS active_count,
              COUNT(DISTINCT CASE WHEN preference.archived_at IS NOT NULL THEN line.id END) AS archived_count,
-             COUNT(DISTINCT CASE WHEN preference.archived_at IS NULL AND move.active = 1
+             COUNT(DISTINCT CASE WHEN preference.archived_at IS NULL AND COALESCE(practice.enabled, 1) = 1 AND move.active = 1
                AND move.role = 'learner' THEN move.from_position_id END) AS decision_count
       FROM opening_repertoires repertoire
       LEFT JOIN opening_chapters chapter ON chapter.repertoire_id = repertoire.id AND chapter.active = 1
       LEFT JOIN opening_lines line ON line.chapter_id = chapter.id AND line.active = 1
       LEFT JOIN opening_line_preferences preference
         ON preference.line_id = line.id AND preference.profile_id = ?
+      LEFT JOIN opening_line_practice_preferences practice ON practice.line_id = line.id AND practice.profile_id = ?
       LEFT JOIN opening_line_moves membership ON membership.line_id = line.id
       LEFT JOIN opening_moves move ON move.id = membership.move_id
       GROUP BY repertoire.id
-    `).all(profileId) as Array<{
+    `).all(profileId, profileId) as Array<{
       repertoire_id: string; active_count: number; archived_count: number; decision_count: number;
     }>).map((row) => [row.repertoire_id, row]));
     const reviewStats = new Map((this.db.prepare(`
@@ -73,6 +75,7 @@ export class OpeningContentService {
           LEFT JOIN opening_line_preferences preference
             ON preference.line_id = line.id AND preference.profile_id = ori.profile_id
           WHERE membership.move_id = trained_move.id AND preference.archived_at IS NULL
+            AND ${practiceLineEligible("line", "ori.profile_id")}
         )
       GROUP BY ori.repertoire_id
     `).all(timestamp, profileId) as Array<Record<string, unknown>>)
@@ -122,7 +125,8 @@ export class OpeningContentService {
     const profileId = ensureActiveProfile(this.db);
     const lines = this.db.prepare(`
       SELECT repertoire.id AS repertoire_id, repertoire.name AS repertoire_name,
-             repertoire.learner_color, line.id AS line_id, line.title AS line_title
+             repertoire.learner_color, line.id AS line_id, line.title AS line_title,
+             CASE WHEN ${practiceLineEligible("line", "?")} THEN 1 ELSE 0 END AS practice_enabled
       FROM opening_repertoires repertoire
       JOIN opening_chapters chapter ON chapter.repertoire_id = repertoire.id AND chapter.active = 1
       JOIN opening_lines line ON line.chapter_id = chapter.id AND line.active = 1
@@ -132,12 +136,13 @@ export class OpeningContentService {
         ON line_preference.line_id = line.id AND line_preference.profile_id = ?
       WHERE repertoire_preference.archived_at IS NULL AND line_preference.archived_at IS NULL
       ORDER BY repertoire.name, chapter.sort_order, line.priority, line.title
-    `).all(profileId, profileId) as Array<{
+    `).all(profileId, profileId, profileId) as Array<{
       repertoire_id: string;
       repertoire_name: string;
       learner_color: "white" | "black";
       line_id: string;
       line_title: string;
+      practice_enabled: number;
     }>;
     const reviewByLine = new Map((this.db.prepare(`
       SELECT membership.line_id,
@@ -167,13 +172,13 @@ export class OpeningContentService {
         SELECT *, ROW_NUMBER() OVER (PARTITION BY target_move_id ORDER BY created_at DESC, id DESC) AS recency
         FROM evidence
       )
-      SELECT membership.line_id, COUNT(*) AS attempts,
+      SELECT membership.line_id, COUNT(*) AS attempts, COUNT(DISTINCT event.target_move_id) AS tested_decisions,
         SUM(CASE WHEN event.correct = 1 AND event.assisted = 0 THEN 1 ELSE 0 END) AS correct
       FROM recent event
       JOIN opening_line_moves membership ON membership.move_id = event.target_move_id
       WHERE event.recency <= 20
       GROUP BY membership.line_id
-    `).all(profileId) as Array<{ line_id: string; attempts: number; correct: number | null }>)
+    `).all(profileId) as Array<{ line_id: string; attempts: number; tested_decisions: number; correct: number | null }>)
       .map((row) => [row.line_id, row]));
     const missesByLine = new Map((this.db.prepare(`
       SELECT membership.line_id, COUNT(DISTINCT match.game_id) AS game_misses
@@ -187,19 +192,22 @@ export class OpeningContentService {
       const review = reviewByLine.get(line.line_id) ?? {
         decisions: 0, mastered: 0, due: 0, lapses: 0, average_response_ms: null,
       };
-      const attempts = attemptsByLine.get(line.line_id) ?? { attempts: 0, correct: null };
+      const attempts = attemptsByLine.get(line.line_id) ?? { attempts: 0, tested_decisions: 0, correct: null };
       const gameMisses = missesByLine.get(line.line_id) ?? 0;
       return {
         repertoireId: line.repertoire_id,
         repertoireName: line.repertoire_name,
         lineId: line.line_id,
         lineTitle: line.line_title,
+        practiceEnabled: line.practice_enabled !== 0,
         learnerColor: line.learner_color,
         decisions: Number(review.decisions),
         mastered: Number(review.mastered),
         accuracyPercent: Number(attempts.attempts) > 0
           ? Math.round((Number(attempts.correct ?? 0) / Number(attempts.attempts)) * 100)
           : null,
+        recallAttempts: Number(attempts.attempts),
+        testedDecisions: Number(attempts.tested_decisions),
         lapses: Number(review.lapses),
         averageResponseMs: review.average_response_ms === null ? null : Math.round(Number(review.average_response_ms)),
         gameMisses,
@@ -217,7 +225,7 @@ export class OpeningContentService {
       totalLines: progress.length,
       masteredLines: progress.filter((line) => line.mastered === line.decisions && line.decisions > 0).length,
       lines: progress,
-      weakestLines: progress.filter((line) => line.mastered < line.decisions).slice(0, 5),
+      weakestLines: progress.filter((line) => line.practiceEnabled !== false && line.mastered < line.decisions).slice(0, 5),
     };
   }
 

@@ -176,12 +176,14 @@ export class OpeningTrainingService {
       WHERE r.id = ?
         AND repertoire_preference.archived_at IS NULL
         AND line_preference.archived_at IS NULL
+        AND NOT EXISTS (SELECT 1 FROM opening_line_practice_preferences disabled
+          WHERE disabled.line_id = l.id AND disabled.profile_id = ? AND disabled.enabled = 0)
       ORDER BY COALESCE(practice.completed_count, 0),
                CASE WHEN practice.last_started_at IS NULL THEN 0 ELSE 1 END,
                practice.last_started_at,
                c.sort_order, l.priority
       LIMIT 1
-    `).get(profileId, profileId, profileId, repertoireId);
+    `).get(profileId, profileId, profileId, repertoireId, profileId);
     const typedSelection = selection as {
       repertoire_id: string;
       content_version: number;
