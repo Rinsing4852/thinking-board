@@ -86,6 +86,7 @@ export function OpeningLineExplorer({
   const [coverageRating, setCoverageRating] = useState(preferredRatingGroup);
   const [coverageBusy, setCoverageBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<"line" | "repertoire" | null>(null);
+  const [manageOpen, setManageOpen] = useState(false);
   const [repertoireName, setRepertoireName] = useState(detail.repertoire.name);
   const [lineTitle, setLineTitle] = useState(initial?.line.title ?? "");
   const [lastMutation, setLastMutation] = useState<{
@@ -282,6 +283,7 @@ export function OpeningLineExplorer({
         const result = await remove<OpeningLineDeletionResponse>(
           `/api/v1/openings/repertoires/${detail.repertoire.id}/lines/${lastMutation.lineId}`,
         );
+        if (result.detail === null) { onRepertoireDeleted(result.deletedRepertoireId); return; }
         onDetailChanged(result.detail);
         setLineId(lastMutation.previousLineId);
         setPly(Math.max(0, ply - 1));
@@ -332,6 +334,10 @@ export function OpeningLineExplorer({
       const result = await remove<OpeningLineDeletionResponse>(
         `/api/v1/openings/repertoires/${detail.repertoire.id}/lines/${line.id}`,
       );
+      if (result.detail === null) {
+        onRepertoireDeleted(result.deletedRepertoireId);
+        return;
+      }
       onDetailChanged(result.detail);
       setLineId(result.nextLineId);
       setPly(0);
@@ -438,7 +444,7 @@ export function OpeningLineExplorer({
             {coverageBusy ? "Checking…" : coverage ? "Refresh coverage" : "Check coverage"}
           </button>}
           {detail.repertoire.editable && (
-            <button className={editing ? "active" : "secondary"} onClick={() => { setEditing((value) => !value); setPendingMove(null); }}>
+            <button className={editing ? "active" : "secondary"} onClick={() => { setEditing((value) => !value); setManageOpen(true); setPendingMove(null); }}>
               {editing ? "Finish editing" : "Edit lines"}
             </button>
           )}
@@ -476,7 +482,7 @@ export function OpeningLineExplorer({
         <div className="opening-edit-guide">
           <div>
             <strong>Edit mode:</strong> stop at any position and make a move on the board. At the end it extends this line; in the middle a different move creates a new branch, leaving the original intact.
-            {allLines.length === 1 && <small>This is your final line. Delete the repertoire to remove it and start again.</small>}
+            {allLines.length === 1 && <small>Deleting this final line also removes the repertoire. You can export it first.</small>}
           </div>
           <div className="opening-edit-metadata">
             <label>Repertoire name
@@ -496,10 +502,15 @@ export function OpeningLineExplorer({
               <button className="secondary" disabled={localBusy || selectedLineIndex >= selected.chapter.lines.length - 1} onClick={() => void updateLine({ direction: "later" })}>Move later</button>
             </div>
           </div>
-          <div className="opening-delete-actions">
+        </div>
+      )}
+      <details className="panel opening-management" open={manageOpen} onToggle={event => setManageOpen(event.currentTarget.open)}>
+        <summary>Manage lines</summary>
+        <p>Archive a line to keep its notes and progress for later. Delete it to remove it permanently. Built-in lines can be deleted too.</p>
+        <div className="opening-delete-actions">
             <button
               className="secondary danger-button"
-              disabled={allLines.length === 1 || localBusy}
+              disabled={localBusy}
               onClick={() => setDeleteTarget("line")}
             >Delete selected line</button>
             <button
@@ -508,8 +519,7 @@ export function OpeningLineExplorer({
               onClick={() => setDeleteTarget("repertoire")}
             >Delete repertoire</button>
           </div>
-        </div>
-      )}
+      </details>
       {deleteTarget && (
         <div
           className="panel opening-delete-confirm"
@@ -521,9 +531,11 @@ export function OpeningLineExplorer({
           <div>
             <span className="eyebrow">Confirm deletion</span>
             <h3 id="opening-delete-title">{deleteTarget === "line" ? `Delete “${line.title}”?` : `Delete “${detail.repertoire.name}”?`}</h3>
-            <p>{deleteTarget === "line"
-              ? "This line and moves used only by it will be removed. Shared moves stay in your other lines. This cannot be undone."
-              : "Every line, explanation and opening-review result in this personal repertoire will be removed. Your imported games stay. This cannot be undone."}</p>
+            <p>{deleteTarget === "line" && allLines.length > 1
+              ? "This line, its review results and moves used only by it will be removed for every player profile. Shared moves stay in your other lines. Your imported games stay. This cannot be undone."
+              : "All remaining lines, personal notes and opening-review results in this repertoire will be removed for every player profile on this installation. Your imported games stay. This cannot be undone."}</p>
+            {deleteTarget === "line" && allLines.length === 1 && <p>This is the final line, so the repertoire will also be deleted.</p>}
+            <a href={`/api/v1/openings/repertoires/${detail.repertoire.id}/export.pgn`} download>Export PGN before deleting</a>
           </div>
           <div className="answer-actions">
             <button className="secondary" disabled={localBusy} onClick={() => setDeleteTarget(null)}>

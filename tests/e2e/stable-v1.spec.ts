@@ -48,6 +48,7 @@ test.describe.serial("stable V1 browser journey", () => {
   test("remembers the player's practical opening level", async ({ page }) => {
     await page.goto("/#openings");
     const openings = page.locator("#opening-practice");
+    await openings.locator("details.opening-settings > summary").click();
     await expect(openings.getByRole("heading", { name: "Which games should guide your repertoire?" })).toBeVisible();
     await openings.getByLabel("Rating comes from").selectOption("lichess");
     await openings.getByLabel("Closest playing level").selectOption("1400");
@@ -311,8 +312,8 @@ test.describe.serial("stable V1 browser journey", () => {
     await openings.getByRole("checkbox", { name: /I own this material/ }).check();
     await openings.getByRole("button", { name: "Import private repertoire" }).click();
     await expect(openings.getByText("2 private repertoires imported and ready to practise.")).toBeVisible();
-    await expect(openings.getByText("Browser repertoire — White", { exact: true })).toBeVisible();
-    await expect(openings.getByText("Browser repertoire — Black", { exact: true })).toBeVisible();
+    await expect(openings.locator("article.opening-card").getByText("Browser repertoire — White", { exact: true })).toBeVisible();
+    await expect(openings.locator("article.opening-card").getByText("Browser repertoire — Black", { exact: true })).toBeVisible();
   });
 
   test("reviews opening positions with spaced repetition and clear feedback", async ({ page }) => {

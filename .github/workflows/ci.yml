@@ -29,7 +29,9 @@ jobs:
           docker run -d --name thinking-board-ci -p 127.0.0.1:18000:8000 -v thinking-board-ci-data:/app/data thinking-board:ci
           node scripts/container-smoke.mjs http://127.0.0.1:18000
           docker restart thinking-board-ci
-          node scripts/container-smoke.mjs http://127.0.0.1:18000 --existing
+          node scripts/container-smoke.mjs http://127.0.0.1:18000 --existing --clear-library
+          docker restart thinking-board-ci
+          node scripts/container-smoke.mjs http://127.0.0.1:18000 --cleared
       - name: Container diagnostics and cleanup
         if: always()
         run: |

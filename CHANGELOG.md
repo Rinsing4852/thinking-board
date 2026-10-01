@@ -2,6 +2,26 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.5.6 — 2026-10-01
+
+### A clean, user-owned opening library
+
+- Stops adding starter repertoires on server startup. Fresh installs are empty;
+  existing material remains until explicitly deleted. Deleted built-in lines and
+  repertoires no longer return after a restart.
+- Allows deletion of built-in material and the final line in a repertoire.
+  Adds a collapsed library manager with single-repertoire deletion and confirmed
+  whole-library clearing, including archived material. Games and settings stay.
+- Shows the exact deletion targets, export links and all-profile consequences.
+  Bulk deletion rejects a stale library snapshot and rolls back on any failure.
+- Clears stale practice/progress state after deletion, provides clear empty-library
+  onboarding and keeps optional opening settings collapsed by default.
+- Gives exported paths unique PGN chapter names so multi-line exports can be
+  reimported. Separates legacy test fixtures from production startup.
+- Adds deletion, rollback, restart, export round-trip and desktop/mobile browser
+  regression coverage. Documents remaining opening-section priorities.
+- Updates Fastify to the compatible 5.12.5 security patch.
+
 ## 1.5.5 — 2026-09-30
 
 ### Update imported repertoires without starting again

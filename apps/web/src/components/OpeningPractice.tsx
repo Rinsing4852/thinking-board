@@ -34,6 +34,7 @@ import { OpeningLearningComment } from "./OpeningLearningComment";
 import { OpeningPlayerContext } from "./OpeningPlayerContext";
 import { OpeningHomeCockpit } from "./OpeningHomeCockpit";
 import { OpeningSourceUpdate } from "./OpeningSourceUpdate";
+import { OpeningLibraryManager } from "./OpeningLibraryManager";
 
 type LessonPhase = "catalog" | "observe" | "move" | "why" | "feedback" | "complete";
 type ActiveLessonPhase = Exclude<LessonPhase, "catalog" | "complete">;
@@ -86,6 +87,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
   const [importError, setImportError] = useState("");
   const [importSubmitting, setImportSubmitting] = useState(false);
   const [archiveMessage, setArchiveMessage] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [coverageSpotlight, setCoverageSpotlight] = useState<OpeningCoverageResponse | null>(null);
   const [coverageSpotlightLoading, setCoverageSpotlightLoading] = useState(false);
   const [openingProgress, setOpeningProgress] = useState<OpeningProgressResponse | null>(null);
@@ -192,6 +194,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
   }, [refreshToken]);
 
   const updatePlayerPreferences = (preferences: OpeningPlayerPreferences): void => {
+    setSettingsOpen(false);
     setPlayerPreferences(preferences);
     setCoverageSpotlight(null);
     setCoverageSpotlightLoading(false);
@@ -281,21 +284,32 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
     setWorkspaceGap(null);
   };
 
-  const finishRepertoireDeletion = (repertoireId: string): void => {
+  const finishOpeningDeletion = (repertoireIds: string[], message: string): void => {
+    const deleted = new Set(repertoireIds);
     setWorkspaceDetail(null);
     setWorkspaceGap(null);
-    setCatalog((current) => current.filter((repertoire) => repertoire.id !== repertoireId));
+    setWorkspaceLineId(null);
+    setCatalog((current) => current.filter((repertoire) => !deleted.has(repertoire.id)));
+    setArchiveMessage(message);
+    setOpeningProgress(null);
+    setCoverageSpotlight(null);
+    if (step && deleted.has(step.repertoire.id)) { setStep(null); setPausedLessonPhase(null); setPhase("catalog"); }
+    setActiveReview(current => current && deleted.has(current.kind === "feedback" ? current.exercise.repertoire.id : current.repertoire.id) ? null : current);
     setRecommendation(null);
     void Promise.all([
       get<OpeningCatalogResponse>("/api/v1/openings/catalog"),
       get<OpeningReviewRecommendation>("/api/v1/openings/reviews/recommended"),
       get<OpeningProgressResponse>("/api/v1/openings/progress"),
-    ]).then(([catalogResponse, recommended, progress]) => {
+      get<OpeningReviewActiveState | null>("/api/v1/openings/reviews/active"),
+    ]).then(([catalogResponse, recommended, progress, review]) => {
       setCatalog(catalogResponse.repertoires);
       setRecommendation(recommended);
       setOpeningProgress(progress);
-    }).catch(() => undefined);
+      setActiveReview(review);
+    }).catch(() => setError("Deletion completed, but the opening list could not be refreshed. Reload the page before continuing."));
   };
+
+  const finishRepertoireDeletion = (repertoireId: string): void => finishOpeningDeletion([repertoireId], "Repertoire deleted. Your imported games were kept.");
 
   const finishSourceUpdate = async (repertoireId: string): Promise<void> => {
     const [catalogResponse, recommended, progress, review] = await Promise.all([
@@ -710,6 +724,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
               coverageLoading={coverageSpotlightLoading}
               progress={openingProgress}
               preferences={playerPreferences}
+              libraryEmpty={catalog.length === 0}
               busy={submitting}
               importOpen={showImporter}
               onStartRecommended={() => void startRecommendedReview()}
@@ -723,7 +738,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
             />
           )}
           {playerPreferences && (
-            <details className="panel opening-settings" open={!playerPreferences.configured}>
+            <details className="panel opening-settings" open={settingsOpen} onToggle={event => setSettingsOpen(event.currentTarget.open)}>
               <summary>
                 <span><strong>Opening settings</strong><small>Playing level and common-move data</small></span>
                 <b>{playerPreferences.configured
@@ -962,7 +977,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
                 </details>
               </article>
             ))}
-            {activeCatalog.length === 0 && (
+            {activeCatalog.length === 0 && catalog.length > 0 && (
               <div className="panel opening-empty-lines">
                 <h3>Everything is archived</h3>
                 <p>Restore a repertoire below or build your own to resume opening practice.</p>
@@ -983,6 +998,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
               </div>
             </details>
           )}
+          <OpeningLibraryManager repertoires={catalog} onDeleted={finishOpeningDeletion} />
         </>
       )}
 

@@ -142,15 +142,19 @@ export interface OpeningMoveUndoResponse {
   message: string;
 }
 
-export interface OpeningLineDeletionResponse {
-  detail: OpeningRepertoireDetailResponse;
+export type OpeningLineDeletionResponse = {
   deletedLineId: string;
-  nextLineId: string;
   message: string;
-}
+} & ({ detail: OpeningRepertoireDetailResponse; nextLineId: string; deletedRepertoireId?: never }
+  | { detail: null; nextLineId: null; deletedRepertoireId: string });
 
 export interface OpeningRepertoireDeletionResponse {
   deletedRepertoireId: string;
+  message: string;
+}
+
+export interface OpeningLibraryDeletionResponse {
+  deletedRepertoireIds: string[];
   message: string;
 }
 

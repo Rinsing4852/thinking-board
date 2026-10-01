@@ -16,4 +16,12 @@ process.env.DB_PATH = path.join(dataDir, "trainer.sqlite3");
 process.env.RUN_ANALYSIS_WORKER = "true";
 process.env.STOCKFISH_BINARY = path.resolve("tests/fake-stockfish.mjs");
 
+// Legacy built-ins are test fixtures, not production bootstrap data.
+const { Database } = await import("../dist/apps/server/src/db/database.js");
+const { OpeningContentService } = await import("../dist/apps/server/src/openings/opening-content-service.js");
+const { STARTER_OPENING_CURRICULA } = await import("../dist/apps/server/src/openings/starter-curricula.js");
+const database = new Database(process.env.DB_PATH, path.resolve("migrations"));
+new OpeningContentService(database.connection).sync(STARTER_OPENING_CURRICULA);
+database.close();
+
 await import("../dist/apps/server/src/index.js");

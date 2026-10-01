@@ -8,6 +8,9 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { AppConfig } from "./config.js";
 import { buildApp } from "./app.js";
+import { Database } from "./db/database.js";
+import { OpeningContentService } from "./openings/opening-content-service.js";
+import { STARTER_OPENING_CURRICULA } from "./openings/starter-curricula.js";
 
 const FOOLS_MATE = `[Event "Checklist fixture"]
 [Date "2026.08.14"]
@@ -77,9 +80,14 @@ afterEach(async () => {
   for (const directory of tempDirs.splice(0)) fs.rmSync(directory, { recursive: true, force: true });
 });
 
-function config(runWorker: boolean): AppConfig {
+function config(runWorker: boolean, seedLegacyFixtures = true): AppConfig {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "thinking-board-test-"));
   tempDirs.push(directory);
+  if (seedLegacyFixtures) {
+    const database = new Database(path.join(directory, "test.sqlite3"), path.resolve("migrations"));
+    new OpeningContentService(database.connection).sync(STARTER_OPENING_CURRICULA);
+    database.close();
+  }
   return {
     host: "127.0.0.1",
     port: 0,
@@ -110,6 +118,100 @@ async function waitForCompleted(app: Awaited<ReturnType<typeof buildApp>>, jobId
 }
 
 describe("vertical slice", () => {
+  it("starts with an empty opening library without silently restoring starter repertoires", async () => {
+    const settings = config(false, false);
+    const app = await buildApp(settings);
+    apps.push(app);
+    expect((await app.inject({ method: "GET", url: "/api/v1/openings/catalog" })).json()).toEqual({ repertoires: [] });
+    expect((await app.inject({ method: "GET", url: "/api/v1/openings/reviews/recommended" })).json()).toMatchObject({ available: false });
+    expect((await app.inject({ method: "GET", url: "/api/v1/openings/progress" })).json()).toMatchObject({ totalLines: 0, lines: [] });
+    await app.close();
+    const restarted = await buildApp(settings);
+    apps.push(restarted);
+    expect((await restarted.inject({ method: "GET", url: "/api/v1/openings/catalog" })).json()).toEqual({ repertoires: [] });
+  });
+
+  it("deletes built-in lines without restoring them after a restart", async () => {
+    const settings = config(false);
+    const app = await buildApp(settings);
+    apps.push(app);
+    const repertoireId = "repertoire.white-e4-principled";
+    const before = (await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}` })).json();
+    const lines = before.chapters.flatMap((chapter: { lines: Array<{ id: string }> }) => chapter.lines);
+    await app.inject({ method: "PATCH", url: `/api/v1/openings/repertoires/${repertoireId}/lines/${lines[0].id}/archive`, payload: { archived: true } });
+    const removed = await app.inject({ method: "DELETE", url: `/api/v1/openings/repertoires/${repertoireId}/lines/${lines[0].id}` });
+    expect(removed.statusCode).toBe(200);
+    expect(removed.json().detail.chapters.flatMap((chapter: { lines: Array<{ id: string }> }) => chapter.lines)).toHaveLength(lines.length - 1);
+    await app.close();
+    const restarted = await buildApp(settings);
+    apps.push(restarted);
+    const after = (await restarted.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}` })).json();
+    expect(after.chapters.flatMap((chapter: { lines: Array<{ id: string }> }) => chapter.lines).map((line: { id: string }) => line.id)).not.toContain(lines[0].id);
+    const db = new BetterSqlite3(settings.databasePath);
+    expect(db.pragma("foreign_key_check")).toEqual([]);
+    db.close();
+  });
+
+  it("clears the confirmed library including archives but keeps games, jobs and preferences", async () => {
+    const settings = config(false);
+    const app = await buildApp(settings);
+    apps.push(app);
+    await app.inject({ method: "POST", url: "/api/v1/imports/pgn", payload: { pgn: FOOLS_MATE, playerName: "Alice" } });
+    const preferences = (await app.inject({ method: "GET", url: "/api/v1/openings/preferences" })).json();
+    await app.inject({ method: "POST", url: "/api/v1/openings/repertoires/repertoire.white-e4-principled/reviews/start", payload: { mode: "new" } });
+    await app.inject({ method: "PATCH", url: "/api/v1/openings/repertoires/repertoire.black-modern-e4/archive", payload: { archived: true } });
+    const snapshot = (await app.inject({ method: "GET", url: "/api/v1/openings/catalog" })).json().repertoires.map((repertoire: { id: string }) => repertoire.id);
+    expect((await app.inject({ method: "POST", url: "/api/v1/openings/library/delete", payload: { repertoireIds: snapshot, confirmed: false } })).statusCode).toBe(400);
+    await app.inject({ method: "POST", url: "/api/v1/openings/imports/pgn", payload: { pgn: OPENING_REPERTOIRE_PGN, learnerColor: "white", ownershipConfirmed: true } });
+    expect((await app.inject({ method: "POST", url: "/api/v1/openings/library/delete", payload: { repertoireIds: snapshot, confirmed: true } })).statusCode).toBe(400);
+    const catalogue = (await app.inject({ method: "GET", url: "/api/v1/openings/catalog" })).json();
+    expect(catalogue.repertoires).toHaveLength(3);
+    const ids = catalogue.repertoires.map((repertoire: { id: string }) => repertoire.id);
+    const deleted = await app.inject({ method: "POST", url: "/api/v1/openings/library/delete", payload: { repertoireIds: ids, confirmed: true } });
+    expect(deleted.statusCode).toBe(200);
+    expect(deleted.json().deletedRepertoireIds.sort()).toEqual(ids.sort());
+    expect((await app.inject({ method: "GET", url: "/api/v1/openings/catalog" })).json()).toEqual({ repertoires: [] });
+    expect((await app.inject({ method: "GET", url: "/api/v1/openings/reviews/active" })).json()).toBeNull();
+    expect((await app.inject({ method: "GET", url: "/api/v1/openings/preferences" })).json()).toEqual(preferences);
+    const db = new BetterSqlite3(settings.databasePath);
+    for (const table of ["opening_imports", "opening_moves", "opening_review_items", "opening_move_review_cards", "opening_review_sessions", "opening_lesson_attempts"]) {
+      expect(db.prepare(`SELECT COUNT(*) FROM ${table}`).pluck().get()).toBe(0);
+    }
+    expect(db.prepare("SELECT COUNT(*) FROM games").pluck().get()).toBe(1);
+    expect(db.prepare("SELECT COUNT(*) FROM jobs").pluck().get()).toBeGreaterThan(0);
+    expect(db.pragma("foreign_key_check")).toEqual([]);
+    db.close();
+    await app.close();
+    const restarted = await buildApp(settings);
+    apps.push(restarted);
+    expect((await restarted.inject({ method: "GET", url: "/api/v1/openings/catalog" })).json()).toEqual({ repertoires: [] });
+  });
+
+  it("rolls back every repertoire deletion if clearing the library fails part-way through", async () => {
+    const settings = config(false);
+    const app = await buildApp(settings);
+    apps.push(app);
+    const ids = (await app.inject({ method: "GET", url: "/api/v1/openings/catalog" })).json().repertoires.map((repertoire: { id: string }) => repertoire.id).sort();
+    const db = new BetterSqlite3(settings.databasePath);
+    db.exec("CREATE TRIGGER reject_library_delete BEFORE DELETE ON opening_repertoires WHEN OLD.id = 'repertoire.white-e4-principled' BEGIN SELECT RAISE(ABORT, 'test deletion failure'); END;");
+    db.close();
+    const failed = await app.inject({ method: "POST", url: "/api/v1/openings/library/delete", payload: { repertoireIds: ids, confirmed: true } });
+    expect(failed.statusCode).toBe(400);
+    expect((await app.inject({ method: "GET", url: "/api/v1/openings/catalog" })).json().repertoires.map((repertoire: { id: string }) => repertoire.id).sort()).toEqual(ids);
+  });
+
+  it("can re-import a repertoire export containing multiple practice lines", async () => {
+    const app = await buildApp(config(false, false));
+    apps.push(app);
+    const repertoireId = (await app.inject({ method: "POST", url: "/api/v1/openings/imports/pgn", payload: {
+      pgn: OPENING_REPERTOIRE_PGN, learnerColor: "black", ownershipConfirmed: true,
+    } })).json().repertoireIds[0];
+    const exported = await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}/export.pgn` });
+    const preview = await app.inject({ method: "POST", url: "/api/v1/openings/imports/pgn/preview", payload: { pgn: exported.body, learnerColor: "black" } });
+    expect(preview.statusCode).toBe(200);
+    expect(preview.json().lineCount).toBe(2);
+  });
+
   it("previews and confirms a PGN source update through the API without creating another repertoire", async () => {
     const app = await buildApp(config(false));
     apps.push(app);
@@ -800,23 +902,23 @@ describe("vertical slice", () => {
       method: "DELETE",
       url: `/api/v1/openings/repertoires/${repertoireId}/lines/${lines[0]!.id}`,
     });
-    expect(finalLine.statusCode).toBe(400);
-    expect(finalLine.json()).toMatchObject({ error: expect.stringMatching(/final line.*delete the repertoire/i) });
+    expect(finalLine.statusCode).toBe(200);
+    expect(finalLine.json()).toMatchObject({ deletedRepertoireId: repertoireId, detail: null, nextLineId: null });
 
     const protectedCourse = await app.inject({
       method: "DELETE",
       url: "/api/v1/openings/repertoires/repertoire.white-e4-principled",
     });
-    expect(protectedCourse.statusCode).toBe(400);
-    expect(protectedCourse.json()).toMatchObject({ error: expect.stringMatching(/built-in repertoires are read-only/i) });
+    expect(protectedCourse.statusCode).toBe(200);
+    expect(protectedCourse.json()).toMatchObject({ deletedRepertoireId: "repertoire.white-e4-principled" });
 
     const deletedRepertoire = await app.inject({
       method: "DELETE",
-      url: `/api/v1/openings/repertoires/${repertoireId}`,
+      url: "/api/v1/openings/repertoires/repertoire.black-modern-e4",
     });
     expect(deletedRepertoire.statusCode).toBe(200);
     expect(deletedRepertoire.json()).toMatchObject({
-      deletedRepertoireId: repertoireId,
+      deletedRepertoireId: "repertoire.black-modern-e4",
       message: expect.stringMatching(/imported games were kept/i),
     });
     expect((await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}` })).statusCode).toBe(404);

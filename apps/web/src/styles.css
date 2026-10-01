@@ -164,6 +164,19 @@ select { min-width: 200px; background: #101512; color: #e6ece7; border: 1px soli
 .opening-update-preview { padding: 1rem; border: 1px solid var(--line); border-radius: 10px; }
 .opening-update-preview ul { padding-left: 1.25rem; margin: 0; line-height: 1.5; }
 .opening-update-preview summary { cursor: pointer; }
+.opening-management summary, .opening-library-manager summary { cursor: pointer; font-weight: 700; }
+.opening-management p, .opening-library-manager p { color: var(--ink-soft); line-height: 1.5; }
+.opening-library-manager > summary { display: flex; flex-wrap: wrap; align-items: center; gap: .7rem; }
+.opening-library-manager > summary span { color: var(--ink-soft); font-size: .8rem; font-weight: 400; }
+.opening-library-list { display: grid; gap: .7rem; margin-bottom: 1rem; }
+.opening-library-list > div { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--line); padding-bottom: .7rem; }
+.opening-library-list > div > span { min-width: 0; overflow-wrap: anywhere; }
+.opening-library-list strong, .opening-library-list small { display: block; }
+.opening-library-list small { color: var(--ink-soft); margin-top: .3rem; }
+.opening-library-manager .opening-delete-confirm { margin-top: 1rem; }
+.opening-library-manager .opening-delete-confirm ul { max-height: 18rem; overflow: auto; padding-left: 1.3rem; line-height: 1.6; }
+.opening-library-manager .opening-delete-confirm label { display: grid; gap: .5rem; }
+.opening-library-manager .opening-delete-confirm input { width: 100%; min-width: 0; padding: .7rem; border-radius: 8px; border: 1px solid var(--line); background: #101512; color: #e6ece7; }
 .success { color: var(--lime); }
 .opening-recommendation-mix { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .2rem; }
 .opening-recommendation-mix span { padding: .35rem .55rem; border: 1px solid var(--line); border-radius: 999px; color: var(--ink-soft); font-size: .72rem; }
@@ -187,6 +200,8 @@ select { min-width: 200px; background: #101512; color: #e6ece7; border: 1px soli
 .opening-home-progress strong { color: #eef4ef; }
 .opening-home-primary { display: grid; gap: .85rem; padding: 1rem; border: 1px solid rgba(201,243,107,.42); border-radius: 12px; background: linear-gradient(135deg, rgba(201,243,107,.08), #101512 68%); }
 .opening-home-primary.empty { border-color: var(--line); background: #101512; }
+.opening-home-primary.empty .answer-actions { flex-wrap: wrap; }
+.opening-home-primary.empty .answer-actions button { flex: 1 1 200px; }
 .opening-home-primary h3 { margin: .3rem 0; font-size: 1.25rem; }
 .opening-home-primary p { margin: 0; color: var(--ink-soft); line-height: 1.45; }
 .opening-home-primary > button { justify-self: start; }
@@ -374,6 +389,7 @@ button.danger-button:hover:not(:disabled) { border-color: #ff8f83; background: r
 button.danger-confirm { background: #a9362b; border-color: #d45649; color: #fff; }
 .opening-delete-confirm { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; border-color: rgba(255, 125, 112, .55); }
 .opening-delete-confirm h3 { margin: .35rem 0; }
+.opening-delete-confirm a { color: var(--lime); text-underline-offset: .2em; }
 .opening-delete-confirm p { color: var(--ink-soft); line-height: 1.45; margin: 0; max-width: 720px; }
 .opening-delete-confirm .answer-actions { flex: 0 0 auto; margin: 0; }
 .opening-workspace-status { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .65rem .8rem; border: 1px solid var(--line); border-radius: 9px; background: #101512; }

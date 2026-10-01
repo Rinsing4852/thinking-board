@@ -86,12 +86,20 @@ saved in the repertoire and apply the same level automatically to coverage.
 Practical frequencies remain opt-in and only the current position is sent to
 Lichess from the self-hosted server.
 
-The built-in White course contains 29 decision positions across the Italian,
-Alapin Sicilian, French Advance, Caro-Kann Advance, Scandinavian, Modern/Pirc,
-Alekhine and Owen defences. The Black course contains 12 decision positions in
-three Modern Defence structures: a classical centre, the Austrian Attack and a
-quiet c3 setup. Each move teaches its purpose, what changed, the resulting plan
-and a practical warning where relevant.
+New installations start with an empty opening library: build your own moves or
+import your opening PGN/Lichess Study. Earlier installations keep their existing
+starter material until you choose to remove it; starter content is no longer
+added or restored automatically on startup.
+
+Use **Manage opening library** on the opening home to delete one repertoire or
+the entire library, including archived and legacy built-in material. Clearing
+the library requires typing `DELETE` and confirming the current list. In **View
+all lines → Manage lines**, you can delete an individual line; deleting the final
+line removes its repertoire too. Shared moves in remaining lines are retained.
+Deletion is permanent and affects opening notes and review results for all player
+profiles. Imported games, game analysis and settings are kept. Export PGN first
+to retain moves and comments; back up `/app/data` to retain review history too.
+Deleted built-ins do not return after a restart.
 
 Paste a PGN or choose a `.pgn` file, select White, Black, or both, and preview
 its chapters and variations before importing. PGN comments are shown as
@@ -223,7 +231,7 @@ curl --fail http://127.0.0.1:8000/api/v1/health
 
 Database migrations run automatically and are tested from every released schema
 version. For reproducible installs, set `APP_VERSION` in `.env` to a numbered
-image tag such as `1.5.5`; `latest` follows the current release. To roll back,
+image tag such as `1.5.6`; `latest` follows the current release. To roll back,
 stop the app, restore `pre-upgrade.sqlite3` with the restore command above, set
 `APP_VERSION` to the previous release, and start Compose again. Never run two
 application versions against the same live database.

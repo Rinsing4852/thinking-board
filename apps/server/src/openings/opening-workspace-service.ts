@@ -7,6 +7,7 @@ import type {
   OpeningLineDeletionResponse,
   OpeningLearningCommentResponse,
   OpeningRepertoireDeletionResponse,
+  OpeningLibraryDeletionResponse,
   OpeningSurprisePreparationResponse,
   OpeningArchiveResponse,
   OpeningMetadataMutationResponse,
@@ -269,7 +270,6 @@ export class OpeningWorkspaceService {
   }
 
   deleteLine(repertoireId: string, lineId: string): OpeningLineDeletionResponse {
-    this.assertEditable(repertoireId);
     const line = this.db.prepare(`
       SELECT l.id, l.title, l.chapter_id
       FROM opening_lines l
@@ -284,7 +284,9 @@ export class OpeningWorkspaceService {
       WHERE c.repertoire_id = ? AND l.active = 1 AND c.active = 1
     `).pluck().get(repertoireId));
     if (lineCount <= 1) {
-      throw new Error("This is the final line. Delete the repertoire if you want to start again.");
+      const result = this.deleteRepertoire(repertoireId);
+      return { ...result, deletedLineId: lineId, detail: null, nextLineId: null,
+        message: "The final line and its repertoire were deleted. Your imported games were kept." };
     }
 
     this.db.transaction(() => {
@@ -333,7 +335,6 @@ export class OpeningWorkspaceService {
   }
 
   deleteRepertoire(repertoireId: string): OpeningRepertoireDeletionResponse {
-    this.assertEditable(repertoireId);
     const repertoire = this.db.prepare(`
       SELECT id, name FROM opening_repertoires WHERE id = ?
     `).get(repertoireId) as { id: string; name: string } | undefined;
@@ -347,6 +348,18 @@ export class OpeningWorkspaceService {
       deletedRepertoireId: repertoireId,
       message: `${repertoire.name} was deleted. Your imported games were kept.`,
     };
+  }
+
+  deleteLibrary(repertoireIds: string[], confirmed: boolean): OpeningLibraryDeletionResponse {
+    if (confirmed !== true) throw new Error("Confirm deletion of the opening library first");
+    return this.db.transaction(() => {
+      const existing = this.db.prepare("SELECT id FROM opening_repertoires ORDER BY id").pluck().all() as string[];
+      if (JSON.stringify([...new Set(repertoireIds)].sort()) !== JSON.stringify(existing)) {
+        throw new Error("The opening library changed. Reload it and confirm the current list before deleting.");
+      }
+      for (const repertoireId of existing) this.deleteRepertoire(repertoireId);
+      return { deletedRepertoireIds: existing, message: "All opening repertoires, lines, notes and opening-review results were deleted. Your imported games and settings were kept." };
+    })();
   }
 
   setRepertoireArchived(repertoireId: string, archived: boolean): OpeningArchiveResponse {
@@ -497,7 +510,7 @@ export class OpeningWorkspaceService {
     if (lines.length === 0) throw new Error("Add at least one line before exporting this repertoire");
     const cleanComment = (value: string): string => value.replace(/[{}]/g, "").replace(/\s+/g, " ").trim();
     const cleanTag = (value: string): string => value.replace(/[\r\n\\]/g, " ").replace(/"/g, "'").replace(/\s+/g, " ").trim();
-    const games = lines.map(({ chapter, line }) => {
+    const games = lines.map(({ chapter, line }, index) => {
       const tags = [
         `[Event "${cleanTag(detail.repertoire.name)}"]`,
         `[Site "Thinking Board"]`,
@@ -506,6 +519,7 @@ export class OpeningWorkspaceService {
         `[Black "${detail.repertoire.learnerColor === "black" ? "Repertoire" : "Opponent"}"]`,
         `[Result "*"]`,
         `[Opening "${cleanTag(chapter.title)}"]`,
+        `[ChapterName "${cleanTag(`${index + 1}. ${chapter.title} — ${line.title}`)}"]`,
         `[Variation "${cleanTag(line.title)}"]`,
       ];
       const moves: string[] = [];

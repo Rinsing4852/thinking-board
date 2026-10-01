@@ -117,3 +117,70 @@ test("previews and applies source changes from an expanded repertoire card", asy
   const detail = await (await page.request.get(`/api/v1/openings/repertoires/${repertoireId}`)).json();
   expect(detail.chapters[0].lines).toHaveLength(2);
 });
+
+test("deletes the final line and clears a confirmed library without losing games", async ({ page }, testInfo) => {
+  // Own the remaining material too: this test must work without earlier imports.
+  const archived = await page.request.post("/api/v1/openings/imports/pgn", { data: {
+    pgn: `[Event "Archived safety ${testInfo.project.name}"]\n[Result "*"]\n\n1. e4 g6 2. d4 Bg7 *`,
+    learnerColor: "black", ownershipConfirmed: true,
+  } });
+  expect(archived.ok()).toBeTruthy();
+  const archivedId = (await archived.json()).repertoireIds[0];
+  expect((await page.request.patch(`/api/v1/openings/repertoires/${archivedId}/archive`, { data: { archived: true } })).ok()).toBeTruthy();
+  const name = `Final line ${testInfo.project.name}`;
+  const imported = await page.request.post("/api/v1/openings/imports/pgn", { data: {
+    pgn: `[Event "${name}"]\n[Result "*"]\n\n1. d4 d5 2. c4 *`,
+    learnerColor: "white", name, ownershipConfirmed: true,
+  } });
+  expect(imported.ok()).toBeTruthy();
+  const repertoireId = (await imported.json()).repertoireIds[0];
+  await page.goto("/#openings");
+  const pause = page.getByRole("button", { name: "Pause", exact: true });
+  const card = page.locator("article.opening-card").filter({ hasText: name });
+  await expect(pause.or(card.locator("summary").first())).toBeVisible();
+  if (await pause.isVisible()) await pause.click();
+  await card.locator("summary").first().click();
+  await card.getByRole("button", { name: "View all lines", exact: true }).click();
+  await page.locator("details.opening-management > summary").click();
+  await page.getByRole("button", { name: "Delete selected line", exact: true }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog.getByText("This is the final line, so the repertoire will also be deleted.")).toBeVisible();
+  await dialog.getByRole("button", { name: "Keep line", exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await page.getByRole("button", { name: "Delete selected line", exact: true }).click();
+  await dialog.getByRole("button", { name: "Delete line", exact: true }).click();
+  await expect(page.locator("article.opening-card").filter({ hasText: name })).toHaveCount(0);
+  const catalog = await (await page.request.get("/api/v1/openings/catalog")).json();
+  expect(catalog.repertoires.some((item: { id: string }) => item.id === repertoireId)).toBe(false);
+
+  const gamePgn = `[Event "Library safety ${testInfo.project.name}"]\n[White "Library Learner"]\n[Black "Opponent"]\n[Result "*"]\n\n1. e4 e5 *`;
+  expect((await page.request.post("/api/v1/imports/pgn", { data: { pgn: gamePgn, playerName: "Library Learner" } })).ok()).toBeTruthy();
+  const gamesBefore = await (await page.request.get("/api/v1/games")).json();
+  const manager = page.locator("details.opening-library-manager");
+  await manager.locator("summary").click();
+  const clear = manager.getByRole("button", { name: "Delete all opening repertoires", exact: true });
+  await clear.click();
+  await expect(dialog.getByText(`Archived safety ${testInfo.project.name}`, { exact: true })).toBeVisible();
+  const confirm = dialog.getByRole("button", { name: "Permanently delete all openings", exact: true });
+  await expect(confirm).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(clear).toBeFocused();
+  await clear.click();
+  await dialog.getByLabel("Type DELETE to confirm").fill("DELETE");
+  await page.screenshot({ path: testInfo.outputPath("library-deletion.png"), fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
+  await confirm.click();
+  await expect(page.getByRole("heading", { name: "Your opening library is empty", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Resume opening practice" })).toBeHidden();
+  await expect(manager).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Your opening library is empty", exact: true })).toBeVisible();
+  await expect(page.locator("details.opening-settings")).not.toHaveAttribute("open");
+  const gamesAfter = await (await page.request.get("/api/v1/games")).json();
+  expect(gamesAfter.games.map((game: { id: string }) => game.id).sort())
+    .toEqual(gamesBefore.games.map((game: { id: string }) => game.id).sort());
+  await page.screenshot({ path: testInfo.outputPath("empty-opening-library.png"), fullPage: true });
+  await page.getByRole("button", { name: "Build on the board", exact: true }).click();
+  await expect(page.getByRole("grid", { name: "Repertoire board" })).toBeVisible();
+});

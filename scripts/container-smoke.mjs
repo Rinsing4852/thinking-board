@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 const base = process.argv[2];
 if (!base || !/^http:\/\/127\.0\.0\.1:\d+$/.test(base)) throw new Error("Pass a loopback URL for a disposable smoke-test server");
 const existing = process.argv.includes("--existing");
+const cleared = process.argv.includes("--cleared");
 async function request(path, body) {
   const response = await fetch(`${base}${path}`, {
     method: body === undefined ? "GET" : "POST",
@@ -25,6 +26,14 @@ async function waitFor(action, ready) {
   throw new Error("Smoke-test condition timed out");
 }
 await waitFor(() => request("/api/v1/health"), (result) => result.status === "ok");
+if (cleared) {
+  assert.equal((await request("/api/v1/openings/catalog")).repertoires.length, 0,
+    "Deleted opening material must not return after restart");
+  assert((await request("/api/v1/games")).games.some(game => game.white === "Container Learner"),
+    "Deleting opening material must not remove imported games");
+  console.log("Container smoke passed (cleared library survives restart, games retained).");
+  process.exit(0);
+}
 const pgn = `[Event "Container smoke"]
 [White "Container Learner"]
 [Black "Container Opponent"]
@@ -44,7 +53,7 @@ if (existing) {
 const analysis = await request("/api/v1/openings/analysis", { fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" });
 assert(analysis.lines.length > 0, "Real local Stockfish must supply candidates");
 const catalog = await request("/api/v1/openings/catalog");
-assert(catalog.repertoires.length >= 2, "Opening curriculum must load");
+if (!existing) assert.equal(catalog.repertoires.length, 0, "Fresh installations must not add unwanted starter repertoires");
 const openingPgn = '[Event "Container source update"]\n[Result "*"]\n\n1. e4 {Control the centre.} e5 2. Nf3 Nc6 3. Bc4 *';
 let repertoireId;
 if (existing) {
@@ -70,4 +79,10 @@ const repertoire = await request(`/api/v1/openings/repertoires/${repertoireId}`)
 assert.equal(repertoire.chapters[0].lines.length, 2, "Updated opening branches must be persisted");
 assert.equal(repertoire.chapters[0].lines[0].moves[0].explanation.summary,
   "Open the bishop and control the centre.", "Refreshed source notes must be persisted");
+if (process.argv.includes("--clear-library")) {
+  const before = (await request("/api/v1/games")).games.map(game => game.id).sort();
+  await request("/api/v1/openings/library/delete", { confirmed: true, repertoireIds: catalog.repertoires.map(item => item.id) });
+  assert.equal((await request("/api/v1/openings/catalog")).repertoires.length, 0);
+  assert.deepEqual((await request("/api/v1/games")).games.map(game => game.id).sort(), before);
+}
 console.log(`Container smoke passed (${existing ? "persistent restart" : "fresh installation"}, local Stockfish).`);

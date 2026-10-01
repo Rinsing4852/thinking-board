@@ -13,6 +13,7 @@ interface OpeningHomeCockpitProps {
   coverageLoading: boolean;
   progress: OpeningProgressResponse | null;
   preferences: OpeningPlayerPreferences | null;
+  libraryEmpty: boolean;
   busy: boolean;
   importOpen: boolean;
   onStartRecommended: () => void;
@@ -36,6 +37,7 @@ export function OpeningHomeCockpit({
   coverageLoading,
   progress,
   preferences,
+  libraryEmpty,
   busy,
   importOpen,
   onStartRecommended,
@@ -120,8 +122,12 @@ export function OpeningHomeCockpit({
           <div className="opening-home-primary empty">
             <div>
               <span className="eyebrow">Ready when you are</span>
-              <h3>No scheduled positions right now</h3>
-              <p>Review early, inspect a line, or add your own repertoire below.</p>
+              <h3>{libraryEmpty ? "Your opening library is empty" : "No scheduled positions right now"}</h3>
+              <p>{libraryEmpty ? "Build moves on the board, paste opening lines as PGN, or bring in your Lichess Study. Then practise the moves and their ideas." : "Review early, inspect a line, or add your own repertoire below."}</p>
+              {libraryEmpty && <div className="answer-actions">
+                <button onClick={onImport}>{importOpen ? "Close importer" : "Import repertoire lines"}</button>
+                <button className="secondary" onClick={onBuild}>Build on the board</button>
+              </div>}
             </div>
           </div>
         )}
@@ -129,7 +135,7 @@ export function OpeningHomeCockpit({
         <div className="opening-home-actions">
           {onAnalyzeGame && (
             <button className="opening-home-action primary-route" onClick={onAnalyzeGame}>
-              <span><b>Analyse a played game</b><small>Paste a game PGN or sync Lichess, then compare it with your repertoire.</small></span>
+              <span><b>Analyse a played game</b><small>{libraryEmpty ? "Paste a game PGN for local analysis. Add a repertoire to compare your opening moves." : "Paste a game PGN or sync Lichess, then compare it with your repertoire."}</small></span>
               <strong>Paste PGN →</strong>
             </button>
           )}
@@ -139,7 +145,7 @@ export function OpeningHomeCockpit({
               <strong>Review →</strong>
             </button>
           )}
-          {preferences?.useExplorer && (
+          {!libraryEmpty && preferences?.useExplorer && (
             <button className="opening-home-action" disabled={coverageLoading || !gap} onClick={() => gap && onOpenGap(gap)}>
               <span><b>{coverageLoading ? "Checking common replies…" : gap ? `Prepare for ${gap.moveSan}` : "Common replies covered"}</b><small>{gap ? `${gap.lineTitle} · ${frequencyLabel(gap.frequencyPercent)}` : coverage?.message ?? "No practical gap found."}</small></span>
               <strong>{gap ? "Add response →" : "✓"}</strong>
@@ -155,13 +161,13 @@ export function OpeningHomeCockpit({
           )}
         </div>
 
-        <div className="opening-home-create">
+        {!libraryEmpty && <div className="opening-home-create">
           <span>Build or import repertoire</span>
           <div>
             <button className="secondary" onClick={onBuild}>Build on the board</button>
             <button className="text-button" onClick={onImport}>{importOpen ? "Close importer" : "Import repertoire lines"}</button>
           </div>
-        </div>
+        </div>}
       </section>
     </div>
   );

@@ -28,7 +28,6 @@ import { OpeningCoverageService } from "./openings/opening-coverage-service.js";
 import { OpeningAnalysisService } from "./openings/opening-analysis-service.js";
 import { OpeningExplorerService } from "./openings/opening-explorer-service.js";
 import { OpeningPreferencesService } from "./openings/opening-preferences-service.js";
-import { STARTER_OPENING_CURRICULA } from "./openings/starter-curricula.js";
 import { TrainingService } from "./training/training-service.js";
 import { CandidateTrainingService } from "./training/candidate-training-service.js";
 import { V1TrainingService } from "./training/v1-training-service.js";
@@ -76,7 +75,6 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   const v1Training = new V1TrainingService(database.connection);
   const attempts = new AttemptLifecycle(database.connection);
   const openingContent = new OpeningContentService(database.connection);
-  openingContent.sync(STARTER_OPENING_CURRICULA);
   const openingImports = new OpeningPgnImportService(database.connection, openingContent);
   const openingLichessImports = new OpeningLichessImportService(openingImports, config.lichessApiToken);
   registerOpeningUpdateRoutes(app, new OpeningUpdateService(database.connection, openingLichessImports));
@@ -176,6 +174,20 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       return openingWorkspace.deleteRepertoire(repertoireId);
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not delete opening repertoire" });
+    }
+  });
+
+  app.post("/api/v1/openings/library/delete", { schema: { body: {
+    type: "object", required: ["confirmed", "repertoireIds"], additionalProperties: false,
+    properties: { confirmed: { type: "boolean" }, repertoireIds: {
+      type: "array", uniqueItems: true, items: { type: "string", minLength: 1, maxLength: 200 },
+    } },
+  } } }, async (request, reply) => {
+    try {
+      const body = request.body as { confirmed: boolean; repertoireIds: string[] };
+      return openingWorkspace.deleteLibrary(body.repertoireIds, body.confirmed);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not delete opening library" });
     }
   });
 
