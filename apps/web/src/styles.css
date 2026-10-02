@@ -341,7 +341,7 @@ button.opening-reason:hover { border-color: var(--lime); }
 .opening-learning-comment p { margin: .3rem 0 0; color: var(--ink-soft); line-height: 1.45; }
 .opening-learning-comment.editing { display: grid; }
 .opening-learning-comment.editing label { display: grid; gap: .45rem; }
-.opening-learning-comment textarea { min-height: 90px; resize: vertical; text-transform: none; letter-spacing: normal; }
+.opening-learning-comment textarea { width: 100%; min-width: 0; min-height: 90px; resize: vertical; background: #101512; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: .7rem; font-size: 1rem; line-height: 1.45; text-transform: none; letter-spacing: normal; }
 .opening-learning-comment small { color: var(--ink-soft); }
 .opening-next-due { color: var(--ink-soft); font-size: .8rem; line-height: 1.45; }
 .opening-feedback-summary { margin: .8rem 0; padding: .7rem .8rem; border-left: 3px solid var(--lime); background: #101512; color: var(--ink-soft); line-height: 1.45; }

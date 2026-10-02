@@ -68,6 +68,9 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
   const initialExercise = initial.kind === "feedback" ? initial.exercise : initial;
   const [exercise, setExercise] = useState<OpeningReviewExercise>(initialExercise);
   const [feedback, setFeedback] = useState<OpeningReviewFeedback | null>(initial.kind === "feedback" ? initial : null);
+  const [lastAnswered, setLastAnswered] = useState<OpeningReviewFeedback | null>(initial.kind === "feedback" ? initial : null);
+  const [explanationOpen, setExplanationOpen] = useState(false);
+  const [editingLineComment, setEditingLineComment] = useState(false);
   const [complete, setComplete] = useState<OpeningReviewComplete | null>(null);
   const [observing, setObserving] = useState(initial.kind === "exercise" && Boolean(initial.opponentMove));
   const [assisted, setAssisted] = useState(initialExercise.assistance.pieceHint);
@@ -95,10 +98,13 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
   const submitting = flow.pending;
   const error = flow.error;
   const autoAdvancePaused = flow.paused;
+  const fullLinePractice = Boolean(exercise.lineRun);
 
   const showExercise = (next: OpeningReviewExercise): void => {
     setExercise(next);
     setFeedback(null);
+    setExplanationOpen(false);
+    setEditingLineComment(false);
     setMoveNotice("");
     setHintSquares([]);
     setRejectedMove(null);
@@ -119,10 +125,10 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
   };
 
   useEffect(() => {
-    if (!observing || !exercise.opponentMove) return;
+    if (!observing || !exercise.opponentMove || flow.paused || !visible) return;
     const timer = window.setTimeout(playOpponentMove, 450);
     return () => window.clearTimeout(timer);
-  }, [observing, exercise.sessionId, exercise.positionNumber, exercise.opponentMove]);
+  }, [observing, exercise.sessionId, exercise.positionNumber, exercise.opponentMove, flow.paused, visible]);
 
   const checkMove = async (moveUci: string): Promise<void> => {
     if (!flow.begin()) return;
@@ -135,6 +141,7 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
       setHintSquares([]);
       setRejectedMove(null);
       setFeedback(result);
+      setLastAnswered(result);
       setDisplayFen(result.fenAfterMove);
       setLastMove(result.repertoireMove.moveUci);
       window.dispatchEvent(new Event("training-completed"));
@@ -214,10 +221,10 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
 
   useEffect(() => {
     if (!feedback || !flow.canAdvance || !visible) return;
-    const delay = feedback.outcome === "remembered" ? 650 : 1500;
+    const delay = fullLinePractice || feedback.outcome === "remembered" ? 650 : 1500;
     const timer = window.setTimeout(() => void continueReview(), delay);
     return () => window.clearTimeout(timer);
-  }, [feedback, flow.canAdvance, visible]);
+  }, [feedback, flow.canAdvance, visible, fullLinePractice]);
 
   const updateLearningComment = (comment: string | null): void => {
     setExercise((current) => ({
@@ -240,6 +247,45 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
     } : current);
   };
 
+  const toggleLineExplanation = (): void => {
+    if (editingLineComment) return;
+    const open = !explanationOpen;
+    // Pause immediately, before the next-position timer can fire.
+    flow.pause("explanation", open);
+    setExplanationOpen(open);
+  };
+
+  const updateLastMoveComment = (comment: string | null): void => {
+    if (!lastAnswered) return;
+    const moveId = lastAnswered.repertoireMove.moveId;
+    setLastAnswered(current => current ? { ...current, explanation: { ...current.explanation, personalComment: comment } } : current);
+    if (exercise.introduction.repertoireMove.moveId === moveId) updateLearningComment(comment);
+  };
+
+  const lineExplanationAction = fullLinePractice && <div className="answer-actions opening-line-explanation-action">
+    <button className="secondary" disabled={!lastAnswered || submitting || editingLineComment} aria-expanded={explanationOpen}
+      aria-controls="opening-requested-explanation" onClick={toggleLineExplanation}>
+      {explanationOpen ? complete ? "Close explanation" : "Close explanation and resume" : "Explain last move"}
+    </button>
+    {!lastAnswered && <small>Available after you play a move.</small>}
+    {editingLineComment && <small>Save or cancel your comment before resuming.</small>}
+  </div>;
+
+  const requestedExplanation = fullLinePractice && explanationOpen && lastAnswered && <section id="opening-requested-explanation" aria-label="Requested move explanation">
+    <span className="eyebrow">{complete ? "Your requested explanation" : "Practice paused · your request"}</span>
+    <h3>Why {formatMoveLabel(lastAnswered.exercise.moveNumber, lastAnswered.exercise.learnerColor, lastAnswered.repertoireMove.moveSan)}?</h3>
+    <OpeningExplanation explanation={lastAnswered.explanation} showPersonalComment={false} />
+    {lastAnswered.exercise.preparationNote && <p className="opening-preparation-choice"><b>Your preparation idea:</b> {lastAnswered.exercise.preparationNote}</p>}
+    <OpeningLearningComment key={lastAnswered.repertoireMove.moveId}
+      repertoireId={lastAnswered.exercise.repertoire.id} moveId={lastAnswered.repertoireMove.moveId}
+      comment={lastAnswered.explanation.personalComment} onEditingChange={editing => {
+        setEditingLineComment(editing);
+        flow.pause("comment", editing);
+      }}
+      onSaved={updateLastMoveComment} />
+    <p className="opening-next-due">{dueLabel(lastAnswered.nextDueAt, lastAnswered.lapseQueued)}</p>
+  </section>;
+
   if (complete) {
     return (
       <div className="panel opening-complete" role="status">
@@ -252,9 +298,13 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
           <div><strong>{complete.lapses}</strong><span>moves to revisit</span></div>
         </div>
         <div className="answer-actions opening-complete-actions">
-          <button onClick={onPracticeMore}>Practice another set</button>
-          <button className="secondary" onClick={onComplete}>Back to opening choices</button>
+          <button disabled={editingLineComment} onClick={onPracticeMore}>Practice another set</button>
+          <button className="secondary" disabled={editingLineComment} onClick={onComplete}>Back to opening choices</button>
         </div>
+        {lineExplanationAction}
+        {explanationOpen && lastAnswered && <ChessBoard fen={lastAnswered.fenAfterMove}
+          orientation={lastAnswered.exercise.learnerColor} lastMove={lastAnswered.repertoireMove.moveUci} />}
+        {requestedExplanation}
       </div>
     );
   }
@@ -268,12 +318,12 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
         <div>
           <span className="eyebrow">Today’s opening practice</span>
           <h3>{exercise.repertoire.name}</h3>
-          <p>Play continuously on the board. Replies, checking and the next position happen automatically.</p>
+          <p>Play continuously on the board. Replies, checking and the next position happen automatically.{fullLinePractice && " Explanations appear only when you ask."}</p>
         </div>
         <div className="opening-progress">
           <div className="opening-progress-topline">
             <span>Step {exercise.positionNumber} of {exercise.totalPositions}</span>
-            <button className="text-button" onClick={onPause}>Pause</button>
+            <button className="text-button" disabled={editingLineComment} onClick={onPause}>Pause</button>
           </div>
           <progress aria-label={`Opening practice progress: step ${exercise.positionNumber} of ${exercise.totalPositions}`} value={exercise.positionNumber - 1} max={exercise.totalPositions} />
           <small>{exercise.presentationKind === "lapse_repeat"
@@ -286,35 +336,39 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
 
       <div className="trainer-layout opening-trainer-layout">
         <div className="board-column">
-          <p className="opening-board-prompt" role="status">{observing
+          <p className="opening-board-prompt" role="status">{explanationOpen
+            ? "Explanation open — close it to continue."
+            : observing
             ? "Watch your opponent’s reply."
             : feedback ? `${feedback.repertoireMove.moveSan} — ${feedback.outcome === "remembered" ? "remembered" : "we’ll practise this again"}`
               : submitting ? "Saving your answer…" : moveNotice || "Your move — play your prepared reply."}</p>
           <div className="candidate-banner">
             <div>
-              <span>{observing
+              <span>{explanationOpen ? "Your last played move" : observing
                 ? "Before the opponent’s move"
                 : showingReference ? "Repertoire move shown" : `${exercise.learnerColor === "white" ? "White" : "Black"} to move`}</span>
-              <small>You are {exercise.learnerColor} · {observing
+              <small>You are {exercise.learnerColor} · {explanationOpen ? "practice paused while you read" : observing
                 ? "watch what changes"
                 : feedback
                   ? "the repertoire response is shown"
                   : submitting ? "checking your move…" : "play now — moves are checked immediately"}</small>
             </div>
-            <strong>{showingReference
+            <strong>{explanationOpen && lastAnswered
+              ? formatMoveLabel(lastAnswered.exercise.moveNumber, lastAnswered.exercise.learnerColor, lastAnswered.repertoireMove.moveSan)
+              : showingReference
               ? formatMoveLabel(exercise.moveNumber, exercise.learnerColor, referenceSan)
               : formatMoveLabel(exercise.moveNumber, exercise.learnerColor)}</strong>
           </div>
           <ChessBoard
-            fen={displayFen}
+            fen={explanationOpen && lastAnswered ? lastAnswered.fenAfterMove : displayFen}
             orientation={exercise.learnerColor}
-            interactive={!observing && !feedback && !submitting}
-            lastMove={lastMove}
-            highlightedSquares={hintSquares}
-            rejectedMove={rejectedMove}
+            interactive={!observing && !feedback && !submitting && !explanationOpen}
+            lastMove={explanationOpen && lastAnswered ? lastAnswered.repertoireMove.moveUci : lastMove}
+            highlightedSquares={explanationOpen ? [] : hintSquares}
+            rejectedMove={explanationOpen ? null : rejectedMove}
             onMove={playRecallMove}
           />
-          {!observing && !feedback && <div className="answer-actions opening-recall-help">
+          {!observing && !feedback && !explanationOpen && <div className="answer-actions opening-recall-help">
             <button className="secondary" disabled={submitting || hintShown} onClick={() => void showHelp("piece")}>
               {hintShown ? "Piece highlighted" : "Hint: show the piece"}
             </button>
@@ -322,15 +376,16 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
               {moveShown ? "Move highlighted — play it" : "Show move"}
             </button>
           </div>}
+          {lineExplanationAction}
           <div className="opening-line-context below-board" aria-label="Moves leading to this position">
             <span>Position reached after</span>
-            <strong>{formatOpeningLineContext(exercise.movesBefore)}</strong>
+            <strong>{formatOpeningLineContext(explanationOpen && lastAnswered ? [...lastAnswered.exercise.movesBefore, lastAnswered.repertoireMove.moveSan] : exercise.movesBefore)}</strong>
           </div>
         </div>
 
         <div className="panel question-card opening-question-card" aria-live="polite">
           <span className="step-number">OPENING</span>
-          {observing && exercise.opponentMove && (
+          {!explanationOpen && observing && exercise.opponentMove && (
             <>
               <span className="eyebrow">SEE</span>
               <h3>Watch the reply.</h3>
@@ -338,11 +393,11 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
             </>
           )}
 
-          {!observing && !feedback && (
+          {!explanationOpen && !observing && !feedback && (
             <>
-              <span className="eyebrow">{exercise.learningStage === "new" ? "LEARN" : "YOUR MOVE"}</span>
-              <h3>{exercise.learningStage === "new" ? "Find the move from its purpose." : exercise.prompt}</h3>
-              {exercise.learningStage === "new" && (
+              <span className="eyebrow">{!fullLinePractice && exercise.learningStage === "new" ? "LEARN" : "YOUR MOVE"}</span>
+              <h3>{!fullLinePractice && exercise.learningStage === "new" ? "Find the move from its purpose." : exercise.prompt}</h3>
+              {!fullLinePractice && exercise.learningStage === "new" && (
                 <div className="opening-preview-summary opening-purpose-cue">
                   <strong>Why this move belongs</strong>
                   <p>{exercise.introduction.explanation.summary}</p>
@@ -364,24 +419,26 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
                 ? feedback.recallSpeed === "slow" ? "Remembered — building fluency" : "Remembered"
                 : feedback.outcome === "learning" ? "Learning" : "Review again"}</span>
               <h3>{feedback.repertoireMove.moveSan}</h3>
-              <p>{feedback.message}</p>
-              <p className="opening-feedback-summary"><strong>Why:</strong> {feedback.explanation.summary}</p>
-              <details
-                className="opening-feedback-details"
-                onToggle={(event) => flow.pause("explanation", event.currentTarget.open)}
-              >
-                <summary>See the full explanation</summary>
-                <OpeningExplanation explanation={feedback.explanation} showSummary={false} showPersonalComment={false} />
-                {exercise.preparationNote && <p className="opening-preparation-choice"><b>Your preparation idea:</b> {exercise.preparationNote}</p>}
-              </details>
-              <OpeningLearningComment
-                repertoireId={exercise.repertoire.id}
-                moveId={feedback.repertoireMove.moveId}
-                comment={feedback.explanation.personalComment}
-                onEditingChange={(editing) => flow.pause("comment", editing)}
-                onSaved={updateLearningComment}
-              />
-              <p className="opening-next-due">{dueLabel(feedback.nextDueAt, feedback.lapseQueued)}</p>
+              {!fullLinePractice && <>
+                <p>{feedback.message}</p>
+                <p className="opening-feedback-summary"><strong>Why:</strong> {feedback.explanation.summary}</p>
+                <details
+                  className="opening-feedback-details"
+                  onToggle={(event) => flow.pause("explanation", event.currentTarget.open)}
+                >
+                  <summary>See the full explanation</summary>
+                  <OpeningExplanation explanation={feedback.explanation} showSummary={false} showPersonalComment={false} />
+                  {exercise.preparationNote && <p className="opening-preparation-choice"><b>Your preparation idea:</b> {exercise.preparationNote}</p>}
+                </details>
+                <OpeningLearningComment
+                  repertoireId={exercise.repertoire.id}
+                  moveId={feedback.repertoireMove.moveId}
+                  comment={feedback.explanation.personalComment}
+                  onEditingChange={(editing) => flow.pause("comment", editing)}
+                  onSaved={updateLearningComment}
+                />
+                <p className="opening-next-due">{dueLabel(feedback.nextDueAt, feedback.lapseQueued)}</p>
+              </>}
               <div className="answer-actions opening-feedback-actions">
                 <span className="opening-flow-status">{error ? "Practice stopped — retry when ready" : autoAdvancePaused ? "Auto-advance paused" : "Continuing automatically…"}</span>
                 <button className="text-button" onClick={() => flow.pause("manual", !flow.manualPause)}>
@@ -393,6 +450,7 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
               </div>
             </div>
           )}
+          {requestedExplanation}
           {error && <p className="error" role="alert">{error}</p>}
         </div>
       </div>

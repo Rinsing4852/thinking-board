@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import type { OpeningLearningCommentResponse } from "../../../../packages/contracts/src/api";
 import { patch } from "../api";
@@ -18,6 +18,7 @@ export function OpeningLearningComment({
   onSaved,
   onEditingChange,
 }: OpeningLearningCommentProps) {
+  const commentId = useId();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(comment ?? "");
   const [saving, setSaving] = useState(false);
@@ -64,17 +65,16 @@ export function OpeningLearningComment({
 
   return (
     <div className="opening-learning-comment editing">
-      <label>
-        Your learning comment
-        <textarea
-          autoFocus
-          maxLength={1000}
-          rows={4}
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          placeholder="For example: If the bishop moves first, remember that the knight may block the c-pawn later."
-        />
-      </label>
+      <label htmlFor={commentId}>Your learning comment</label>
+      <textarea
+        id={commentId}
+        autoFocus
+        maxLength={1000}
+        rows={4}
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        placeholder="For example: If the bishop moves first, remember that the knight may block the c-pawn later."
+      />
       <small>This personal wording appears whenever this move is taught or reviewed. Leave it empty to remove it.</small>
       <div className="answer-actions">
         <button disabled={saving} onClick={() => void save()}>{saving ? "Saving…" : "Save comment"}</button>

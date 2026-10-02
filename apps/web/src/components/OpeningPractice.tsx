@@ -921,7 +921,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
             <summary>How the three practice options differ</summary>
             <div>
               <p><strong>Quick practice</strong><span>Play continuously; replies and the next position are automatic.</span></p>
-              <p><strong>Study line</strong><span>Walk through one complete line and connect every move to its purpose.</span></p>
+              <p><strong>Guided learning (optional)</strong><span>Stop to study move purposes. For continuous recall, open View all lines and choose Practise this line.</span></p>
               <p><strong>Browse lines</strong><span>Inspect every saved branch without starting a lesson.</span></p>
             </div>
           </details>
@@ -984,7 +984,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
                         </button>
                       )}
                       <button className="secondary" disabled={submitting || repertoire.review.total === 0} onClick={() => void startLesson(repertoire.id)}>
-                        {repertoire.origin === "imported" ? "Study a full line" : "Study line in order"}
+                        Learn the ideas (guided)
                       </button>
                       <button className="secondary" disabled={submitting || repertoire.review.total === 0} onClick={() => void startTreePractice(repertoire.id)}>
                         Practise a varied line

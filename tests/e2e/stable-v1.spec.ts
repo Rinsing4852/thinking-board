@@ -381,7 +381,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await expect(openings.getByRole("heading", { name: "Opening Practice" })).toBeVisible();
     const starter = openings.locator("article").filter({ hasText: "Practical 1.e4 Repertoire" });
     await starter.locator("summary").click();
-    await starter.getByRole("button", { name: "Study line in order" }).click();
+    await starter.getByRole("button", { name: "Learn the ideas (guided)" }).click();
     await expect(openings.getByText("Decision 1 of 6")).toBeVisible();
     await openings.getByRole("button", { name: "Pause" }).click();
     await expect(openings.getByText("Guided line paused")).toBeVisible();
@@ -390,7 +390,7 @@ test.describe.serial("stable V1 browser journey", () => {
       await dialog.dismiss();
     });
     await starter.locator("summary").click();
-    await starter.getByRole("button", { name: "Study line in order" }).click();
+    await starter.getByRole("button", { name: "Learn the ideas (guided)" }).click();
     await expect(openings.getByText("Guided line paused")).toBeVisible();
     await openings.getByRole("button", { name: "Resume guided line" }).click();
 

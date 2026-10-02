@@ -2,6 +2,26 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.5.10 — 2026-10-02
+
+### Keep full-line practice flowing
+
+- Full-line recall hides automatic explanations and new-move purpose cues.
+  Correct moves advance after brief confirmation, including assisted answers;
+  wrong moves stay in place for another attempt without revealing the answer.
+- Adds **Explain last move** on demand. It pauses the run and shows the answered
+  move's board and notes, even after automatic advancement or session completion.
+  Closing returns to the current position without clearing an independent pause.
+- Keeps personal comments editable in requested explanations and protects drafts
+  from being discarded by resuming. Edits target the explained move, not the
+  following question. Opponent replies respect pauses and hidden browser tabs.
+- Labels the separate move-purpose quiz **Learn the ideas (guided)**, so its
+  deliberate stops cannot be confused with continuous line practice.
+- Gives learning-comment fields explicit accessible labels, including when an
+  existing note is edited, and consistent mobile-friendly input styling.
+- Adds desktop/mobile browser coverage for uninterrupted lines, requested
+  explanations, retries, independent pauses and correct comment targeting.
+
 ## 1.5.9 — 2026-10-01
 
 ### Choose what to practise and see what you recall

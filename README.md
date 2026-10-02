@@ -30,7 +30,13 @@ answer. Request a piece-only hint or deliberately choose Show move, then play
 the shown move yourself. Requested help survives page reloads and never counts
 as independent recall. Prepared opponent replies and the
 next exercise play automatically, so normal practice needs no Continue or
-confirmation buttons. Every
+confirmation buttons. **Practise this line** is continuous recall: explanations
+and purpose cues stay hidden unless requested. **Explain last move** pauses the
+run and shows that move's board, explanation and editable personal comment—even
+after the next position has arrived, or at the end of the run. Close it to return
+to practice; save or cancel comment edits first. **Learn the ideas (guided)** is
+the separate, optional move-purpose lesson with deliberate explanation stops.
+Every
 repertoire move can also carry a private, editable learning comment in the
 learner's own words. These comments remain separate from the source material
 and appear wherever that move is studied or reviewed.
