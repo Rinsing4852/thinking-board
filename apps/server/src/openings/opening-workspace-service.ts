@@ -14,11 +14,12 @@ import type {
   OpeningMoveUndoResponse,
 } from "../../../../packages/contracts/src/api.js";
 import { Chess } from "chess.js";
-import { boardAnnotationPgn } from "../../../../packages/contracts/src/board-annotations.js";
 import type { SqliteDatabase } from "../db/database.js";
 import { id, now } from "../lib/ids.js";
 import { openingPositionKey } from "./opening-content.js";
 import { ensureActiveProfile } from "../training/profile.js";
+import type { MoveExplanation } from "./opening-content.js";
+import { chapterMovetext, pgnTag } from "./opening-pgn-export.js";
 
 interface RepertoireRow {
   id: string;
@@ -62,6 +63,7 @@ interface MoveRow {
   common_mistake: string | null;
   personal_comment: string | null;
   board_annotations_json: string;
+  source_explanation_json: string | null;
 }
 
 export class OpeningWorkspaceService {
@@ -195,13 +197,12 @@ export class OpeningWorkspaceService {
           INSERT INTO opening_move_annotations(
             move_id, summary, changes_json, concepts_json, opponent_idea,
             resulting_plan, tactical_warning, common_mistake
-          ) VALUES (?, ?, ?, '["missing_explanation"]', ?, ?, NULL, NULL)
+          ) VALUES (?, ?, '[]', ?, ?, NULL, NULL, NULL)
         `).run(
           moveId,
           summary ?? defaultSummary,
-          JSON.stringify([`The repertoire continues with ${played.san}.`]),
+          summary ? '["personal_explanation"]' : '["missing_explanation"]',
           role === "opponent" ? summary ?? "Add what this reply is trying to achieve." : null,
-          role === "learner" ? summary ?? "Add the plan for this move in your own words." : null,
         );
       }
 
@@ -221,6 +222,9 @@ export class OpeningWorkspaceService {
           SELECT ?, move_id, ply FROM opening_line_moves
           WHERE line_id = ? AND ply <= ? ORDER BY ply
         `).run(targetLineId, line.id, input.afterPly);
+        this.db.prepare(`INSERT INTO opening_line_annotations(line_id, ply, explanation_json)
+          SELECT ?, ply, explanation_json FROM opening_line_annotations WHERE line_id = ? AND ply <= ?`)
+          .run(targetLineId, line.id, input.afterPly);
       }
       this.db.prepare(`
         INSERT INTO opening_line_moves(line_id, move_id, ply) VALUES (?, ?, ?)
@@ -511,9 +515,10 @@ export class OpeningWorkspaceService {
     const detail = this.repertoire(repertoireId);
     const lines = detail.chapters.flatMap((chapter) => chapter.lines.map((line) => ({ chapter, line })));
     if (lines.length === 0) throw new Error("Add at least one line before exporting this repertoire");
-    const cleanComment = (value: string): string => value.replace(/[{}]/g, "").replace(/\s+/g, " ").trim();
-    const cleanTag = (value: string): string => value.replace(/[\r\n\\]/g, " ").replace(/"/g, "'").replace(/\s+/g, " ").trim();
-    const games = lines.map(({ chapter, line }, index) => {
+    const cleanTag = pgnTag;
+    const games = detail.chapters.filter(chapter => chapter.lines.length > 0).map(chapter => {
+      const sourceKey = this.db.prepare("SELECT source_key FROM opening_import_chapters WHERE chapter_id = ?")
+        .pluck().get(chapter.id) as string | undefined;
       const tags = [
         `[Event "${cleanTag(detail.repertoire.name)}"]`,
         `[Site "Thinking Board"]`,
@@ -522,19 +527,13 @@ export class OpeningWorkspaceService {
         `[Black "${detail.repertoire.learnerColor === "black" ? "Repertoire" : "Opponent"}"]`,
         `[Result "*"]`,
         `[Opening "${cleanTag(chapter.title)}"]`,
-        `[ChapterName "${cleanTag(`${index + 1}. ${chapter.title} — ${line.title}`)}"]`,
-        `[Variation "${cleanTag(line.title)}"]`,
+        `[ChapterName "${cleanTag(chapter.title)}"]`,
+        `[Description "${cleanTag(chapter.introduction)}"]`,
+        `[Repertoire "${cleanTag(detail.repertoire.name)}"]`,
+        `[TBChapterKey "${cleanTag(sourceKey ?? chapter.id)}"]`,
+        `[TBFormat "1"]`,
       ];
-      const moves: string[] = [];
-      for (const move of line.moves) {
-        if (move.ply % 2 === 1) moves.push(`${Math.ceil(move.ply / 2)}.`);
-        moves.push(move.moveSan);
-        const note = cleanComment([move.explanation.summary,
-          move.explanation.personalComment ? `Personal note: ${move.explanation.personalComment}` : "",
-          boardAnnotationPgn(move.explanation.boardAnnotations ?? [])].filter(Boolean).join(" "));
-        if (note) moves.push(`{${note}}`);
-      }
-      return `${tags.join("\n")}\n\n${moves.join(" ")} *`;
+      return `${tags.join("\n")}\n\n${chapterMovetext(chapter.lines)}`;
     });
     const filename = `${detail.repertoire.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "repertoire"}.pgn`;
     return { filename, pgn: games.join("\n\n") };
@@ -617,9 +616,9 @@ export class OpeningWorkspaceService {
         UPDATE opening_move_annotations
         SET summary = ?, concepts_json = '["personal_explanation"]',
             opponent_idea = CASE WHEN ? = 'opponent' THEN ? ELSE opponent_idea END,
-            resulting_plan = CASE WHEN ? = 'learner' THEN ? ELSE resulting_plan END
+            changes_json = '[]', resulting_plan = NULL
         WHERE move_id = ?
-      `).run(summary, move.role, summary, move.role, summary, move.id);
+      `).run(summary, move.role, summary, move.id);
       this.touch(repertoireId);
     })();
     return this.repertoire(repertoireId);
@@ -827,6 +826,9 @@ export class OpeningWorkspaceService {
     `);
     for (const membership of memberships) {
       addMembership.run(lineMap.get(membership.line_id), moveMap.get(membership.move_id), membership.ply);
+      this.db.prepare(`INSERT INTO opening_line_annotations(line_id, ply, explanation_json)
+        SELECT ?, ply, explanation_json FROM opening_line_annotations WHERE line_id = ? AND ply = ?`)
+        .run(lineMap.get(membership.line_id), membership.line_id, membership.ply);
     }
 
     return repertoireId;
@@ -886,37 +888,47 @@ export class OpeningWorkspaceService {
              before.fen AS fen_before, after.fen AS fen_after,
              a.summary, a.changes_json, a.concepts_json, a.opponent_idea,
              a.resulting_plan, a.tactical_warning, a.common_mistake, a.board_annotations_json,
-             lc.comment AS personal_comment
+             lc.comment AS personal_comment, context.explanation_json AS source_explanation_json
       FROM opening_line_moves olm
       JOIN opening_moves m ON m.id = olm.move_id AND m.active = 1
       JOIN opening_positions before ON before.id = m.from_position_id
       JOIN opening_positions after ON after.id = m.to_position_id
       JOIN opening_move_annotations a ON a.move_id = m.id
+      LEFT JOIN opening_line_annotations context ON context.line_id = olm.line_id AND context.ply = olm.ply
       LEFT JOIN opening_learning_comments lc ON lc.move_id = m.id AND lc.profile_id = ?
       WHERE olm.line_id = ?
       ORDER BY olm.ply
     `).all(profileId, lineId) as MoveRow[];
-    return rows.map((row) => ({
-      id: row.id,
-      ply: row.ply,
-      moveUci: row.move_uci,
-      moveSan: row.move_san,
-      role: row.role,
-      moveKind: row.move_kind,
-      fenBefore: row.fen_before,
-      fenAfter: row.fen_after,
-      explanation: {
-        summary: row.summary,
-        changes: JSON.parse(row.changes_json) as string[],
-        concepts: JSON.parse(row.concepts_json) as string[],
-        opponentIdea: row.opponent_idea,
-        resultingPlan: row.resulting_plan,
-        tacticalWarning: row.tactical_warning,
-        commonMistake: row.common_mistake,
-        personalComment: row.personal_comment,
-        boardAnnotations: JSON.parse(row.board_annotations_json),
-      },
-    }));
+    return rows.map((row) => {
+      const source = row.source_explanation_json ? JSON.parse(row.source_explanation_json) as MoveExplanation : null;
+      const personal = row.concepts_json.includes('"personal_explanation"');
+      return {
+        id: row.id,
+        ply: row.ply,
+        moveUci: row.move_uci,
+        moveSan: row.move_san,
+        role: row.role,
+        moveKind: row.move_kind,
+        fenBefore: row.fen_before,
+        fenAfter: row.fen_after,
+        explanation: {
+          summary: row.summary,
+          changes: JSON.parse(row.changes_json) as string[],
+          concepts: JSON.parse(row.concepts_json) as string[],
+          opponentIdea: row.opponent_idea,
+          resultingPlan: row.resulting_plan,
+          tacticalWarning: row.tactical_warning,
+          commonMistake: row.common_mistake,
+          personalComment: row.personal_comment,
+          boardAnnotations: JSON.parse(row.board_annotations_json),
+          ...(source && !personal ? { summary: source.summary, changes: [...source.changes],
+            concepts: [...source.concepts], opponentIdea: source.opponentIdea ?? null,
+            resultingPlan: source.resultingPlan ?? null, tacticalWarning: source.tacticalWarning ?? null,
+            commonMistake: source.commonMistake ?? null, boardAnnotations: source.boardAnnotations ?? [] } : {}),
+          ...(source && personal ? { sourceSummary: source.summary, boardAnnotations: source.boardAnnotations ?? [] } : {}),
+        },
+      };
+    });
   }
 }
 

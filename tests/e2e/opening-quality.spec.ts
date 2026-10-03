@@ -382,6 +382,8 @@ async function openNavigationStudy(page: import("@playwright/test").Page, name: 
   await card.locator("summary").first().click();
   await card.getByRole("button", { name: "View all lines", exact: true }).click();
   await expect(page.getByRole("heading", { name, level: 2, exact: true })).toBeVisible();
+  const notes = page.getByRole("button", { name: "Notes and move ideas", exact: true });
+  if (await notes.isVisible()) await notes.click();
   return repertoireId;
 }
 
@@ -485,6 +487,7 @@ test("discards an older coverage request when the selected rating changes", asyn
   });
   await openNavigationStudy(page, `Coverage navigation ${testInfo.project.name}`, "1. e4 e5 2. Nf3 Nc6 3. Bb5 *");
   manual = true;
+  await page.getByText("Coverage and repertoire settings", { exact: true }).click();
   await page.getByRole("button", { name: /^(Check|Refresh) coverage$/ }).click();
   await started;
   const failed = page.waitForEvent("requestfailed", { predicate: request => request.url().includes("/coverage?rating=") && !request.url().endsWith("rating=2000") });
@@ -515,6 +518,7 @@ test("pauses branches without deleting them and distinguishes move recall from f
     exercise = next;
   }
   const panel = page.locator(".opening-practice-selection");
+  await page.getByText("Coverage and repertoire settings", { exact: true }).click();
   await panel.locator("summary").first().click();
   await expect(panel.getByText("Full-line recall: 100% unaided · 1/1 completed runs", { exact: true })).toBeVisible();
   await expect(panel.getByText("Full-line recall: no completed full runs yet", { exact: true })).toBeVisible();
@@ -556,6 +560,7 @@ test("filters reply-frequency evidence without silently pausing rare or unknown 
     await route.fulfill({ response, json: data });
   });
   const panel = page.locator(".opening-practice-selection");
+  await page.getByText("Coverage and repertoire settings", { exact: true }).click();
   await panel.locator("summary").first().click();
   await expect(panel.locator(".opening-selection-line")).toHaveCount(3);
   await panel.getByRole("combobox", { name: "Opponent-reply frequency" }).selectOption("rare");
@@ -595,6 +600,7 @@ test("deletes the final line and clears a confirmed library without losing games
   if (await pause.isVisible()) await pause.click();
   await card.locator("summary").first().click();
   await card.getByRole("button", { name: "View all lines", exact: true }).click();
+  await page.getByText("Coverage and repertoire settings", { exact: true }).click();
   await page.locator("details.opening-management > summary").click();
   await page.getByRole("button", { name: "Delete selected line", exact: true }).click();
   const dialog = page.getByRole("alertdialog");
@@ -637,4 +643,121 @@ test("deletes the final line and clears a confirmed library without losing games
   await page.screenshot({ path: testInfo.outputPath("empty-opening-library.png"), fullPage: true });
   await page.getByRole("button", { name: "Build on the board", exact: true }).click();
   await expect(page.getByRole("grid", { name: "Repertoire board" })).toBeVisible();
+});
+
+test("recovers an unfinished board draft after refresh without changing saved repertoires", async ({ page }) => {
+  await page.goto("/#openings");
+  await page.getByRole("button", { name: "Build on the board", exact: true }).click();
+  await page.getByRole("textbox", { name: "Repertoire name", exact: true }).fill("Recovered preparation");
+  let board = page.getByRole("grid", { name: "Repertoire board" });
+  await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
+  await board.getByRole("gridcell", { name: "e4 empty" }).click();
+  await page.locator(".opening-builder-note textarea").fill("Free the bishop and take space.");
+  await page.reload();
+  await page.getByRole("button", { name: "Build on the board", exact: true }).click();
+  await expect(page.getByText("Recovered draft", { exact: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Repertoire name", exact: true })).toHaveValue("Recovered preparation");
+  board = page.getByRole("grid", { name: "Repertoire board" });
+  await expect(board.getByRole("gridcell", { name: "e4 white pawn" })).toBeVisible();
+  await expect(page.locator(".opening-builder-note textarea")).toHaveValue("Free the bishop and take space.");
+  const before = await (await page.request.get("/api/v1/openings/catalog")).json();
+  page.once("dialog", dialog => dialog.accept());
+  await page.getByRole("button", { name: "Discard draft", exact: true }).click();
+  await expect(board.getByRole("gridcell", { name: "e2 white pawn" })).toBeVisible();
+  expect(await (await page.request.get("/api/v1/openings/catalog")).json()).toEqual(before);
+});
+
+test("restores an unsaved branch and returns from practice to the same browsing position", async ({ page }, testInfo) => {
+  const id = await openNavigationStudy(page, `Stable workspace ${testInfo.project.name}`, "1. e4 e5 2. Nf3 *");
+  const tools = page.locator(".opening-workspace-tools");
+  await expect(tools).not.toHaveAttribute("open");
+  await page.getByRole("button", { name: "End", exact: true }).click();
+  const originalHash = await page.evaluate(() => location.hash);
+  await page.getByRole("button", { name: "Edit lines", exact: true }).click();
+  let board = page.getByRole("grid", { name: "Chess position" });
+  await board.getByRole("gridcell", { name: "b8 black knight" }).click();
+  await board.getByRole("gridcell", { name: "c6 empty" }).click();
+  await page.getByLabel("What is the idea behind Nc6?", { exact: false }).fill("Defend the central pawn.");
+  await page.reload();
+  await page.getByRole("button", { name: "Restore draft", exact: true }).click();
+  await expect(page.getByLabel("What is the idea behind Nc6?", { exact: false })).toHaveValue("Defend the central pawn.");
+  await page.getByRole("button", { name: "Choose another", exact: true }).click();
+  await page.getByRole("button", { name: "Finish editing", exact: true }).click();
+  page.once("dialog", dialog => dialog.accept());
+  await page.getByRole("button", { name: "Practise this line", exact: true }).click();
+  await expect(page.getByText("Step 1 of 2")).toBeVisible();
+  board = page.locator(".opening-review").getByRole("grid", { name: "Chess position" });
+  await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
+  await board.getByRole("gridcell", { name: "e4 empty" }).click();
+  await expect(page.getByText("Step 2 of 2")).toBeVisible();
+  await expect(board).toHaveClass(/interactive/);
+  await board.getByRole("gridcell", { name: "g1 white knight" }).click();
+  await board.getByRole("gridcell", { name: "f3 empty" }).click();
+  await expect(page.getByText("Practice complete", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Back to this repertoire", exact: true }).click();
+  expect(await page.evaluate(() => location.hash)).toBe(originalHash);
+  await expect(page.getByRole("grid", { name: "Chess position" }).getByRole("gridcell", { name: "f3 white knight" })).toBeVisible();
+  await expect(page.locator(".opening-line-board .moving-piece")).toHaveCount(0);
+  expect((await (await page.request.get(`/api/v1/openings/repertoires/${id}`)).json()).chapters[0].lines[0].moveCount).toBe(3);
+  await page.screenshot({ path: testInfo.outputPath("board-first-workspace.png"), fullPage: true });
+});
+
+test("shows a retry when the next-line context cannot load", async ({ page }) => {
+  let offline = true;
+  await page.route(/\/api\/v1\/openings\/repertoires\/[^/?]+$/, route => offline
+    ? route.fulfill({ status: 503, json: { error: "Line list offline" } }) : route.continue());
+  const board = await startPractice(page);
+  for (const [from, to] of [["e2 white pawn", "e4 empty"], ["g1 white knight", "f3 empty"], ["f1 white bishop", "c4 empty"]]) {
+    await expect(board).toHaveClass(/interactive/);
+    await board.getByRole("gridcell", { name: from }).click();
+    await board.getByRole("gridcell", { name: to }).click();
+  }
+  await expect(page.getByText("Practice complete", { exact: true })).toBeVisible();
+  await expect(page.getByRole("alert")).toContainText("Could not load the line list");
+  offline = false;
+  await page.getByRole("button", { name: "Retry line list", exact: true }).click();
+  await expect(page.getByText(/You have reached the last enabled line/)).toBeVisible();
+});
+
+test("links a pasted-game miss to its source game only after the answer", async ({ page }, testInfo) => {
+  const name = `Game loop ${testInfo.project.name}`;
+  const imported = await page.request.post("/api/v1/openings/imports/pgn", { data: {
+    pgn: `[Event "${name}"]\n[Result "*"]\n\n1. d4 d5 2. c4 *`, learnerColor: "white", name, ownershipConfirmed: true,
+  } });
+  expect(imported.ok()).toBeTruthy();
+  const opponent = `Loop opponent ${testInfo.project.name}`;
+  const player = `Loop learner ${testInfo.project.name}`;
+  // Game deduplication intentionally ignores headers. Give each browser its own moves too.
+  const missedMove = testInfo.project.name === "webkit" ? "a3" : "h3";
+  const game = await page.request.post("/api/v1/imports/pgn", { data: {
+    pgn: `[Event "${name}"]\n[White "${player}"]\n[Black "${opponent}"]\n[Result "*"]\n\n1. d4 d5 2. ${missedMove} *`,
+    playerName: player,
+  } });
+  expect(game.ok()).toBeTruthy();
+  const profiles = await (await page.request.get("/api/v1/profiles")).json();
+  const profileId = profiles.profiles.find((profile: { displayName: string }) => profile.displayName === player).id;
+  expect((await page.request.post(`/api/v1/profiles/${profileId}/activate`)).ok()).toBeTruthy();
+  const games = await (await page.request.get("/api/v1/games")).json();
+  const gameId = games.games.find((item: { black: string }) => item.black === opponent).id;
+  const started = await page.request.post(`/api/v1/games/${gameId}/opening/practice`);
+  expect(started.ok()).toBeTruthy();
+  const practice = await started.json();
+  await page.goto("/#openings");
+  const board = page.getByRole("grid", { name: "Chess position" });
+  await expect(page.getByRole("button", { name: "Why this exercise?", exact: true })).toBeHidden();
+  await expect(board).toHaveClass(/interactive/);
+  await board.getByRole("gridcell", { name: "c2 white pawn" }).click();
+  await board.getByRole("gridcell", { name: "c4 empty" }).click();
+  await page.getByRole("button", { name: "Why this exercise?", exact: true }).click();
+  const evidence = page.getByRole("region", { name: "Why this exercise", exact: true });
+  await expect(evidence.getByText(`Move 2: you played ${missedMove}; your preparation was c4.`, { exact: true })).toBeVisible();
+  await expect(evidence.getByText(/not necessarily a chess blunder/)).toBeVisible();
+  await evidence.getByRole("button", { name: "Review this game", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`#games\\?game=${gameId}$`));
+  await expect(page.locator(".game-chip.active")).toContainText(opponent);
+  await page.screenshot({ path: testInfo.outputPath("game-to-practice-review.png"), fullPage: true });
+  // Finish the paused one-position session so the next browser fixture starts without it.
+  expect((await page.request.post(`/api/v1/openings/reviews/${practice.sessionId}/continue`, {
+    data: { queueEntryId: practice.queueEntryId },
+  })).ok()).toBeTruthy();
 });

@@ -26,6 +26,8 @@ import { OpeningPreparationAdvice } from "./OpeningPreparationAdvice";
 import { OpeningBranchNavigation } from "./OpeningBranchNavigation";
 import { OpeningLineLibrary } from "./OpeningLineLibrary";
 import { OpeningPracticeSelection } from "./OpeningPracticeSelection";
+import { OpeningExplanation } from "./OpeningExplanation";
+import { useOpeningBranchDraft } from "../use-opening-branch-draft";
 
 interface OpeningLineExplorerProps {
   detail: OpeningRepertoireDetailResponse;
@@ -109,6 +111,8 @@ export function OpeningLineExplorer({
   const [coverageBusy, setCoverageBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<"line" | "repertoire" | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const [repertoireName, setRepertoireName] = useState(detail.repertoire.name);
   const [lineTitle, setLineTitle] = useState(initial?.line.title ?? "");
   const [lastMutation, setLastMutation] = useState<{
@@ -132,6 +136,22 @@ export function OpeningLineExplorer({
   const lineDisplayTitle = navigation.branches.get(lineId)?.title ?? line?.title ?? "";
   const previousPosition = returnPositions.findLast(position => navigation.lines.has(position.lineId)) ?? null;
   const sharedMoveCount = currentMove ? navigation.moveUses.get(currentMove.id)?.size ?? 1 : 0;
+  const branchDraft = useOpeningBranchDraft(detail.repertoire.id, pendingMove ? {
+    graphKey, lineId, ply, move: pendingMove, title: branchTitle, explanation: newExplanation,
+  } : null);
+  const restoreDraft = () => {
+    const draft = branchDraft.recovery;
+    const savedLine = draft ? navigation.lines.get(draft.lineId)?.line : null;
+    if (!draft || draft.graphKey !== graphKey || !savedLine || draft.ply > savedLine.moveCount) return;
+    const fen = draft.ply ? savedLine.moves[draft.ply - 1]!.fenAfter : savedLine.moves[0]!.fenBefore;
+    try {
+      const chess = new Chess(fen);
+      const move = chess.move({ from: draft.move.uci.slice(0, 2), to: draft.move.uci.slice(2, 4),
+        ...(draft.move.uci[4] ? { promotion: draft.move.uci[4] } : {}) });
+      setLineId(draft.lineId); setPly(draft.ply); setEditing(true); setPendingMove({ uci: draft.move.uci, san: move.san });
+      setBranchTitle(draft.title); setNewExplanation(draft.explanation); setNotesOpen(true);
+    } catch { setStatus("This draft move is no longer legal here. Copy its note before discarding it."); }
+  };
 
   const setLineArchived = async (archived: boolean): Promise<void> => {
     if (!line || localBusy) return;
@@ -308,6 +328,7 @@ export function OpeningLineExplorer({
       onDetailChanged(result.detail);
       setLineId(result.lineId);
       setPly(ply + 1);
+      branchDraft.clear();
       setPendingMove(null);
       setNewExplanation("");
       setBranchTitle("");
@@ -480,23 +501,18 @@ export function OpeningLineExplorer({
   }
 
   return (
-    <div className="opening-workspace">
+    <div className="opening-workspace board-first-workspace" onKeyDown={event => {
+      if (!event.altKey || navigationBlocked || (event.target as HTMLElement).closest("input, textarea, select, [contenteditable]")) return;
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        event.preventDefault(); choosePly(Math.max(0, Math.min(line.moveCount, ply + (event.key === "ArrowRight" ? 1 : -1))));
+      }
+    }}>
       <div className="panel opening-workspace-heading">
         <div>
-          <span className="eyebrow">Repertoire map</span>
+          <span className="eyebrow">{editing ? "Build" : "Browse"} · saved repertoire</span>
           <h2>{detail.repertoire.name}</h2>
-          <p>Inspect every saved line, step through the moves, then practise the exact branch you choose.</p>
         </div>
         <div className="opening-workspace-actions">
-          {useExplorer && <label className="coverage-rating">
-            Explorer rating
-            <select value={coverageRating} onChange={(event) => { coverageRequestRef.current?.abort(); setCoverageRating(Number(event.target.value)); setCoverage(null); }}>
-              {[1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500].map((rating) => <option key={rating} value={rating}>{rating} band</option>)}
-            </select>
-          </label>}
-          {useExplorer && <button className="secondary" disabled={coverageBusy} onClick={() => void loadCoverage()}>
-            {coverageBusy ? "Checking…" : coverage ? "Refresh coverage" : "Check coverage"}
-          </button>}
           {detail.repertoire.editable && (
             <button disabled={navigationBlocked} className={editing ? "active" : "secondary"} onClick={() => { setEditing((value) => !value); setPendingMove(null); }}>
               {editing ? "Finish editing" : "Edit lines"}
@@ -508,7 +524,206 @@ export function OpeningLineExplorer({
           </button>
         </div>
       </div>
+      {branchDraft.storageError && <p role="alert" className="error">{branchDraft.storageError}</p>}
+      {branchDraft.recovery && !pendingMove && <div className="panel opening-draft-recovery">
+        <strong>Unsaved branch draft found</strong>
+        <p>{branchDraft.recovery.move.san}: {branchDraft.recovery.explanation || "No note added."}</p>
+        {branchDraft.recovery.graphKey !== graphKey && <p>The repertoire changed. Keep a copy of this note; the draft cannot be restored onto a different line.</p>}
+        <button disabled={navigationBlocked || branchDraft.recovery.graphKey !== graphKey} onClick={restoreDraft}>Restore draft</button>
+        <button className="secondary" disabled={navigationBlocked} onClick={() => {
+          if (window.confirm("Discard this unsaved branch and its note?")) branchDraft.clear();
+        }}>Discard branch draft</button>
+      </div>}
+      {deleteTarget && (
+        <div
+          className="panel opening-delete-confirm"
+          role="alertdialog"
+          aria-labelledby="opening-delete-title"
+          ref={deleteDialogRef}
+          tabIndex={-1}
+        >
+          <div>
+            <span className="eyebrow">Confirm deletion</span>
+            <h3 id="opening-delete-title">{deleteTarget === "line" ? `Delete “${line.title}”?` : `Delete “${detail.repertoire.name}”?`}</h3>
+            <p>{deleteTarget === "line" && allLines.length > 1
+              ? "This line, its review results and moves used only by it will be removed for every player profile. Shared moves stay in your other lines. Your imported games stay. This cannot be undone."
+              : "All remaining lines, personal notes and opening-review results in this repertoire will be removed for every player profile on this installation. Your imported games stay. This cannot be undone."}</p>
+            {deleteTarget === "line" && allLines.length === 1 && <p>This is the final line, so the repertoire will also be deleted.</p>}
+            <a href={`/api/v1/openings/repertoires/${detail.repertoire.id}/export.pgn`} download>Export PGN before deleting</a>
+          </div>
+          <div className="answer-actions">
+            <button className="secondary" disabled={localBusy} onClick={() => setDeleteTarget(null)}>
+              {deleteTarget === "line" ? "Keep line" : "Keep repertoire"}
+            </button>
+            <button className="danger-button danger-confirm" disabled={localBusy} onClick={() => void (deleteTarget === "line" ? deleteSelectedLine() : deleteEntireRepertoire())}>
+              {localBusy ? "Deleting…" : deleteTarget === "line" ? "Delete line" : "Delete repertoire"}
+            </button>
+          </div>
+        </div>
+      )}
+      {status && <div className="opening-workspace-status" aria-live="polite">
+        <p className={status.toLowerCase().includes("could not") || status.toLowerCase().includes("not legal") ? "error" : "status"}>{status}</p>
+        {lastMutation && <button className="text-button" disabled={localBusy} onClick={() => void undoLastSave()}>Undo last save</button>}
+      </div>}
 
+      <button
+        className="secondary opening-line-library-toggle"
+        aria-expanded={lineLibraryOpen}
+        aria-controls="opening-line-library"
+        onClick={() => setLineLibraryOpen((open) => !open)}
+      >
+        {lineLibraryOpen ? "Hide line list" : `Choose another line · ${lineDisplayTitle}`}
+      </button>
+
+      <div className="opening-workspace-grid">
+        <OpeningLineLibrary chapters={detail.chapters} index={navigation} selectedLineId={line.id}
+          open={lineLibraryOpen} disabled={navigationBlocked} progress={progressByLine} transpositions={transpositionsByLine} onChoose={chooseLine} />
+
+        <div className="opening-line-board">
+          <div className="candidate-banner">
+            <div>
+              <span>{selected.chapter.title} · {lineDisplayTitle}</span>
+              <small>{editing ? "Play a move to extend this line or create a branch." : "Follow saved moves, or choose Practise this line."} You are {detail.repertoire.learnerColor}.{selectedProgress
+                ? ` ${selectedProgress.mastered}/${selectedProgress.decisions} moves secure for now.`
+                : ""}{selectedTranspositions > 0
+                ? ` ${selectedTranspositions} position${selectedTranspositions === 1 ? "" : "s"} can be reached by another move order.`
+                : ""}</small>
+            </div>
+            <strong>{ply === 0 ? "Starting position" : `${ply} / ${line.moveCount}`}</strong>
+          </div>
+          <p className="opening-board-prompt">{pendingMove ? `Unsaved move: ${pendingMove.san} — save it or choose another.`
+            : editing ? `${displayFen.split(" ")[1] === "w" ? "White" : "Black"} to move — what will you prepare here?`
+            : "Browse this line. Use the board, move list or Next."}</p>
+          <div className="board-toolbar opening-line-controls">
+            <button className="text-button" disabled={navigationBlocked || ply === 0} onClick={() => choosePly(0)}>Start</button>
+            <button className="text-button" title="Alt + Left arrow" disabled={navigationBlocked || ply === 0} onClick={() => choosePly(Math.max(0, ply - 1))}>Previous</button>
+            <span>{currentMove ? `${currentMove.role === "learner" ? "Your move" : "Opponent"}: ${currentMove.moveSan}` : "Choose a move below or step forward"}</span>
+            <button className="text-button" title="Alt + Right arrow" disabled={navigationBlocked || ply >= line.moveCount} onClick={() => choosePly(Math.min(line.moveCount, ply + 1))}>Next</button>
+            <button className="text-button" disabled={navigationBlocked || ply >= line.moveCount} onClick={() => choosePly(line.moveCount)}>End</button>
+          </div>
+          <ChessBoard
+            fen={pendingFen}
+            animateMoves={false}
+            orientation={detail.repertoire.learnerColor}
+            interactive={!navigationBlocked && !line.archived}
+            allowAnnotations
+            sourceAnnotations={showSourceMarks && !pendingMove ? sourceMarks : []}
+            lastMove={pendingMove?.uci ?? currentMove?.moveUci ?? null}
+            onMove={previewNewMove}
+          />
+          {!pendingMove && sourceMarks.length > 0 && <button className="text-button" aria-pressed={showSourceMarks}
+            onClick={() => setShowSourceMarks(value => !value)}>
+            {showSourceMarks ? "Hide source arrows and highlights" : "Show source arrows and highlights"}
+          </button>}
+          {showSourceMarks && !pendingMove && <p className="opening-inspector-help">
+            Source marks: {sourceMarks.map(mark => `${mark.color} ${mark.from === mark.to ? `highlight on ${mark.from}` : `arrow ${mark.from} to ${mark.to}`}`).join("; ")}.
+          </p>}
+          <div className="opening-move-strip" aria-label="Moves in selected line">
+            {line.moves.map((move) => (
+              <button
+                className={move.ply === ply ? "active" : move.role === "learner" ? "learner" : ""}
+                key={`${line.id}-${move.ply}`}
+                disabled={navigationBlocked}
+                aria-current={move.ply === ply ? "step" : undefined}
+                onClick={() => choosePly(move.ply)}
+                aria-label={`Go to move ${move.ply}: ${move.moveSan}`}
+              >
+                {openingMoveLabel(move)}
+              </button>
+            ))}
+          </div>
+          <OpeningBranchNavigation index={navigation} lineId={line.id} ply={ply} disabled={navigationBlocked}
+            onNavigate={navigateTo} previous={previousPosition} onReturn={returnToPreviousLine} />
+          {!editing && !line.archived && <p className="opening-inspector-help">Play a saved move on the board to follow its line. To add a new move, choose Edit lines.</p>}
+        </div>
+
+        <button className="secondary opening-notes-toggle" aria-expanded={notesOpen || editing || Boolean(pendingMove)} aria-controls="opening-move-inspector"
+          onClick={() => setNotesOpen(value => !value)}>{notesOpen ? "Hide notes" : "Notes and move ideas"}</button>
+        <aside id="opening-move-inspector" className={`panel opening-move-inspector ${notesOpen || editing || pendingMove ? "notes-open" : "notes-closed"}`}>
+          {editing && !pendingMove && (
+            <OpeningMoveSuggestions
+              fen={displayFen}
+              learnerColor={detail.repertoire.learnerColor}
+              ratingGroup={coverageRating}
+              useExplorer={useExplorer}
+              savedMoveUcis={savedMoveUcis}
+              onChooseMove={previewNewMove}
+            />
+          )}
+          {pendingMove && (
+            <div className="opening-new-move">
+              <span className="eyebrow">{preparingGap ? "Explore this reply" : ply < line.moveCount ? "New branch" : "Extend line"}</span>
+              <h3>{pendingMove.san}</h3>
+              {displayFen.split(" ")[1] !== (detail.repertoire.learnerColor === "white" ? "w" : "b") && <OpeningPreparationAdvice
+                target={{ fen: displayFen, opponentMoveUci: pendingMove.uci, learnerColor: detail.repertoire.learnerColor,
+                  repertoireId: detail.repertoire.id }} />}
+              <p>{preparingGap
+                ? `This reply appears in ${preparingGap.frequencyPercent}% of the sampled games at this position. Check whether it deserves preparation. Save only if you want to add a response.`
+                : ply < line.moveCount
+                ? "This move differs from the saved continuation. Saving creates another line and keeps the original."
+                : "This move will be added after the current end of the line."}</p>
+              {ply < line.moveCount && <label>Branch name<input value={branchTitle} onChange={(event) => setBranchTitle(event.target.value)} placeholder={`${line.title} — ${pendingMove.san} branch`} /></label>}
+              <label>
+                {displayFen.split(" ")[1] === (detail.repertoire.learnerColor === "white" ? "w" : "b") ? `Why ${pendingMove.san}?` : `What is the idea behind ${pendingMove.san}?`}
+                <textarea rows={4} value={newExplanation} onChange={(event) => setNewExplanation(event.target.value)} placeholder="Optional now — you can add this later." />
+              </label>
+              <div className="answer-actions">
+                <button disabled={localBusy} onClick={() => void saveNewMove()}>{localBusy ? "Saving…" : "Save move"}</button>
+                <button className="secondary" disabled={localBusy} onClick={() => { branchDraft.clear(); setPendingMove(null); setPreparingGap(null); }}>Choose another</button>
+              </div>
+            </div>
+          )}
+          {!pendingMove && <>
+          <span className="eyebrow">{currentMove ? currentMove.role === "learner" ? "Your decision" : "Opponent reply" : "Line overview"}</span>
+          <h3>{currentMove?.moveSan ?? lineDisplayTitle}</h3>
+          {!currentMove && (
+            <>
+              <p>{line.sanSequence}</p>
+              <details><summary>Chapter notes</summary><p>{selected.chapter.introduction}</p></details>
+              <dl>
+                <div><dt>Moves</dt><dd>{line.moveCount}</dd></div>
+                <div><dt>Your decisions</dt><dd>{line.learnerDecisionCount}</dd></div>
+              </dl>
+              <p className="opening-inspector-help">Use Next or select a move below the board to see why it belongs in the repertoire.</p>
+            </>
+          )}
+          {currentMove && (
+            <div className="opening-inspector-copy">
+              {sharedMoveCount > 1 && <p className="opening-shared-annotation">This move is used in {sharedMoveCount} lines. Memory progress and your learning comment are shared; source notes belong to this line. Editing an explanation applies to all these lines.</p>}
+              <OpeningExplanation explanation={currentMove.explanation} showPersonalComment={false} />
+              <OpeningLearningComment
+                repertoireId={detail.repertoire.id}
+                moveId={currentMove.id}
+                comment={currentMove.explanation.personalComment}
+                onEditingChange={setEditingComment}
+                onSaved={(comment) => updateLearningComment(currentMove.id, comment)}
+              />
+              {detail.repertoire.editable && !editingExplanation && (
+                <button className="secondary" onClick={() => { setExplanationText(currentMove.explanation.summary); setEditingExplanation(true); }}>
+                  Edit explanation
+                </button>
+              )}
+              {detail.repertoire.editable && editingExplanation && (
+                <div className="opening-explanation-editor">
+                  <label>Your explanation<textarea rows={5} value={explanationText} onChange={(event) => setExplanationText(event.target.value)} /></label>
+                  <div className="answer-actions">
+                    <button disabled={localBusy || !explanationText.trim()} onClick={() => void saveExplanation()}>{localBusy ? "Saving…" : "Save explanation"}</button>
+                    <button className="secondary" onClick={() => setEditingExplanation(false)}>Cancel</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          </>}
+        </aside>
+      </div>
+      <details className="panel opening-workspace-tools" open={toolsOpen} onToggle={event => setToolsOpen(event.currentTarget.open)}>
+      <summary>Coverage and repertoire settings</summary>
+      {useExplorer && <div className="answer-actions"><label>Explorer rating
+        <select value={coverageRating} onChange={event => { coverageRequestRef.current?.abort(); setCoverageRating(Number(event.target.value)); setCoverage(null); }}>
+          {[1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500].map(rating => <option key={rating} value={rating}>{rating} band</option>)}
+        </select></label><button className="secondary" disabled={coverageBusy} onClick={() => void loadCoverage()}>
+          {coverageBusy ? "Checking…" : coverage ? "Refresh coverage" : "Check coverage"}</button></div>}
       {coverage && (
         <div className="panel opening-coverage" role="status">
           <div>
@@ -579,191 +794,7 @@ export function OpeningLineExplorer({
             >Delete repertoire</button>
           </div>
       </details>
-      {deleteTarget && (
-        <div
-          className="panel opening-delete-confirm"
-          role="alertdialog"
-          aria-labelledby="opening-delete-title"
-          ref={deleteDialogRef}
-          tabIndex={-1}
-        >
-          <div>
-            <span className="eyebrow">Confirm deletion</span>
-            <h3 id="opening-delete-title">{deleteTarget === "line" ? `Delete “${line.title}”?` : `Delete “${detail.repertoire.name}”?`}</h3>
-            <p>{deleteTarget === "line" && allLines.length > 1
-              ? "This line, its review results and moves used only by it will be removed for every player profile. Shared moves stay in your other lines. Your imported games stay. This cannot be undone."
-              : "All remaining lines, personal notes and opening-review results in this repertoire will be removed for every player profile on this installation. Your imported games stay. This cannot be undone."}</p>
-            {deleteTarget === "line" && allLines.length === 1 && <p>This is the final line, so the repertoire will also be deleted.</p>}
-            <a href={`/api/v1/openings/repertoires/${detail.repertoire.id}/export.pgn`} download>Export PGN before deleting</a>
-          </div>
-          <div className="answer-actions">
-            <button className="secondary" disabled={localBusy} onClick={() => setDeleteTarget(null)}>
-              {deleteTarget === "line" ? "Keep line" : "Keep repertoire"}
-            </button>
-            <button className="danger-button danger-confirm" disabled={localBusy} onClick={() => void (deleteTarget === "line" ? deleteSelectedLine() : deleteEntireRepertoire())}>
-              {localBusy ? "Deleting…" : deleteTarget === "line" ? "Delete line" : "Delete repertoire"}
-            </button>
-          </div>
-        </div>
-      )}
-      {status && <div className="opening-workspace-status" aria-live="polite">
-        <p className={status.toLowerCase().includes("could not") || status.toLowerCase().includes("not legal") ? "error" : "status"}>{status}</p>
-        {lastMutation && <button className="text-button" disabled={localBusy} onClick={() => void undoLastSave()}>Undo last save</button>}
-      </div>}
-
-      <button
-        className="secondary opening-line-library-toggle"
-        aria-expanded={lineLibraryOpen}
-        aria-controls="opening-line-library"
-        onClick={() => setLineLibraryOpen((open) => !open)}
-      >
-        {lineLibraryOpen ? "Hide line list" : `Choose another line · ${lineDisplayTitle}`}
-      </button>
-
-      <div className="opening-workspace-grid">
-        <OpeningLineLibrary chapters={detail.chapters} index={navigation} selectedLineId={line.id}
-          open={lineLibraryOpen} disabled={navigationBlocked} progress={progressByLine} transpositions={transpositionsByLine} onChoose={chooseLine} />
-
-        <div className="opening-line-board">
-          <div className="candidate-banner">
-            <div>
-              <span>{selected.chapter.title} · {lineDisplayTitle}</span>
-              <small>You are {detail.repertoire.learnerColor}. Your side is nearest.{selectedProgress
-                ? ` ${selectedProgress.mastered}/${selectedProgress.decisions} moves secure for now.`
-                : ""}{selectedTranspositions > 0
-                ? ` ${selectedTranspositions} position${selectedTranspositions === 1 ? "" : "s"} can be reached by another move order.`
-                : ""}</small>
-            </div>
-            <strong>{ply === 0 ? "Starting position" : `${ply} / ${line.moveCount}`}</strong>
-          </div>
-          <div className="board-toolbar opening-line-controls">
-            <button className="text-button" disabled={navigationBlocked || ply === 0} onClick={() => choosePly(0)}>Start</button>
-            <button className="text-button" disabled={navigationBlocked || ply === 0} onClick={() => choosePly(Math.max(0, ply - 1))}>Previous</button>
-            <span>{currentMove ? `${currentMove.role === "learner" ? "Your move" : "Opponent"}: ${currentMove.moveSan}` : "Choose a move below or step forward"}</span>
-            <button className="text-button" disabled={navigationBlocked || ply >= line.moveCount} onClick={() => choosePly(Math.min(line.moveCount, ply + 1))}>Next</button>
-            <button className="text-button" disabled={navigationBlocked || ply >= line.moveCount} onClick={() => choosePly(line.moveCount)}>End</button>
-          </div>
-          <ChessBoard
-            fen={pendingFen}
-            orientation={detail.repertoire.learnerColor}
-            interactive={!navigationBlocked && !line.archived}
-            allowAnnotations
-            sourceAnnotations={showSourceMarks && !pendingMove ? sourceMarks : []}
-            lastMove={pendingMove?.uci ?? currentMove?.moveUci ?? null}
-            onMove={previewNewMove}
-          />
-          {!pendingMove && sourceMarks.length > 0 && <button className="text-button" aria-pressed={showSourceMarks}
-            onClick={() => setShowSourceMarks(value => !value)}>
-            {showSourceMarks ? "Hide source arrows and highlights" : "Show source arrows and highlights"}
-          </button>}
-          {showSourceMarks && !pendingMove && <p className="opening-inspector-help">
-            Source marks: {sourceMarks.map(mark => `${mark.color} ${mark.from === mark.to ? `highlight on ${mark.from}` : `arrow ${mark.from} to ${mark.to}`}`).join("; ")}.
-          </p>}
-          <div className="opening-move-strip" aria-label="Moves in selected line">
-            {line.moves.map((move) => (
-              <button
-                className={move.ply === ply ? "active" : move.role === "learner" ? "learner" : ""}
-                key={`${line.id}-${move.ply}`}
-                disabled={navigationBlocked}
-                aria-current={move.ply === ply ? "step" : undefined}
-                onClick={() => choosePly(move.ply)}
-                aria-label={`Go to move ${move.ply}: ${move.moveSan}`}
-              >
-                {openingMoveLabel(move)}
-              </button>
-            ))}
-          </div>
-          <OpeningBranchNavigation index={navigation} lineId={line.id} ply={ply} disabled={navigationBlocked}
-            onNavigate={navigateTo} previous={previousPosition} onReturn={returnToPreviousLine} />
-          {!editing && !line.archived && <p className="opening-inspector-help">Play a saved move on the board to follow its line. To add a new move, choose Edit lines.</p>}
-        </div>
-
-        <aside className="panel opening-move-inspector">
-          {editing && !pendingMove && (
-            <OpeningMoveSuggestions
-              fen={displayFen}
-              learnerColor={detail.repertoire.learnerColor}
-              ratingGroup={coverageRating}
-              useExplorer={useExplorer}
-              savedMoveUcis={savedMoveUcis}
-              onChooseMove={previewNewMove}
-            />
-          )}
-          {pendingMove && (
-            <div className="opening-new-move">
-              <span className="eyebrow">{preparingGap ? "Explore this reply" : ply < line.moveCount ? "New branch" : "Extend line"}</span>
-              <h3>{pendingMove.san}</h3>
-              {displayFen.split(" ")[1] !== (detail.repertoire.learnerColor === "white" ? "w" : "b") && <OpeningPreparationAdvice
-                target={{ fen: displayFen, opponentMoveUci: pendingMove.uci, learnerColor: detail.repertoire.learnerColor,
-                  repertoireId: detail.repertoire.id }} />}
-              <p>{preparingGap
-                ? `This reply appears in ${preparingGap.frequencyPercent}% of the sampled games at this position. Check whether it deserves preparation. Save only if you want to add a response.`
-                : ply < line.moveCount
-                ? "This move differs from the saved continuation. Saving creates another line and keeps the original."
-                : "This move will be added after the current end of the line."}</p>
-              {ply < line.moveCount && <label>Branch name<input value={branchTitle} onChange={(event) => setBranchTitle(event.target.value)} placeholder={`${line.title} — ${pendingMove.san} branch`} /></label>}
-              <label>
-                {displayFen.split(" ")[1] === (detail.repertoire.learnerColor === "white" ? "w" : "b") ? `Why ${pendingMove.san}?` : `What is the idea behind ${pendingMove.san}?`}
-                <textarea rows={4} value={newExplanation} onChange={(event) => setNewExplanation(event.target.value)} placeholder="Optional now — you can add this later." />
-              </label>
-              <div className="answer-actions">
-                <button disabled={localBusy} onClick={() => void saveNewMove()}>{localBusy ? "Saving…" : "Save move"}</button>
-                <button className="secondary" disabled={localBusy} onClick={() => { setPendingMove(null); setPreparingGap(null); }}>Choose another</button>
-              </div>
-            </div>
-          )}
-          {!pendingMove && <>
-          <span className="eyebrow">{currentMove ? currentMove.role === "learner" ? "Your decision" : "Opponent reply" : "Line overview"}</span>
-          <h3>{currentMove?.moveSan ?? lineDisplayTitle}</h3>
-          {!currentMove && (
-            <>
-              <p>{line.sanSequence}</p>
-              <details><summary>Chapter notes</summary><p>{selected.chapter.introduction}</p></details>
-              <dl>
-                <div><dt>Moves</dt><dd>{line.moveCount}</dd></div>
-                <div><dt>Your decisions</dt><dd>{line.learnerDecisionCount}</dd></div>
-              </dl>
-              <p className="opening-inspector-help">Use Next or select a move below the board to see why it belongs in the repertoire.</p>
-            </>
-          )}
-          {currentMove && (
-            <div className="opening-inspector-copy">
-              {sharedMoveCount > 1 && <p className="opening-shared-annotation">This move is used in {sharedMoveCount} lines. Its explanation and your learning comment are shared across those lines.</p>}
-              <strong>{currentMove.role === "learner" ? "Why this move" : "What they are trying to do"}</strong>
-              <p>{currentMove.role === "opponent" && currentMove.explanation.opponentIdea
-                ? currentMove.explanation.opponentIdea
-                : currentMove.explanation.summary}</p>
-              <strong>What changes</strong>
-              <ul>{currentMove.explanation.changes.map((change) => <li key={change}>{change}</li>)}</ul>
-              {currentMove.explanation.resultingPlan && <><strong>Plan</strong><p>{currentMove.explanation.resultingPlan}</p></>}
-              {currentMove.explanation.tacticalWarning && <><strong>Watch out</strong><p>{currentMove.explanation.tacticalWarning}</p></>}
-              {currentMove.explanation.commonMistake && <><strong>Common mistake</strong><p>{currentMove.explanation.commonMistake}</p></>}
-              <OpeningLearningComment
-                repertoireId={detail.repertoire.id}
-                moveId={currentMove.id}
-                comment={currentMove.explanation.personalComment}
-                onEditingChange={setEditingComment}
-                onSaved={(comment) => updateLearningComment(currentMove.id, comment)}
-              />
-              {detail.repertoire.editable && !editingExplanation && (
-                <button className="secondary" onClick={() => { setExplanationText(currentMove.explanation.summary); setEditingExplanation(true); }}>
-                  Edit explanation
-                </button>
-              )}
-              {detail.repertoire.editable && editingExplanation && (
-                <div className="opening-explanation-editor">
-                  <label>Your explanation<textarea rows={5} value={explanationText} onChange={(event) => setExplanationText(event.target.value)} /></label>
-                  <div className="answer-actions">
-                    <button disabled={localBusy || !explanationText.trim()} onClick={() => void saveExplanation()}>{localBusy ? "Saving…" : "Save explanation"}</button>
-                    <button className="secondary" onClick={() => setEditingExplanation(false)}>Cancel</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-          </>}
-        </aside>
-      </div>
+      </details>
     </div>
   );
 }

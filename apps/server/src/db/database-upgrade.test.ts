@@ -64,7 +64,7 @@ describe("opening database upgrades", () => {
           .toEqual({ state: 2, repetitions: 4, stability: 12 });
         expect(database.connection.prepare("SELECT COUNT(*) FROM opening_review_events").pluck().get()).toBe(1);
         expect(database.connection.pragma("foreign_key_check")).toEqual([]);
-        expect(database.connection.prepare("SELECT MAX(version) FROM schema_migrations").pluck().get()).toBe(29);
+        expect(database.connection.prepare("SELECT MAX(version) FROM schema_migrations").pluck().get()).toBe(30);
         expect(database.connection.prepare("SELECT summary, board_annotations_json FROM opening_move_annotations WHERE move_id = 'legacy-move'").get())
           .toEqual({ summary: "Claim the centre", board_annotations_json: "[]" });
         // Historical position evidence must not falsely prove every alternative.

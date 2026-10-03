@@ -17,6 +17,8 @@ import { openingPositionKey } from "./opening-content.js";
 import { practiceReplyFrequency, preparationNote } from "./opening-preparation-store.js";
 import { practiceLineEligible } from "./opening-practice-eligibility.js";
 import { openingResponseMs } from "./opening-response-time.js";
+import { sourceExplanation } from "./opening-context.js";
+import { openingReviewEvidence } from "./opening-review-evidence.js";
 import {
   OPENING_SCHEDULER_VERSION,
   scheduleOpeningReview,
@@ -38,6 +40,7 @@ interface ReviewItemRow extends StoredOpeningReviewCard {
   learner_color: "white" | "black";
   repertoire_name: string;
   summary: string;
+  concepts_json: string;
   changes_json: string;
   resulting_plan: string | null;
   tactical_warning: string | null;
@@ -918,7 +921,7 @@ export class OpeningReviewService {
     const row = this.db.prepare(`
       SELECT ori.*, target.id AS target_move_id,
              target.move_uci, target.move_san, before.fen AS from_fen, after.fen AS to_fen,
-             r.learner_color, r.name AS repertoire_name, a.summary, a.changes_json,
+             r.learner_color, r.name AS repertoire_name, a.summary, a.changes_json, a.concepts_json,
              a.resulting_plan, a.tactical_warning, a.common_mistake, a.board_annotations_json,
              lc.comment AS personal_comment
       FROM opening_review_items ori
@@ -1039,33 +1042,7 @@ export class OpeningReviewService {
     const learningStage = item.state === 0 && item.repetitions === 0
       ? "new"
       : item.state === 1 || item.state === 3 ? "learning" : "review";
-    const gameMissCount = Number(this.db.prepare(`
-      WITH ranked_matches AS (
-        SELECT gom.*,
-               ROW_NUMBER() OVER (
-                 PARTITION BY gom.game_id
-                 ORDER BY gom.matched_plies DESC,
-                          gom.matched_player_moves DESC,
-                          CASE gom.status
-                            WHEN 'in_repertoire' THEN 5
-                            WHEN 'player_deviation' THEN 4
-                            WHEN 'opponent_deviation' THEN 3
-                            WHEN 'repertoire_ended' THEN 2
-                            ELSE 1
-                          END DESC,
-                          CASE WHEN oi.repertoire_id IS NULL THEN 0 ELSE 1 END DESC,
-                          r.name
-               ) AS match_rank
-        FROM game_opening_matches gom
-        JOIN opening_repertoires r ON r.id = gom.repertoire_id
-        LEFT JOIN opening_imports oi ON oi.repertoire_id = gom.repertoire_id
-        WHERE gom.profile_id = ?
-      )
-      SELECT COUNT(DISTINCT game_id)
-      FROM ranked_matches
-      WHERE match_rank = 1 AND repertoire_id = ? AND expected_move_id = ?
-        AND status = 'player_deviation'
-    `).pluck().get(item.profile_id, item.repertoire_id, item.target_move_id));
+    const gameMissCount = openingReviewEvidence(this.db, item.profile_id, item.repertoire_id, item.target_move_id).occurrences;
     const practiceReason = queue.presentation_kind === "lapse_repeat"
       ? { kind: "retry" as const, label: "Retrying this move without help" }
       : gameMissCount > 0
@@ -1086,6 +1063,7 @@ export class OpeningReviewService {
       commonMistake: item.common_mistake,
       personalComment: item.personal_comment,
       boardAnnotations: JSON.parse(item.board_annotations_json),
+      ...this.contextExplanation(item, context?.line_id, context?.target_ply),
     };
     const acceptedMoves = queue.expected_move_id
       ? [{ moveUci: item.move_uci, moveSan: item.move_san }]
@@ -1102,6 +1080,7 @@ export class OpeningReviewService {
       learningStage,
       practiceReason,
       lineRun: queue.source_line_id && context ? { lineId: context.line_id, lineTitle: context.line_title, chapterTitle: context.chapter_title } : null,
+      ...(context ? { sourceContext: { lineId: context.line_id, ply: context.target_ply } } : {}),
       fenBeforeOpponent: hasOpponentContext ? context!.previous_fen! : item.from_fen,
       fenToMove: item.from_fen,
       opponentMove: hasOpponentContext
@@ -1161,12 +1140,30 @@ export class OpeningReviewService {
         commonMistake: item.common_mistake,
         personalComment: item.personal_comment,
         boardAnnotations: JSON.parse(item.board_annotations_json),
+        ...this.contextExplanation(item, exercise.sourceContext?.lineId, exercise.sourceContext?.ply),
       },
       nextDueAt: event.next_due_at,
       lapseQueued: lapseQueued || Boolean(this.db.prepare(`SELECT 1 FROM opening_review_queue
         WHERE session_id = ? AND review_item_id = ? AND expected_move_id IS ? AND status = 'pending'`)
         .get(queue.session_id, queue.review_item_id, queue.expected_move_id)),
+      sourceGames: openingReviewEvidence(this.db, item.profile_id, item.repertoire_id, item.target_move_id),
     };
+  }
+
+  private contextExplanation(item: ReviewItemRow, lineId?: string, ply?: number) {
+    if (!lineId || !ply) return {};
+    const source = sourceExplanation(this.db, lineId, ply);
+    if (!source) return {};
+    // An accepted alternative can differ from the path's reference move.
+    const member = this.db.prepare("SELECT move_id FROM opening_line_moves WHERE line_id = ? AND ply = ?")
+      .pluck().get(lineId, ply);
+    if (member !== item.target_move_id) return {};
+    if (source.concepts.includes("missing_explanation") && item.concepts_json.includes('"missing_explanation"')
+      && !/^No explanation has been added for /.test(item.summary)) return {};
+    if (item.concepts_json.includes('"personal_explanation"')) return { sourceSummary: source.summary, boardAnnotations: source.boardAnnotations ?? [] };
+    return { summary: source.summary, changes: [...source.changes], resultingPlan: source.resultingPlan ?? null,
+      tacticalWarning: source.tacticalWarning ?? null, commonMistake: source.commonMistake ?? null,
+      boardAnnotations: source.boardAnnotations ?? [] };
   }
 
   private complete(sessionId: string): OpeningReviewComplete {

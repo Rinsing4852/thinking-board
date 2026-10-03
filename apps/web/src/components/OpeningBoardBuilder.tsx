@@ -7,14 +7,8 @@ import { ChessBoard } from "./ChessBoard";
 import { OpeningAnalysisSandbox, type SandboxMove } from "./OpeningAnalysisSandbox";
 import { OpeningMoveSuggestions } from "./OpeningMoveSuggestions";
 import { OpeningPreparationAdvice } from "./OpeningPreparationAdvice";
-
-interface BuiltMove {
-  moveUci: string;
-  moveSan: string;
-  fenBefore: string;
-  fenAfter: string;
-  note: string;
-}
+import { useOpeningDraft } from "../use-opening-draft";
+import type { BuiltMove } from "../opening-draft";
 
 interface OpeningBoardBuilderProps {
   ratingGroup: number;
@@ -39,9 +33,11 @@ function pgnFor(name: string, moves: BuiltMove[]): string {
 }
 
 export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSaved }: OpeningBoardBuilderProps) {
-  const [name, setName] = useState("");
-  const [learnerColor, setLearnerColor] = useState<Color>("white");
-  const [moves, setMoves] = useState<BuiltMove[]>([]);
+  const { draft, setDraft, recovered, storageError, discard } = useOpeningDraft();
+  const { name, learnerColor, moves } = draft;
+  const setName = (value: string) => setDraft(current => ({ ...current, name: value }));
+  const setLearnerColor = (value: Color) => setDraft(current => ({ ...current, learnerColor: value }));
+  const setMoves = (update: (moves: BuiltMove[]) => BuiltMove[]) => setDraft(current => ({ ...current, moves: update(current.moves) }));
   const [analysisOpen, setAnalysisOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -91,6 +87,7 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
       });
       const repertoireId = response.repertoireIds[0];
       if (!repertoireId) throw new Error("The repertoire was saved but could not be opened");
+      discard();
       onSaved(repertoireId);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Could not save this repertoire");
@@ -112,13 +109,13 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
           <h2>Build your repertoire one decision at a time</h2>
           <p>Choose a practical move beside the board or play one directly. Open the analysis board only when you want to investigate a position more deeply.</p>
         </div>
-        <button className="secondary" onClick={onCancel}>Cancel</button>
+        <button className="secondary" onClick={onCancel}>Back to repertoires</button>
       </div>
 
       <div className="panel opening-builder-settings">
         <label>
           Repertoire name
-          <input value={name} onChange={(event) => setName(event.target.value)} placeholder="My White 1.e4 repertoire" />
+          <input maxLength={120} value={name} onChange={(event) => setName(event.target.value)} placeholder="My White 1.e4 repertoire" />
         </label>
         <label>
           I am preparing
@@ -128,8 +125,12 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
           </select>
         </label>
         <div className="opening-builder-status">
-          <strong>{moves.length === 0 ? "No moves saved yet" : `${moves.length} move${moves.length === 1 ? "" : "s"} in this line`}</strong>
+          <strong>{recovered ? "Recovered draft" : "Unsaved repertoire draft"}</strong>
           <span>{learnerMoves.length} decision{learnerMoves.length === 1 ? "" : "s"} for you</span>
+          <small>{storageError || "Kept on this browser until you save or discard it."}</small>
+          <button className="text-button" disabled={submitting || (!name && !moves.length)} onClick={() => {
+            if (window.confirm("Discard this unsaved draft? Saved repertoires are not affected.")) discard();
+          }}>Discard draft</button>
         </div>
         <button disabled={!name.trim() || learnerMoves.length === 0 || submitting} onClick={() => void save()}>
           {submitting ? "Saving…" : "Save repertoire"}
@@ -195,6 +196,7 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
                   <p>Add a short explanation if you know it. Leaving this blank is honest and can be filled in later.</p>
                   <textarea
                     rows={4}
+                    maxLength={1000}
                     value={lastMove.note}
                     onChange={(event) => updateLastNote(event.target.value)}
                     placeholder={lastMoveBelongsToLearner ? "For example: Develops with tempo and prepares castling." : "For example: Challenges the centre and opens the bishop."}

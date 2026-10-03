@@ -16,6 +16,8 @@ import { formatMoveLabel, formatOpeningLineContext } from "../training-language"
 import { ChessBoard } from "./ChessBoard";
 import { OpeningExplanation } from "./OpeningExplanation";
 import { OpeningLearningComment } from "./OpeningLearningComment";
+import { OpeningReviewEvidence } from "./OpeningReviewEvidence";
+import { hasOpeningReason } from "../opening-explanation";
 
 interface OpeningReviewProps {
   initial: OpeningReviewActiveState;
@@ -27,6 +29,10 @@ interface OpeningReviewProps {
   onRepeatLine?: () => void;
   onNextLine?: (() => void) | undefined;
   onBackToRepertoire?: () => void;
+  onOpenGame?: ((gameId: string) => void) | undefined;
+  contextError?: string;
+  contextLoading?: boolean;
+  onRetryContext?: () => void;
 }
 
 function signalBoardResult(correct: boolean): void {
@@ -70,12 +76,14 @@ function dueLabel(nextDueAt: string, lapseQueued: boolean): string {
 }
 
 export function OpeningReview({ initial, boardSounds = false, onComplete, onPause, onPracticeMore,
-  navigationBusy = false, onRepeatLine, onNextLine, onBackToRepertoire }: OpeningReviewProps) {
+  navigationBusy = false, onRepeatLine, onNextLine, onBackToRepertoire, onOpenGame,
+  contextError = "", contextLoading = false, onRetryContext }: OpeningReviewProps) {
   const initialExercise = initial.kind === "feedback" ? initial.exercise : initial;
   const [exercise, setExercise] = useState<OpeningReviewExercise>(initialExercise);
   const [feedback, setFeedback] = useState<OpeningReviewFeedback | null>(initial.kind === "feedback" ? initial : null);
   const [lastAnswered, setLastAnswered] = useState<OpeningReviewFeedback | null>(initial.kind === "feedback" ? initial : null);
   const [explanationOpen, setExplanationOpen] = useState(false);
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
   const [editingLineComment, setEditingLineComment] = useState(false);
   const [complete, setComplete] = useState<OpeningReviewComplete | null>(null);
   const [observing, setObserving] = useState(initial.kind === "exercise" && Boolean(initial.opponentMove));
@@ -112,6 +120,7 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
     setExercise(next);
     setFeedback(null);
     setExplanationOpen(false);
+    setEvidenceOpen(false);
     setEditingLineComment(false);
     setMoveNotice("");
     setHintSquares([]);
@@ -294,6 +303,11 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
       onSaved={updateLastMoveComment} />
     <p className="opening-next-due">{dueLabel(lastAnswered.nextDueAt, lastAnswered.lapseQueued)}</p>
   </section>;
+  const evidenceAction = lastAnswered && <button className="text-button" disabled={submitting || editingLineComment}
+    aria-expanded={evidenceOpen} onClick={() => {
+      const open = !evidenceOpen; setEvidenceOpen(open); flow.pause("evidence", open);
+    }}>{evidenceOpen ? "Close review context" : "Why this exercise?"}</button>;
+  const evidencePanel = evidenceOpen && lastAnswered && <OpeningReviewEvidence feedback={lastAnswered} onOpenGame={onOpenGame} />;
 
   if (complete) {
     return (
@@ -318,6 +332,10 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
           </>}
         </div>
         {lineExplanationAction}
+        {fullLinePractice && (contextLoading ? <p role="status">Loading the next line…</p>
+          : contextError ? <p role="alert">{contextError} <button className="text-button" onClick={onRetryContext}>Retry line list</button></p>
+          : !onNextLine && <p>You have reached the last enabled line. Repeat it or return to your repertoire.</p>)}
+        {evidenceAction}{evidencePanel}
         {explanationOpen && lastAnswered && <ChessBoard fen={lastAnswered.fenAfterMove}
           orientation={lastAnswered.exercise.learnerColor} lastMove={lastAnswered.repertoireMove.moveUci}
           sourceAnnotations={lastAnswered.explanation.boardAnnotations ?? []} />}
@@ -379,7 +397,7 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
           <ChessBoard
             fen={explanationOpen && lastAnswered ? lastAnswered.fenAfterMove : displayFen}
             orientation={exercise.learnerColor}
-            interactive={!observing && !feedback && !submitting && !explanationOpen}
+            interactive={!observing && !feedback && !submitting && !explanationOpen && !evidenceOpen}
             lastMove={explanationOpen && lastAnswered ? lastAnswered.repertoireMove.moveUci : lastMove}
             highlightedSquares={explanationOpen ? [] : hintSquares}
             rejectedMove={explanationOpen ? null : rejectedMove}
@@ -395,6 +413,7 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
             </button>
           </div>}
           {lineExplanationAction}
+          {evidenceAction}
           <div className="opening-line-context below-board" aria-label="Moves leading to this position">
             <span>Position reached after</span>
             <strong>{formatOpeningLineContext(explanationOpen && lastAnswered ? [...lastAnswered.exercise.movesBefore, lastAnswered.repertoireMove.moveSan] : exercise.movesBefore)}</strong>
@@ -415,7 +434,7 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
             <>
               <span className="eyebrow">{!fullLinePractice && exercise.learningStage === "new" ? "LEARN" : "YOUR MOVE"}</span>
               <h3>{!fullLinePractice && exercise.learningStage === "new" ? "Find the move from its purpose." : exercise.prompt}</h3>
-              {!fullLinePractice && exercise.learningStage === "new" && (
+              {!fullLinePractice && exercise.learningStage === "new" && hasOpeningReason(exercise.introduction.explanation.summary) && (
                 <div className="opening-preview-summary opening-purpose-cue">
                   <strong>Why this move belongs</strong>
                   <p>{exercise.introduction.explanation.summary}</p>
@@ -439,7 +458,8 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
               <h3>{feedback.repertoireMove.moveSan}</h3>
               {!fullLinePractice && <>
                 <p>{feedback.message}</p>
-                <p className="opening-feedback-summary"><strong>Why:</strong> {feedback.explanation.summary}</p>
+                <p className="opening-feedback-summary">{hasOpeningReason(feedback.explanation.summary)
+                  ? <><strong>Why:</strong> {feedback.explanation.summary}</> : "No reason written yet. You can add your own learning comment."}</p>
                 <details
                   className="opening-feedback-details"
                   onToggle={(event) => flow.pause("explanation", event.currentTarget.open)}
@@ -469,6 +489,7 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
             </div>
           )}
           {requestedExplanation}
+          {evidencePanel}
           {error && <p className="error" role="alert">{error}</p>}
         </div>
       </div>

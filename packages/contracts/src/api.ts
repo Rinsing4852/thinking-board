@@ -90,6 +90,7 @@ export interface OpeningLineMove {
   fenAfter: string;
   explanation: {
     summary: string;
+    sourceSummary?: string;
     changes: string[];
     concepts: string[];
     opponentIdea: string | null;
@@ -583,6 +584,7 @@ export interface OpeningReviewExercise {
   learningStage: "new" | "learning" | "review";
   practiceReason: { kind: OpeningReviewReasonKind; label: string };
   lineRun: { lineId: string; lineTitle: string; chapterTitle?: string } | null;
+  sourceContext?: { lineId: string; ply: number };
   fenBeforeOpponent: string;
   fenToMove: string;
   opponentMove: OpeningReviewOpponentMove | null;
@@ -597,6 +599,7 @@ export interface OpeningReviewExercise {
     fenAfterMove: string;
     explanation: {
       summary: string;
+      sourceSummary?: string;
       changes: string[];
       resultingPlan: string | null;
       tacticalWarning: string | null;
@@ -621,6 +624,7 @@ export interface OpeningReviewFeedback {
   message: string;
   explanation: {
     summary: string;
+    sourceSummary?: string;
     changes: string[];
     resultingPlan: string | null;
     tacticalWarning: string | null;
@@ -630,6 +634,13 @@ export interface OpeningReviewFeedback {
   };
   nextDueAt: string;
   lapseQueued: boolean;
+  sourceGames?: OpeningReviewGameEvidence;
+}
+
+export interface OpeningReviewGameEvidence {
+  occurrences: number;
+  games: Array<{ gameId: string; white: string; black: string; playedAt: string | null;
+    playedMove: string; repertoireMove: string; moveNumber: number }>;
 }
 
 export interface OpeningReviewComplete {

@@ -39,6 +39,8 @@ export interface AuthoredOpeningMove {
   explanation: MoveExplanation;
   frequency?: number;
   kind?: "primary" | "alternative";
+  personalComment?: string;
+  personalExplanation?: string;
 }
 
 export interface AuthoredOpeningLine {
@@ -104,6 +106,7 @@ export interface CompiledLine {
   priority: number;
   moveIds: string[];
   positionIds: string[];
+  explanations: MoveExplanation[];
 }
 
 export interface CompiledChapter {
@@ -172,7 +175,8 @@ function validateExplanation(
 ): void {
   if (!explanation || typeof explanation !== "object") throw new Error(`${label} explanation is required`);
   nonEmpty(explanation.summary, `${label} explanation summary`);
-  if (!Array.isArray(explanation.changes) || explanation.changes.length === 0) {
+  if (!Array.isArray(explanation.changes) || (explanation.changes.length === 0
+    && !explanation.concepts?.some(concept => concept === "imported_note" || concept === "missing_explanation"))) {
     throw new Error(`${label} must describe what the move changes`);
   }
   explanation.changes.forEach((change, index) => nonEmpty(change, `${label} change ${index + 1}`));
@@ -300,7 +304,7 @@ export function compileOpeningCurriculum(curriculum: OpeningCurriculum): Compile
         const to = putPosition(applied.fen);
         const moveId = stableId("om", `${curriculum.id}|${from.key}|${authoredMove.moveUci}`);
         const existing = moves.get(moveId);
-        if (existing && !annotationsMatch(existing.explanation, authoredMove.explanation)) {
+        if (existing && !curriculum.style.includes("imported") && !annotationsMatch(existing.explanation, authoredMove.explanation)) {
           throw new Error(`${label} repeats a position move with conflicting explanations`);
         }
         const kind = role === "opponent" ? "response" : (authoredMove.kind ?? "primary");
@@ -332,6 +336,7 @@ export function compileOpeningCurriculum(curriculum: OpeningCurriculum): Compile
         priority: line.priority,
         moveIds,
         positionIds,
+        explanations: line.moves.map(move => move.explanation),
       };
     });
 

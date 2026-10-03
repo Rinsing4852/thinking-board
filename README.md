@@ -17,8 +17,9 @@ The V1 loop turns a player's own PGN into thinking-process drills:
 
 Opening practice uses a versioned curriculum format compiled into a
 transposition-aware position graph. The web interface includes an independently
-authored practical White 1.e4 repertoire and a Black Modern Defence repertoire,
-plus private PGN repertoire imports. New positions use a learn → understand →
+authored curriculum format and private PGN repertoire imports. Fresh installations
+start empty; upgrades keep existing White 1.e4/Modern starter material until you
+choose to remove it. New positions use a learn → understand →
 unassisted recall sequence before entering the local FSRS schedule. Seeing the
 answer never masquerades as remembering it: an assisted move returns later in
 the same session. Correct independent recalls move further into the future;
@@ -50,6 +51,18 @@ Same-session retries are separated by at least two other positions and capped
 at two per move. If the set is too short, the scheduled review handles the retry
 instead of trapping the learner in an immediate reveal-and-repeat loop.
 
+Browsing and practising use a board-first layout. Starting a line drill keeps the
+browser workspace in place; returning restores the line and position you were
+inspecting. Coverage and management stay below the board; mobile notes open on
+request. Use Alt + Left/Right to step through moves while browsing. Builder drafts
+are kept in this browser until saved or explicitly discarded. Refreshing a branch
+draft offers Restore; a changed source graph never silently receives an old draft.
+
+**Why this exercise?** is available after an answer. It pauses practice and links
+real-game misses to the particular game's review, with your played and prepared
+moves. A repertoire departure is not automatically a chess blunder. Both pasted
+games and Lichess imports contribute to this evidence.
+
 Every repertoire also has a line explorer. It keeps transpositions as shared
 positions internally while presenting complete named lines to the learner, with
 move-by-move board navigation, explanations, and practice for the selected
@@ -62,7 +75,7 @@ the two lines separate rather than restarting. **Go to branching point** and
 reaching the same position are listed separately from ordinary shared moves.
 Shared comments/explanations are marked; save or cancel an edit before navigating.
 Viewing never adds moves: choose **Edit lines** to author a new continuation.
-Open **Practice selection and recall** to turn individual lines on/off for
+Open **Coverage and repertoire settings**, then **Practice selection and recall** to turn individual lines on/off for
 automatic practice, or pause/include the currently filtered lines together.
 Paused lines stay visible, retain notes and review history, and remain available
 for pasted/synced game analysis. Shared moves remain in automatic practice when
@@ -91,12 +104,13 @@ lessons do not prove complete-line recall. Hints, shown answers and corrected
 mistakes are not unaided recall. A small sample is not proof of lasting mastery.
 
 Personal repertoires can be renamed, reordered and exported as a
-complete PGN, including archived lines, source explanations, labelled personal
-notes and imported square highlights/arrows. Re-import treats the exported prose
-as source text, not separate editable personal-note records; use a database backup
-to preserve that separation and practice history. Browsing links retain the
+chapter-based PGN with nested variations, including archived lines, source
+explanations, separate personal notes and imported square highlights/arrows.
+Thinking Board's export directives preserve note editing identity on reimport;
+other PGN tools may ignore those private directives. Use a database backup for
+practice switches and history. Browsing links retain the
 selected repertoire, line and move on refresh. Archive/export actions sit in
-**Manage lines**;
+**Coverage and repertoire settings → Manage lines**;
 the most recently added move can be undone. Individual lines or complete
 repertoires—including built-in material—can be archived without losing notes or
 review history, then restored later. The desktop opening studio provides

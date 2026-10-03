@@ -7,6 +7,7 @@ import type { SqliteDatabase } from "../db/database.js";
 import { now } from "../lib/ids.js";
 import { ensureActiveProfile } from "../training/profile.js";
 import { practiceLineEligible } from "./opening-practice-eligibility.js";
+import { storeSourceExplanations } from "./opening-context.js";
 import {
   compileOpeningCurriculum,
   type CompiledOpeningCurriculum,
@@ -387,6 +388,7 @@ export class OpeningContentService {
             INSERT INTO opening_line_moves(line_id, move_id, ply) VALUES (?, ?, ?)
           `).run(line.id, moveId, index + 1);
         });
+        if (curriculum.style.includes("imported")) storeSourceExplanations(this.db, line.id, line.explanations);
       });
     });
 

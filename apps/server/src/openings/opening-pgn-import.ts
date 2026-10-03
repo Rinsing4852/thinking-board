@@ -15,18 +15,20 @@ import type { SqliteDatabase } from "../db/database.js";
 import { id, now } from "../lib/ids.js";
 import {
   compileOpeningCurriculum,
-  openingPositionKey,
   type AuthoredOpeningMove,
   type MoveExplanation,
   type OpeningCurriculum,
 } from "./opening-content.js";
 import { OpeningContentService } from "./opening-content-service.js";
+import { ensureActiveProfile } from "../training/profile.js";
 
 interface ImportMove {
   uci: string;
   san: string;
   fenBefore: string;
   comment: string | null;
+  personalComment?: string;
+  personalExplanation?: string;
 }
 
 interface ImportLine {
@@ -107,7 +109,7 @@ function parseHeaders(chunk: string): Record<string, string> {
 
 export function openingPgnChapterSourceKey(chunk: string, index = 0): string {
   const headers = parseHeaders(chunk);
-  return headers.ChapterURL?.match(/^https:\/\/lichess\.org\/study\/[A-Za-z0-9]{8}\/([A-Za-z0-9]{8})\/?$/)?.[1]
+  return headers.TBChapterKey ?? headers.ChapterURL?.match(/^https:\/\/lichess\.org\/study\/[A-Za-z0-9]{8}\/([A-Za-z0-9]{8})\/?$/)?.[1]
     ?? cleanText(headers.ChapterName ?? headers.Chapter ?? headers.Opening ?? headers.Event, `Chapter ${index + 1}`);
 }
 
@@ -241,7 +243,20 @@ function parseLines(chunk: string): ImportLine[] {
   const parsed = readSequence(STANDARD_FEN, [], false);
   if (cursor < tokens.length) throw new Error("PGN contains moves after the game result");
   const seen = new Set<string>();
-  return parsed
+  const exported = parseHeaders(chunk).TBFormat === "1";
+  const labelled: ImportLine[] = [];
+  if (exported) {
+    for (const moves of parsed) moves.forEach((move, index) => {
+      for (const marker of (move.comment ?? "").matchAll(/\[%tbline ([^\]]+)\]/g)) {
+        const title = decodeURIComponent(marker[1]!);
+        const path = cloneMoves(moves.slice(0, index + 1));
+        const key = path.map(item => item.uci).join(" ");
+        if (!seen.has(key)) { seen.add(key); labelled.push({ title, moves: path }); }
+      }
+    });
+    if (labelled.length === 0) throw new Error("This Thinking Board export has no line labels");
+  }
+  const lines = exported ? labelled : parsed
     .filter((line) => {
       const key = line.map((move) => move.uci).join(" ");
       if (!key || seen.has(key)) return false;
@@ -249,6 +264,14 @@ function parseLines(chunk: string): ImportLine[] {
       return true;
     })
     .map((moves, index) => ({ title: index === 0 ? "Main line" : `Variation ${index + 1}`, moves }));
+  for (const line of lines) for (const move of line.moves) {
+    const note = move.comment?.match(/\[%tbnote ([^\]]+)\]/)?.[1];
+    if (note) move.personalComment = decodeURIComponent(note).slice(0, 1000);
+    const explanation = move.comment?.match(/\[%tbexplanation ([^\]]+)\]/)?.[1];
+    if (explanation) move.personalExplanation = decodeURIComponent(explanation).slice(0, 600);
+    move.comment = move.comment?.replace(/\[%tb(?:note|line|explanation) [^\]]+\]/g, "").trim() || null;
+  }
+  return lines;
 }
 
 export function parseOpeningPgn(pgn: string, selectedChapterIndexes?: number[]): ParsedOpeningPgn {
@@ -312,10 +335,9 @@ function explanationFor(move: ImportMove, learnerColor: Color, preferredComment:
     return {
       summary: preferredComment,
       boardAnnotations,
-      changes: [`Your imported note is attached to ${move.san}.`],
+      changes: [],
       concepts: ["imported_note"],
       ...(!isLearner ? { opponentIdea: preferredComment } : {}),
-      ...(isLearner ? { resultingPlan: "Use your note as the starting point, then add your own plan as you refine this repertoire." } : {}),
     };
   }
   return {
@@ -323,10 +345,9 @@ function explanationFor(move: ImportMove, learnerColor: Color, preferredComment:
     summary: isLearner
       ? `No explanation has been added for ${move.san} yet.`
       : `${move.san} is an opponent response from the imported PGN.`,
-    changes: [`The imported repertoire continues with ${move.san}.`],
+    changes: [],
     concepts: ["missing_explanation"],
     ...(!isLearner ? { opponentIdea: "This response is included in the imported line, but its idea has not been explained yet." } : {}),
-    ...(isLearner ? { resultingPlan: "Return to your source and add the reason for this move in your own words." } : {}),
   };
 }
 
@@ -339,16 +360,6 @@ export function buildImportedCurriculum(
   includeColorSuffix: boolean,
 ): OpeningCurriculum {
   const shortHash = parsed.fingerprint.slice(0, 16);
-  const annotationByMove = new Map<string, string>();
-  for (const chapter of parsed.chapters) {
-    for (const line of chapter.lines) {
-      for (const move of line.moves) {
-        if (!move.comment) continue;
-        const key = `${openingPositionKey(move.fenBefore)}|${move.uci}`;
-        if (!annotationByMove.has(key)) annotationByMove.set(key, move.comment);
-      }
-    }
-  }
   const name = includeColorSuffix ? `${requestedName} — ${color === "white" ? "White" : "Black"}` : requestedName;
   return {
     id: `repertoire.imported.${shortHash}.${color}`,
@@ -375,8 +386,10 @@ export function buildImportedCurriculum(
           explanation: explanationFor(
             move,
             color,
-            annotationByMove.get(`${openingPositionKey(move.fenBefore)}|${move.uci}`) ?? null,
+            move.comment,
           ),
+          ...(move.personalComment ? { personalComment: move.personalComment } : {}),
+          ...(move.personalExplanation ? { personalExplanation: move.personalExplanation } : {}),
         })),
       })),
     })),
@@ -398,7 +411,13 @@ export class OpeningPgnImportService {
     const prepared = this.prepare(input);
     const compiled = prepared.curricula.map(compileOpeningCurriculum);
     const learnerMoves = compiled.flatMap((item) => item.moves.filter((move) => move.role === "learner"));
-    const explained = learnerMoves.filter((move) => move.explanation.concepts[0] === "imported_note").length;
+    // A shared decision can have no note in one chapter and a real reason in another.
+    // Count it once when any imported path explains it, without merging those notes.
+    const learnerIds = new Set(learnerMoves.map(move => move.id));
+    const explainedIds = new Set(compiled.flatMap(item => item.chapters.flatMap(chapter =>
+      chapter.lines.flatMap(line => line.moveIds.filter((moveId, index) =>
+        learnerIds.has(moveId) && line.explanations[index]?.concepts.includes("imported_note"))))));
+    const explained = explainedIds.size;
     const lines = prepared.parsed.chapters.flatMap((chapter) => chapter.lines);
     const warnings: string[] = [];
     if (learnerMoves.length - explained > 0) {
@@ -518,6 +537,19 @@ export class OpeningPgnImportService {
         now(),
       );
       const compiled = compileOpeningCurriculum(curriculum);
+      const profileId = ensureActiveProfile(this.db);
+      compiled.chapters.forEach((chapter, chapterIndex) => chapter.lines.forEach((line, lineIndex) => {
+        curriculum.chapters[chapterIndex]!.lines[lineIndex]!.moves.forEach((move, index) => {
+          if (move.personalExplanation) this.db.prepare(`UPDATE opening_move_annotations SET summary = ?,
+            concepts_json = '["personal_explanation"]', changes_json = '[]', resulting_plan = NULL,
+            opponent_idea = CASE WHEN ? = 'opponent' THEN ? ELSE opponent_idea END WHERE move_id = ?`)
+            .run(move.personalExplanation, compiled.moves.find(item => item.id === line.moveIds[index])!.role, move.personalExplanation, line.moveIds[index]!);
+          if (!move.personalComment) return;
+          this.db.prepare(`INSERT INTO opening_learning_comments(profile_id, move_id, comment, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?) ON CONFLICT(profile_id, move_id) DO NOTHING`)
+            .run(profileId, line.moveIds[index]!, move.personalComment, now(), now());
+        });
+      }));
       prepared.parsed.chapters.forEach((chapter, index) => {
         this.db.prepare(`INSERT INTO opening_import_chapters(repertoire_id, source_key, chapter_id)
           VALUES (?, ?, ?) ON CONFLICT(repertoire_id, source_key) DO UPDATE SET chapter_id = excluded.chapter_id`)

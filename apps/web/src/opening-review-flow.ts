@@ -1,6 +1,6 @@
 import { useReducer, useRef } from "react";
 
-export type PauseReason = "manual" | "explanation" | "comment";
+export type PauseReason = "manual" | "explanation" | "comment" | "evidence";
 export interface ReviewFlowState {
   request: "idle" | "pending" | "failed";
   error: string;
@@ -10,7 +10,7 @@ export type ReviewFlowAction = { type: "begin" | "finish" | "reset" }
   | { type: "fail"; message: string }
   | { type: "pause"; reason: PauseReason; paused: boolean };
 export const initialReviewFlow: ReviewFlowState = {
-  request: "idle", error: "", pauses: { manual: false, explanation: false, comment: false },
+  request: "idle", error: "", pauses: { manual: false, explanation: false, comment: false, evidence: false },
 };
 export function reviewFlowReducer(state: ReviewFlowState, action: ReviewFlowAction): ReviewFlowState {
   switch (action.type) {

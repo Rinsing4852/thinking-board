@@ -964,7 +964,7 @@ describe("vertical slice", () => {
     expect(exported.headers["content-type"]).toContain("application/x-chess-pgn");
     expect(exported.headers["content-disposition"]).toContain("my-dependable-french.pgn");
     expect(exported.body).toContain('[Event "My Dependable French"]');
-    expect(exported.body).toContain('[Variation "Advance option"]');
+    expect(exported.body).toContain('[%tbline Advance%20option]');
     expect(exported.body).not.toContain("Challenge White's centre");
   });
 
@@ -1789,6 +1789,11 @@ describe("vertical slice", () => {
     const connection = new BetterSqlite3(appConfig.databasePath);
     expect(connection.prepare("SELECT COUNT(*) FROM game_opening_matches WHERE game_id = ?").pluck().get(gameId)).toBe(1);
     expect(connection.prepare("SELECT focus_game_id FROM opening_review_sessions WHERE status = 'active'").pluck().get()).toBe(gameId);
+    const answered = await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${practice.json().sessionId}/move`,
+      payload: { moveUci: "d2d3", queueEntryId: practice.json().queueEntryId } });
+    expect(answered.json().sourceGames).toMatchObject({ occurrences: 1, games: [{ gameId, white: "Alice",
+      playedMove: "h3", repertoireMove: "d3", moveNumber: 4 }] });
+    expect(practice.json()).not.toHaveProperty("sourceGames");
     connection.close();
   });
 

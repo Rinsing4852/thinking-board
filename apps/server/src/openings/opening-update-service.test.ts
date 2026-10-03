@@ -7,6 +7,7 @@ import { OpeningPgnImportService } from "./opening-pgn-import.js";
 import { OpeningUpdateService } from "./opening-update-service.js";
 import { OpeningWorkspaceService } from "./opening-workspace-service.js";
 import { OpeningReviewService } from "./opening-review-service.js";
+import { chapterMovetext } from "./opening-pgn-export.js";
 import { STARTER_OPENING_CURRICULA } from "./starter-curricula.js";
 
 const PGN = `[Event "Italian notes"]
@@ -33,6 +34,59 @@ function setup(pgn = PGN, selectedChapterIndexes?: number[]) {
 }
 
 describe("opening source updates", () => {
+  it("round trips the supplied Ruy Lopez study's nested variations and source highlight", () => {
+    const pgn = `[Event "KiS Ruy Lopez"]\n[ChapterName "C1. KiS Ruy Lopez 7.Nc3"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. d3 b5 6. Bb3 { [%csl Gc7] } Bc5 7. Nc3 d6 (7... O-O 8. Nd5 d6 (8... h6 9. c3 d6 10. Nxf6+ Qxf6 11. Bd5 Bd7 12. Rg1 Rae8 (12... h5 13. h3 Rae8 14. g4 hxg4 (14... Ne7 15. Bg5 Qg6 16. gxh5 Qxh5 17. Bf6 Ng6 18. Nxe5) 15. hxg4 Ne7 16. Bg5 Qg6 17. Bxe7 Rxe7 18. g5) 13. g4 Qg6 14. g5 hxg5 15. Bxg5) 9. Bg5 Bg4 10. Qd2) (7... h6 8. Nd5 d6 9. c3 Be6 (9... Rb8 10. d4 Ba7 11. Be3) 10. Nxf6+ Qxf6 11. O-O O-O 12. Bxe6 fxe6 13. b4 Bb6 14. a4) 8. Nd5 Nxd5 9. Bxd5 Bd7 10. Bg5 Qc8 11. Nh4 *`;
+    const original = setup(pgn);
+    const before = original.workspace.repertoire(original.repertoireId);
+    expect(before.chapters[0]!.lines.length).toBeGreaterThan(5);
+    const restored = setup(original.workspace.exportPgn(original.repertoireId).pgn);
+    const after = restored.workspace.repertoire(restored.repertoireId);
+    expect(after.chapters[0]!.lines.map(line => line.sanSequence).sort()).toEqual(before.chapters[0]!.lines.map(line => line.sanSequence).sort());
+    for (const line of after.chapters[0]!.lines) expect(line.moves[10]!.explanation.boardAnnotations)
+      .toEqual([{ color: "green", from: "c7", to: "c7" }]);
+  });
+
+  it("preserves a shorter saved path when exporting a chapter with longer continuations", () => {
+    const { workspace, repertoireId } = setup();
+    const lines = workspace.repertoire(repertoireId).chapters[0]!.lines;
+    const prefix = { ...lines[0]!, title: "First decision only", moves: lines[0]!.moves.slice(0, 1) };
+    const restored = setup(`[Event "Prefix study"]\n[TBFormat "1"]\n[Result "*"]\n\n${chapterMovetext([...lines, prefix])}`);
+    const chapter = restored.workspace.repertoire(restored.repertoireId).chapters[0]!;
+    expect(chapter.lines).toHaveLength(lines.length + 1);
+    expect(chapter.lines.find(line => line.title === prefix.title)?.moveCount).toBe(1);
+  });
+  it("keeps chapter-specific reasons and marks with shared memory, including updates and export/reimport", async () => {
+    const pgn = `[Event "Context study"]\n[ChapterName "Open games"]\n[Result "*"]\n\n1. e4 {Open game reason. [%csl Ge4]} e5 2. Nf3 Nc6 (2... Nf6 3. Nxe5) 3. Bb5 *\n\n[Event "Context study"]\n[ChapterName "Sicilian"]\n[Result "*"]\n\n1. e4 {Sicilian reason. [%csl Re4]} c5 2. Nf3 *`;
+    const { db, repertoireId, workspace, updates } = setup(pgn);
+    const initial = workspace.repertoire(repertoireId);
+    const first = initial.chapters[0]!.lines[0]!;
+    const second = initial.chapters[1]!.lines[0]!;
+    expect(first.moves[0]!.id).toBe(second.moves[0]!.id);
+    expect(second.moves[0]!.explanation.summary).toBe("Sicilian reason.");
+    const reviews = new OpeningReviewService(db);
+    const exercise = reviews.startLine(repertoireId, second.id);
+    expect(exercise.introduction.explanation.summary).toBe("Sicilian reason.");
+    expect(reviews.answer(exercise.sessionId, "e2e4").explanation.summary).toBe("Sicilian reason.");
+    workspace.updateLearningComment(repertoireId, first.moves[0]!.id, "My reminder {centre} & space");
+    workspace.updateExplanation(repertoireId, first.moves[0]!.id, "My edited reason");
+    const preview = await updates.preview(repertoireId, { pgn: pgn.replace("Sicilian reason.", "Revised Sicilian reason.") });
+    expect(preview.updatedNotes).toBe(1);
+    updates.apply(repertoireId, preview.previewId, true);
+    const after = workspace.repertoire(repertoireId);
+    expect(after.chapters[1]!.lines[0]!.moves[0]!.explanation).toMatchObject({
+      summary: "My edited reason", sourceSummary: "Revised Sicilian reason.", personalComment: "My reminder {centre} & space",
+      boardAnnotations: [{ color: "red", from: "e4", to: "e4" }],
+    });
+    const exported = workspace.exportPgn(repertoireId).pgn;
+    expect(exported).toContain("(2... Nf6");
+    const restored = setup(exported);
+    const roundTrip = restored.workspace.repertoire(restored.repertoireId);
+    expect(roundTrip.chapters.map(chapter => [chapter.title, chapter.lines.length])).toEqual([["Open games", 2], ["Sicilian", 1]]);
+    expect(roundTrip.chapters[1]!.lines[0]!.moves[0]!.explanation).toEqual(after.chapters[1]!.lines[0]!.moves[0]!.explanation);
+    expect(restored.db.pragma("foreign_key_check")).toEqual([]);
+    expect(db.prepare("SELECT repetitions FROM opening_move_review_cards WHERE move_id = ?").pluck().get(first.moves[0]!.id)).toBe(1);
+    expect((await restored.updates.preview(restored.repertoireId, { pgn: exported })).updatedNotes).toBe(0);
+  });
   it("keeps imported board marks through practice, export and source-only updates", async () => {
     const annotated = PGN.replace("Control the centre.", "Control the centre. [%csl Ge4] [%cal Bf1c4]");
     const { db, importer, repertoireId, updates, workspace } = setup(annotated);
@@ -46,7 +100,8 @@ describe("opening source updates", () => {
     const answer = reviews.answer(exercise.sessionId, "e2e4", false, false, exercise.queueEntryId, 10);
     expect(answer.explanation.boardAnnotations).toEqual(marks);
     const exported = workspace.exportPgn(repertoireId).pgn;
-    expect(exported).toContain("Control the centre. Personal note: My own reminder.");
+    expect(exported).toContain("Control the centre.");
+    expect(exported).toContain("[%tbnote My%20own%20reminder.]");
     expect(exported).toContain("[%csl Ge4] [%cal Bf1c4]");
     const roundTripId = importer.import({ pgn: exported, learnerColor: "white", ownershipConfirmed: true }).repertoireIds[0]!;
     expect(workspace.repertoire(roundTripId).chapters[0]!.lines[0]!.moves[0]!.explanation.boardAnnotations).toEqual(marks);

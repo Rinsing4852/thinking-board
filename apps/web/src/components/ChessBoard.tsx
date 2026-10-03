@@ -83,6 +83,7 @@ interface ChessBoardProps {
   onMove?: (uci: string, san: string) => void;
   onSquareSelect?: (square: string) => void;
   ariaLabel?: string;
+  animateMoves?: boolean;
 }
 
 function squareName(file: number, rank: number): string {
@@ -125,6 +126,7 @@ export function ChessBoard({
   onMove,
   onSquareSelect,
   ariaLabel = "Chess position",
+  animateMoves = true,
 }: ChessBoardProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const [dragPiece, setDragPiece] = useState<DragPiece | null>(null);
@@ -192,7 +194,7 @@ export function ChessBoard({
   };
 
   const moveKeyboardFocus = (event: KeyboardEvent<HTMLButtonElement>, square: string): void => {
-    if (!interactive) return;
+    if (!interactive || event.altKey) return;
     if (event.key === "Escape") {
       event.preventDefault();
       setSelected(null);
@@ -407,6 +409,7 @@ export function ChessBoard({
             isTarget ? "target" : "",
             isTarget && targets.get(square) ? "capture-target" : "",
             isMovable ? "movable" : "",
+            isMoveDestination && animateMoves ? "move-destination" : "",
             dragPiece?.from === square ? "drag-origin" : "",
             isLast ? "last-move" : "",
             highlightedSquares.includes(square) ? "answer-highlight" : "",
@@ -442,12 +445,12 @@ export function ChessBoard({
               {pieceImage && (
                 <img
                   key={isMoveDestination ? `${lastMove}-${fen}` : `${piece?.color}${piece?.type}`}
-                  className={`piece${isMoveDestination ? " moving-piece" : ""}`}
+                  className={`piece${isMoveDestination && animateMoves ? " moving-piece" : ""}`}
                   src={pieceImage}
                   alt=""
                   aria-hidden="true"
                   draggable={false}
-                  style={moveStyle}
+                  style={animateMoves ? moveStyle : undefined}
                 />
               )}
               {file === (orientation === "white" ? 7 : 0) && <span className="rank-label" aria-hidden="true">{square[1]}</span>}

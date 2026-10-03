@@ -121,6 +121,16 @@ describe("opening PGN parsing", () => {
 });
 
 describe("opening PGN import persistence", () => {
+  it("counts a shared decision's reason even when it appears only in a later chapter", () => {
+    const { database, importer } = services();
+    const preview = importer.preview({
+      pgn: '[Event "No notes"]\n[Result "*"]\n\n1. e4 e5 *\n\n[Event "Explained"]\n[Result "*"]\n\n1. e4 {Take central space.} c5 *',
+      learnerColor: "white",
+    });
+    expect(preview).toMatchObject({ learnerDecisionCount: 1, explainedDecisionCount: 1, missingExplanationCount: 0 });
+    database.close();
+  });
+
   it("reuses an existing board position even when it has a workspace-generated id", () => {
     const { database, importer } = services();
     const start = new Chess().fen();

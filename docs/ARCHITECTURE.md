@@ -48,7 +48,7 @@ its `/frequencies` action performs at most two explicit shared-cache fetches.
 
 The frontend memory-session reducer owns review replacement and external pause
 state; a focused flow reducer owns request locking and independent explanation,
-comment and manual pauses. A monotonic active-recall clock persists per queue
+comment, game-context and manual pauses. A monotonic active-recall clock persists per queue
 entry in same-tab session storage, suspending on pauses, visibility/page lifecycle,
 animation and requests. Optional `activeResponseMs` on move/mistake requests is
 validated and bounded by server wall time; it is personal-training telemetry, not
@@ -63,8 +63,25 @@ move annotations. Import, workspace projection, recall feedback, cloning, source
 updates and PGN export retain them. Source marks and temporary board annotations
 are separate; marks remain hidden during recall. Source updates can change visual
 directives without replacing personal notes. PGN export includes source prose and
-labelled personal comments, but re-import does not restore their separate editing
-identity; full-fidelity restoration uses the existing database backup mechanism.
+personal comments. Migration 030 adds `opening_line_annotations` on path membership:
+source reasons/marks belong to each line, while memory cards and personal comments
+remain shared. Source updates populate older imports without resetting history.
+Personal explanation overrides survive updates and can show the original source.
+Exports now retain chapters and nested RAVs, stable chapter keys and terminal line
+labels. `%tbnote` and `%tbexplanation` directives keep private comments/overrides
+separate on reimport. Practice switches and history still require a database backup.
+Workspace projection joins path annotations in one query rather than querying each
+move. Source refresh revisions include path annotations, preventing stale previews.
+
+The importer is a focused component, separate from practice orchestration. Builder
+drafts are replay-validated and stored locally in the browser, never automatically
+written into a repertoire. Pending branch drafts are tied to an exact graph revision;
+they cannot be replayed after unrelated source changes. Line browsing stays mounted
+while practice runs, retaining its cursor; hidden workspace descendants are not
+interactive. Next-line context has explicit loading/failure/retry states.
+Post-answer evidence uses the inbox best-match ordering, counts each game once,
+shows up to three source games and links into the selected game's review. This
+evidence is optional and pauses automatic progression independently of explanations.
 
 ## Server modules
 

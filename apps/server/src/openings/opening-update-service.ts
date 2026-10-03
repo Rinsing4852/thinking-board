@@ -7,6 +7,7 @@ import { id, now } from "../lib/ids.js";
 import { compileOpeningCurriculum, type CompiledOpeningCurriculum, type MoveExplanation } from "./opening-content.js";
 import { buildImportedCurriculum, openingPgnChapterSourceKey, parseOpeningPgn } from "./opening-pgn-import.js";
 import { OpeningLichessImportService, resolveLichessStudyUrl } from "./opening-lichess-import.js";
+import { sourceExplanation, storeSourceExplanations } from "./opening-context.js";
 
 interface SourceRow {
   id: string;
@@ -131,6 +132,8 @@ export class OpeningUpdateService {
         LEFT JOIN opening_line_moves lm ON lm.line_id = l.id WHERE c.repertoire_id = ? ORDER BY l.id, lm.ply`).all(repertoireId),
       this.db.prepare(`SELECT m.*, a.* FROM opening_moves m LEFT JOIN opening_move_annotations a ON a.move_id = m.id
         WHERE m.repertoire_id = ? ORDER BY m.id`).all(repertoireId),
+      this.db.prepare(`SELECT a.* FROM opening_line_annotations a JOIN opening_lines l ON l.id = a.line_id
+        JOIN opening_chapters c ON c.id = l.chapter_id WHERE c.repertoire_id = ? ORDER BY a.line_id, a.ply`).all(repertoireId),
     ]);
   }
 
@@ -215,7 +218,7 @@ export class OpeningUpdateService {
       });
     });
     let addedMoves = 0;
-    let updatedNotes = 0;
+    const changedNoteMoves = new Set<string>();
     const positionsById = new Map(compiled.positions.map(position => [position.id, position]));
     for (const move of compiled.moves) {
       const position = positionsById.get(move.fromPositionId)!;
@@ -224,13 +227,22 @@ export class OpeningUpdateService {
         .get(source.id, position.key, move.moveUci) as Record<string, string | null> | undefined;
       if (!existing) addedMoves += 1;
       else if (this.shouldUpdateNote(existing, move.explanation)
-        || String(existing.board_annotations_json ?? "[]") !== JSON.stringify(move.explanation.boardAnnotations ?? [])) updatedNotes += 1;
+        || String(existing.board_annotations_json ?? "[]") !== JSON.stringify(move.explanation.boardAnnotations ?? [])) changedNoteMoves.add(move.id);
     }
     const retainedLines = stored.filter(line => !used.has(line.id)).length;
+    for (const chapter of compiled.chapters) for (const line of chapter.lines) {
+      const target = lineTargets.get(line.id)!;
+      if (!target.existing) continue;
+      line.explanations.forEach((explanation, index) => {
+        if (!this.db.prepare("SELECT 1 FROM opening_line_moves WHERE line_id = ? AND ply = ?").get(target.id, index + 1)) return;
+        if (JSON.stringify(sourceExplanation(this.db, target.id, index + 1)) !== JSON.stringify(explanation)) changedNoteMoves.add(line.moveIds[index]!);
+      });
+    }
     const chapterChanged = compiled.chapters.some(chapter => {
       const storedChapter = this.db.prepare("SELECT title, introduction FROM opening_chapters WHERE id = ?").get(chapter.id) as { title: string; introduction: string } | undefined;
       return !storedChapter || storedChapter.title !== chapter.title || storedChapter.introduction !== chapter.introduction;
     });
+    const updatedNotes = changedNoteMoves.size;
     const changed = chapterChanged || addedLines + extendedLines + addedMoves + updatedNotes > 0;
     return { changed, compiled, chapterKeys, lineTargets, preview: {
       repertoireId: source.id, addedLines, extendedLines, retainedLines, updatedNotes, addedMoves,
@@ -245,6 +257,7 @@ export class OpeningUpdateService {
   }
 
   private shouldUpdateNote(stored: Record<string, string | null>, explanation: MoveExplanation): boolean {
+    if (String(stored.concepts_json).includes('"personal_explanation"')) return false;
     if (!explanation.concepts.includes("imported_note") && !String(stored.concepts_json).includes('"imported_note"')) return false;
     return JSON.stringify([stored.summary, stored.changes_json, stored.concepts_json, stored.opponent_idea,
       stored.resulting_plan, stored.tactical_warning, stored.common_mistake]) !== JSON.stringify(annotationValues(explanation));
@@ -295,6 +308,7 @@ export class OpeningUpdateService {
           line.moveIds.forEach((moveId, ply) => this.db.prepare("INSERT INTO opening_line_moves(line_id, move_id, ply) VALUES (?, ?, ?)")
             .run(target.id, moveIds.get(moveId)!, ply + 1));
         }
+        storeSourceExplanations(this.db, target.id, line.explanations);
       }
     });
     this.persistChapterIdentities(repertoireId, plan.chapterKeys);

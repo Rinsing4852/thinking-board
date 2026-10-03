@@ -2,6 +2,35 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.5.12 — 2026-10-03
+
+### Board-first openings and faithful study context
+
+- Keep line browsing mounted while practising; returning preserves the selected
+  line and board position. Coverage, practice selection and management move into
+  secondary controls below the board; mobile notes are opt-in. Alt + Left/Right
+  steps through a line without interfering with typing or square navigation.
+- Recover unfinished builder and branch drafts in this browser, with explicit
+  unsaved status, restore/discard actions and a warning if storage is unavailable.
+  No saved repertoire is silently changed by draft recovery.
+- Remove import/storage boilerplate from explanations. Show real reasons and
+  plans only when present, with honest missing-reason prompts. Edited explanations
+  remain distinct from original source notes and survive source updates.
+- Add migration 030 for path-specific source notes and arrows. Shared moves still
+  share memory cards and personal comments; chapter-specific reasons are no longer
+  replaced by the first chapter's note. Existing imports can populate this context
+  by updating their source; legacy notes/history remain untouched.
+- Export chapters with nested PGN variations, stable chapter keys, line labels and
+  separate encoded personal-note/edited-explanation directives. Import/update/export
+  round trips preserve branch paths and notes; PGN is still not a history backup.
+- Add optional post-answer review context: real-game occurrences, played/prepared
+  moves and a link into that game's review. Opening deviations are explicitly
+  described as memory gaps, not automatic engine blunders. Pasted and synced games
+  use the same matching pipeline.
+- Extract the import UI, draft helpers, source-context and game-evidence services.
+  Context-load failures now expose Retry rather than looking like the final line.
+  Add focused migration, annotation, round-trip, draft and browser regressions.
+
 ## 1.5.11 — 2026-10-02
 
 ### Reliable recall and staying in your repertoire

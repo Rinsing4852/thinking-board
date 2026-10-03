@@ -173,6 +173,10 @@ export function App() {
           refreshToken={refreshToken}
           onOpenGames={() => openGamesAt("opening-inbox")}
           onAnalyzeGame={() => openGamesAt("import")}
+          onOpenGame={gameId => {
+            setView("games"); window.history.replaceState(null, "", `#games?game=${encodeURIComponent(gameId)}`);
+            setGameReviewFocusToken(value => value + 1);
+          }}
           onFocusChange={setOpeningFocusActive}
         />}
 

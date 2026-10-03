@@ -283,7 +283,9 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
     void get<{ games: GameSummary[] }>("/api/v1/games").then((data) => {
       setGames(data.games);
       const first = data.games[0];
-      if (first) void loadReview(first.id);
+      const requested = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("game");
+      if (requested && data.games.some(game => game.id === requested)) void loadReview(requested);
+      else if (first) void loadReview(first.id);
     }).catch((loadError: unknown) => setError(loadError instanceof Error ? loadError.message : "Could not load games"));
     void get<GameOpeningInboxResponse>("/api/v1/openings/game-inbox")
       .then(setInbox)
