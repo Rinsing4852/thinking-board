@@ -73,6 +73,12 @@ export interface OpeningProgressResponse {
   weakestLines: OpeningLineProgress[];
 }
 
+export interface OpeningBoardAnnotation {
+  color: "green" | "red" | "blue" | "yellow";
+  from: string;
+  to: string;
+}
+
 export interface OpeningLineMove {
   id: string;
   ply: number;
@@ -91,6 +97,7 @@ export interface OpeningLineMove {
     tacticalWarning: string | null;
     commonMistake: string | null;
     personalComment: string | null;
+    boardAnnotations?: OpeningBoardAnnotation[];
   };
 }
 
@@ -575,7 +582,7 @@ export interface OpeningReviewExercise {
   presentationKind: "scheduled" | "lapse_repeat";
   learningStage: "new" | "learning" | "review";
   practiceReason: { kind: OpeningReviewReasonKind; label: string };
-  lineRun: { lineId: string; lineTitle: string } | null;
+  lineRun: { lineId: string; lineTitle: string; chapterTitle?: string } | null;
   fenBeforeOpponent: string;
   fenToMove: string;
   opponentMove: OpeningReviewOpponentMove | null;
@@ -595,6 +602,7 @@ export interface OpeningReviewExercise {
       tacticalWarning: string | null;
       commonMistake: string | null;
       personalComment: string | null;
+      boardAnnotations?: OpeningBoardAnnotation[];
     };
   };
 }
@@ -618,6 +626,7 @@ export interface OpeningReviewFeedback {
     tacticalWarning: string | null;
     commonMistake: string | null;
     personalComment: string | null;
+    boardAnnotations?: OpeningBoardAnnotation[];
   };
   nextDueAt: string;
   lapseQueued: boolean;

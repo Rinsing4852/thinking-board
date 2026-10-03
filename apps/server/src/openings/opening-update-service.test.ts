@@ -33,6 +33,35 @@ function setup(pgn = PGN, selectedChapterIndexes?: number[]) {
 }
 
 describe("opening source updates", () => {
+  it("keeps imported board marks through practice, export and source-only updates", async () => {
+    const annotated = PGN.replace("Control the centre.", "Control the centre. [%csl Ge4] [%cal Bf1c4]");
+    const { db, importer, repertoireId, updates, workspace } = setup(annotated);
+    const firstLine = workspace.repertoire(repertoireId).chapters[0]!.lines[0]!;
+    const marks = [{ color: "green", from: "e4", to: "e4" }, { color: "blue", from: "f1", to: "c4" }];
+    expect(firstLine.moves[0]!.explanation).toMatchObject({ summary: "Control the centre.", boardAnnotations: marks });
+    workspace.updateLearningComment(repertoireId, firstLine.moves[0]!.id, "My own reminder.");
+    const reviews = new OpeningReviewService(db);
+    const exercise = reviews.startLine(repertoireId, firstLine.id);
+    expect(exercise.introduction.explanation.boardAnnotations).toEqual(marks);
+    const answer = reviews.answer(exercise.sessionId, "e2e4", false, false, exercise.queueEntryId, 10);
+    expect(answer.explanation.boardAnnotations).toEqual(marks);
+    const exported = workspace.exportPgn(repertoireId).pgn;
+    expect(exported).toContain("Control the centre. Personal note: My own reminder.");
+    expect(exported).toContain("[%csl Ge4] [%cal Bf1c4]");
+    const roundTripId = importer.import({ pgn: exported, learnerColor: "white", ownershipConfirmed: true }).repertoireIds[0]!;
+    expect(workspace.repertoire(roundTripId).chapters[0]!.lines[0]!.moves[0]!.explanation.boardAnnotations).toEqual(marks);
+    const changed = annotated.replace("Ge4", "Re4");
+    const preview = await updates.preview(repertoireId, { pgn: changed });
+    expect(preview).toMatchObject({ updatedNotes: 1, addedMoves: 0, addedLines: 0 });
+    updates.apply(repertoireId, preview.previewId, true);
+    expect(workspace.repertoire(repertoireId).chapters[0]!.lines[0]!.moves[0]!.explanation)
+      .toMatchObject({ summary: "Control the centre.", personalComment: "My own reminder.", boardAnnotations: [{ ...marks[0], color: "red" }, marks[1]] });
+    const removed = await updates.preview(repertoireId, { pgn: PGN });
+    expect(removed.updatedNotes).toBe(1);
+    updates.apply(repertoireId, removed.previewId, true);
+    expect(workspace.repertoire(repertoireId).chapters[0]!.lines[0]!.moves[0]!.explanation.boardAnnotations).toEqual([]);
+    expect(db.pragma("foreign_key_check")).toEqual([]);
+  });
   it("merges nested variations, extends a source line and preserves cards, notes, names and archives", async () => {
     const { db, content, repertoireId, updates, workspace } = setup();
     const detail = workspace.repertoire(repertoireId);

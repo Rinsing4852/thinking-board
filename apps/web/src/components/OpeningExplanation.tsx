@@ -1,3 +1,5 @@
+import type { OpeningBoardAnnotation } from "../../../../packages/contracts/src/api";
+
 interface OpeningExplanationData {
   summary?: string;
   changes: string[];
@@ -5,6 +7,7 @@ interface OpeningExplanationData {
   tacticalWarning: string | null;
   commonMistake: string | null;
   personalComment?: string | null;
+  boardAnnotations?: OpeningBoardAnnotation[];
 }
 
 interface OpeningExplanationProps {
@@ -28,6 +31,10 @@ export function OpeningExplanation({
       {explanation.resultingPlan && <><strong>What comes next</strong><p>{explanation.resultingPlan}</p></>}
       {explanation.tacticalWarning && <><strong>Be careful</strong><p>{explanation.tacticalWarning}</p></>}
       {explanation.commonMistake && <><strong>Common mistake</strong><p>{explanation.commonMistake}</p></>}
+      {Boolean(explanation.boardAnnotations?.length) && <details>
+        <summary>Source arrows and highlights</summary>
+        <p>{explanation.boardAnnotations!.map(mark => `${mark.color} ${mark.from === mark.to ? `highlight on ${mark.from}` : `arrow from ${mark.from} to ${mark.to}`}`).join("; ")}.</p>
+      </details>}
       {showPersonalComment && explanation.personalComment && <><strong>Your learning comment</strong><p>{explanation.personalComment}</p></>}
     </div>
   );

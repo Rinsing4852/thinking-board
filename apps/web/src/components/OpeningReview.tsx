@@ -11,6 +11,7 @@ import type {
 import { post } from "../api";
 import { applyUciMove, getMoveHint } from "../opening-board";
 import { useOpeningReviewFlow } from "../opening-review-flow";
+import { useRecallClock } from "../use-recall-clock";
 import { formatMoveLabel, formatOpeningLineContext } from "../training-language";
 import { ChessBoard } from "./ChessBoard";
 import { OpeningExplanation } from "./OpeningExplanation";
@@ -22,6 +23,10 @@ interface OpeningReviewProps {
   onComplete: () => void;
   onPause: () => void;
   onPracticeMore: () => void;
+  navigationBusy?: boolean;
+  onRepeatLine?: () => void;
+  onNextLine?: (() => void) | undefined;
+  onBackToRepertoire?: () => void;
 }
 
 function signalBoardResult(correct: boolean): void {
@@ -64,7 +69,8 @@ function dueLabel(nextDueAt: string, lapseQueued: boolean): string {
   return `Next scheduled review: ${due.toLocaleDateString(undefined, { day: "numeric", month: "short" })}.`;
 }
 
-export function OpeningReview({ initial, boardSounds = false, onComplete, onPause, onPracticeMore }: OpeningReviewProps) {
+export function OpeningReview({ initial, boardSounds = false, onComplete, onPause, onPracticeMore,
+  navigationBusy = false, onRepeatLine, onNextLine, onBackToRepertoire }: OpeningReviewProps) {
   const initialExercise = initial.kind === "feedback" ? initial.exercise : initial;
   const [exercise, setExercise] = useState<OpeningReviewExercise>(initialExercise);
   const [feedback, setFeedback] = useState<OpeningReviewFeedback | null>(initial.kind === "feedback" ? initial : null);
@@ -99,6 +105,8 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
   const error = flow.error;
   const autoAdvancePaused = flow.paused;
   const fullLinePractice = Boolean(exercise.lineRun);
+  const lineName = exercise.lineRun ? [exercise.lineRun.chapterTitle, exercise.lineRun.lineTitle].filter(Boolean).join(" · ") : "";
+  const recallClock = useRecallClock(exercise.queueEntryId, !observing && !feedback && !complete && !flow.paused && visible && !submitting);
 
   const showExercise = (next: OpeningReviewExercise): void => {
     setExercise(next);
@@ -135,7 +143,7 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
     try {
       const result = await post<OpeningReviewFeedback>(
         `/api/v1/openings/reviews/${exercise.sessionId}/move`,
-        { moveUci, assisted, queueEntryId: exercise.queueEntryId },
+        { moveUci, assisted, queueEntryId: exercise.queueEntryId, activeResponseMs: recallClock.read() },
       );
       setMoveNotice("");
       setHintSquares([]);
@@ -175,7 +183,7 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
   };
 
   const playRecallMove = (uci: string, san: string): void => {
-    if (submitting) return;
+    if (submitting || feedback || observing || explanationOpen || complete) return;
     const accepted = exercise.acceptedMoves.some((move) => move.moveUci === uci);
     if (!accepted) {
       if (boardSounds) signalBoardResult(false);
@@ -191,7 +199,7 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
       if (!flow.begin()) return;
       void post<OpeningReviewMistakeResponse>(
         `/api/v1/openings/reviews/${exercise.sessionId}/mistakes`,
-        { moveUci: uci, queueEntryId: exercise.queueEntryId },
+        { moveUci: uci, queueEntryId: exercise.queueEntryId, activeResponseMs: recallClock.read() },
       ).then(() => flow.finish()).catch((failure) => {
         flow.fail(failure instanceof Error ? failure.message : "Could not record this attempt");
       });
@@ -205,6 +213,7 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
   };
 
   const continueReview = async (): Promise<void> => {
+    if (complete || explanationOpen || editingLineComment) return;
     if (!flow.begin()) return;
     try {
       const next = await post<OpeningReviewState>(
@@ -220,11 +229,11 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
   };
 
   useEffect(() => {
-    if (!feedback || !flow.canAdvance || !visible) return;
+    if (complete || !feedback || !flow.canAdvance || !visible) return;
     const delay = fullLinePractice || feedback.outcome === "remembered" ? 650 : 1500;
     const timer = window.setTimeout(() => void continueReview(), delay);
     return () => window.clearTimeout(timer);
-  }, [feedback, flow.canAdvance, visible, fullLinePractice]);
+  }, [complete, feedback, flow.canAdvance, visible, fullLinePractice]);
 
   const updateLearningComment = (comment: string | null): void => {
     setExercise((current) => ({
@@ -291,6 +300,7 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
       <div className="panel opening-complete" role="status">
         <span className="eyebrow">Practice complete</span>
         <h3>{complete.repertoireName}</h3>
+        {fullLinePractice && <p>{lineName}</p>}
         <p>{complete.message}</p>
         <div className="opening-complete-scores three-up">
           <div><strong>{complete.remembered}</strong><span>unassisted recalls</span></div>
@@ -298,12 +308,19 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
           <div><strong>{complete.lapses}</strong><span>moves to revisit</span></div>
         </div>
         <div className="answer-actions opening-complete-actions">
-          <button disabled={editingLineComment} onClick={onPracticeMore}>Practice another set</button>
-          <button className="secondary" disabled={editingLineComment} onClick={onComplete}>Back to opening choices</button>
+          {fullLinePractice ? <>
+            <button disabled={editingLineComment || navigationBusy} onClick={onRepeatLine}>Repeat this line</button>
+            <button className="secondary" disabled={editingLineComment || navigationBusy || !onNextLine} onClick={onNextLine}>Next enabled line</button>
+            <button className="secondary" disabled={editingLineComment || navigationBusy} onClick={onBackToRepertoire}>Back to this repertoire</button>
+          </> : <>
+            <button disabled={editingLineComment || navigationBusy} onClick={onPracticeMore}>Practice another set</button>
+            <button className="secondary" disabled={editingLineComment || navigationBusy} onClick={onComplete}>Back to opening choices</button>
+          </>}
         </div>
         {lineExplanationAction}
         {explanationOpen && lastAnswered && <ChessBoard fen={lastAnswered.fenAfterMove}
-          orientation={lastAnswered.exercise.learnerColor} lastMove={lastAnswered.repertoireMove.moveUci} />}
+          orientation={lastAnswered.exercise.learnerColor} lastMove={lastAnswered.repertoireMove.moveUci}
+          sourceAnnotations={lastAnswered.explanation.boardAnnotations ?? []} />}
         {requestedExplanation}
       </div>
     );
@@ -329,7 +346,7 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
           <small>{exercise.presentationKind === "lapse_repeat"
             ? "Unassisted retry"
             : exercise.lineRun
-              ? `Line run · ${exercise.lineRun.lineTitle}`
+              ? `Line run · ${lineName}`
               : exercise.practiceReason.label}</small>
         </div>
       </div>
@@ -366,6 +383,7 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
             lastMove={explanationOpen && lastAnswered ? lastAnswered.repertoireMove.moveUci : lastMove}
             highlightedSquares={explanationOpen ? [] : hintSquares}
             rejectedMove={explanationOpen ? null : rejectedMove}
+            sourceAnnotations={explanationOpen ? lastAnswered?.explanation.boardAnnotations ?? [] : []}
             onMove={playRecallMove}
           />
           {!observing && !feedback && !explanationOpen && <div className="answer-actions opening-recall-help">

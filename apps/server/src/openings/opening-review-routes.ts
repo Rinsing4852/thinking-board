@@ -37,7 +37,10 @@ export function registerOpeningReviewRoutes(
   app.post("/api/v1/openings/reviews/:sessionId/resume", async (request, reply) => {
     try {
       const { sessionId } = request.params as { sessionId: string };
-      return openingReviews.resume(sessionId);
+      const body = request.body as { preserveTiming?: unknown } | undefined;
+      if (body !== undefined && (body === null || typeof body !== "object" || Array.isArray(body))) throw new Error("Resume options must be an object");
+      if (body?.preserveTiming !== undefined && typeof body.preserveTiming !== "boolean") throw new Error("Preserve timing must be true or false");
+      return openingReviews.resume(sessionId, body?.preserveTiming === true);
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not resume opening review" });
     }
@@ -78,11 +81,12 @@ export function registerOpeningReviewRoutes(
   app.post("/api/v1/openings/reviews/:sessionId/move", { schema: { body: {
     type: "object", required: ["moveUci"], additionalProperties: false,
     properties: { moveUci: { type: "string", pattern: "^[a-h][1-8][a-h][1-8][qrbn]?$" },
-      assisted: { type: "boolean" }, queueEntryId: { type: "string", minLength: 1, maxLength: 128 } },
+      assisted: { type: "boolean" }, queueEntryId: { type: "string", minLength: 1, maxLength: 128 },
+      activeResponseMs: { type: "integer", minimum: 0 } },
   } } }, async (request, reply) => {
     try {
       const { sessionId } = request.params as { sessionId: string };
-      const body = request.body as { moveUci?: unknown; assisted?: unknown; queueEntryId?: string };
+      const body = request.body as { moveUci?: unknown; assisted?: unknown; queueEntryId?: string; activeResponseMs?: number };
       if (body?.assisted !== undefined && typeof body.assisted !== "boolean") {
         throw new Error("Assisted must be true or false");
       }
@@ -92,6 +96,7 @@ export function registerOpeningReviewRoutes(
         body?.assisted === true,
         false,
         body.queueEntryId,
+        body.activeResponseMs,
       );
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not check opening review" });
@@ -112,11 +117,15 @@ export function registerOpeningReviewRoutes(
     }
   });
 
-  app.post("/api/v1/openings/reviews/:sessionId/mistakes", async (request, reply) => {
+  app.post("/api/v1/openings/reviews/:sessionId/mistakes", { schema: { body: {
+    type: "object", required: ["moveUci"], additionalProperties: false,
+    properties: { moveUci: { type: "string", pattern: "^[a-h][1-8][a-h][1-8][qrbn]?$" },
+      queueEntryId: { type: "string", minLength: 1, maxLength: 128 }, activeResponseMs: { type: "integer", minimum: 0 } },
+  } } }, async (request, reply) => {
     try {
       const { sessionId } = request.params as { sessionId: string };
-      const body = request.body as { moveUci?: unknown };
-      return openingReviews.recordMistake(sessionId, requiredString(body?.moveUci, "Move"));
+      const body = request.body as { moveUci?: unknown; queueEntryId?: string; activeResponseMs?: number };
+      return openingReviews.recordMistake(sessionId, requiredString(body?.moveUci, "Move"), body.queueEntryId, body.activeResponseMs);
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not record opening mistake" });
     }

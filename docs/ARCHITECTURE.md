@@ -46,6 +46,26 @@ scheduled queues against the current ordered learner moves, excluding partial or
 obsolete paths. `/repertoires/:id/practice-selection` supports read/batch updates;
 its `/frequencies` action performs at most two explicit shared-cache fetches.
 
+The frontend memory-session reducer owns review replacement and external pause
+state; a focused flow reducer owns request locking and independent explanation,
+comment and manual pauses. A monotonic active-recall clock persists per queue
+entry in same-tab session storage, suspending on pauses, visibility/page lifecycle,
+animation and requests. Optional `activeResponseMs` on move/mistake requests is
+validated and bounded by server wall time; it is personal-training telemetry, not
+anti-cheat evidence. Resume with `preserveTiming: true` retains the wall-time bound;
+legacy body-less resumes retain their reset behaviour. No historical events change.
+Line browsing records a validated repertoire/line/ply hash cursor, with invalid or
+deleted lines falling back to available paths. Exact-line completion context uses
+fresh repertoire details to skip archived or practice-disabled later lines.
+
+Migration 029 stores validated PGN visual directives as small JSON arrays on shared
+move annotations. Import, workspace projection, recall feedback, cloning, source
+updates and PGN export retain them. Source marks and temporary board annotations
+are separate; marks remain hidden during recall. Source updates can change visual
+directives without replacing personal notes. PGN export includes source prose and
+labelled personal comments, but re-import does not restore their separate editing
+identity; full-fidelity restoration uses the existing database backup mechanism.
+
 ## Server modules
 
 - `chess/`: PGN parsing and chess-specific input normalisation.

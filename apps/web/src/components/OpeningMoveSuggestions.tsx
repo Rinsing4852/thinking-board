@@ -127,7 +127,7 @@ export function OpeningMoveSuggestions({
         {(analysisBusy || explorerBusy) && <small>Updating…</small>}
       </div>
       <div className="opening-suggestion-labels" aria-hidden="true">
-        <span>Move</span><span>{useExplorer ? `Seen in ${ratingGroup} band` : "Seen"}</span><span>Your score</span><span>Engine</span>
+        <span>Move</span><span>{useExplorer ? `Seen in ${ratingGroup} band` : "Seen"}</span><span>Results for {learnerColor === "white" ? "White" : "Black"}</span><span>Engine</span>
       </div>
       <div className="opening-suggestion-list">
         {candidates.map((candidate) => (
@@ -150,7 +150,7 @@ export function OpeningMoveSuggestions({
             </span>
             <span>
               <strong>{learnerScore(candidate.practical, learnerColor)}</strong>
-              {candidate.practical && <small>win + ½ draw</small>}
+              {candidate.practical && <small>sample wins + ½ draws</small>}
             </span>
             <span><strong>{scoreLabel(candidate.engine)}</strong></span>
           </button>
@@ -160,6 +160,7 @@ export function OpeningMoveSuggestions({
         )}
       </div>
       {!useExplorer && <p className="opening-suggestion-note">Practical frequencies are off. Enable them in your opening settings to rank moves seen at your level.</p>}
+      <p className="opening-suggestion-note">Results describe the sampled games, not your personal results. A positive engine score favours {fen.split(" ")[1] === "b" ? "Black" : "White"}, the side to move.</p>
       {analysisError && <p className="error">{analysisError}</p>}
       {explorerError && <p className="error">{explorerError}</p>}
     </section>

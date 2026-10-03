@@ -223,7 +223,8 @@ export class OpeningUpdateService {
         JOIN opening_move_annotations a ON a.move_id = m.id WHERE m.repertoire_id = ? AND p.position_key = ? AND m.move_uci = ?`)
         .get(source.id, position.key, move.moveUci) as Record<string, string | null> | undefined;
       if (!existing) addedMoves += 1;
-      else if (this.shouldUpdateNote(existing, move.explanation)) updatedNotes += 1;
+      else if (this.shouldUpdateNote(existing, move.explanation)
+        || String(existing.board_annotations_json ?? "[]") !== JSON.stringify(move.explanation.boardAnnotations ?? [])) updatedNotes += 1;
     }
     const retainedLines = stored.filter(line => !used.has(line.id)).length;
     const chapterChanged = compiled.chapters.some(chapter => {
@@ -278,6 +279,8 @@ export class OpeningUpdateService {
           tactical_warning = excluded.tactical_warning, common_mistake = excluded.common_mistake`)
           .run(moveId, ...annotationValues(move.explanation));
       }
+      this.db.prepare("UPDATE opening_move_annotations SET board_annotations_json = ? WHERE move_id = ?")
+        .run(JSON.stringify(move.explanation.boardAnnotations ?? []), moveId);
     }
     compiled.chapters.forEach((chapter, index) => {
       this.db.prepare(`INSERT INTO opening_chapters(id, repertoire_id, slug, title, introduction, root_position_id, sort_order, active)

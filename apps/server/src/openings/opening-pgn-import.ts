@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { Chess } from "chess.js";
+import { parseBoardAnnotations } from "../../../../packages/contracts/src/board-annotations.js";
 
 import type {
   Color,
@@ -303,12 +304,14 @@ export function parseOpeningPgn(pgn: string, selectedChapterIndexes?: number[]):
 }
 
 function explanationFor(move: ImportMove, learnerColor: Color, preferredComment: string | null): MoveExplanation {
+  const boardAnnotations = parseBoardAnnotations(preferredComment ?? "");
   preferredComment = preferredComment?.replace(/\[%[^\]]*\]/g, "").trim() || null;
   const mover: Color = move.fenBefore.split(" ")[1] === "b" ? "black" : "white";
   const isLearner = mover === learnerColor;
   if (preferredComment) {
     return {
       summary: preferredComment,
+      boardAnnotations,
       changes: [`Your imported note is attached to ${move.san}.`],
       concepts: ["imported_note"],
       ...(!isLearner ? { opponentIdea: preferredComment } : {}),
@@ -316,6 +319,7 @@ function explanationFor(move: ImportMove, learnerColor: Color, preferredComment:
     };
   }
   return {
+    boardAnnotations,
     summary: isLearner
       ? `No explanation has been added for ${move.san} yet.`
       : `${move.san} is an opponent response from the imported PGN.`,

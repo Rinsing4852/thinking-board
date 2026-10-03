@@ -3,8 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { Database } from "./database.js";
-import { OpeningContentService } from "../openings/opening-content-service.js";
-import { STARTER_OPENING_CURRICULA } from "../openings/starter-curricula.js";
+import { Chess } from "chess.js";
 import { ImportService } from "../imports/import-service.js";
 
 describe("opening database upgrades", () => {
@@ -19,7 +18,24 @@ describe("opening database upgrades", () => {
     let database: Database | undefined;
     try {
       database = new Database(filename, oldMigrations);
-      new OpeningContentService(database.connection).sync(STARTER_OPENING_CURRICULA);
+      // Seed the historical schema directly: the current content service requires current migrations.
+      const before = new Chess();
+      const after = new Chess();
+      after.move("e4");
+      const seededAt = "2026-09-29T12:00:00.000Z";
+      database.connection.prepare(`INSERT INTO opening_repertoires(id, slug, name, learner_color, first_move_uci,
+        first_move_san, summary, audience_label, style_json, memory_burden, content_version, status, created_at, updated_at)
+        VALUES ('legacy-repertoire', 'legacy', 'Legacy repertoire', 'white', 'e2e4', 'e4', 'Old notes', 'Everyone',
+          '[]', 'low', 1, 'published', ?, ?)`).run(seededAt, seededAt);
+      for (const [id, chess] of [["before", before], ["after", after]] as const) {
+        database.connection.prepare("INSERT INTO opening_positions(id, position_key, fen, side_to_move) VALUES (?, ?, ?, ?)")
+          .run(id, chess.fen().split(" ").slice(0, 4).join(" "), chess.fen(), chess.turn() === "w" ? "white" : "black");
+      }
+      database.connection.prepare(`INSERT INTO opening_moves(id, repertoire_id, from_position_id, to_position_id,
+        move_uci, move_san, role, move_kind, sort_order) VALUES ('legacy-move', 'legacy-repertoire', 'before', 'after',
+          'e2e4', 'e4', 'learner', 'primary', 0)`).run();
+      database.connection.prepare(`INSERT INTO opening_move_annotations(move_id, summary, changes_json, concepts_json)
+        VALUES ('legacy-move', 'Claim the centre', '[]', '[]')`).run();
       new ImportService(database.connection).import('[White "Alice"]\n[Black "Bob"]\n[Result "*"]\n\n1. e4 e5 *', "Alice");
       const profileId = database.connection.prepare("SELECT id FROM player_profiles WHERE display_name = 'Alice'").pluck().get();
       const move = database.connection.prepare(`SELECT id, repertoire_id, from_position_id FROM opening_moves
@@ -48,7 +64,9 @@ describe("opening database upgrades", () => {
           .toEqual({ state: 2, repetitions: 4, stability: 12 });
         expect(database.connection.prepare("SELECT COUNT(*) FROM opening_review_events").pluck().get()).toBe(1);
         expect(database.connection.pragma("foreign_key_check")).toEqual([]);
-        expect(database.connection.prepare("SELECT MAX(version) FROM schema_migrations").pluck().get()).toBe(28);
+        expect(database.connection.prepare("SELECT MAX(version) FROM schema_migrations").pluck().get()).toBe(29);
+        expect(database.connection.prepare("SELECT summary, board_annotations_json FROM opening_move_annotations WHERE move_id = 'legacy-move'").get())
+          .toEqual({ summary: "Claim the centre", board_annotations_json: "[]" });
         // Historical position evidence must not falsely prove every alternative.
         expect(database.connection.prepare("SELECT COUNT(*) FROM opening_move_review_cards").pluck().get()).toBe(0);
         database.close();

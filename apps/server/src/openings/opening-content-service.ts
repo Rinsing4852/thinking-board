@@ -335,13 +335,13 @@ export class OpeningContentService {
       this.db.prepare(`
         INSERT INTO opening_move_annotations(
           move_id, summary, changes_json, concepts_json, opponent_idea,
-          resulting_plan, tactical_warning, common_mistake
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          resulting_plan, tactical_warning, common_mistake, board_annotations_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(move_id) DO UPDATE SET
           summary = excluded.summary, changes_json = excluded.changes_json,
           concepts_json = excluded.concepts_json, opponent_idea = excluded.opponent_idea,
           resulting_plan = excluded.resulting_plan, tactical_warning = excluded.tactical_warning,
-          common_mistake = excluded.common_mistake
+          common_mistake = excluded.common_mistake, board_annotations_json = excluded.board_annotations_json
       `).run(
         move.id,
         move.explanation.summary,
@@ -351,6 +351,7 @@ export class OpeningContentService {
         move.explanation.resultingPlan ?? null,
         move.explanation.tacticalWarning ?? null,
         move.explanation.commonMistake ?? null,
+        JSON.stringify(move.explanation.boardAnnotations ?? []),
       );
     }
 

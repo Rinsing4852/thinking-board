@@ -36,6 +36,11 @@ run and shows that move's board, explanation and editable personal comment—eve
 after the next position has arrived, or at the end of the run. Close it to return
 to practice; save or cancel comment edits first. **Learn the ideas (guided)** is
 the separate, optional move-purpose lesson with deliberate explanation stops.
+Completed line runs offer **Repeat this line**, **Next enabled line** (skipping
+paused/archived paths) and **Back to this repertoire**. Chapter names distinguish
+similarly named source lines. Reading explanations, watching opponent replies,
+hidden tabs, pauses and network waits do not inflate active recall time. A
+same-tab reload preserves elapsed active time; historical timings are unchanged.
 Every
 repertoire move can also carry a private, editable learning comment in the
 learner's own words. These comments remain separate from the source material
@@ -86,7 +91,12 @@ lessons do not prove complete-line recall. Hints, shown answers and corrected
 mistakes are not unaided recall. A small sample is not proof of lasting mastery.
 
 Personal repertoires can be renamed, reordered and exported as a
-complete PGN, including archived lines;
+complete PGN, including archived lines, source explanations, labelled personal
+notes and imported square highlights/arrows. Re-import treats the exported prose
+as source text, not separate editable personal-note records; use a database backup
+to preserve that separation and practice history. Browsing links retain the
+selected repertoire, line and move on refresh. Archive/export actions sit in
+**Manage lines**;
 the most recently added move can be undone. Individual lines or complete
 repertoires—including built-in material—can be archived without losing notes or
 review history, then restored later. The desktop opening studio provides
@@ -94,8 +104,9 @@ guided move choices: one repertoire board asks for the next decision and adds a
 selected move immediately. An independent analysis board opens only when deeper
 investigation is useful. Local Stockfish suggests candidate ideas and Lichess
 Explorer shows common rated-game replies when a server token is configured,
-including an intuitive “1 in N games” frequency and the learner's score from
-the chosen colour. The opening home checks practical coverage for the recommended
+including an intuitive “1 in N games” frequency and the chosen colour's sampled
+results (wins plus half the draws—not your personal results). Engine numbers are
+from the side-to-move perspective, identified beneath the move choices. The opening home checks practical coverage for the recommended
 repertoire and surfaces the weakest line from review and game evidence. Exploration is
 never saved automatically: deliberately add the tested sequence to the left
 board, write the reason in your own words, then save it to the same graph and
@@ -147,7 +158,10 @@ Deleted built-ins do not return after a restart.
 
 Paste a PGN or choose a `.pgn` file, select White, Black, or both, and preview
 its chapters and variations before importing. PGN comments are shown as
-source notes; unexplained moves are labelled honestly instead of receiving
+source notes; Lichess `%csl`/`%cal` highlights and arrows are retained and shown only
+in requested practice explanations or via **Show source arrows and highlights**
+when browsing a line. Refresh previously imported material from its source to
+recover marks omitted by older versions. Unexplained moves are labelled honestly instead of receiving
 invented strategic claims.
 
 Public and private Lichess Studies can be imported directly from a study or chapter URL.

@@ -54,7 +54,7 @@ const analysis = await request("/api/v1/openings/analysis", { fen: "rnbqkbnr/ppp
 assert(analysis.lines.length > 0, "Real local Stockfish must supply candidates");
 const catalog = await request("/api/v1/openings/catalog");
 if (!existing) assert.equal(catalog.repertoires.length, 0, "Fresh installations must not add unwanted starter repertoires");
-const openingPgn = '[Event "Container source update"]\n[Result "*"]\n\n1. e4 {Control the centre.} e5 2. Nf3 Nc6 3. Bc4 *';
+const openingPgn = '[Event "Container source update"]\n[Result "*"]\n\n1. e4 {Control the centre. [%csl Ge4] [%cal Bf1c4]} e5 2. Nf3 Nc6 3. Bc4 *';
 let repertoireId;
 if (existing) {
   const repertoire = catalog.repertoires.find(item => item.name === "Container source update");
@@ -79,6 +79,9 @@ const repertoire = await request(`/api/v1/openings/repertoires/${repertoireId}`)
 assert.equal(repertoire.chapters[0].lines.length, 2, "Updated opening branches must be persisted");
 assert.equal(repertoire.chapters[0].lines[0].moves[0].explanation.summary,
   "Open the bishop and control the centre.", "Refreshed source notes must be persisted");
+const sourceMarks = [{ color: "green", from: "e4", to: "e4" }, { color: "blue", from: "f1", to: "c4" }];
+assert.deepEqual(repertoire.chapters[0].lines[0].moves[0].explanation.boardAnnotations, sourceMarks,
+  "Imported visual explanations must survive source updates and restart");
 const idea = "Develop and take the centre before memorising a deep line.";
 if (!existing) {
   const imported = await request("/api/v1/imports/pgn", {
@@ -126,6 +129,12 @@ const varied = await request(`/api/v1/openings/repertoires/${repertoireId}/revie
 assert.equal(varied.lineRun.lineId, mainLine.id, "Automatic varied practice must skip disabled variations");
 const oneOff = await request(`/api/v1/openings/repertoires/${repertoireId}/lines/${pausedLine.id}/reviews/start`, {});
 assert.equal(oneOff.lineRun.lineId, pausedLine.id, "Deliberate one-off practice must remain available");
+assert.equal(oneOff.lineRun.chapterTitle, repertoire.chapters[0].title, "Line recall must identify the source chapter");
+const recall = await request(`/api/v1/openings/reviews/${oneOff.sessionId}/move`, {
+  moveUci: oneOff.introduction.repertoireMove.moveUci, queueEntryId: oneOff.queueEntryId, activeResponseMs: 2300,
+});
+assert.deepEqual(recall.explanation.boardAnnotations, sourceMarks, "Recall explanations must retain source marks");
+assert.equal(recall.recallSpeed, "normal", "Active recall time must be accepted by the production server");
 if (process.argv.includes("--clear-library")) {
   const before = (await request("/api/v1/games")).games.map(game => game.id).sort();
   await request("/api/v1/openings/library/delete", { confirmed: true, repertoireIds: catalog.repertoires.map(item => item.id) });

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { openingGraphKey } from "../opening-navigation";
+import { useOpeningSession } from "../use-opening-session";
+import { parseOpeningLocation } from "../opening-location";
 
 import type {
   OpeningCatalogResponse,
@@ -52,9 +54,8 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
   const [catalog, setCatalog] = useState<OpeningRepertoireSummary[]>([]);
   const [step, setStep] = useState<OpeningLessonStep | null>(null);
   const [complete, setComplete] = useState<OpeningLessonComplete | null>(null);
-  const [activeReview, setActiveReview] = useState<OpeningReviewActiveState | null>(null);
+  const { activeReview, reviewPaused, setActiveReview, setReviewPaused, nextLineId } = useOpeningSession();
   const [recommendation, setRecommendation] = useState<OpeningReviewRecommendation | null>(null);
-  const [reviewPaused, setReviewPaused] = useState(false);
   const [phase, setPhase] = useState<LessonPhase>("catalog");
   const [pausedLessonPhase, setPausedLessonPhase] = useState<ActiveLessonPhase | null>(null);
   const [displayFen, setDisplayFen] = useState("");
@@ -196,6 +197,10 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
         setDisplayFen("");
         setLastMove(null);
         setPhase("catalog");
+        const location = parseOpeningLocation(window.location.hash);
+        if (location) void get<OpeningRepertoireDetailResponse>(`/api/v1/openings/repertoires/${encodeURIComponent(location.repertoireId)}`, controller.signal)
+          .then(detail => { if (!controller.signal.aborted) { setWorkspaceDetail(detail); setWorkspaceLineId(location.lineId); } })
+          .catch(() => { if (!controller.signal.aborted) setError("That saved repertoire is no longer available. Choose one from your library."); });
       }
       const coverageRepertoireId = recommended.repertoire?.id
         ?? catalogResponse.repertoires.find((repertoire) => !repertoire.archived)?.id;
@@ -299,6 +304,8 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
 
   const finishOpeningDeletion = (repertoireIds: string[], message: string): void => {
     const deleted = new Set(repertoireIds);
+    const location = parseOpeningLocation(window.location.hash);
+    if (location && deleted.has(location.repertoireId)) window.history.replaceState(null, "", "#openings");
     setWorkspaceDetail(null);
     setWorkspaceGap(null);
     setWorkspaceLineId(null);
@@ -451,7 +458,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
     const sessionId = activeReview.sessionId;
     setError("");
     try {
-      const resumed = await post<OpeningReviewActiveState>(`/api/v1/openings/reviews/${sessionId}/resume`);
+      const resumed = await post<OpeningReviewActiveState>(`/api/v1/openings/reviews/${sessionId}/resume`, { preserveTiming: true });
       setActiveReview(resumed);
       setReviewPaused(false);
     } catch (resumeError) {
@@ -674,6 +681,20 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
           onComplete={finishReview}
           onPause={() => setReviewPaused(true)}
           onPracticeMore={() => void startRecommendedReview()}
+          navigationBusy={submitting}
+          onRepeatLine={() => {
+            const current = activeReview.kind === "feedback" ? activeReview.exercise : activeReview;
+            if (current.lineRun) void startLinePractice(current.repertoire.id, current.lineRun.lineId);
+          }}
+          onNextLine={nextLineId ? () => {
+            const current = activeReview.kind === "feedback" ? activeReview.exercise : activeReview;
+            void startLinePractice(current.repertoire.id, nextLineId);
+          } : undefined}
+          onBackToRepertoire={() => {
+            const current = activeReview.kind === "feedback" ? activeReview.exercise : activeReview;
+            finishReview();
+            void openWorkspace(current.repertoire.id, current.lineRun?.lineId ?? null);
+          }}
         />
       )}
 
@@ -698,7 +719,10 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onFo
           useExplorer={playerPreferences?.useExplorer ?? false}
           lineProgress={openingProgress?.lines ?? []}
           busy={submitting}
-          onBack={() => { setWorkspaceDetail(null); setWorkspaceLineId(null); setWorkspaceGap(null); }}
+          onBack={() => {
+            setWorkspaceDetail(null); setWorkspaceLineId(null); setWorkspaceGap(null);
+            window.history.replaceState(null, "", "#openings");
+          }}
           onPractice={(lineId) => void startLinePractice(workspaceDetail.repertoire.id, lineId)}
           onDetailChanged={updated => {
             if (openingGraphKey(updated.chapters) !== openingGraphKey(workspaceDetail.chapters)) clearCoverageSpotlight();

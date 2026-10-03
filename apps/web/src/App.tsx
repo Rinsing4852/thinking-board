@@ -18,7 +18,7 @@ import { OpeningPractice } from "./components/OpeningPractice";
 type AppView = "today" | "openings" | "games" | "progress";
 
 function initialView(): AppView {
-  const hash = window.location.hash.slice(1);
+  const hash = window.location.hash.slice(1).split("?")[0];
   return hash === "openings" || hash === "games" || hash === "progress" ? hash : "today";
 }
 

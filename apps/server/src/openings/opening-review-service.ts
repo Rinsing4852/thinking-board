@@ -16,6 +16,7 @@ import { selectPracticeLine, type LineCandidate } from "./opening-line-selection
 import { openingPositionKey } from "./opening-content.js";
 import { practiceReplyFrequency, preparationNote } from "./opening-preparation-store.js";
 import { practiceLineEligible } from "./opening-practice-eligibility.js";
+import { openingResponseMs } from "./opening-response-time.js";
 import {
   OPENING_SCHEDULER_VERSION,
   scheduleOpeningReview,
@@ -42,6 +43,7 @@ interface ReviewItemRow extends StoredOpeningReviewCard {
   tactical_warning: string | null;
   common_mistake: string | null;
   personal_comment: string | null;
+  board_annotations_json: string;
 }
 
 interface ActiveQueueRow {
@@ -653,10 +655,10 @@ export class OpeningReviewService {
     return event ? this.feedback(queue, event) : this.exercise(queue);
   }
 
-  resume(sessionId: string): OpeningReviewActiveState {
+  resume(sessionId: string, preserveTiming = false): OpeningReviewActiveState {
     const queue = this.activeQueue(sessionId);
     const event = this.event(queue.queue_id);
-    if (!event) {
+    if (!event && !preserveTiming) {
       this.db.prepare(`
         UPDATE opening_review_queue SET started_at = ? WHERE id = ?
       `).run(now(), queue.queue_id);
@@ -665,7 +667,7 @@ export class OpeningReviewService {
     return event ? this.feedback(resumedQueue, event) : this.exercise(resumedQueue);
   }
 
-  answer(sessionId: string, moveUci: string, assisted = false, revealed = false, queueEntryId?: string): OpeningReviewFeedback {
+  answer(sessionId: string, moveUci: string, assisted = false, revealed = false, queueEntryId?: string, activeResponseMs?: number): OpeningReviewFeedback {
     const queue = this.activeQueue(sessionId);
     if (queueEntryId && queue.queue_id !== queueEntryId) throw new Error("This position has changed. Reload the current practice position.");
     const existing = this.event(queue.queue_id);
@@ -683,7 +685,7 @@ export class OpeningReviewService {
     revealed ||= queue.move_shown === 1;
     const independentRecall = correct && !effectiveAssisted;
     const answeredAt = now();
-    const responseMs = Math.max(0, Date.parse(answeredAt) - Date.parse(queue.started_at));
+    const responseMs = openingResponseMs(queue.started_at, answeredAt, activeResponseMs);
     const scheduled = scheduleOpeningReview(item, independentRecall, answeredAt, responseMs);
     let repeatQueued = false;
 
@@ -760,15 +762,16 @@ export class OpeningReviewService {
     return this.feedback(queue, this.event(queue.queue_id)!, repeatQueued);
   }
 
-  recordMistake(sessionId: string, moveUci: string): OpeningReviewMistakeResponse {
+  recordMistake(sessionId: string, moveUci: string, queueEntryId?: string, activeResponseMs?: number): OpeningReviewMistakeResponse {
     const queue = this.activeQueue(sessionId);
+    if (queueEntryId && queue.queue_id !== queueEntryId) throw new Error("This position has changed. Reload the current practice position.");
     if (this.event(queue.queue_id)) throw new Error("This opening position has already been answered");
     const item = this.item(queue.review_item_id, queue.expected_move_id);
     const played = applyLegalMove(item.from_fen, moveUci);
     if (this.isAcceptedMove(queue, item, moveUci)) throw new Error("That is an accepted repertoire move");
 
     const createdAt = now();
-    const responseMs = Math.max(0, Date.parse(createdAt) - Date.parse(queue.started_at));
+    const responseMs = openingResponseMs(queue.started_at, createdAt, activeResponseMs);
     this.db.prepare(`
       INSERT INTO opening_review_mistakes(
         id, review_item_id, session_id, queue_entry_id,
@@ -916,7 +919,7 @@ export class OpeningReviewService {
       SELECT ori.*, target.id AS target_move_id,
              target.move_uci, target.move_san, before.fen AS from_fen, after.fen AS to_fen,
              r.learner_color, r.name AS repertoire_name, a.summary, a.changes_json,
-             a.resulting_plan, a.tactical_warning, a.common_mistake,
+             a.resulting_plan, a.tactical_warning, a.common_mistake, a.board_annotations_json,
              lc.comment AS personal_comment
       FROM opening_review_items ori
       JOIN opening_moves target ON target.id = COALESCE(?, ori.move_id)
@@ -989,7 +992,7 @@ export class OpeningReviewService {
   private exercise(queue: ActiveQueueRow): OpeningReviewExercise {
     const item = this.item(queue.review_item_id, queue.expected_move_id);
     const context = this.db.prepare(`
-      SELECT target.line_id, l.title AS line_title, target.ply AS target_ply,
+      SELECT target.line_id, l.title AS line_title, c.title AS chapter_title, target.ply AS target_ply,
              previous.role AS previous_role, previous.move_uci AS previous_uci,
              previous.move_san AS previous_san, previous_before.fen AS previous_fen
       FROM opening_line_moves target
@@ -1012,6 +1015,7 @@ export class OpeningReviewService {
       queue.source_line_id, queue.session_id, item.profile_id, item.profile_id, queue.source_line_id) as {
       line_id: string;
       line_title: string;
+      chapter_title: string;
       target_ply: number;
       previous_role: "learner" | "opponent" | null;
       previous_uci: string | null;
@@ -1081,6 +1085,7 @@ export class OpeningReviewService {
       tacticalWarning: item.tactical_warning,
       commonMistake: item.common_mistake,
       personalComment: item.personal_comment,
+      boardAnnotations: JSON.parse(item.board_annotations_json),
     };
     const acceptedMoves = queue.expected_move_id
       ? [{ moveUci: item.move_uci, moveSan: item.move_san }]
@@ -1096,7 +1101,7 @@ export class OpeningReviewService {
       presentationKind: queue.presentation_kind,
       learningStage,
       practiceReason,
-      lineRun: queue.source_line_id && context ? { lineId: context.line_id, lineTitle: context.line_title } : null,
+      lineRun: queue.source_line_id && context ? { lineId: context.line_id, lineTitle: context.line_title, chapterTitle: context.chapter_title } : null,
       fenBeforeOpponent: hasOpponentContext ? context!.previous_fen! : item.from_fen,
       fenToMove: item.from_fen,
       opponentMove: hasOpponentContext
@@ -1155,6 +1160,7 @@ export class OpeningReviewService {
         tacticalWarning: item.tactical_warning,
         commonMistake: item.common_mistake,
         personalComment: item.personal_comment,
+        boardAnnotations: JSON.parse(item.board_annotations_json),
       },
       nextDueAt: event.next_due_at,
       lapseQueued: lapseQueued || Boolean(this.db.prepare(`SELECT 1 FROM opening_review_queue

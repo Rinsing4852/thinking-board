@@ -121,6 +121,33 @@ practice and library clearing across restarts. Only disposable test data is used
 Docker publishing is triggered by committing and pushing the verified release;
 the live installation is updated separately after the publishing checks succeed.
 
+### Follow-up: recall reliability and repertoire context — 2026-10-02
+
+Version 1.5.11 stops repeated continuation requests after completion and measures
+active recall rather than explanation reading or time away. Legacy API requests
+remain supported; historical scores are not rewritten. A focused session reducer
+and clock separate review lifecycle from import/guided orchestration.
+
+Exact-line completion now offers repeat, next enabled line and return to the
+repertoire, skipping paused/archived paths. Practice names include the chapter;
+browsing URLs retain line/move across refreshes. Archive/export controls remain
+available inside collapsed management rather than crowding the primary toolbar.
+Builder statistics now describe sampled colour results, not personal results,
+and explicitly identify the engine's side-to-move perspective.
+
+Imported arrows and highlights are retained on shared move annotations and source
+updates, with opt-in browsing and requested post-answer explanations. They never
+appear during recall. PGN export retains both source prose and labelled personal
+notes, but re-import does not recreate their separate editing identity or review
+history. Original chapter-tree grouping still is not reconstructed on export.
+
+Verification: typecheck/build, 174 unit/integration tests and all 46 desktop/mobile
+browser checks pass. New coverage checks completion silence, paused timing,
+multi-chapter navigation, refresh context, marks, exports and legacy migration.
+The Docker image builds and real Stockfish import/review/restart checks pass on
+disposable data. These checks establish regression safety, not competitor parity;
+first-time learner testing remains important. The live installation is unchanged.
+
 ### Remaining practice/usability priorities
 
 The hidden-answer retry/hint flow, automatic correct-move progression, exact
@@ -138,17 +165,17 @@ distinct from engine evaluation; do not automatically generate plausible prose.
    accepts another active saved reply. Validate this with a first-time learner.
 
 2. **Keep navigation context across workspaces.** Branch/fork navigation is now
-   implemented. Next retain the selected line/move across reloads and deep links,
-   and carry the same readable branch labels into practice headers. Keep the
+   implemented, with line/move refresh context and chapter names in practice as of
+   1.5.11. Next carry derived branching-move labels into every practice header. Keep the
    board and next decision ahead of secondary management controls on mobile.
    Validate the new navigation with a first-time learner before adding a full
    visual study-tree editor.
 
 3. **Improve learning reasons rather than inventing them.** Keep source prose,
    personal notes and missing explanations visibly distinct. Make writing a
-   short purpose/plan/warning easy while studying. PGN arrow/square directives
-   are currently stripped from prose, not rendered on the board; consider
-   displaying these author annotations after an answer.
+   short purpose/plan/warning easy while studying. Author arrows/highlights now
+   appear in requested explanations; validate whether source-note wording helps
+   beginners understand the reason without unnecessary boilerplate.
 
 4. **Strengthen import/update portability.** Export currently flattens paths into
    separate PGN chapters rather than recreating the original nested study tree.
@@ -159,7 +186,8 @@ distinct from engine evaluation; do not automatically generate plausible prose.
 
 5. **Reduce orchestration complexity.** Focused line-library/navigation components
    and stale-coverage guards are now extracted/implemented. Extract import loading and
-   practice transitions into focused hooks/reducers without changing behaviour.
+   import loading into focused hooks without changing behaviour; the memory-session
+   transitions/clock now have focused reducers/hooks.
    Retain the new cancellation/revision guards for asynchronous coverage state.
    Keep shared API contracts and thin
    routes; avoid a general framework rewrite.

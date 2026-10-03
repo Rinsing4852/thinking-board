@@ -212,6 +212,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await expect(openings.getByText(/saved as a new branch; the original line is unchanged/i)).toBeVisible();
     await expect(openings.getByRole("button", { name: /Italian bishop-first branch/ })).toBeVisible();
 
+    await openings.locator("details.opening-management > summary").click();
     await openings.getByRole("button", { name: "Delete selected line" }).click();
     let deletion = openings.getByRole("alertdialog");
     await expect(deletion.getByRole("heading", { name: "Delete “Italian bishop-first branch”?" })).toBeVisible();
@@ -285,6 +286,7 @@ test.describe.serial("stable V1 browser journey", () => {
 
     await starter.locator("summary").click();
     await starter.getByRole("button", { name: "View all lines" }).click();
+    await openings.locator("details.opening-management > summary").click();
     await openings.getByRole("button", { name: "Archive this line" }).click();
     await expect(openings.getByText(/Black develops the bishop first was archived/i)).toBeVisible();
     await openings.getByRole("button", { name: /Black develops the bishop first/ }).click();

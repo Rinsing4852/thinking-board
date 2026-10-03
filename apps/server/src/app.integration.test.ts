@@ -1543,6 +1543,27 @@ describe("vertical slice", () => {
     });
   });
 
+  it("records active recall time and rejects stale or invalid timed attempts", async () => {
+    const appConfig = config(false);
+    const app = await buildApp(appConfig);
+    apps.push(app);
+    const started = (await app.inject({ method: "POST",
+      url: "/api/v1/openings/repertoires/repertoire.white-e4-principled/reviews/start", payload: { mode: "new" } })).json();
+    const connection = new BetterSqlite3(appConfig.databasePath);
+    connection.prepare("UPDATE opening_review_queue SET started_at = '2020-01-01T00:00:00.000Z' WHERE id = ?").run(started.queueEntryId);
+    const resumed = await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${started.sessionId}/resume`, payload: { preserveTiming: true } });
+    expect(resumed.statusCode).toBe(200);
+    expect(connection.prepare("SELECT started_at FROM opening_review_queue WHERE id = ?").pluck().get(started.queueEntryId)).toBe("2020-01-01T00:00:00.000Z");
+    const route = `/api/v1/openings/reviews/${started.sessionId}`;
+    expect((await app.inject({ method: "POST", url: `${route}/mistakes`, payload: { moveUci: "d2d4", queueEntryId: "stale", activeResponseMs: 1000 } })).statusCode).toBe(400);
+    expect(connection.prepare("SELECT COUNT(*) FROM opening_review_mistakes").pluck().get()).toBe(0);
+    expect((await app.inject({ method: "POST", url: `${route}/move`, payload: { moveUci: "e2e4", activeResponseMs: -1 } })).statusCode).toBe(400);
+    const answered = await app.inject({ method: "POST", url: `${route}/move`, payload: { moveUci: "e2e4", queueEntryId: started.queueEntryId, activeResponseMs: 2300 } });
+    expect(answered.json()).toMatchObject({ outcome: "remembered", recallSpeed: "normal" });
+    expect(connection.prepare("SELECT rating, response_ms FROM opening_review_events WHERE session_id = ?").get(started.sessionId)).toEqual({ rating: 3, response_ms: 2300 });
+    connection.close();
+  });
+
   it("restarts the response timer when a paused opening review resumes", async () => {
     const appConfig = config(false);
     const app = await buildApp(appConfig);

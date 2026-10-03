@@ -3,7 +3,7 @@ test.use({ baseURL: "http://127.0.0.1:8192" });
 
 async function startPractice(page: import("@playwright/test").Page) {
   const imported = await page.request.post("/api/v1/openings/imports/pgn", { data: {
-    pgn: '[Event "Quality practice"]\n[Result "*"]\n\n1. e4 {Claim central space and free the bishop.} e5 2. Nf3 {Develop the knight and attack the central pawn.} Nc6 3. Bc4 *',
+    pgn: '[Event "Quality practice"]\n[Result "*"]\n\n1. e4 {Claim central space and free the bishop. [%csl Ge4] [%cal Bf1c4]} e5 2. Nf3 {Develop the knight and attack the central pawn.} Nc6 3. Bc4 *',
     learnerColor: "white", name: "Quality practice", sourceType: "self_authored", sourceTitle: "My notes", ownershipConfirmed: true,
   } });
   expect(imported.ok()).toBeTruthy();
@@ -33,6 +33,8 @@ test("keeps manual pauses independent and resumes automatically", async ({ page 
 });
 
 test("plays a complete line without automatic explanations or Continue buttons", async ({ page }, testInfo) => {
+  const continuations: string[] = [];
+  page.on("request", request => { if (/\/reviews\/[^/]+\/continue$/.test(request.url())) continuations.push(request.url()); });
   const board = await startPractice(page);
   await expect(page.getByText("Why this move belongs", { exact: true })).toBeHidden();
   await expect(page.getByText("Claim central space and free the bishop.", { exact: true })).toBeHidden();
@@ -49,14 +51,19 @@ test("plays a complete line without automatic explanations or Continue buttons",
     await expect(page.getByText("Develop the knight and attack the central pawn.", { exact: true })).toBeHidden();
   }
   await expect(page.getByText("Practice complete", { exact: true })).toBeVisible();
+  expect(continuations).toHaveLength(3);
+  await page.waitForTimeout(1700);
+  expect(continuations).toHaveLength(3);
   await page.getByRole("button", { name: "Explain last move", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Why 3. Bc4?", exact: true })).toBeVisible();
   const explanation = page.getByRole("region", { name: "Requested move explanation" });
   await explanation.getByRole("button", { name: /Add comment|Edit comment/ }).click();
-  await expect(page.getByRole("button", { name: "Back to opening choices", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Back to this repertoire", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Close explanation", exact: true })).toBeDisabled();
   await explanation.getByRole("button", { name: "Cancel", exact: true }).click();
   await page.getByRole("button", { name: "Close explanation", exact: true }).click();
+  await page.waitForTimeout(1700);
+  expect(continuations).toHaveLength(3);
   await page.screenshot({ path: testInfo.outputPath("continuous-line-complete.png"), fullPage: true });
 });
 
@@ -68,12 +75,15 @@ test("explains the previous move on request after advancing, and saves its comme
   const first = await (await answered).json();
   await expect(page.getByText("Step 2 of 3")).toBeVisible();
   await expect(board).toHaveClass(/interactive/);
+  await expect(page.locator(".board-annotations")).toHaveCount(0);
   await page.getByRole("button", { name: "Explain last move", exact: true }).click();
   const explanation = page.getByRole("region", { name: "Requested move explanation" });
   await expect(explanation.getByRole("heading", { name: "Why 1. e4?", exact: true })).toBeVisible();
   await expect(explanation.getByText("Claim central space and free the bishop.", { exact: true })).toBeVisible();
   await expect(page.getByText("Develop the knight and attack the central pawn.", { exact: true })).toBeHidden();
   await expect(board).not.toHaveClass(/interactive/);
+  await expect(page.locator(".board-annotations circle.annotation-green")).toHaveCount(1);
+  await expect(page.locator(".board-annotations line.annotation-blue")).toHaveCount(1);
   // The requested explanation brings back e4's board, not the next question's board.
   await expect(board.getByRole("gridcell", { name: "e7 black pawn" })).toBeVisible();
   await page.waitForTimeout(1000);
@@ -93,6 +103,7 @@ test("explains the previous move on request after advancing, and saves its comme
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
   await close.click();
   await expect(board).toHaveClass(/interactive/);
+  await expect(page.locator(".board-annotations")).toHaveCount(0);
   await expect(board.getByRole("gridcell", { name: "e5 black pawn" })).toBeVisible();
   const nextAnswer = page.waitForResponse(response => /\/reviews\/[^/]+\/move$/.test(response.url()) && response.request().method() === "POST");
   await board.getByRole("gridcell", { name: "g1 white knight" }).click();
@@ -108,6 +119,87 @@ test("explains the previous move on request after advancing, and saves its comme
   await expect(close).toBeEnabled();
   await close.click();
   await expect(page.getByText("Step 3 of 3")).toBeVisible();
+});
+
+test("excludes reading notes and hidden-tab time from the next recall", async ({ page }) => {
+  const board = await startPractice(page);
+  await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
+  await board.getByRole("gridcell", { name: "e4 empty" }).click();
+  await expect(page.getByText("Step 2 of 3")).toBeVisible();
+  await expect(board).toHaveClass(/interactive/);
+  await page.evaluate(() => {
+    const original = performance.now.bind(performance);
+    (window as typeof window & { recallOffset: number }).recallOffset = 0;
+    Object.defineProperty(performance, "now", { configurable: true,
+      value: () => original() + (window as typeof window & { recallOffset: number }).recallOffset });
+  });
+  await page.getByRole("button", { name: "Explain last move", exact: true }).click();
+  await expect(board).not.toHaveClass(/interactive/);
+  await page.evaluate(() => { (window as typeof window & { recallOffset: number }).recallOffset += 120000; });
+  await page.getByRole("button", { name: "Close explanation and resume", exact: true }).click();
+  await expect(board).toHaveClass(/interactive/);
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await page.waitForTimeout(100);
+  await page.evaluate(() => {
+    (window as typeof window & { recallOffset: number }).recallOffset += 120000;
+    Object.defineProperty(document, "hidden", { configurable: true, value: false });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await page.waitForTimeout(100);
+  const answered = page.waitForResponse(response => /\/reviews\/[^/]+\/move$/.test(response.url()));
+  await board.getByRole("gridcell", { name: "g1 white knight" }).click();
+  await board.getByRole("gridcell", { name: "f3 empty" }).click();
+  const response = await answered;
+  expect(response.request().postDataJSON().activeResponseMs).toBeLessThan(30000);
+  expect(await response.json()).toMatchObject({ recallSpeed: "normal", assisted: false });
+});
+
+test("repeats a line, skips paused chapters and restores browsing position on reload", async ({ page }, testInfo) => {
+  const pgn = '[Event "Line navigation"]\n[ChapterName "First"]\n[Result "*"]\n\n1.e4 e5 *\n\n'
+    + '[Event "Line navigation"]\n[ChapterName "Paused"]\n[Result "*"]\n\n1.e4 c5 2.Nf3 *\n\n'
+    + '[Event "Line navigation"]\n[ChapterName "Last"]\n[Result "*"]\n\n1.e4 {Centre [%csl Ge4]} e6 *';
+  const imported = await page.request.post("/api/v1/openings/imports/pgn", { data: {
+    pgn, learnerColor: "white", name: "Line navigation", sourceType: "self_authored", sourceTitle: "My notes", ownershipConfirmed: true,
+  } });
+  expect(imported.ok()).toBeTruthy();
+  const repertoireId = (await imported.json()).repertoireIds[0];
+  const detail = await (await page.request.get(`/api/v1/openings/repertoires/${repertoireId}`)).json();
+  const [first, paused, last] = detail.chapters.map((chapter: { lines: Array<{ id: string }> }) => chapter.lines[0].id);
+  expect((await page.request.patch(`/api/v1/openings/repertoires/${repertoireId}/practice-selection`, { data: { lineIds: [paused], enabled: false } })).ok()).toBeTruthy();
+  await page.request.post(`/api/v1/openings/repertoires/${repertoireId}/lines/${first}/reviews/start`);
+  await page.goto("/#openings");
+  const resume = page.getByRole("button", { name: "Resume opening practice" });
+  if (await resume.isVisible()) await resume.click();
+  const play = async () => {
+    const board = page.getByRole("grid", { name: "Chess position" });
+    await expect(board).toHaveClass(/interactive/);
+    await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
+    await board.getByRole("gridcell", { name: "e4 empty" }).click();
+    await expect(page.getByText("Practice complete", { exact: true })).toBeVisible();
+  };
+  await play();
+  await page.getByRole("button", { name: "Repeat this line", exact: true }).click();
+  await expect(page.getByText(/Line run · First/)).toBeVisible();
+  await play();
+  await page.getByRole("button", { name: "Next enabled line", exact: true }).click();
+  await expect(page.getByText(/Line run · Last/)).toBeVisible();
+  await play();
+  await expect(page.getByRole("button", { name: "Next enabled line", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Back to this repertoire", exact: true }).click();
+  await page.getByRole("button", { name: "Go to move 1: e4", exact: true }).click();
+  expect(await page.evaluate(() => Object.fromEntries(new URLSearchParams(window.location.hash.split("?")[1]))))
+    .toMatchObject({ line: last, ply: "1" });
+  await expect(page.locator(".board-annotations")).toHaveCount(0);
+  await page.getByRole("button", { name: "Show source arrows and highlights", exact: true }).click();
+  await expect(page.locator(".board-annotations circle.annotation-green")).toHaveCount(1);
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Go to move 1: e4", exact: true })).toHaveAttribute("aria-current", "step");
+  await expect(page.getByRole("gridcell", { name: "e4 white pawn" })).toBeVisible();
+  await expect(page.locator(".board-annotations")).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath("restored-line-browser.png"), fullPage: true });
 });
 
 test("keeps a wrong move in place without revealing its answer or explanation", async ({ page }) => {

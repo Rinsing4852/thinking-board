@@ -17,6 +17,7 @@ import type {
 import { get, patch, post, remove } from "../api";
 import { findPlyAtFen } from "../opening-line-position";
 import { countTranspositions } from "../opening-transpositions";
+import { parseOpeningLocation, openingLocationHash } from "../opening-location";
 import { buildOpeningNavigation, openingGraphKey, openingMoveLabel, savedContinuations, switchLineDestination } from "../opening-navigation";
 import { ChessBoard } from "./ChessBoard";
 import { OpeningLearningComment } from "./OpeningLearningComment";
@@ -76,11 +77,18 @@ export function OpeningLineExplorer({
     ? allLines.find(({ line: candidate }) => candidate.title === startingGap.lineTitle && gapPlyForLine(candidate, startingGap) !== null)
       ?? allLines.find(({ line: candidate }) => gapPlyForLine(candidate, startingGap) !== null)
     : undefined;
-  const initial = gapInitial ?? allLines.find(({ line }) => line.id === startingLineId) ?? allLines[0];
-  const initialPly = initial && startingGap ? gapPlyForLine(initial.line, startingGap) ?? 0 : 0;
+  const savedLocation = parseOpeningLocation(window.location.hash);
+  const savedLineId = savedLocation?.repertoireId === detail.repertoire.id ? savedLocation.lineId : null;
+  const initial = gapInitial ?? allLines.find(({ line }) => line.id === (startingLineId ?? savedLineId)) ?? allLines[0];
+  const initialPly = initial && startingGap ? gapPlyForLine(initial.line, startingGap) ?? 0
+    : initial && savedLineId === initial.line.id ? Math.min(savedLocation!.ply, initial.line.moves.length) : 0;
   const [lineId, setLineId] = useState(initial?.line.id ?? "");
   const [lineLibraryOpen, setLineLibraryOpen] = useState(false);
   const [ply, setPly] = useState(initialPly);
+  useEffect(() => {
+    const hash = openingLocationHash({ repertoireId: detail.repertoire.id, lineId, ply });
+    if (window.location.hash !== hash) window.history.replaceState(null, "", hash);
+  }, [detail.repertoire.id, lineId, ply]);
   const [editing, setEditing] = useState(Boolean(startingGap));
   const [pendingMove, setPendingMove] = useState<{ uci: string; san: string } | null>(startingGap
     ? { uci: startingGap.moveUci, san: startingGap.moveSan }
@@ -90,6 +98,7 @@ export function OpeningLineExplorer({
   const [newExplanation, setNewExplanation] = useState("");
   const [editingExplanation, setEditingExplanation] = useState(false);
   const [editingComment, setEditingComment] = useState(false);
+  const [showSourceMarks, setShowSourceMarks] = useState(false);
   const [returnPositions, setReturnPositions] = useState<Array<{ lineId: string; ply: number }>>([]);
   const [explanationText, setExplanationText] = useState("");
   const [status, setStatus] = useState("");
@@ -116,6 +125,8 @@ export function OpeningLineExplorer({
   const selectedTranspositions = line ? transpositionsByLine.get(line.id) ?? 0 : 0;
   const selectedLineIndex = selected?.chapter.lines.findIndex((candidate) => candidate.id === lineId) ?? -1;
   const currentMove = ply > 0 ? line?.moves[ply - 1] : undefined;
+  const sourceMarks = currentMove?.explanation.boardAnnotations ?? [];
+  useEffect(() => setShowSourceMarks(false), [lineId, ply]);
   const displayFen = currentMove?.fenAfter ?? line?.moves[0]?.fenBefore ?? "start";
   const navigationBlocked = localBusy || busy || selectionBusy || Boolean(pendingMove) || editingExplanation || editingComment;
   const lineDisplayTitle = navigation.branches.get(lineId)?.title ?? line?.title ?? "";
@@ -487,14 +498,10 @@ export function OpeningLineExplorer({
             {coverageBusy ? "Checking…" : coverage ? "Refresh coverage" : "Check coverage"}
           </button>}
           {detail.repertoire.editable && (
-            <button disabled={navigationBlocked} className={editing ? "active" : "secondary"} onClick={() => { setEditing((value) => !value); setManageOpen(true); setPendingMove(null); }}>
+            <button disabled={navigationBlocked} className={editing ? "active" : "secondary"} onClick={() => { setEditing((value) => !value); setPendingMove(null); }}>
               {editing ? "Finish editing" : "Edit lines"}
             </button>
           )}
-          <button className="secondary" disabled={navigationBlocked} onClick={() => void setLineArchived(!line.archived)}>
-            {localBusy ? "Saving…" : line.archived ? "Restore this line" : "Archive this line"}
-          </button>
-          <a className="button secondary" href={`/api/v1/openings/repertoires/${detail.repertoire.id}/export.pgn`} download>Export PGN</a>
           <button className="secondary" disabled={navigationBlocked} onClick={onBack}>Back to repertoires</button>
           <button disabled={navigationBlocked || line.archived || line.learnerDecisionCount === 0} onClick={() => onPractice(line.id)}>
             {busy ? "Starting…" : line.practiceEnabled === false ? "Practise this line once" : "Practise this line"}
@@ -556,6 +563,10 @@ export function OpeningLineExplorer({
         <summary>Manage lines</summary>
         <p>Archive a line to keep its notes and progress for later. Delete it to remove it permanently. Built-in lines can be deleted too.</p>
         <div className="opening-delete-actions">
+            <button className="secondary" disabled={navigationBlocked} onClick={() => void setLineArchived(!line.archived)}>
+              {localBusy ? "Saving…" : line.archived ? "Restore this line" : "Archive this line"}
+            </button>
+            <a className="button secondary" href={`/api/v1/openings/repertoires/${detail.repertoire.id}/export.pgn`} download>Export PGN</a>
             <button
               className="secondary danger-button"
               disabled={navigationBlocked}
@@ -637,9 +648,17 @@ export function OpeningLineExplorer({
             orientation={detail.repertoire.learnerColor}
             interactive={!navigationBlocked && !line.archived}
             allowAnnotations
+            sourceAnnotations={showSourceMarks && !pendingMove ? sourceMarks : []}
             lastMove={pendingMove?.uci ?? currentMove?.moveUci ?? null}
             onMove={previewNewMove}
           />
+          {!pendingMove && sourceMarks.length > 0 && <button className="text-button" aria-pressed={showSourceMarks}
+            onClick={() => setShowSourceMarks(value => !value)}>
+            {showSourceMarks ? "Hide source arrows and highlights" : "Show source arrows and highlights"}
+          </button>}
+          {showSourceMarks && !pendingMove && <p className="opening-inspector-help">
+            Source marks: {sourceMarks.map(mark => `${mark.color} ${mark.from === mark.to ? `highlight on ${mark.from}` : `arrow ${mark.from} to ${mark.to}`}`).join("; ")}.
+          </p>}
           <div className="opening-move-strip" aria-label="Moves in selected line">
             {line.moves.map((move) => (
               <button

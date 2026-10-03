@@ -10,7 +10,7 @@ import {
 } from "react";
 import { Chess } from "chess.js";
 
-import type { Color } from "../../../../packages/contracts/src/api";
+import type { Color, OpeningBoardAnnotation } from "../../../../packages/contracts/src/api";
 
 const PIECE_IMAGES: Record<string, string> = {
   wk: "/pieces/cburnett/wk.svg",
@@ -79,6 +79,7 @@ interface ChessBoardProps {
   highlightedSquares?: string[];
   rejectedMove?: string | null;
   allowAnnotations?: boolean;
+  sourceAnnotations?: OpeningBoardAnnotation[];
   onMove?: (uci: string, san: string) => void;
   onSquareSelect?: (square: string) => void;
   ariaLabel?: string;
@@ -120,6 +121,7 @@ export function ChessBoard({
   highlightedSquares = [],
   rejectedMove,
   allowAnnotations = false,
+  sourceAnnotations = [],
   onMove,
   onSquareSelect,
   ariaLabel = "Chess position",
@@ -453,7 +455,7 @@ export function ChessBoard({
             </button>
           );
         })}
-        {(annotations.length > 0 || annotationPreview) && (
+        {(sourceAnnotations.length > 0 || annotations.length > 0 || annotationPreview) && (
           <svg className="board-annotations" viewBox="0 0 8 8" aria-hidden="true">
             <defs>
               {(["green", "red", "blue", "yellow"] as const).map((color) => (
@@ -462,10 +464,10 @@ export function ChessBoard({
                 </marker>
               ))}
             </defs>
-            {[...annotations, ...(annotationPreview ? [annotationPreview] : [])].map((annotation, index) => {
+            {[...sourceAnnotations, ...annotations, ...(annotationPreview ? [annotationPreview] : [])].map((annotation, index) => {
               const from = boardPoint(annotation.from, orientation);
               const to = boardPoint(annotation.to, orientation);
-              const preview = index >= annotations.length;
+              const preview = index >= sourceAnnotations.length + annotations.length;
               if (annotation.from === annotation.to) {
                 return <circle key={`${annotation.from}-${annotation.to}-${annotation.color}-${index}`} className={`annotation-mark annotation-${annotation.color}${preview ? " preview" : ""}`} cx={from.x} cy={from.y} r=".36" />;
               }

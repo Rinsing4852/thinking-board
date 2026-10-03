@@ -2,6 +2,30 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.5.11 — 2026-10-02
+
+### Reliable recall and staying in your repertoire
+
+- Stops automatic next-position requests once practice completes. Finishing an
+  exact line offers repeat, next enabled line and return to that repertoire;
+  later paused, archived or empty lines are skipped, with no implicit re-enabling.
+- Measures active recall time, excluding opponent animation, explanation/comment
+  reading, hidden tabs, manual pauses and network waits. Same-tab reloads retain
+  elapsed active time. Older API clients retain wall-time timing, and historical
+  scores are unchanged; new submitted times are validated and server-bounded.
+- Shows chapter and line names during practice. Browsing URLs retain repertoire,
+  line and move across refreshes. Archive/export stay in collapsed management.
+- Renames the builder's misleading personal-score label to sampled colour results,
+  and explains whose perspective the engine numbers use.
+- Retains Lichess PGN square highlights and arrows, including annotation-only
+  source updates. Recall hides them; requested explanations show them and line
+  browsing has an opt-in toggle. Exports retain source prose, labelled personal
+  notes and visual directives. Existing imports can recover marks via source update.
+- Additive migration 029 defaults existing marks to empty without resetting cards
+  or notes. Focused session, cursor and clock modules isolate practice lifecycle;
+  regression tests cover legacy upgrades, completion silence, suspended time,
+  multi-chapter navigation, marks and comment/export retention.
+
 ## 1.5.10 — 2026-10-02
 
 ### Keep full-line practice flowing

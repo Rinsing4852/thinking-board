@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import { Chess } from "chess.js";
 
-import type { Color } from "../../../../packages/contracts/src/api.js";
+import type { Color, OpeningBoardAnnotation } from "../../../../packages/contracts/src/api.js";
 
 export const OPENING_CONCEPTS = [
   "central_control",
@@ -31,6 +31,7 @@ export interface MoveExplanation {
   resultingPlan?: string;
   tacticalWarning?: string;
   commonMistake?: string;
+  boardAnnotations?: OpeningBoardAnnotation[];
 }
 
 export interface AuthoredOpeningMove {

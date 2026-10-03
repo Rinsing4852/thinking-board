@@ -14,6 +14,7 @@ import type {
   OpeningMoveUndoResponse,
 } from "../../../../packages/contracts/src/api.js";
 import { Chess } from "chess.js";
+import { boardAnnotationPgn } from "../../../../packages/contracts/src/board-annotations.js";
 import type { SqliteDatabase } from "../db/database.js";
 import { id, now } from "../lib/ids.js";
 import { openingPositionKey } from "./opening-content.js";
@@ -60,6 +61,7 @@ interface MoveRow {
   tactical_warning: string | null;
   common_mistake: string | null;
   personal_comment: string | null;
+  board_annotations_json: string;
 }
 
 export class OpeningWorkspaceService {
@@ -527,7 +529,9 @@ export class OpeningWorkspaceService {
       for (const move of line.moves) {
         if (move.ply % 2 === 1) moves.push(`${Math.ceil(move.ply / 2)}.`);
         moves.push(move.moveSan);
-        const note = cleanComment(move.explanation.personalComment ?? move.explanation.summary);
+        const note = cleanComment([move.explanation.summary,
+          move.explanation.personalComment ? `Personal note: ${move.explanation.personalComment}` : "",
+          boardAnnotationPgn(move.explanation.boardAnnotations ?? [])].filter(Boolean).join(" "));
         if (note) moves.push(`{${note}}`);
       }
       return `${tags.join("\n")}\n\n${moves.join(" ")} *`;
@@ -765,7 +769,7 @@ export class OpeningWorkspaceService {
     const moveMap = new Map<string, string>();
     const moves = this.db.prepare(`
       SELECT m.*, a.summary, a.changes_json, a.concepts_json, a.opponent_idea,
-             a.resulting_plan, a.tactical_warning, a.common_mistake
+             a.resulting_plan, a.tactical_warning, a.common_mistake, a.board_annotations_json
       FROM opening_moves m
       JOIN opening_move_annotations a ON a.move_id = m.id
       WHERE m.repertoire_id = ?
@@ -786,11 +790,11 @@ export class OpeningWorkspaceService {
       this.db.prepare(`
         INSERT INTO opening_move_annotations(
           move_id, summary, changes_json, concepts_json, opponent_idea,
-          resulting_plan, tactical_warning, common_mistake
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          resulting_plan, tactical_warning, common_mistake, board_annotations_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         moveId, move.summary, move.changes_json, move.concepts_json, move.opponent_idea,
-        move.resulting_plan, move.tactical_warning, move.common_mistake,
+        move.resulting_plan, move.tactical_warning, move.common_mistake, move.board_annotations_json,
       );
     }
 
@@ -881,7 +885,7 @@ export class OpeningWorkspaceService {
       SELECT m.id, olm.ply, m.move_uci, m.move_san, m.role, m.move_kind,
              before.fen AS fen_before, after.fen AS fen_after,
              a.summary, a.changes_json, a.concepts_json, a.opponent_idea,
-             a.resulting_plan, a.tactical_warning, a.common_mistake,
+             a.resulting_plan, a.tactical_warning, a.common_mistake, a.board_annotations_json,
              lc.comment AS personal_comment
       FROM opening_line_moves olm
       JOIN opening_moves m ON m.id = olm.move_id AND m.active = 1
@@ -910,6 +914,7 @@ export class OpeningWorkspaceService {
         tacticalWarning: row.tactical_warning,
         commonMistake: row.common_mistake,
         personalComment: row.personal_comment,
+        boardAnnotations: JSON.parse(row.board_annotations_json),
       },
     }));
   }
