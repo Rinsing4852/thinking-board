@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type {
   GameOpeningConnection,
@@ -12,6 +12,8 @@ import { ChessBoard } from "./ChessBoard";
 import { OpeningGameInbox } from "./OpeningGameInbox";
 import { OpeningPreparationAdvice } from "./OpeningPreparationAdvice";
 import { applyUciMove } from "../opening-board";
+import { OpeningExplanation } from "./OpeningExplanation";
+import { GameLibrary } from "./GameLibrary";
 
 interface Concept {
   id: string;
@@ -99,7 +101,7 @@ function MistakeCard({ mistake, concepts, onSave, onTrain }: MistakeCardProps) {
         {mistake.concepts.length > 0 && <div className="concept-chips">{mistake.concepts.map((concept) => <span key={concept.id}>{concept.label}</span>)}</div>}
         {mistake.diagnosisItemId && (
           <>
-            <div className="diagnosis-editor">
+            <details className="diagnosis-disclosure"><summary>Adjust the thinking-step or pattern label</summary><div className="diagnosis-editor">
               <label>Thinking step to train
                 <select value={thinking} onChange={(event) => setThinking(event.target.value)}>
                   <option value="">Choose…</option>
@@ -115,7 +117,7 @@ function MistakeCard({ mistake, concepts, onSave, onTrain }: MistakeCardProps) {
                 <small>What tactical idea appeared on the board?</small>
               </label>
               <button className="secondary" onClick={() => onSave(mistake.diagnosisItemId!, thinking, tactic)}>Save diagnosis</button>
-            </div>
+            </div></details>
             {mistake.trainingItemId && <button className="review-train-button" onClick={() => onTrain(mistake.trainingItemId!)}>Train this position</button>}
           </>
         )}
@@ -205,9 +207,7 @@ function OpeningConnectionCard({
               <div className="game-opening-explanation">
                 <span>{opening.expectedMove.chapterTitle}</span>
                 <strong>Why {opening.expectedMove.moveSan}?</strong>
-                <p>{opening.expectedMove.explanation.summary}</p>
-                {opening.expectedMove.explanation.personalComment && <p><b>Your comment:</b> {opening.expectedMove.explanation.personalComment}</p>}
-                {opening.expectedMove.explanation.resultingPlan && <p><b>Plan:</b> {opening.expectedMove.explanation.resultingPlan}</p>}
+                <OpeningExplanation explanation={opening.expectedMove.explanation} />
               </div>
               <button disabled={starting} onClick={onPractice}>
                 {starting ? "Opening practice…" : `Practise ${opening.expectedMove.moveSan} now`}
@@ -247,7 +247,7 @@ function OpeningConnectionCard({
           {opening.status === "not_covered" && (
             <>
               <strong className="game-opening-result">This game is not covered by this repertoire.</strong>
-              <p>Your current {opening.repertoire.learnerColor === "white" ? "White 1.e4" : "Black Modern against 1.e4"} course does not match the game’s starting moves.</p>
+              <p>This {opening.repertoire.learnerColor === "white" ? "White" : "Black"} repertoire does not match the game’s starting moves. That is not a chess mistake.</p>
             </>
           )}
         </div>
@@ -266,37 +266,54 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
   const [openingStarting, setOpeningStarting] = useState(false);
   const [inbox, setInbox] = useState<GameOpeningInboxResponse | null>(null);
   const [inboxBusyKey, setInboxBusyKey] = useState<string | null>(null);
+  const [loadingGames, setLoadingGames] = useState(true);
+  const [loadingGameId, setLoadingGameId] = useState<string | null>(null);
+  const [retryToken, setRetryToken] = useState(0);
+  const reviewRequest = useRef<AbortController | null>(null);
 
-  const loadReview = async (gameId: string): Promise<void> => {
+  const loadReview = async (gameId: string, updateLocation = true): Promise<void> => {
+    reviewRequest.current?.abort();
+    const controller = new AbortController(); reviewRequest.current = controller;
+    setLoadingGameId(gameId); setReview(null);
+    if (updateLocation) window.history.replaceState(null, "", `#games?game=${encodeURIComponent(gameId)}`);
     setError("");
     try {
-      const nextReview = await get<Review>(`/api/v1/games/${gameId}/review`);
+      const nextReview = await get<Review>(`/api/v1/games/${gameId}/review`, controller.signal);
+      if (controller.signal.aborted) return;
       setReview(nextReview);
       setShowAll(false);
       setOpeningStarting(false);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Could not load game review");
-    }
+      if (!controller.signal.aborted) setError(loadError instanceof Error ? loadError.message : "Could not load game review");
+    } finally { if (!controller.signal.aborted) setLoadingGameId(null); }
   };
 
   useEffect(() => {
-    void get<{ games: GameSummary[] }>("/api/v1/games").then((data) => {
+    const controller = new AbortController();
+    setLoadingGames(true); setError("");
+    void get<{ games: GameSummary[] }>("/api/v1/games", controller.signal).then((data) => {
+      if (controller.signal.aborted) return;
       setGames(data.games);
       const first = data.games[0];
       const requested = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("game");
-      if (requested && data.games.some(game => game.id === requested)) void loadReview(requested);
-      else if (first) void loadReview(first.id);
-    }).catch((loadError: unknown) => setError(loadError instanceof Error ? loadError.message : "Could not load games"));
-    void get<GameOpeningInboxResponse>("/api/v1/openings/game-inbox")
-      .then(setInbox)
-      .catch((loadError: unknown) => setError(loadError instanceof Error ? loadError.message : "Could not load opening inbox"));
-    void get<{ concepts: Concept[] }>("/api/v1/concepts").then((data) => setConcepts(data.concepts)).catch(() => undefined);
-  }, [refreshToken]);
+      if (requested && data.games.some(game => game.id === requested)) void loadReview(requested, false);
+      else if (first) void loadReview(first.id, false);
+      else setReview(null);
+    }).catch((loadError: unknown) => { if (!controller.signal.aborted) setError(loadError instanceof Error ? loadError.message : "Could not load games"); })
+      .finally(() => { if (!controller.signal.aborted) setLoadingGames(false); });
+    void get<GameOpeningInboxResponse>("/api/v1/openings/game-inbox", controller.signal)
+      .then(value => { if (!controller.signal.aborted) setInbox(value); })
+      .catch((loadError: unknown) => { if (!controller.signal.aborted) setError(loadError instanceof Error ? loadError.message : "Could not load opening inbox"); });
+    void get<{ concepts: Concept[] }>("/api/v1/concepts", controller.signal).then((data) => setConcepts(data.concepts)).catch(() => undefined);
+    return () => { controller.abort(); reviewRequest.current?.abort(); };
+  }, [refreshToken, retryToken]);
 
   useEffect(() => {
-    if (focusToken === 0 || games.length === 0) return;
-    requestAnimationFrame(() => document.getElementById("opening-inbox")?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }, [focusToken, games.length, inbox]);
+    const requested = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("game");
+    if (requested && review?.game.id !== requested) return;
+    if ((!requested && focusToken === 0) || games.length === 0) return;
+    requestAnimationFrame(() => document.getElementById(requested ? "selected-game-review" : "opening-inbox")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }, [focusToken, games.length, inbox, review?.game.id]);
 
   const saveDiagnosis = async (itemId: string, thinking: string, tactic: string): Promise<void> => {
     const conceptIds = [thinking, tactic].filter(Boolean);
@@ -342,7 +359,10 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
     }
   };
 
-  if (games.length === 0) return null;
+  if (games.length === 0) return <section className="panel game-review-state" aria-label="Game review" aria-busy={loadingGames}>
+    {error ? <><p className="error" role="alert">{error}</p><button className="secondary" onClick={() => setRetryToken(value => value + 1)}>Retry game review</button></>
+      : <p role="status">{loadingGames ? "Loading your games…" : "No games imported yet. Paste a game above to see its opening comparison and thinking mistakes."}</p>}
+  </section>;
   return (
     <section className="review-section" id="opening-inbox">
       <div className="panel-heading">
@@ -368,7 +388,7 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
         onPreparationDecision={response => { setInbox(response.inbox); setStatus(response.message); setError(""); }}
       />
       {status && <p className="success" role="status">{status}</p>}
-      {error && <p className="error" role="alert">{error}</p>}
+      {error && <p className="error" role="alert">{error} <button className="text-button" onClick={() => setRetryToken(value => value + 1)}>Retry game review</button></p>}
       <div className="game-review-heading" id="selected-game-review">
         <div>
           <span className="eyebrow">Game detail</span>
@@ -376,19 +396,8 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
         </div>
         <p>Opening feedback and Stockfish mistakes remain separate: leaving preparation is not automatically a bad chess move.</p>
       </div>
-      <div className="game-chips" aria-label="Imported games">
-        {games.map((game) => (
-          <button
-            key={game.id}
-            className={`game-chip${review?.game.id === game.id ? " active" : ""}`}
-            aria-pressed={review?.game.id === game.id}
-            onClick={() => void loadReview(game.id)}
-          >
-            <strong>{game.white} – {game.black}</strong>
-            <small>{game.result} · you played {game.playerColor}{game.playedAt ? ` · ${new Date(game.playedAt).toLocaleDateString()}` : ""}</small>
-          </button>
-        ))}
-      </div>
+      <GameLibrary games={games} selectedId={loadingGameId ?? review?.game.id ?? null} onChoose={gameId => void loadReview(gameId)} />
+      {loadingGameId && <p role="status">Loading the selected game…</p>}
       {review && (
         <div className="mistake-list">
           {review.opening && (

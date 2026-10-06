@@ -11,6 +11,7 @@ import { post } from "../api";
 import { formatMoveLabel } from "../training-language";
 import { ChessBoard } from "./ChessBoard";
 import { TrainingEmptyState } from "./TrainingEmptyState";
+import { ExerciseLoadState } from "./ExerciseLoadState";
 
 interface QuietPositionPanelProps {
   refreshToken: number;
@@ -91,6 +92,7 @@ export function QuietPositionPanel({ refreshToken, requestedItemId, sessionId, o
           noItemsHelp="Import more games to find positions without an immediate tactic."
         />
       )}
+      {!exercise && !empty && <ExerciseLoadState error={error} onRetry={() => void loadNext()} />}
       {exercise && (
         <div className="trainer-layout">
           <div className="board-column">

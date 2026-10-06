@@ -2,6 +2,27 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.5.13 — 2026-10-06
+
+### Clearer screens and recoverable workflows
+
+- Put pasted game PGNs ahead of optional Lichess setup; clear stale previews when
+  the text changes. Connected users can still reach sync controls directly.
+- Keep Today focused on practice, with detailed statistics in Progress. Empty
+  progress routes to import rather than offering an empty session; failures expose
+  Retry even before a player or exercise exists.
+- Add searchable, bounded game lists; cancel obsolete game-review requests and
+  land source-game links on the selected review. Collapse optional classification
+  edits and reuse meaningful opening explanations across game feedback.
+- Support browser Back/Forward through main screens, keyboard skip-to-content,
+  current-page semantics, consistent dark fields, larger mobile inputs/control
+  targets, clearer board coordinates and reduced-motion preferences.
+- Keep thinking-drill boards sized for shorter desktop screens and prevent the
+  mode bar from covering the board heading or question while scrolling.
+- Distinguish a completed repertoire import from a failed catalogue refresh so it
+  is not accidentally submitted again. Add desktop/mobile UI regressions and a
+  documented screen audit with evidence-bounded Chessbook priorities.
+
 ## 1.5.12 — 2026-10-03
 
 ### Board-first openings and faithful study context

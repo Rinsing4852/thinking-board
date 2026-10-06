@@ -8,6 +8,7 @@ import type {
 } from "../../../../packages/contracts/src/api";
 import { OpeningSurprisePrep } from "./OpeningSurprisePrep";
 import { OpeningPreparationAdvice } from "./OpeningPreparationAdvice";
+import { hasOpeningReason } from "../opening-explanation";
 
 interface OpeningGameInboxProps {
   inbox: GameOpeningInboxResponse | null;
@@ -114,7 +115,9 @@ export function OpeningGameInbox({
                 </div>
                 <p>{group.opening.repertoire.name} · latest in {latest.white} – {latest.black}</p>
                 {group.opening.status === "player_deviation" && group.opening.expectedMove && (
-                  <p className="opening-inbox-why"><strong>Why:</strong> {group.opening.expectedMove.explanation.summary}</p>
+                  <p className="opening-inbox-why">{hasOpeningReason(group.opening.expectedMove.explanation.summary)
+                    ? <><strong>Why:</strong> {group.opening.expectedMove.explanation.summary}</>
+                    : "No reason written yet. Add a learning note when you review this line."}</p>
                 )}
                 {group.opening.status === "opponent_deviation" && (
                   <p className="opening-inbox-why">You followed your repertoire. Inspect the position before deciding whether this reply deserves preparation.</p>

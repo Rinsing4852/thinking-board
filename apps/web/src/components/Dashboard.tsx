@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { DashboardResponse, SkillMetric, TrainingSessionResponse } from "../../../../packages/contracts/src/api";
 import { get, post } from "../api";
@@ -8,6 +8,8 @@ interface DashboardProps {
   onChooseMode: (mode: string) => void;
   onStartSession: (session: TrainingSessionResponse) => void;
   onProfileChanged: () => void;
+  onImport: () => void;
+  compact?: boolean;
 }
 
 function progressLabel(skill: SkillMetric): string {
@@ -22,29 +24,40 @@ function progressNote(skill: SkillMetric): string {
   return skill.recentTrend;
 }
 
-export function Dashboard({ refreshToken, onChooseMode, onStartSession, onProfileChanged }: DashboardProps) {
+export function Dashboard({ refreshToken, onChooseMode, onStartSession, onProfileChanged, onImport, compact = false }: DashboardProps) {
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [session, setSession] = useState<TrainingSessionResponse | null>(null);
   const [error, setError] = useState("");
   const [profiles, setProfiles] = useState<Array<{ id: string; displayName: string }>>([]);
   const [activeProfile, setActiveProfile] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const loadRequest = useRef<AbortController | null>(null);
 
   const load = (): void => {
-    void get<DashboardResponse>("/api/v1/dashboard").then(setDashboard).catch((loadError: unknown) => {
-      setError(loadError instanceof Error ? loadError.message : "Could not load progress");
-    });
-    void get<TrainingSessionResponse | null>("/api/v1/training/session/active").then(setSession).catch(() => undefined);
-    void get<{ activeProfileId: string | null; profiles: Array<{ id: string; displayName: string }> }>("/api/v1/profiles")
-      .then((result) => { setProfiles(result.profiles); setActiveProfile(result.activeProfileId); })
+    loadRequest.current?.abort();
+    const controller = new AbortController(); loadRequest.current = controller;
+    setLoading(true); setError("");
+    void get<DashboardResponse>("/api/v1/dashboard", controller.signal).then(value => {
+      if (!controller.signal.aborted) setDashboard(value);
+    }).catch((loadError: unknown) => {
+      if (!controller.signal.aborted) setError(loadError instanceof Error ? loadError.message : "Could not load progress");
+    }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    void get<TrainingSessionResponse | null>("/api/v1/training/session/active", controller.signal)
+      .then(value => { if (!controller.signal.aborted) setSession(value); }).catch(() => undefined);
+    void get<{ activeProfileId: string | null; profiles: Array<{ id: string; displayName: string }> }>("/api/v1/profiles", controller.signal)
+      .then((result) => { if (!controller.signal.aborted) { setProfiles(result.profiles); setActiveProfile(result.activeProfileId); } })
       .catch(() => undefined);
   };
   useEffect(() => {
     load();
     window.addEventListener("training-completed", load);
-    return () => window.removeEventListener("training-completed", load);
+    return () => { window.removeEventListener("training-completed", load); loadRequest.current?.abort(); };
   }, [refreshToken]);
 
   const createSession = async (): Promise<void> => {
+    if (busy) return;
+    setBusy(true);
     setError("");
     try {
       const result = await post<TrainingSessionResponse>("/api/v1/training/session", { size: 15 });
@@ -52,35 +65,50 @@ export function Dashboard({ refreshToken, onChooseMode, onStartSession, onProfil
       onStartSession(result);
     } catch (sessionError) {
       setError(sessionError instanceof Error ? sessionError.message : "Could not build a session");
-    }
+    } finally { setBusy(false); }
   };
 
-  if (!dashboard?.profile) return null;
+  if (compact && !dashboard?.profile && !loading && !error) return null;
+  if (!dashboard?.profile) return <section className="panel dashboard-state" aria-label="Training progress" aria-busy={loading}>
+    {error ? <><p className="error" role="alert">{error}</p><button className="secondary" onClick={load}>Retry progress</button></>
+      : <><p role="status">{loading ? "Loading your progress…" : "Import a game to start tracking your thinking habits."}</p>
+        {!loading && <button onClick={onImport}>Import a game to begin</button>}</>}
+  </section>;
+  if (compact && dashboard.totals.trainingItems === 0) return error
+    ? <div className="panel"><p className="error" role="alert">{error}</p><button onClick={load}>Retry progress</button></div>
+    : null;
   return (
-    <section className="dashboard-section" id="progress">
+    <section className={`dashboard-section${compact ? " dashboard-compact" : ""}`} id="progress" aria-busy={loading}>
       <div className="panel-heading">
         <div>
-          <span className="eyebrow">What to train next</span>
-          <h2>{dashboard.profile.displayName}’s training profile</h2>
+          <span className="eyebrow">{compact ? "Ready to practise" : "What to train next"}</span>
+          <h2>{compact ? "Your thinking practice" : `${dashboard.profile.displayName}’s training profile`}</h2>
         </div>
         <div className="dashboard-actions">
           {profiles.length > 1 && <label>Player
-            <select value={activeProfile ?? ""} onChange={async (event) => {
-              await post<void>(`/api/v1/profiles/${event.target.value}/activate`);
-              setActiveProfile(event.target.value); setSession(null); onProfileChanged();
+            <select disabled={busy || loading} value={activeProfile ?? ""} onChange={async (event) => {
+              const profileId = event.target.value;
+              setBusy(true); setError("");
+              try {
+                await post<void>(`/api/v1/profiles/${profileId}/activate`);
+                setActiveProfile(profileId); setSession(null); onProfileChanged();
+              } catch (failure) { setError(failure instanceof Error ? failure.message : "Could not change player"); }
+              finally { setBusy(false); }
             }}>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.displayName}</option>)}</select>
           </label>}
-          <button onClick={() => session ? onStartSession(session) : void createSession()}>
-            {session ? `Continue session · ${session.completedCount ?? 0}/${session.items.length}` : "Start a 15-exercise session"}
+          <button disabled={busy} onClick={() => dashboard.totals.trainingItems === 0 ? onImport() : session ? onStartSession(session) : void createSession()}>
+            {busy ? "Please wait…" : dashboard.totals.trainingItems === 0 ? "Import a game to begin" : session ? `Continue session · ${session.completedCount ?? 0}/${session.items.length}` : "Start a 15-exercise session"}
           </button>
         </div>
       </div>
+      {compact ? <p className="panel-help">{dashboard.totals.due} exercises due · {dashboard.totals.trainingItems} available. Detailed results are in Progress.</p> : <>
       <div className="dashboard-totals">
         <div><strong>{dashboard.totals.games}</strong><span>games</span></div>
         <div><strong>{dashboard.totals.trainingItems}</strong><span>exercises</span></div>
         <div><strong>{dashboard.totals.due}</strong><span>due now</span></div>
         <div><strong>{dashboard.totals.attempts}</strong><span>attempts</span></div>
       </div>
+      {dashboard.totals.trainingItems === 0 && <p className="panel-help">Your progress starts with a game. Import its PGN, choose your name, then practise the positions found in analysis.</p>}
       <div className="dashboard-grid">
         <div className="panel weakness-panel">
           <span className="eyebrow">Training priorities</span>
@@ -111,7 +139,8 @@ export function Dashboard({ refreshToken, onChooseMode, onStartSession, onProfil
           {!session && <p>Recent failures, slow answers, due reviews, and repeated game mistakes get priority.</p>}
         </div>
       </div>
-      {error && <p className="error">{error}</p>}
+      </>}
+      {error && <p className="error" role="alert">{error} <button className="text-button" onClick={load}>Retry progress</button></p>}
     </section>
   );
 }

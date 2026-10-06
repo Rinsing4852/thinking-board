@@ -21,7 +21,7 @@ export function TrainingEmptyState({ empty, onChoosePool, noItemsHelp }: Trainin
             ))}
           </div>
         </>
-      ) : <p>{noItemsHelp}</p>}
+      ) : <><p>{noItemsHelp}</p><a className="button secondary" href="#games">Paste a game to find training positions</a></>}
     </div>
   );
 }

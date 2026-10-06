@@ -33,14 +33,21 @@ export function App() {
 
   const navigate = (nextView: AppView): void => {
     setView(nextView);
-    window.history.replaceState(null, "", nextView === "today" ? "#today" : `#${nextView}`);
+    if (view !== nextView) window.history.pushState(null, "", `#${nextView}`);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   useEffect(() => {
-    const onHashChange = (): void => setView(initialView());
+    const onHashChange = (): void => {
+      const nextView = initialView(); setView(nextView);
+      if (nextView !== "openings") setOpeningFocusActive(false);
+    };
     window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
+    window.addEventListener("popstate", onHashChange);
+    return () => {
+      window.removeEventListener("hashchange", onHashChange);
+      window.removeEventListener("popstate", onHashChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -62,7 +69,7 @@ export function App() {
   };
   const openGamesAt = (targetId: "import" | "opening-inbox"): void => {
     setView("games");
-    window.history.replaceState(null, "", "#games");
+    window.history.pushState(null, "", "#games");
     requestAnimationFrame(() => requestAnimationFrame(() => {
       document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" });
     }));
@@ -104,8 +111,11 @@ export function App() {
 
   return (
     <>
+      <a className="skip-link" href="#main-content" onClick={event => {
+        event.preventDefault(); document.getElementById("main-content")?.focus();
+      }}>Skip to main content</a>
       <header className={`site-header${openingFocusActive ? " practice-hidden" : ""}`}>
-        <a className="brand" href="#today" onClick={() => navigate("today")}>
+        <a className="brand" href="#today" onClick={event => { event.preventDefault(); navigate("today"); }}>
           <span className="brand-mark">♞</span>
           <span>Thinking Board</span>
         </a>
@@ -113,13 +123,13 @@ export function App() {
           {([[
             "today", "Today",
           ], ["openings", "Openings"], ["games", "My games"], ["progress", "Progress"]] as Array<[AppView, string]>).map(([target, label]) => (
-            <button className={view === target ? "active" : ""} key={target} onClick={() => navigate(target)}>{label}</button>
+            <button className={view === target ? "active" : ""} aria-current={view === target ? "page" : undefined} key={target} onClick={() => navigate(target)}>{label}</button>
           ))}
         </nav>
         <span className="local-badge">Local engine · no cloud</span>
       </header>
 
-      <main className={`app-view app-view-${view}${openingFocusActive ? " app-view-practice-focus" : ""}`}>
+      <main id="main-content" tabIndex={-1} className={`app-view app-view-${view}${openingFocusActive ? " app-view-practice-focus" : ""}`}>
         {view === "today" && (
           <>
             <section className="hero hero-compact">
@@ -136,7 +146,7 @@ export function App() {
               </div>
             </section>
             <GettingStarted refreshToken={refreshToken} onNavigate={navigate} />
-            <Dashboard refreshToken={refreshToken} onChooseMode={chooseMode} onStartSession={startSession} onProfileChanged={() => {
+            <Dashboard compact onImport={() => openGamesAt("import")} refreshToken={refreshToken} onChooseMode={chooseMode} onStartSession={startSession} onProfileChanged={() => {
               setSession(null); setTrainingRequest(null); setRefreshToken((value) => value + 1);
             }} />
             <section className="trainer-hub" id="trainer">
@@ -174,7 +184,7 @@ export function App() {
           onOpenGames={() => openGamesAt("opening-inbox")}
           onAnalyzeGame={() => openGamesAt("import")}
           onOpenGame={gameId => {
-            setView("games"); window.history.replaceState(null, "", `#games?game=${encodeURIComponent(gameId)}`);
+            setView("games"); window.history.pushState(null, "", `#games?game=${encodeURIComponent(gameId)}`);
             setGameReviewFocusToken(value => value + 1);
           }}
           onFocusChange={setOpeningFocusActive}
@@ -204,7 +214,7 @@ export function App() {
               <h1>What do I repeatedly miss?</h1>
               <p>Use your real-game occurrences and practice results to choose the next thinking habit to strengthen.</p>
             </div>
-            <Dashboard refreshToken={refreshToken} onChooseMode={chooseMode} onStartSession={startSession} onProfileChanged={() => {
+            <Dashboard onImport={() => openGamesAt("import")} refreshToken={refreshToken} onChooseMode={chooseMode} onStartSession={startSession} onProfileChanged={() => {
               setSession(null); setTrainingRequest(null); setRefreshToken((value) => value + 1);
             }} />
           </>

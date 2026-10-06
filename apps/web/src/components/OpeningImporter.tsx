@@ -71,13 +71,14 @@ export function OpeningImporter({ onImported }: { onImported: () => Promise<void
           "/api/v1/openings/imports/pgn",
           { ...importPayload(), ownershipConfirmed: importPermission },
         );
-      await onImported();
       setImportMessage(result.message);
       setImportPreview(null);
       setImportPgn("");
       setLichessStudyUrl("");
       setSelectedChapterIndexes([]);
       setImportPermission(false);
+      try { await onImported(); }
+      catch { setImportError("Your repertoire was imported, but the list could not refresh. Reload the page to see it; do not import it again."); }
     } catch (importFailure) {
       setImportError(importFailure instanceof Error ? importFailure.message : "Could not import opening PGN");
     } finally {

@@ -434,7 +434,7 @@ test.describe.serial("stable V1 browser journey", () => {
     expect(boardTop).toBeLessThan(questionTop);
   });
 
-  test("imports a game and explains every training mode", async ({ page }) => {
+  test("imports a game and explains every training mode", async ({ page }, testInfo) => {
     await page.goto("/");
     await page.getByRole("button", { name: "My games" }).click();
     const pgnInput = page.getByRole("textbox", { name: "PGN text" });
@@ -453,30 +453,35 @@ test.describe.serial("stable V1 browser journey", () => {
     await expect(page.getByText("Choose the most important change", { exact: false })).toBeVisible();
     await page.getByRole("button", { name: "Show answer" }).click();
     await expect(page.getByRole("heading", { name: "This is what changed" })).toBeVisible();
+    await page.locator(".trainer-layout").screenshot({ path: testInfo.outputPath("what-changed-feedback.png") });
 
     await page.getByRole("button", { name: "2 · Candidates" }).click();
     await page.getByRole("button", { name: "Start generating candidates" }).click();
     await expect(page.getByText(/tap or click a piece and a highlighted square/i)).toBeVisible();
     await page.getByRole("button", { name: "Show engine candidates" }).click();
     await expect(page.getByText("These are comparison moves, not a demand to find one single “correct” move.")).toBeVisible();
+    await page.locator(".trainer-layout").screenshot({ path: testInfo.outputPath("candidates-feedback.png") });
 
     await page.getByRole("button", { name: "3 · Blunder check" }).click();
     await page.getByRole("button", { name: "Play my move on the board" }).click();
     await expect(page.getByRole("heading", { name: "Before making this move, what can the opponent do immediately?" })).toBeVisible();
     await page.getByRole("button", { name: "Show answer" }).click();
     await expect(page.getByRole("heading", { name: "This was the danger to find" })).toBeVisible();
+    await page.locator(".trainer-layout").screenshot({ path: testInfo.outputPath("blunder-check-feedback.png") });
 
     await page.getByRole("button", { name: "4 · Punish" }).click();
     await page.getByRole("button", { name: "Find the punishment" }).click();
     await expect(page.getByRole("heading", { name: "How can the opponent punish this immediately?" })).toBeVisible();
     await page.getByRole("button", { name: "Show answer" }).click();
     await expect(page.getByRole("heading", { name: "This was the immediate punishment" })).toBeVisible();
+    await page.locator(".trainer-layout").screenshot({ path: testInfo.outputPath("punish-feedback.png") });
 
     await page.getByRole("button", { name: "5 · Quiet plan" }).click();
     await page.getByRole("button", { name: "Assess my pieces" }).click();
     await expect(page.getByText("More than one plan can be reasonable.")).toBeVisible();
     await page.getByRole("button", { name: "Show an example" }).click();
     await expect(page.getByText("It is not claiming that every other plan is wrong.")).toBeVisible();
+    await page.locator(".trainer-layout").screenshot({ path: testInfo.outputPath("quiet-plan-feedback.png") });
 
     await expectSquareBoard(page);
     await page.setViewportSize({ width: 390, height: 844 });

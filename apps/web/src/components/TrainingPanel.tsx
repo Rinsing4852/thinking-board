@@ -12,6 +12,7 @@ import { post } from "../api";
 import { categoryLabel, formatMoveLabel, RESPONSE_CATEGORIES } from "../training-language";
 import { ChessBoard } from "./ChessBoard";
 import { TrainingEmptyState } from "./TrainingEmptyState";
+import { ExerciseLoadState } from "./ExerciseLoadState";
 
 interface TrainingPanelProps {
   refreshToken: number;
@@ -143,6 +144,7 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
         noItemsHelp="Import a game containing a concrete mistake that the opponent could punish immediately."
       />}
 
+      {!exercise && !empty && <ExerciseLoadState error={error} onRetry={() => void loadNext()} />}
       {exercise && (
         <div className="trainer-layout">
           <div className="board-column">

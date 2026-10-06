@@ -11,6 +11,7 @@ import { post } from "../api";
 import { formatMoveLabel } from "../training-language";
 import { ChessBoard } from "./ChessBoard";
 import { TrainingEmptyState } from "./TrainingEmptyState";
+import { ExerciseLoadState } from "./ExerciseLoadState";
 
 interface PunishBlunderPanelProps {
   refreshToken: number;
@@ -91,6 +92,7 @@ export function PunishBlunderPanel({ refreshToken, requestedItemId, sessionId, o
           noItemsHelp="Import a game with an immediately punishable mistake to create this exercise."
         />
       )}
+      {!exercise && !empty && <ExerciseLoadState error={error} onRetry={() => void loadNext()} />}
       {exercise && (
         <div className="trainer-layout">
           <div className="board-column">

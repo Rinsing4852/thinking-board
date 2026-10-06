@@ -11,6 +11,7 @@ import { post } from "../api";
 import { changeCategoryLabel, formatMoveLabel, WHAT_CHANGED_OPTIONS } from "../training-language";
 import { ChessBoard } from "./ChessBoard";
 import { TrainingEmptyState } from "./TrainingEmptyState";
+import { ExerciseLoadState } from "./ExerciseLoadState";
 
 interface WhatChangedPanelProps {
   refreshToken: number;
@@ -114,6 +115,7 @@ export function WhatChangedPanel({ refreshToken, requestedItemId, sessionId, onC
         noItemsHelp="Import another game to find positions where an opponent’s move created a clear new danger."
       />}
 
+      {!exercise && !empty && <ExerciseLoadState error={error} onRetry={() => void loadNext()} />}
       {exercise && (
         <div className="trainer-layout">
           <div className="board-column">

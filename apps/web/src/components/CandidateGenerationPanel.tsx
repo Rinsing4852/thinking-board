@@ -12,6 +12,7 @@ import { post } from "../api";
 import { CANDIDATE_GRADE_COPY, CANDIDATE_TYPES, formatMoveLabel } from "../training-language";
 import { ChessBoard } from "./ChessBoard";
 import { TrainingEmptyState } from "./TrainingEmptyState";
+import { ExerciseLoadState } from "./ExerciseLoadState";
 
 interface EnteredCandidate extends CandidateSubmission {
   moveSan: string;
@@ -122,6 +123,7 @@ export function CandidateGenerationPanel({ refreshToken, requestedItemId, sessio
         noItemsHelp="Import and analyse another game to create candidate-generation positions."
       />}
 
+      {!exercise && !empty && <ExerciseLoadState error={error} onRetry={() => void loadNext()} />}
       {exercise && (
         <div className="trainer-layout">
           <div className="board-column">

@@ -58,6 +58,12 @@ request. Use Alt + Left/Right to step through moves while browsing. Builder draf
 are kept in this browser until saved or explicitly discarded. Refreshing a branch
 draft offers Restore; a changed source graph never silently receives an old draft.
 
+Today keeps a compact practice summary; Progress contains the detailed thinking
+profile. My games puts pasted PGNs before optional Lichess setup and lets you search
+all imported games by player, opponent or date. Browser Back/Forward works between
+main screens. Loading failures show Retry instead of an unexplained blank panel.
+See the [screen review and next usability priorities](docs/UI_REVIEW_2026-10-06.md).
+
 **Why this exercise?** is available after an answer. It pauses practice and links
 real-game misses to the particular game's review, with your played and prepared
 moves. A repertoire departure is not automatically a chess blunder. Both pasted
