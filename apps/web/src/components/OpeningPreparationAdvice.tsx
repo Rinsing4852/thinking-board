@@ -16,6 +16,7 @@ export function OpeningPreparationAdvice({ target, initial, groupKey, onDecision
   const [error, setError] = useState("");
   const [editingIdea, setEditingIdea] = useState(false);
   const [note, setNote] = useState(initial?.decision?.note ?? "");
+  const syncedInitial = useRef(initial);
   const requestRef = useRef<AbortController | null>(null);
   const currentKey = `${target.fen}|${target.opponentMoveUci}|${target.learnerColor}|${target.repertoireId ?? ""}|${groupKey ?? ""}`;
 
@@ -23,6 +24,7 @@ export function OpeningPreparationAdvice({ target, initial, groupKey, onDecision
     requestRef.current?.abort();
     const controller = new AbortController();
     requestRef.current = controller;
+    syncedInitial.current = initial;
     setAssessment(initial ?? null); setError(""); setEditingIdea(false); setNote(initial?.decision?.note ?? "");
     setBusy(false);
     if (!initial) {
@@ -33,8 +35,17 @@ export function OpeningPreparationAdvice({ target, initial, groupKey, onDecision
         .finally(() => { if (!controller.signal.aborted) setBusy(false); });
     }
     return () => { controller.abort(); requestRef.current?.abort(); };
-    // Targets are compared by value, not the parent's object identity.
-  }, [currentKey, initial]);
+    // Reset drafts only when the position changes, not when the inbox refreshes.
+  }, [currentKey]);
+
+  useEffect(() => {
+    if (syncedInitial.current === initial) return;
+    syncedInitial.current = initial;
+    if (initial) {
+      setAssessment(initial);
+      if (!editingIdea) setNote(initial.decision?.note ?? "");
+    }
+  }, [initial, editingIdea]);
 
   const check = async (): Promise<void> => {
     if (busy) return;

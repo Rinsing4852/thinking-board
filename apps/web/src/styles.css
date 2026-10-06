@@ -135,12 +135,12 @@ select { min-width: 200px; background: #101512; color: #e6ece7; border: 1px soli
 .opening-importer { margin-bottom: 1rem; display: grid; gap: 1.25rem; }
 .opening-importer-heading { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: end; }
 .opening-import-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .85rem; }
-.opening-import-fields label, .opening-pgn-label { align-content: start; color: #dce4dd; font-weight: 700; }
+.opening-import-fields label, .opening-pgn-label { min-width: 0; align-content: start; color: #dce4dd; font-weight: 700; }
 .opening-import-fields label small { color: var(--ink-soft); font-weight: 400; }
 .opening-import-fields input:not([type="file"]), .opening-import-fields select, .opening-pgn-label textarea, .opening-pgn-label input[type="url"] {
   width: 100%; min-width: 0; background: #101512; color: #e6ece7; border: 1px solid var(--line); border-radius: 8px; padding: .7rem .75rem;
 }
-.opening-file-label input { color: var(--ink-soft); padding: .55rem 0; }
+.opening-file-label input { width: 100%; max-width: 100%; min-width: 0; color: var(--ink-soft); padding: .55rem 0; }
 .opening-file-label input::file-selector-button { border: 1px solid var(--line); border-radius: 7px; background: var(--panel-soft); color: #dce4dd; padding: .5rem .7rem; margin-right: .65rem; }
 .opening-pgn-label textarea { resize: vertical; font: .82rem/1.5 ui-monospace, "SFMono-Regular", Consolas, monospace; }
 .opening-pgn-label small { color: var(--ink-soft); font-weight: 400; line-height: 1.4; }
@@ -978,7 +978,7 @@ footer { border-top: 1px solid var(--line); padding: 2rem 4vw; color: #69756d; d
   .opening-mode-guide p { grid-template-columns: 1fr; gap: .1rem; }
   .opening-mode-guide-global { grid-template-columns: 1fr; }
   .opening-complete-scores.three-up { grid-template-columns: 1fr; }
-  .opening-import-fields, .opening-import-facts { grid-template-columns: 1fr; }
+  .opening-import-fields, .opening-import-facts { grid-template-columns: minmax(0, 1fr); }
   .opening-player-context-fields { grid-template-columns: 1fr; }
   .opening-player-explorer-choice { grid-column: 1; }
   .board-toolbar.opening-line-controls { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .2rem; align-items: center; }

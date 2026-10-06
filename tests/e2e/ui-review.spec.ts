@@ -151,3 +151,47 @@ test("reports a successful import separately from a failed catalogue refresh", a
   const catalogue = await (await page.request.get("/api/v1/openings/catalog")).json();
   expect(catalogue.repertoires.some((item: { name: string }) => item.name === `UI import ${testInfo.project.name}`)).toBe(true);
 });
+
+test("keeps an unsaved preparation idea when background analysis refreshes the inbox", async ({ page }, testInfo) => {
+  const name = `Refresh-safe idea ${testInfo.project.name}`;
+  const player = `Idea learner ${testInfo.project.name}`;
+  const reply = testInfo.project.name === "webkit" ? "Nf6" : "d5";
+  const imported = await page.request.post("/api/v1/openings/imports/pgn", { data: {
+    pgn: `[Event "${name}"]\n[Result "*"]\n\n1. Nf3 ${reply} 2. g3 e6 3. Bg2 *`,
+    learnerColor: "white", name, ownershipConfirmed: true,
+  } });
+  expect(imported.ok()).toBeTruthy();
+  const game = await page.request.post("/api/v1/imports/pgn", { data: {
+    pgn: `[White "${player}"]\n[Black "Opponent"]\n[Result "*"]\n\n1. Nf3 ${reply} 2. g3 h6 3. Bg2 *`, playerName: player,
+  } });
+  expect(game.ok()).toBeTruthy();
+  const profiles = await (await page.request.get("/api/v1/profiles")).json();
+  const learner = profiles.profiles.find((profile: { displayName: string }) => profile.displayName === player);
+  expect((await page.request.post(`/api/v1/profiles/${learner.id}/activate`)).ok()).toBeTruthy();
+  let analysisFinished = false;
+  let release: (() => void) | undefined;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const job = { id: "idea-refresh-test-job", status: "analyzing", progressCurrent: 0, progressTotal: 1, error: null };
+  await page.route("**/api/v1/jobs/active", route => route.fulfill({ json: analysisFinished ? null : job }));
+  await page.route("**/api/v1/jobs/idea-refresh-test-job", async route => {
+    await held; analysisFinished = true;
+    await route.fulfill({ json: { ...job, status: "completed" } });
+  });
+  await page.goto("/#games");
+  const advice = page.locator("article.opening-inbox-item").filter({ hasText: name }).getByRole("region", { name: "Worth preparing?" });
+  await advice.getByRole("button", { name: "Keep an idea instead", exact: true }).click();
+  const note = "Finish development before expanding this rare reply.";
+  const noteInput = advice.locator(".opening-preparation-note textarea");
+  await noteInput.fill(note);
+  const refreshed = page.waitForResponse(response => response.url().endsWith("/openings/game-inbox") && response.status() === 200);
+  release!();
+  await (await refreshed).finished();
+  await expect(page.getByText("Analysis complete. Your exercises and repertoire comparison are ready below.", { exact: true })).toBeVisible();
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await expect(noteInput).toHaveValue(note);
+  await advice.getByRole("button", { name: "Save idea without a line", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Idea kept." })).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: /Show all/ }).click();
+  await expect(advice.getByText(note, { exact: true })).toBeVisible();
+});

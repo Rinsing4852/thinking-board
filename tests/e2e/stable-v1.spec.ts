@@ -49,7 +49,10 @@ test.describe.serial("stable V1 browser journey", () => {
     await page.goto("/#openings");
     const openings = page.locator("#opening-practice");
     await openings.locator("details.opening-settings > summary").click();
-    await expect(openings.getByRole("heading", { name: "Which games should guide your repertoire?" })).toBeVisible();
+    // A serial retry may inherit preferences saved during the first attempt.
+    const change = openings.locator(".opening-player-context").getByRole("button", { name: "Change", exact: true });
+    if (await change.isVisible()) await change.click();
+    await expect(openings.getByRole("heading", { name: /Which games should guide your repertoire\?|Update your practical level/ })).toBeVisible();
     await openings.getByLabel("Rating comes from").selectOption("lichess");
     await openings.getByLabel("Closest playing level").selectOption("1400");
     await openings.getByRole("button", { name: "Use these settings" }).click();
@@ -296,7 +299,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await expect(openings.getByText(/Black develops the bishop first was restored/i)).toBeVisible();
   });
 
-  test("previews and imports a private opening repertoire for both sides", async ({ page }) => {
+  test("previews and imports a private opening repertoire for both sides", async ({ page }, testInfo) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Openings" }).click();
     const openings = page.locator("#opening-practice");
@@ -312,6 +315,20 @@ test.describe.serial("stable V1 browser journey", () => {
     await expect(openings.getByText("Ready to import")).toBeVisible();
     await expect(openings.getByText("2 practice lines")).toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });
+    const filePicker = openings.getByLabel(/Choose a PGN file/);
+    expect(await filePicker.evaluate(element => {
+      const input = element.getBoundingClientRect();
+      const label = element.closest("label")!.getBoundingClientRect();
+      return input.width <= label.width + 1 && input.right <= window.innerWidth + 1;
+    })).toBe(true);
+    await testInfo.attach("mobile-layout", { contentType: "application/json", body: JSON.stringify(await page.evaluate(() => ({
+      viewport: window.innerWidth, document: document.documentElement.scrollWidth,
+      overflowing: [...document.querySelectorAll("body *")].flatMap(element => {
+        const box = element.getBoundingClientRect();
+        return box.width > 0 && box.height > 0 && box.right > window.innerWidth + 1
+          ? [{ tag: element.tagName, className: element.className, width: box.width, right: box.right }] : [];
+      }),
+    }))) });
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
     await openings.getByRole("checkbox", { name: /I own this material/ }).check();
     await openings.getByRole("button", { name: "Import private repertoire" }).click();

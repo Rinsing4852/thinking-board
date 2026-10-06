@@ -19,16 +19,21 @@ async function startPractice(page: import("@playwright/test").Page) {
 }
 
 test("keeps manual pauses independent and resumes automatically", async ({ page }) => {
+  await page.clock.install();
   const board = await startPractice(page);
+  // Hold timers while choosing the manual pause; do not race the 650ms feedback
+  // window on a slow runner. Other journeys still exercise real-time advancement.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 60_000));
   await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
   await board.getByRole("gridcell", { name: "e4 empty" }).click();
   await page.getByRole("button", { name: "Keep this open" }).click();
   await page.getByRole("button", { name: "Explain last move", exact: true }).click();
   await page.getByRole("button", { name: "Close explanation and resume", exact: true }).click();
-  await page.waitForTimeout(1000); // Deliberately exceed the auto-advance delay.
+  await page.clock.runFor(1000); // Deliberately exceed the auto-advance delay.
   await expect(page.getByText("Step 1 of 3")).toBeVisible();
   await expect(page.getByText("Auto-advance paused")).toBeVisible();
   await page.getByRole("button", { name: "Resume automatic practice" }).click();
+  await page.clock.runFor(1000);
   await expect(page.getByText("Step 2 of 3")).toBeVisible();
 });
 

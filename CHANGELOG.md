@@ -2,6 +2,20 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.5.14 — 2026-10-06
+
+### Mobile import and refresh reliability
+
+- Bound the native PGN file picker to its grid column and let mobile form columns
+  shrink correctly instead of expanding the page on browsers with wider controls.
+- Keep unsaved preparation ideas open when background game analysis refreshes
+  the inbox; changing the actual position still resets its draft.
+- Make the settings persistence test safe to retry with already-saved preferences.
+  Add file-picker sizing and background-refresh regressions, and retain failed CI
+  browser traces, screenshots and layout measurements for diagnosis.
+- Control the manual-pause test clock rather than racing its brief feedback window
+  on slower runners; continuous-practice journeys still check real-time advancement.
+
 ## 1.5.13 — 2026-10-06
 
 ### Clearer screens and recoverable workflows
