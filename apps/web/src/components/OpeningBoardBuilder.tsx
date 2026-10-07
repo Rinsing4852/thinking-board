@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Chess } from "chess.js";
 
 import type { Color, OpeningImportResponse } from "../../../../packages/contracts/src/api";
@@ -14,7 +14,7 @@ interface OpeningBoardBuilderProps {
   ratingGroup: number;
   useExplorer: boolean;
   onCancel: () => void;
-  onSaved: (repertoireId: string) => void;
+  onSaved: (repertoireId: string) => void | Promise<void>;
 }
 
 const START_FEN = new Chess().fen();
@@ -39,8 +39,12 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
   const setLearnerColor = (value: Color) => setDraft(current => ({ ...current, learnerColor: value }));
   const setMoves = (update: (moves: BuiltMove[]) => BuiltMove[]) => setDraft(current => ({ ...current, moves: update(current.moves) }));
   const [analysisOpen, setAnalysisOpen] = useState(false);
+  const [building, setBuilding] = useState(false);
+  const saveLock = useRef(false);
+  const savedId = useRef<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const draftLocked = submitting || savedId.current !== null;
   const fen = moves.at(-1)?.fenAfter ?? START_FEN;
   const turn = fen.split(" ")[1] === "b" ? "black" : "white";
   const isLearnerTurn = turn === learnerColor;
@@ -50,6 +54,7 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
   );
 
   const addMove = (moveUci: string, moveSan: string): void => {
+    if (!building || saveLock.current || savedId.current) return;
     const chess = new Chess(fen);
     const played = chess.move({
       from: moveUci.slice(0, 2),
@@ -57,7 +62,9 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
       ...(moveUci.length === 5 ? { promotion: moveUci[4] } : {}),
     });
     if (!played) return;
-    setMoves((current) => [...current, { moveUci, moveSan, fenBefore: fen, fenAfter: chess.fen(), note: "" }]);
+    const next = [...moves, { moveUci, moveSan, fenBefore: fen, fenAfter: chess.fen(), note: "" }];
+    setMoves(() => next);
+    if (isLearnerTurn) void save(next);
   };
 
   const updateLastNote = (note: string): void => {
@@ -65,33 +72,37 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
   };
 
   const addExploredMoves = (explored: SandboxMove[]): void => {
-    setMoves((current) => [
-      ...current,
-      ...explored.map((move) => ({ ...move, note: "" })),
-    ]);
+    if (saveLock.current || savedId.current) return;
+    const next = [...moves, ...explored.map(move => ({ ...move, note: "" }))];
+    setMoves(() => next);
     setAnalysisOpen(false);
+    if (next.some(move => move.fenBefore.split(" ")[1] === (learnerColor === "white" ? "w" : "b"))) void save(next);
   };
 
-  const save = async (): Promise<void> => {
-    if (!name.trim() || learnerMoves.length === 0 || submitting) return;
+  const save = async (sequence = moves): Promise<void> => {
+    if (!name.trim() || !sequence.some(move => move.fenBefore.split(" ")[1] === (learnerColor === "white" ? "w" : "b")) || saveLock.current) return;
+    saveLock.current = true;
     setSubmitting(true);
     setError("");
     try {
-      const response = await post<OpeningImportResponse>("/api/v1/openings/imports/pgn", {
-        pgn: pgnFor(name.trim(), moves),
-        learnerColor,
-        name: name.trim(),
-        sourceType: "self_authored",
-        sourceTitle: "Built on the Thinking Board",
-        ownershipConfirmed: true,
-      });
-      const repertoireId = response.repertoireIds[0];
-      if (!repertoireId) throw new Error("The repertoire was saved but could not be opened");
+      if (!savedId.current) {
+        const response = await post<OpeningImportResponse>("/api/v1/openings/imports/pgn", {
+          pgn: pgnFor(name.trim(), sequence),
+          learnerColor,
+          name: name.trim(),
+          sourceType: "self_authored",
+          sourceTitle: "Built on the Thinking Board",
+          ownershipConfirmed: true,
+        });
+        savedId.current = response.repertoireIds[0] ?? null;
+      }
+      if (!savedId.current) throw new Error("The repertoire was saved but could not be opened");
+      await onSaved(savedId.current);
       discard();
-      onSaved(repertoireId);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Could not save this repertoire");
     } finally {
+      saveLock.current = false;
       setSubmitting(false);
     }
   };
@@ -106,40 +117,48 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
       <div className="panel opening-builder-heading">
         <div>
           <span className="eyebrow">Opening studio</span>
-          <h2>Build your repertoire one decision at a time</h2>
-          <p>Choose a practical move beside the board or play one directly. Open the analysis board only when you want to investigate a position more deeply.</p>
+          <h2>{building ? "Choose your first moves" : "Name your repertoire and choose your side"}</h2>
+          <p>{building ? "Play on the board or select a move. Your first response creates the repertoire; each new move then saves automatically." : "Then build one decision at a time: their reply, your response."}</p>
         </div>
-        <button className="secondary" onClick={onCancel}>Back to repertoires</button>
+        <button className="secondary" disabled={submitting} onClick={onCancel}>Back to repertoires</button>
       </div>
 
       <div className="panel opening-builder-settings">
         <label>
           Repertoire name
-          <input maxLength={120} value={name} onChange={(event) => setName(event.target.value)} placeholder="My White 1.e4 repertoire" />
+          <input maxLength={120} disabled={building || submitting} value={name} onChange={(event) => setName(event.target.value)} placeholder="My White 1.e4 repertoire" />
         </label>
         <label>
           I am preparing
-          <select value={learnerColor} disabled={moves.length > 0} onChange={(event) => setLearnerColor(event.target.value as Color)}>
+          <select value={learnerColor} disabled={building || moves.length > 0} onChange={(event) => setLearnerColor(event.target.value as Color)}>
             <option value="white">White</option>
             <option value="black">Black</option>
           </select>
         </label>
         <div className="opening-builder-status">
-          <strong>{recovered ? "Recovered draft" : "Unsaved repertoire draft"}</strong>
+          <strong>{submitting ? "Saving repertoire…" : recovered ? "Recovered draft" : building ? "Ready to build" : "Not started"}</strong>
           <span>{learnerMoves.length} decision{learnerMoves.length === 1 ? "" : "s"} for you</span>
-          <small>{storageError || "Kept on this browser until you save or discard it."}</small>
+          <small>{storageError || (building ? "Your first response saves this to your server." : "Any unfinished draft is kept on this browser.")}</small>
           <button className="text-button" disabled={submitting || (!name && !moves.length)} onClick={() => {
-            if (window.confirm("Discard this unsaved draft? Saved repertoires are not affected.")) discard();
+            if (window.confirm("Discard this unsaved draft? Saved repertoires are not affected.")) {
+              discard();
+              savedId.current = null;
+              setBuilding(false);
+              setAnalysisOpen(false);
+              setError("");
+            }
           }}>Discard draft</button>
         </div>
-        <button disabled={!name.trim() || learnerMoves.length === 0 || submitting} onClick={() => void save()}>
-          {submitting ? "Saving…" : "Save repertoire"}
-        </button>
+        {!building && <button disabled={!name.trim() || submitting} onClick={() => {
+          setBuilding(true);
+          if (learnerMoves.length) void save();
+        }}>{recovered ? "Continue building" : "Start building"}</button>}
+        {error && <button disabled={submitting} onClick={() => void save()}>{submitting ? "Saving…" : savedId.current ? "Open saved repertoire" : "Retry saving repertoire"}</button>}
       </div>
       {moves.length > 0 && <p className="opening-studio-lock-note">Building for {learnerColor}. Undo every repertoire move before changing colour.</p>}
       {error && <p className="error" role="alert">{error}</p>}
 
-      <div className={`opening-builder-grid ${analysisOpen ? "opening-studio-grid" : "opening-guided-grid"}`}>
+      {building && <div className={`opening-builder-grid ${analysisOpen ? "opening-studio-grid" : "opening-guided-grid"}`}>
         <section className={`opening-studio-pane repertoire${analysisOpen ? "" : " guided"}`} aria-label="Repertoire builder board">
           <div className="candidate-banner opening-studio-banner">
             <div>
@@ -151,8 +170,8 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
           <div className="board-toolbar">
             <span>{analysisOpen ? "Explore separately, then add only the sequence you want" : "A move chosen here is added to this line immediately"}</span>
             <div>
-              <button className="text-button" onClick={() => setAnalysisOpen((open) => !open)}>{analysisOpen ? "Back to guided choices" : "Open analysis board"}</button>
-              <button className="text-button" disabled={moves.length === 0} onClick={() => setMoves((current) => current.slice(0, -1))}>Undo last move</button>
+              <button className="text-button" disabled={draftLocked} onClick={() => setAnalysisOpen((open) => !open)}>{analysisOpen ? "Back to guided choices" : "Open analysis board"}</button>
+              <button className="text-button" disabled={moves.length === 0 || draftLocked} onClick={() => setMoves((current) => current.slice(0, -1))}>Undo last move</button>
             </div>
           </div>
           <div className="opening-guided-content">
@@ -160,7 +179,7 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
               <ChessBoard
                 fen={fen}
                 orientation={learnerColor}
-                interactive
+                interactive={!draftLocked}
                 lastMove={lastMove?.moveUci ?? null}
                 onMove={addMove}
                 ariaLabel="Repertoire board"
@@ -186,6 +205,7 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
                     learnerColor={learnerColor}
                     ratingGroup={ratingGroup}
                     useExplorer={useExplorer}
+                    disabled={draftLocked}
                     onChooseMove={addMove}
                   />
                 </>
@@ -195,6 +215,7 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
                   <strong>{lastMoveBelongsToLearner ? `Why ${lastMove.moveSan}?` : `What is the idea behind ${lastMove.moveSan}?`}</strong>
                   <p>Add a short explanation if you know it. Leaving this blank is honest and can be filled in later.</p>
                   <textarea
+                    disabled={draftLocked}
                     rows={4}
                     maxLength={1000}
                     value={lastMove.note}
@@ -217,8 +238,9 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
           ratingGroup={ratingGroup}
           useExplorer={useExplorer}
           onAddMoves={addExploredMoves}
+          disabled={draftLocked}
         />}
-      </div>
+      </div>}
     </div>
   );
 }

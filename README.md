@@ -49,6 +49,20 @@ repertoire move can also carry a private, editable learning comment in the
 learner's own words. These comments remain separate from the source material
 and appear wherever that move is studied or reviewed.
 
+An **Optional idea hint** can be authored separately from the full comment:
+describe the purpose without naming the move, piece or destination. Recall only
+shows it when requested; **Hint: show the piece** and **Show move** offer stronger
+help. Imported explanations are not silently turned into answer-revealing hints.
+Hint use survives reloads and never counts as unaided recall.
+
+**Opening settings** includes normal/relaxed practice pace and pauses after
+mistakes or hints, notes, or every correct move. By default correct moves continue
+automatically and a wrong move lets you retry without showing the answer.
+The final board remains visible beside your summary, which separates first-try
+recall, hinted moves and mistakes. A later successful retry cannot rewrite the
+first result. Automatic reviews ask for other enabled saved responses at a
+shared position in any order; an exact-line drill follows only that chosen branch.
+
 Same-session retries are separated by at least two other positions and capped
 at two per move. If the set is too short, the scheduled review handles the retry
 instead of trapping the learner in an immediate reveal-and-repeat loop.
@@ -122,17 +136,21 @@ selected repertoire, line and move on refresh. Archive/export actions sit in
 the most recently added move can be undone. Individual lines or complete
 repertoires—including built-in material—can be archived without losing notes or
 review history, then restored later. The desktop opening studio provides
-guided move choices: one repertoire board asks for the next decision and adds a
-selected move immediately. An independent analysis board opens only when deeper
+guided move choices: name the repertoire, choose your side and start building.
+Your first learner move creates it; subsequent new moves save automatically.
+**Edit lines** offers the same flow, with **Save each move automatically** switched
+on, a manual preview option, retry on failure and **Undo last save**. Choosing an
+already saved response follows it rather than duplicating it. An independent analysis board opens only when deeper
 investigation is useful. Local Stockfish suggests candidate ideas and Lichess
 Explorer shows common rated-game replies when a server token is configured,
 including an intuitive “1 in N games” frequency and the chosen colour's sampled
 results (wins plus half the draws—not your personal results). Engine numbers are
 from the side-to-move perspective, identified beneath the move choices. The opening home checks practical coverage for the recommended
 repertoire and surfaces the weakest line from review and game evidence. Exploration is
-never saved automatically: deliberately add the tested sequence to the left
-board, write the reason in your own words, then save it to the same graph and
-review schedule. On smaller screens the guided board and move evidence stack
+never saved automatically: deliberately add the tested sequence to your
+repertoire. It is saved atomically to the same graph and review schedule; an
+invalid later move leaves no partial sequence. Add or edit your reason afterwards.
+On smaller screens the guided board and move evidence stack
 vertically without horizontal scrolling.
 The repertoire library stays compact: each title expands only when its
 statistics, description or actions are needed, leaving more room for the

@@ -2,6 +2,30 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.5.17 — 2026-10-07
+
+### Practice and builder audit improvements
+
+- Keep the practice board in place through completion. Show explanations only
+  on request, with short mobile feedback above the board and accessible pause controls.
+- Persist normal/relaxed pacing and optional pauses after hints/mistakes, notes,
+  or every move. The default remains continuous, button-free correct-move progression.
+- Add separately authored idea hints without automatically revealing the piece
+  or destination. Record hint assistance across reloads and server-side scoring.
+- Practise enabled alternative responses at a shared position in any order;
+  exact-line drills still follow their selected branch. Separate first-try recall,
+  hinted moves, mistakes and later retries in the completion summary.
+- Create a repertoire from the first chosen learner move, then automatically save
+  each builder move. Keep optional preview-before-save, Undo, recoverable drafts,
+  and duplicate-safe retry IDs for uncertain network responses.
+- Show saved continuations alongside concise move choices. Keep engine/results
+  detail optional and position frequency distinct from whole-line likelihood.
+- Add a separate analysis board while editing existing repertoires. Explicitly
+  save explored sequences as one transaction, without partial saves or overwriting lines.
+- Apply an additive SQLite migration; existing games, notes and review cards are retained.
+- Patch the build-only source-map-js dependency to 1.2.2 to address its indexed
+  source-map denial-of-service advisory; no new runtime dependencies are added.
+
 ## 1.5.16 — 2026-10-07
 
 ### Calmer practice feedback

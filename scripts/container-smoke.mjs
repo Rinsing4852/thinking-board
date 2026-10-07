@@ -76,6 +76,22 @@ if (existing) {
   });
 }
 const repertoire = await request(`/api/v1/openings/repertoires/${repertoireId}`);
+const preferences = await request("/api/v1/openings/preferences");
+const firstMove = repertoire.chapters[0].lines[0].moves[0];
+const hint = "Claim space in the centre.";
+if (existing) {
+  assert.equal(preferences.practicePace, "relaxed", "Practice pace must survive restart");
+  assert.equal(preferences.pauseAfterMove, "mistakes", "Practice pause choices must survive restart");
+  assert.equal(firstMove.explanation.ideaHint, hint, "Authored idea hints must survive restart");
+} else {
+  await request("/api/v1/openings/preferences", {
+    ratingGroup: preferences.ratingGroup, platform: preferences.platform, useExplorer: false,
+    practicePace: "relaxed", pauseAfterMove: "mistakes",
+  }, "PATCH");
+  await request(`/api/v1/openings/repertoires/${repertoireId}/moves/${firstMove.id}/comment`, {
+    comment: "Develop while controlling the centre.", ideaHint: hint,
+  }, "PATCH");
+}
 assert.equal(repertoire.chapters[0].lines.length, 2, "Updated opening branches must be persisted");
 assert.equal(repertoire.chapters[0].lines[0].moves[0].explanation.summary,
   "Open the bishop and control the centre.", "Refreshed source notes must be persisted");

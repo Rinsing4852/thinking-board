@@ -89,6 +89,8 @@ test.describe.serial("stable V1 browser journey", () => {
       await page.goto("/#openings");
       const openings = page.locator("#opening-practice");
       await openings.getByRole("button", { name: "Build on the board" }).click();
+      await openings.getByRole("textbox", { name: "Repertoire name" }).fill("Touch board audit");
+      await openings.getByRole("button", { name: "Start building", exact: true }).click();
       const board = openings.getByRole("grid", { name: "Repertoire board" });
       const boardStyles = await board.evaluate((element) => {
         const styles = getComputedStyle(element);
@@ -104,10 +106,10 @@ test.describe.serial("stable V1 browser journey", () => {
       if (!e2Box || !e4Box) throw new Error("Touch board squares are not visible");
       await page.touchscreen.tap(e2Box.x + e2Box.width / 2, e2Box.y + e2Box.height / 2);
       await page.touchscreen.tap(e4Box.x + e4Box.width / 2, e4Box.y + e4Box.height / 2);
-      await expect(board.getByRole("gridcell", { name: "e4 white pawn" })).toBeVisible();
-
-      const e7 = board.getByRole("gridcell", { name: "e7 black pawn" });
-      const e5 = board.getByRole("gridcell", { name: "e5 empty" });
+      const savedBoard = openings.getByRole("grid", { name: "Chess position" });
+      await expect(savedBoard.getByRole("gridcell", { name: "e4 white pawn" })).toBeVisible();
+      const e7 = savedBoard.getByRole("gridcell", { name: "e7 black pawn" });
+      const e5 = savedBoard.getByRole("gridcell", { name: "e5 empty" });
       const e7Box = await e7.boundingBox();
       const e5Box = await e5.boundingBox();
       if (!e7Box || !e5Box) throw new Error("Touch board squares are not visible");
@@ -118,7 +120,7 @@ test.describe.serial("stable V1 browser journey", () => {
       await client.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 }] });
       await client.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [to] });
       await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-      await expect(board.getByRole("gridcell", { name: "e5 black pawn" })).toBeVisible();
+      await expect(savedBoard.getByRole("gridcell", { name: "e5 black pawn" })).toBeVisible();
       expect(await page.evaluate(() => window.getSelection()?.toString() ?? "")).toBe("");
     } finally {
       await context.close();
@@ -147,15 +149,20 @@ test.describe.serial("stable V1 browser journey", () => {
 
     await openings.getByRole("button", { name: "Build on the board" }).click();
     await openings.getByRole("textbox", { name: /Repertoire name/ }).fill("Board-built Italian");
+    await openings.getByRole("button", { name: "Start building", exact: true }).click();
     await expect(openings.getByRole("grid", { name: "Repertoire board" })).toBeVisible();
-    await expect(openings.getByText("Moves to consider", { exact: true })).toBeVisible();
+    await expect(openings.getByRole("region", { name: "Moves to consider", exact: true })).toBeVisible();
     await expectSvgPieces(page, "Repertoire board");
     await expect(openings.getByRole("grid", { name: "Repertoire board" }).locator("[role='gridcell'][tabindex='0']")).toHaveCount(1);
     await expect(openings.getByRole("grid", { name: "Analysis board" })).toBeHidden();
     let board = openings.getByRole("grid", { name: "Repertoire board" });
     await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
     await board.getByRole("gridcell", { name: "e4 empty" }).click();
-    await openings.getByRole("textbox", { name: /Develops with tempo/ }).fill("Claims the centre and opens the bishop.");
+    await expect(openings.getByRole("heading", { name: "Board-built Italian", level: 2 })).toBeVisible();
+    await expect(openings.getByRole("button", { name: "Finish editing" })).toBeVisible();
+    await openings.getByRole("button", { name: "Add comment" }).click();
+    await openings.getByRole("textbox", { name: "Your learning comment" }).fill("Claims the centre and opens the bishop.");
+    await openings.getByRole("button", { name: "Save comment" }).click();
 
     await openings.getByRole("button", { name: "Open analysis board" }).click();
     await expect(openings.getByRole("grid", { name: "Analysis board" }).locator("[role='gridcell'][tabindex='0']")).toHaveCount(1);
@@ -184,16 +191,14 @@ test.describe.serial("stable V1 browser journey", () => {
     await expect(board.getByRole("gridcell", { name: "e5 black pawn" })).toBeVisible();
     await expect(board.locator("cg-board piece.black.pawn")).toHaveCount(8);
     await openings.getByRole("button", { name: "Add 1 move to my repertoire" }).click();
-    await expect(openings.getByRole("grid", { name: "Analysis board" })).toBeHidden();
-    await openings.getByRole("textbox", { name: /Challenges the centre/ }).fill("Black mirrors the central claim.");
-    await openings.getByRole("button", { name: "Save repertoire" }).click();
+    await expect(openings.getByText("Analysis sequence saved. Original lines are kept.")).toBeVisible();
+    await openings.getByRole("button", { name: "Close analysis board" }).click();
     await expect(openings.getByRole("heading", { name: "Board-built Italian", level: 2 })).toBeVisible();
-    await expect(openings.getByText("1. e4 e5", { exact: true })).toBeVisible();
+    await expect(openings.getByRole("grid", { name: "Chess position" }).getByRole("gridcell", { name: "e5 black pawn" })).toBeVisible();
     await expect(openings.getByRole("button", { name: "Practise this line" })).toBeEnabled();
 
-    await openings.getByRole("button", { name: "Edit lines" }).click();
-    await expect(openings.getByText("Moves to consider", { exact: true })).toBeVisible();
-    await openings.getByRole("button", { name: "End", exact: true }).click();
+    await openings.getByLabel("Save each move automatically").uncheck();
+    await expect(openings.getByRole("region", { name: "Moves to consider", exact: true })).toBeVisible();
     board = openings.getByRole("grid", { name: "Chess position" });
     await board.getByRole("gridcell", { name: "g1 white knight" }).click();
     await board.getByRole("gridcell", { name: "f3 empty" }).click();
@@ -351,7 +356,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await starter.getByRole("button", { name: "Practise 5 new moves" }).click();
     await expect(openings.getByText("Step 1 of 5")).toBeVisible();
     await expect(page.locator(".site-header")).toHaveClass(/practice-hidden/);
-    await expect(openings.getByRole("heading", { name: "Find the move from its purpose." })).toBeVisible();
+    await expect(openings.getByRole("heading", { name: "Recall your repertoire move for this position." })).toBeVisible();
     await expect(openings.getByText("Correct moves continue automatically", { exact: false })).toBeVisible();
 
     let board = openings.getByRole("grid", { name: "Chess position" });
@@ -378,8 +383,8 @@ test.describe.serial("stable V1 browser journey", () => {
     ];
     for (const [index, decision] of decisions.entries()) {
       await expect(openings.getByText(`Step ${index + 2} of 6`)).toBeVisible({ timeout: 5_000 });
-      await expect(openings.getByText("play now — moves are checked immediately", { exact: false })).toBeVisible({ timeout: 5_000 });
       board = openings.getByRole("grid", { name: "Chess position" });
+      await expect(board).toHaveClass(/interactive/);
       await board.getByRole("gridcell", { name: decision.from }).click();
       await board.getByRole("gridcell", { name: decision.to }).click();
       await expect(openings.getByText("Remembered", { exact: true })).toBeVisible();
@@ -387,8 +392,8 @@ test.describe.serial("stable V1 browser journey", () => {
 
     await expect(openings.getByText("Practice complete", { exact: true })).toBeVisible({ timeout: 5_000 });
     const scores = openings.locator(".opening-complete-scores");
-    await expect(scores.getByText("5", { exact: true })).toBeVisible();
-    const assistedScore = scores.locator("div").filter({ hasText: "answers shown or helped" });
+    await expect(scores.getByText("4", { exact: true })).toBeVisible();
+    const assistedScore = scores.locator("div").filter({ hasText: "moves helped by hints" });
     await expect(assistedScore.getByText("1", { exact: true })).toBeVisible();
     await expect(openings.getByRole("button", { name: "Practice another set" })).toBeVisible();
     await openings.getByRole("button", { name: "Back to opening choices" }).click();
@@ -527,7 +532,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await expect(differenceBoard.getByRole("gridcell", { name: "e4 white pawn" })).toBeVisible();
     await page.getByRole("button", { name: "Practise e4 now" }).click();
     await expect(page.locator("#opening-practice .opening-review")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Find the move from its purpose." })).toBeVisible();
+    await expect(page.getByText(/Recall your repertoire move|Play one of your saved responses/).filter({ visible: true })).toBeVisible();
     await expectSquareBoard(page);
   });
 

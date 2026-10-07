@@ -98,6 +98,7 @@ export interface OpeningLineMove {
     tacticalWarning: string | null;
     commonMistake: string | null;
     personalComment: string | null;
+    ideaHint?: string | null;
     boardAnnotations?: OpeningBoardAnnotation[];
   };
 }
@@ -105,6 +106,7 @@ export interface OpeningLineMove {
 export interface OpeningLearningCommentResponse {
   moveId: string;
   comment: string | null;
+  ideaHint?: string | null;
 }
 
 export interface OpeningLineDetail {
@@ -166,6 +168,7 @@ export interface OpeningRepertoireDetailResponse {
 }
 
 export interface OpeningLineMutationResponse {
+  changed?: boolean;
   detail: OpeningRepertoireDetailResponse;
   lineId: string;
   moveId: string;
@@ -303,6 +306,8 @@ export interface OpeningExplorerPositionResponse {
 }
 
 export type OpeningRatingPlatform = "lichess" | "chess_com" | "fide" | "not_sure";
+export type OpeningPracticePace = "normal" | "relaxed";
+export type OpeningPausePolicy = "never" | "mistakes" | "notes" | "always";
 
 export interface OpeningPlayerPreferences {
   configured: boolean;
@@ -313,6 +318,8 @@ export interface OpeningPlayerPreferences {
   newMovesPerSession: number;
   practiceDepth: number;
   boardSounds: boolean;
+  practicePace: OpeningPracticePace;
+  pauseAfterMove: OpeningPausePolicy;
   updatedAt: string | null;
 }
 
@@ -546,6 +553,7 @@ export interface OpeningWhyAnswerResponse {
     tacticalWarning: string | null;
     commonMistake: string | null;
     personalComment: string | null;
+    ideaHint?: string | null;
   };
   next: OpeningLessonState;
 }
@@ -592,7 +600,7 @@ export interface OpeningReviewExercise {
   moveNumber: number;
   prompt: string;
   acceptedMoves: OpeningAcceptedMove[];
-  assistance: { pieceHint: boolean; moveShown: boolean };
+  assistance: { pieceHint: boolean; moveShown: boolean; ideaHint?: boolean };
   preparationNote?: string | null;
   introduction: {
     repertoireMove: { moveId: string; moveUci: string; moveSan: string };
@@ -605,6 +613,7 @@ export interface OpeningReviewExercise {
       tacticalWarning: string | null;
       commonMistake: string | null;
       personalComment: string | null;
+      ideaHint?: string | null;
       boardAnnotations?: OpeningBoardAnnotation[];
     };
   };
@@ -630,6 +639,7 @@ export interface OpeningReviewFeedback {
     tacticalWarning: string | null;
     commonMistake: string | null;
     personalComment: string | null;
+    ideaHint?: string | null;
     boardAnnotations?: OpeningBoardAnnotation[];
   };
   nextDueAt: string;
@@ -652,6 +662,10 @@ export interface OpeningReviewComplete {
   remembered: number;
   introduced: number;
   lapses: number;
+  firstTryRemembered: number;
+  helpedPositions: number;
+  mistakePositions: number;
+  repeatAttempts: number;
   message: string;
 }
 

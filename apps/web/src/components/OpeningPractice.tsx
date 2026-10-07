@@ -74,6 +74,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
   const [showBuilder, setShowBuilder] = useState(false);
   const [workspaceDetail, setWorkspaceDetail] = useState<OpeningRepertoireDetailResponse | null>(null);
   const [workspaceLineId, setWorkspaceLineId] = useState<string | null>(null);
+  const [workspaceBuilding, setWorkspaceBuilding] = useState(false);
   const [workspaceGap, setWorkspaceGap] = useState<OpeningCoverageGap | null>(null);
   const [archiveMessage, setArchiveMessage] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -264,6 +265,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
     try {
       const detail = await get<OpeningRepertoireDetailResponse>(`/api/v1/openings/repertoires/${repertoireId}`);
       setWorkspaceDetail(detail);
+      setWorkspaceBuilding(false);
       setWorkspaceLineId(lineId);
       setWorkspaceGap(gap);
       setShowBuilder(false);
@@ -286,6 +288,8 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
     setOpeningProgress(progress);
     setShowBuilder(false);
     setWorkspaceDetail(detail);
+    setWorkspaceBuilding(true);
+    setWorkspaceLineId(detail.chapters[0]?.lines[0]?.id ?? null);
     setWorkspaceGap(null);
   };
 
@@ -544,10 +548,10 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
     }
   };
 
-  const updateLessonComment = (comment: string | null): void => {
+  const updateLessonComment = (comment: string | null, ideaHint?: string | null): void => {
     setWhyFeedback((current) => current ? {
       ...current,
-      explanation: { ...current.explanation, personalComment: comment },
+      explanation: { ...current.explanation, personalComment: comment, ideaHint: ideaHint ?? null },
     } : current);
   };
 
@@ -594,6 +598,8 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
         <OpeningReview
           key={activeReview.sessionId}
           initial={activeReview}
+          practicePace={playerPreferences?.practicePace ?? "normal"}
+          pauseAfterMove={playerPreferences?.pauseAfterMove ?? "never"}
           boardSounds={playerPreferences?.boardSounds ?? false}
           onComplete={finishReview}
           onPause={() => setReviewPaused(true)}
@@ -622,9 +628,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
           ratingGroup={playerPreferences?.ratingGroup ?? 1600}
           useExplorer={playerPreferences?.useExplorer ?? false}
           onCancel={() => setShowBuilder(false)}
-          onSaved={(repertoireId) => void finishBoardBuild(repertoireId).catch((failure) => {
-            setError(failure instanceof Error ? failure.message : "Could not open the saved repertoire");
-          })}
+          onSaved={finishBoardBuild}
         />
       )}
 
@@ -637,6 +641,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
         <OpeningLineExplorer
           key={workspaceDetail.repertoire.id}
           detail={workspaceDetail}
+          startBuilding={workspaceBuilding}
           startingLineId={workspaceLineId}
           startingGap={workspaceGap}
           initialCoverage={coverageSpotlight?.repertoireId === workspaceDetail.repertoire.id ? coverageSpotlight : null}
@@ -694,6 +699,13 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
               </button>
             </div>
           )}
+          {(Boolean(activeReview && reviewPaused) || Boolean(step && pausedLessonPhase)) && <div className="panel opening-paused-tools" role="group" aria-label="Repertoire tools">
+            <p>Your practice is saved. You can build or import preparation without losing your place.</p>
+            <div className="answer-actions">
+              <button disabled={submitting} onClick={() => { setShowBuilder(true); setShowImporter(false); }}>Build on the board</button>
+              <button className="secondary" disabled={submitting} onClick={() => setShowImporter(shown => !shown)}>{showImporter ? "Close opening import" : "Import opening PGN"}</button>
+            </div>
+          </div>}
           {!activeReview && !(step && pausedLessonPhase) && (
             <OpeningHomeCockpit
               recommendation={recommendation}
@@ -796,11 +808,11 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
                           ? repertoire.review.due > 10
                             ? `Review 10 of ${repertoire.review.due} due`
                             : `Review ${repertoire.review.due} due`
-                          : repertoire.review.new > 0 ? `Practise ${Math.min(5, repertoire.review.new)} new moves` : "Review early"}
+                          : repertoire.review.new > 0 ? `Practise ${Math.min(playerPreferences?.newMovesPerSession ?? 5, repertoire.review.new)} new moves` : "Review early"}
                       </button>
                       {repertoire.review.due > 0 && repertoire.review.new > 0 && (
                         <button className="secondary" disabled={submitting} onClick={() => void startReview(repertoire.id, "new")}>
-                          Practise {Math.min(5, repertoire.review.new)} new instead
+                          Practise {Math.min(playerPreferences?.newMovesPerSession ?? 5, repertoire.review.new)} new instead
                         </button>
                       )}
                       <button className="secondary" disabled={submitting || repertoire.review.total === 0} onClick={() => void startLesson(repertoire.id)}>
@@ -1007,6 +1019,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
                       repertoireId={step.repertoire.id}
                       moveId={moveFeedback.repertoireMove.moveId}
                       comment={whyFeedback.explanation.personalComment}
+                      ideaHint={whyFeedback.explanation.ideaHint}
                       onSaved={updateLessonComment}
                     />
                   )}

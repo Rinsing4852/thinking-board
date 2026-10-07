@@ -118,6 +118,132 @@ async function waitForCompleted(app: Awaited<ReturnType<typeof buildApp>>, jobId
 }
 
 describe("vertical slice", () => {
+  it("persists practice preferences and idea help without claiming an independent recall", async () => {
+    const app = await buildApp(config(false, false)); apps.push(app);
+    const preferences = { ratingGroup: 1400, platform: "lichess", useExplorer: false, practicePace: "relaxed", pauseAfterMove: "mistakes" };
+    expect((await app.inject({ method: "PATCH", url: "/api/v1/openings/preferences", payload: preferences })).statusCode).toBe(200);
+    expect((await app.inject({ method: "PATCH", url: "/api/v1/openings/preferences", payload: {
+      ratingGroup: 1600, platform: "lichess", useExplorer: false,
+    } })).json()).toMatchObject({ practicePace: "relaxed", pauseAfterMove: "mistakes" });
+    expect((await app.inject({ method: "PATCH", url: "/api/v1/openings/preferences", payload: { ...preferences, pauseAfterMove: "sometimes" } })).statusCode).toBe(400);
+    const imported = await app.inject({ method: "POST", url: "/api/v1/openings/imports/pgn", payload: {
+      pgn: '[Event "Idea hint audit"]\n[Result "*"]\n\n1. e4 *', learnerColor: "white", ownershipConfirmed: true,
+    } });
+    const repertoireId = imported.json().repertoireIds[0];
+    const detail = (await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}` })).json();
+    const move = detail.chapters[0].lines[0].moves[0];
+    const noteUrl = `/api/v1/openings/repertoires/${repertoireId}/moves/${move.id}/comment`;
+    expect((await app.inject({ method: "PATCH", url: noteUrl, payload: { comment: "My explanation", ideaHint: "Claim central space." } })).json())
+      .toMatchObject({ ideaHint: "Claim central space." });
+    // Legacy clients can edit the comment without erasing the separately written hint.
+    expect((await app.inject({ method: "PATCH", url: noteUrl, payload: { comment: "" } })).json())
+      .toMatchObject({ comment: null, ideaHint: "Claim central space." });
+    const exercise = (await app.inject({ method: "POST", url: `/api/v1/openings/repertoires/${repertoireId}/reviews/start` })).json();
+    const help = await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${exercise.sessionId}/help`, payload: { kind: "idea", queueEntryId: exercise.queueEntryId } });
+    expect(help.statusCode).toBe(200);
+    expect(help.json().assistance).toEqual({ ideaHint: true, pieceHint: false, moveShown: false });
+    expect((await app.inject({ method: "GET", url: "/api/v1/openings/reviews/active" })).json().assistance.ideaHint).toBe(true);
+    const answered = await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${exercise.sessionId}/move`, payload: {
+      moveUci: "e2e4", queueEntryId: exercise.queueEntryId, assisted: false,
+    } });
+    expect(answered.json()).toMatchObject({ outcome: "learning", assisted: true, revealed: false });
+    const completed = await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${exercise.sessionId}/continue`, payload: { queueEntryId: exercise.queueEntryId } });
+    expect(completed.json()).toMatchObject({ kind: "complete", firstTryRemembered: 0, helpedPositions: 1, mistakePositions: 0 });
+  });
+
+  it("recalls all enabled shared responses without requiring them in one fixed order", async () => {
+    const app = await buildApp(config(false, false)); apps.push(app);
+    const imported = await app.inject({ method: "POST", url: "/api/v1/openings/imports/pgn", payload: {
+      pgn: '[Event "Shared responses"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 (2. Nc3) (2. Bc4) *', learnerColor: "white", ownershipConfirmed: true,
+    } });
+    const repertoireId = imported.json().repertoireIds[0];
+    let exercise = (await app.inject({ method: "POST", url: `/api/v1/openings/repertoires/${repertoireId}/reviews/start` })).json();
+    const sessionId = exercise.sessionId;
+    for (const [index, moveUci] of ["e2e4", "b1c3", "f1c4", "g1f3"].entries()) {
+      expect(exercise.kind).toBe("exercise");
+      if (index >= 2) expect(exercise.prompt).toContain("another saved response");
+      const response = await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${sessionId}/move`, payload: { moveUci, queueEntryId: exercise.queueEntryId } });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({ outcome: "remembered" });
+      const oldQueue = exercise.queueEntryId;
+      const next = await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${sessionId}/continue`, payload: { queueEntryId: oldQueue } });
+      expect(next.statusCode).toBe(200);
+      exercise = next.json();
+      const duplicate = await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${sessionId}/continue`, payload: { queueEntryId: oldQueue } });
+      expect(duplicate.json()).toEqual(exercise);
+    }
+    expect(exercise).toMatchObject({ kind: "complete", positions: 4, firstTryRemembered: 4, helpedPositions: 0, repeatAttempts: 0 });
+  });
+
+  it("keeps automatic branch saves idempotent and analysis sequences atomic", async () => {
+    const app = await buildApp(config(false, false)); apps.push(app);
+    const imported = await app.inject({ method: "POST", url: "/api/v1/openings/imports/pgn", payload: {
+      pgn: '[Event "Builder requests"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 *', learnerColor: "white", ownershipConfirmed: true,
+    } });
+    const repertoireId = imported.json().repertoireIds[0];
+    const detailUrl = `/api/v1/openings/repertoires/${repertoireId}`;
+    const original = (await app.inject({ method: "GET", url: detailUrl })).json();
+    const lineId = original.chapters[0].lines[0].id;
+    const url = `${detailUrl}/lines/${lineId}/moves`;
+    const payload = { afterPly: 1, moveUci: "c7c5", requestId: "audit-branch-save" };
+    const saved = (await app.inject({ method: "POST", url, payload })).json();
+    const retry = (await app.inject({ method: "POST", url, payload })).json();
+    expect(retry).toMatchObject({ lineId: saved.lineId, moveId: saved.moveId, changed: false });
+    expect(retry.detail.chapters[0].lines).toHaveLength(2);
+    expect((await app.inject({ method: "POST", url, payload: { ...payload, moveUci: "c7c6" } })).statusCode).toBe(400);
+    const before = (await app.inject({ method: "GET", url: detailUrl })).json();
+    const sequenceUrl = `${detailUrl}/lines/${lineId}/sequence`;
+    const invalid = await app.inject({ method: "POST", url: sequenceUrl, payload: {
+      afterPly: 3, moveUcis: ["b8c6", "e2e4"], requestId: "invalid-sequence",
+    } });
+    expect(invalid.statusCode).toBe(400);
+    expect((await app.inject({ method: "GET", url: detailUrl })).json()).toEqual(before);
+    const sequence = { afterPly: 3, moveUcis: ["b8c6", "f1c4"], requestId: "valid-sequence" };
+    expect((await app.inject({ method: "POST", url: sequenceUrl, payload: sequence })).statusCode).toBe(200);
+    const repeated = await app.inject({ method: "POST", url: sequenceUrl, payload: sequence });
+    expect(repeated.statusCode).toBe(200);
+    expect(repeated.json().detail.chapters[0].lines.find((line: { id: string }) => line.id === lineId).moveCount).toBe(5);
+  });
+
+  it("does not add paused alternatives to shared-response practice", async () => {
+    const app = await buildApp(config(false, false)); apps.push(app);
+    const imported = await app.inject({ method: "POST", url: "/api/v1/openings/imports/pgn", payload: {
+      pgn: '[Event "Paused alternative"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 (2. Bc4) *', learnerColor: "white", ownershipConfirmed: true,
+    } });
+    const repertoireId = imported.json().repertoireIds[0];
+    const detail = (await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}` })).json();
+    const paused = detail.chapters[0].lines.find((line: { moves: Array<{ moveUci: string }> }) => line.moves.some(move => move.moveUci === "f1c4"));
+    expect((await app.inject({ method: "PATCH", url: `/api/v1/openings/repertoires/${repertoireId}/practice-selection`,
+      payload: { lineIds: [paused.id], enabled: false } })).statusCode).toBe(200);
+    let exercise = (await app.inject({ method: "POST", url: `/api/v1/openings/repertoires/${repertoireId}/reviews/start` })).json();
+    for (const moveUci of ["e2e4", "g1f3"]) {
+      const base = `/api/v1/openings/reviews/${exercise.sessionId}`;
+      expect((await app.inject({ method: "POST", url: `${base}/move`, payload: { moveUci, queueEntryId: exercise.queueEntryId } })).statusCode).toBe(200);
+      exercise = (await app.inject({ method: "POST", url: `${base}/continue`, payload: { queueEntryId: exercise.queueEntryId } })).json();
+    }
+    expect(exercise).toMatchObject({ kind: "complete", positions: 2, firstTryRemembered: 2 });
+  });
+
+  it("does not relabel a successful later retry as first-try recall", async () => {
+    const app = await buildApp(config(false, false)); apps.push(app);
+    const imported = await app.inject({ method: "POST", url: "/api/v1/openings/imports/pgn", payload: {
+      pgn: '[Event "Honest results"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. d3 *', learnerColor: "white", ownershipConfirmed: true,
+    } });
+    const repertoireId = imported.json().repertoireIds[0];
+    let exercise = (await app.inject({ method: "POST", url: `/api/v1/openings/repertoires/${repertoireId}/reviews/start` })).json();
+    const sessionId = exercise.sessionId;
+    expect((await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${sessionId}/mistakes`, payload: { moveUci: "d2d4", queueEntryId: exercise.queueEntryId } })).statusCode).toBe(200);
+    for (let attempt = 0; exercise.kind === "exercise" && attempt < 10; attempt++) {
+      const response = await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${sessionId}/move`, payload: {
+        moveUci: exercise.introduction.repertoireMove.moveUci, queueEntryId: exercise.queueEntryId,
+      } });
+      expect(response.statusCode).toBe(200);
+      const continued = await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${sessionId}/continue`, payload: { queueEntryId: exercise.queueEntryId } });
+      expect(continued.statusCode).toBe(200);
+      exercise = continued.json();
+    }
+    expect(exercise).toMatchObject({ firstTryRemembered: 3, positions: 4, repeatAttempts: 1, helpedPositions: 0, mistakePositions: 1 });
+  });
   it("assesses an actual opponent surprise, keeps ideas without cards and carries them into later practice", async () => {
     let calls = 0;
     globalThis.fetch = (async (input) => {
@@ -1510,7 +1636,7 @@ describe("vertical slice", () => {
       payload: { comment: "  Claim the centre before developing the king's knight.  " },
     });
     expect(saved.statusCode).toBe(200);
-    expect(saved.json()).toEqual({
+    expect(saved.json()).toMatchObject({
       moveId: move.id,
       comment: "Claim the centre before developing the king's knight.",
     });

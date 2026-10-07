@@ -5,7 +5,8 @@ export const REJECTED_MOVE_HOLD_MS = 650;
 export const REJECTED_MOVE_RETURN_MS = 360;
 
 /** A rejected answer is a temporary preview, never a change to the exercise. */
-export function usePracticeMoveReset(positionKey: string, enabled = true) {
+export function usePracticeMoveReset(positionKey: string, enabled = true,
+  holdMs = REJECTED_MOVE_HOLD_MS, returnDuration = REJECTED_MOVE_RETURN_MS) {
   const [preview, setPreview] = useState<{ key: string; fen: string | null } | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const locked = useRef(false);
@@ -32,11 +33,11 @@ export function usePracticeMoveReset(positionKey: string, enabled = true) {
     setPreview({ key: positionKey, fen: movedFen });
     timers.current.push(setTimeout(() => {
       setPreview({ key: positionKey, fen: null });
-      const returnMs = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : REJECTED_MOVE_RETURN_MS;
+      const returnMs = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : returnDuration;
       timers.current.push(setTimeout(cancel, returnMs));
-    }, REJECTED_MOVE_HOLD_MS));
+    }, holdMs));
   };
   const current = enabled && preview?.key === positionKey ? preview : null;
   return { fen: current?.fen, busy: current !== null, reject,
-    animationDuration: current ? REJECTED_MOVE_RETURN_MS : 200 };
+    animationDuration: current ? returnDuration : 200 };
 }

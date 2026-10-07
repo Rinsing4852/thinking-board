@@ -145,6 +145,7 @@ test("explains the previous move on request after advancing, and saves its comme
   await explanation.getByRole("button", { name: /Add comment|Edit comment/ }).click();
   const note = `Keep the centre in mind — ${testInfo.project.name}.`;
   await explanation.getByLabel("Your learning comment", { exact: true }).fill(note);
+  await explanation.getByLabel("Optional idea hint", { exact: true }).fill("Take central space and free a piece.");
   const close = page.getByRole("button", { name: "Close explanation and resume", exact: true });
   await expect(close).toBeDisabled();
   await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeDisabled();
@@ -152,6 +153,7 @@ test("explains the previous move on request after advancing, and saves its comme
   await explanation.getByRole("button", { name: "Save comment", exact: true }).click();
   expect((await saved).ok()).toBeTruthy();
   await expect(explanation.getByText(note, { exact: true })).toBeVisible();
+  await expect(explanation.getByText("Idea hint: Take central space and free a piece.", { exact: true })).toBeVisible();
   await expect(close).toBeEnabled();
   await page.screenshot({ path: testInfo.outputPath("requested-line-explanation.png"), fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
@@ -173,6 +175,166 @@ test("explains the previous move on request after advancing, and saves its comme
   await expect(close).toBeEnabled();
   await close.click();
   await expect(page.getByText("Step 3 of 3")).toBeVisible();
+});
+
+test("builds with automatic saves, retry safety and a separate analysis board", async ({ page }, testInfo) => {
+  await startPractice(page, `[Event "Paused builder ${testInfo.project.name}"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 *`);
+  const paused = await (await page.request.get("/api/v1/openings/reviews/active")).json();
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  await page.getByRole("button", { name: "Build on the board", exact: true }).click();
+  const name = `Automatic build ${testInfo.project.name}`;
+  await page.getByLabel("Repertoire name", { exact: true }).fill(name);
+  await page.getByRole("button", { name: "Start building", exact: true }).click();
+  const initialBoard = page.getByRole("grid", { name: "Repertoire board" });
+  await initialBoard.getByRole("gridcell", { name: "e2 white pawn" }).click();
+  await initialBoard.getByRole("gridcell", { name: "e4 empty" }).click();
+  await expect(page.getByRole("heading", { name, level: 2, exact: true })).toBeVisible();
+  await expect(page.getByLabel("Save each move automatically")).toBeChecked();
+  const id = (await (await page.request.get("/api/v1/openings/catalog")).json()).repertoires
+    .find((item: { name: string }) => item.name === name).id;
+  const board = page.getByRole("grid", { name: "Chess position" });
+  const boardTop = await board.evaluate(element => element.getBoundingClientRect().top + window.scrollY);
+  const requests: string[] = [];
+  let fail = true;
+  await page.route(`**/api/v1/openings/repertoires/${id}/lines/*/moves`, route => {
+    requests.push(route.request().postDataJSON().requestId);
+    return fail ? route.fulfill({ status: 503, json: { error: "Temporary save failure" } }) : route.continue();
+  });
+  await board.getByRole("gridcell", { name: "e7 black pawn" }).click();
+  await board.getByRole("gridcell", { name: "e5 empty" }).click();
+  await expect(page.getByText("Temporary save failure", { exact: true })).toBeVisible();
+  await expect(board).not.toHaveClass(/interactive/);
+  fail = false;
+  await page.getByRole("button", { name: "Retry saving move", exact: true }).click();
+  await expect(page.getByText("e5 was added to the end of this line.", { exact: true })).toBeVisible();
+  expect(requests).toHaveLength(2);
+  expect(requests[0]).toBe(requests[1]);
+  expect(await board.evaluate(element => element.getBoundingClientRect().top + window.scrollY)).toBeCloseTo(boardTop, 0);
+  await page.unroute(`**/api/v1/openings/repertoires/${id}/lines/*/moves`);
+  await board.getByRole("gridcell", { name: "g1 white knight" }).click();
+  await board.getByRole("gridcell", { name: "f3 empty" }).click();
+  await expect(page.getByText("Nf3 was added to the end of this line.", { exact: true })).toBeVisible();
+  let detail = await (await page.request.get(`/api/v1/openings/repertoires/${id}`)).json();
+  expect(detail.chapters[0].lines[0].moveCount).toBe(3);
+  await page.getByRole("button", { name: "Open analysis board", exact: true }).click();
+  const analysis = page.getByRole("grid", { name: "Analysis board" });
+  if (page.viewportSize()!.width > 900) {
+    expect((await board.boundingBox())!.width).toBeCloseTo((await analysis.boundingBox())!.width, 0);
+  }
+  await analysis.getByRole("gridcell", { name: "b8 black knight" }).click();
+  await analysis.getByRole("gridcell", { name: "c6 empty" }).click();
+  await expect(board.getByRole("gridcell", { name: "b8 black knight" })).toBeVisible();
+  await analysis.getByRole("gridcell", { name: "f1 white bishop" }).click();
+  await analysis.getByRole("gridcell", { name: "c4 empty" }).click();
+  await page.screenshot({ path: testInfo.outputPath("automatic-builder-analysis.png"), fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
+  await page.getByRole("button", { name: "Add 2 moves to my repertoire", exact: true }).click();
+  await expect(page.getByText("Analysis sequence saved. Original lines are kept.", { exact: true })).toBeVisible();
+  detail = await (await page.request.get(`/api/v1/openings/repertoires/${id}`)).json();
+  expect(detail.chapters[0].lines).toHaveLength(1);
+  expect(detail.chapters[0].lines[0].moveCount).toBe(5);
+  await page.getByRole("button", { name: "Close analysis board", exact: true }).click();
+  await page.getByRole("button", { name: "Undo last save", exact: true }).click();
+  await expect(page.getByText("Bc4 was removed.", { exact: true })).toBeVisible();
+  detail = await (await page.request.get(`/api/v1/openings/repertoires/${id}`)).json();
+  expect(detail.chapters[0].lines[0].moveCount).toBe(4);
+  expect((await (await page.request.get("/api/v1/openings/reviews/active")).json()).sessionId).toBe(paused.sessionId);
+});
+
+test("uses optional idea hints without revealing a square, and keeps that assistance after reload", async ({ page }, testInfo) => {
+  const pgn = `[Event "Hint audit ${testInfo.project.name}"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 *`;
+  await startPractice(page, pgn);
+  const active = await (await page.request.get("/api/v1/openings/reviews/active")).json();
+  expect((await page.request.patch(`/api/v1/openings/repertoires/${active.repertoire.id}/moves/${active.introduction.repertoireMove.moveId}/comment`, {
+    data: { comment: "The full explanation names e4.", ideaHint: "Take space in the centre." },
+  })).ok()).toBeTruthy();
+  await page.reload();
+  await page.getByRole("button", { name: "Hint: explain the idea", exact: true }).click();
+  const board = page.getByRole("grid", { name: "Chess position" });
+  await expect(page.getByText("Take space in the centre.", { exact: true }).filter({ visible: true })).toBeVisible();
+  await expect(page.getByText("The full explanation names e4.", { exact: true })).toBeHidden();
+  await expect(board.locator(".answer-highlight")).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Idea hint shown", exact: true })).toBeDisabled();
+  await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
+  await board.getByRole("gridcell", { name: "e4 empty" }).click();
+  await expect(page.getByText("Step 2 of 2")).toBeVisible();
+  await expect(board).toHaveClass(/interactive/);
+  await board.getByRole("gridcell", { name: "g1 white knight" }).click();
+  await board.getByRole("gridcell", { name: "f3 empty" }).click();
+  await expect(page.getByText("Practice complete", { exact: true })).toBeVisible();
+  const summary = page.locator(".opening-complete-scores");
+  await expect(summary.locator("div").filter({ hasText: "remembered first try" }).getByText("1", { exact: true })).toBeVisible();
+  await expect(summary.locator("div").filter({ hasText: "moves helped by hints" }).getByText("1", { exact: true })).toBeVisible();
+  await expect(board).toBeVisible();
+});
+
+test("automatically recalls different saved responses at the same position without a fixed order", async ({ page }, testInfo) => {
+  const imported = await page.request.post("/api/v1/openings/imports/pgn", { data: {
+    pgn: `[Event "Shared recall ${testInfo.project.name}"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 (2. Nc3) (2. Bc4) *`,
+    learnerColor: "white", ownershipConfirmed: true,
+  } });
+  expect(imported.ok()).toBeTruthy();
+  const id = (await imported.json()).repertoireIds[0];
+  expect((await page.request.post(`/api/v1/openings/repertoires/${id}/reviews/start`)).ok()).toBeTruthy();
+  let mistakes = 0;
+  page.on("request", request => { if (/\/mistakes$/.test(request.url())) mistakes++; });
+  await page.goto("/#openings");
+  const board = page.getByRole("grid", { name: "Chess position" });
+  for (const [step, total, from, to] of [
+    [1, 2, "e2 white pawn", "e4 empty"],
+    [2, 2, "f1 white bishop", "c4 empty"],
+    [3, 4, "b1 white knight", "c3 empty"],
+    [4, 4, "g1 white knight", "f3 empty"],
+  ] as const) {
+    await expect(page.getByText(`Step ${step} of ${total}`, { exact: true })).toBeVisible();
+    await expect(board).toHaveClass(/interactive/);
+    if (step > 2) await expect(page.getByText("You have another saved response here. Play it on the board.", { exact: true }).filter({ visible: true })).toBeVisible();
+    await board.getByRole("gridcell", { name: from }).click();
+    await board.getByRole("gridcell", { name: to }).click();
+  }
+  await expect(page.getByText("Practice complete", { exact: true })).toBeVisible();
+  expect(mistakes).toBe(0);
+  await expect(page.locator(".opening-complete-scores").locator("div").filter({ hasText: "remembered first try" }).getByText("4", { exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("shared-response-completion.png"), fullPage: true });
+});
+
+test("persists relaxed practice and pauses only after the saved move is found", async ({ page }, testInfo) => {
+  const { configured: _configured, explorerAvailable: _explorerAvailable, updatedAt: _updatedAt, ...preferences } =
+    await (await page.request.get("/api/v1/openings/preferences")).json();
+  const settings = { ...preferences, practicePace: "relaxed", pauseAfterMove: "always" };
+  expect((await page.request.patch("/api/v1/openings/preferences", { data: settings })).ok()).toBeTruthy();
+  try {
+    await page.clock.install();
+    const board = await startPractice(page, `[Event "Pace audit ${testInfo.project.name}"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 *`);
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 60_000));
+    await board.getByRole("gridcell", { name: "d2 white pawn" }).click();
+    await page.clock.runFor(20);
+    const mistake = page.waitForResponse(response => /\/mistakes$/.test(response.url()));
+    await board.getByRole("gridcell", { name: "d4 empty" }).click();
+    await page.clock.runFor(20);
+    await mistake;
+    await page.clock.runFor(850);
+    await expect(board.getByRole("gridcell", { name: "d4 white pawn" })).toBeVisible();
+    await page.clock.runFor(800);
+    await expect(board).toHaveClass(/interactive/);
+    await expect(page.getByRole("button", { name: "Continue practice", exact: true })).toBeHidden();
+    await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
+    await page.clock.runFor(20);
+    const answered = page.waitForResponse(response => /\/reviews\/[^/]+\/move$/.test(response.url()));
+    await board.getByRole("gridcell", { name: "e4 empty" }).click();
+    await page.clock.runFor(20);
+    await answered;
+    await page.clock.runFor(3000);
+    await expect(page.getByText("Step 1 of 2")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Continue practice", exact: true })).toBeEnabled();
+    await page.screenshot({ path: testInfo.outputPath("relaxed-practice-feedback.png"), fullPage: true });
+    await page.getByRole("button", { name: "Continue practice", exact: true }).click();
+    await page.clock.runFor(1000);
+    await expect(page.getByText("Step 2 of 2")).toBeVisible();
+  } finally {
+    expect((await page.request.patch("/api/v1/openings/preferences", { data: preferences })).ok()).toBeTruthy();
+  }
 });
 
 test("excludes reading notes and hidden-tab time from the next recall", async ({ page }) => {
@@ -260,7 +422,7 @@ test("returns to the same practice position without revealing the answer or expl
   const board = await startPractice(page);
   await board.getByRole("gridcell", { name: "d2 white pawn" }).click();
   await board.getByRole("gridcell", { name: "d4 empty" }).click();
-  await expect(page.getByText("Try again", { exact: true })).toBeVisible();
+  await expect(page.getByText(/^Try again(?:, or ask for a hint\.)?$/).filter({ visible: true })).toBeVisible();
   await expect(page.getByText("Step 1 of 3")).toBeVisible();
   await expect(board.getByRole("gridcell", { name: "e2 white pawn" })).not.toHaveClass(/answer-highlight/);
   await expect(page.getByText("Claim central space and free the bishop.", { exact: true })).toBeHidden();
@@ -331,7 +493,7 @@ for (const reducedMotion of [false, true]) {
     await page.clock.runFor(20);
     await board.getByRole("gridcell", { name: "e4 empty" }).click();
     await page.clock.runFor(20);
-    await expect(page.getByText("Learning", { exact: true })).toBeVisible();
+    await expect(page.getByText(/found with help|Learning/, { exact: true }).filter({ visible: true })).toBeVisible();
     expect(answerTime - mistakeTime).toBeGreaterThanOrEqual(0);
     expect(answerTime - mistakeTime).toBeLessThan(500); // The 1s visual reset is not thinking time.
   });
@@ -359,7 +521,7 @@ test("retains hints across reloads and asks the player to execute a shown answer
   await page.screenshot({ path: testInfo.outputPath("practice-help.png"), fullPage: true });
   await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
   await board.getByRole("gridcell", { name: "e4 empty" }).click();
-  await expect(page.getByText("Learning", { exact: true })).toBeVisible();
+  await expect(page.getByText(/found with help|Learning/).filter({ visible: true })).toBeVisible();
   await expect(page.getByText("Step 2 of 4")).toBeVisible();
 });
 
@@ -799,13 +961,15 @@ test("deletes the final line and clears a confirmed library without losing games
     .toEqual(gamesBefore.games.map((game: { id: string }) => game.id).sort());
   await page.screenshot({ path: testInfo.outputPath("empty-opening-library.png"), fullPage: true });
   await page.getByRole("button", { name: "Build on the board", exact: true }).click();
-  await expect(page.getByRole("grid", { name: "Repertoire board" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start building", exact: true })).toBeDisabled();
 });
 
 test("recovers an unfinished board draft after refresh without changing saved repertoires", async ({ page }) => {
   await page.goto("/#openings");
   await page.getByRole("button", { name: "Build on the board", exact: true }).click();
   await page.getByRole("textbox", { name: "Repertoire name", exact: true }).fill("Recovered preparation");
+  await page.getByLabel("I am preparing").selectOption("black");
+  await page.getByRole("button", { name: "Start building", exact: true }).click();
   let board = page.getByRole("grid", { name: "Repertoire board" });
   await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
   await board.getByRole("gridcell", { name: "e4 empty" }).click();
@@ -814,13 +978,15 @@ test("recovers an unfinished board draft after refresh without changing saved re
   await page.getByRole("button", { name: "Build on the board", exact: true }).click();
   await expect(page.getByText("Recovered draft", { exact: true })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Repertoire name", exact: true })).toHaveValue("Recovered preparation");
+  await page.getByRole("button", { name: "Continue building", exact: true }).click();
   board = page.getByRole("grid", { name: "Repertoire board" });
   await expect(board.getByRole("gridcell", { name: "e4 white pawn" })).toBeVisible();
   await expect(page.locator(".opening-builder-note textarea")).toHaveValue("Free the bishop and take space.");
   const before = await (await page.request.get("/api/v1/openings/catalog")).json();
   page.once("dialog", dialog => dialog.accept());
   await page.getByRole("button", { name: "Discard draft", exact: true }).click();
-  await expect(board.getByRole("gridcell", { name: "e2 white pawn" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start building", exact: true })).toBeDisabled();
+  await expect(page.getByRole("textbox", { name: "Repertoire name", exact: true })).toBeEnabled();
   expect(await (await page.request.get("/api/v1/openings/catalog")).json()).toEqual(before);
 });
 
@@ -831,6 +997,7 @@ test("restores an unsaved branch and returns from practice to the same browsing 
   await page.getByRole("button", { name: "End", exact: true }).click();
   const originalHash = await page.evaluate(() => location.hash);
   await page.getByRole("button", { name: "Edit lines", exact: true }).click();
+  await page.getByLabel("Save each move automatically").uncheck();
   let board = page.getByRole("grid", { name: "Chess position" });
   await board.getByRole("gridcell", { name: "b8 black knight" }).click();
   await board.getByRole("gridcell", { name: "c6 empty" }).click();

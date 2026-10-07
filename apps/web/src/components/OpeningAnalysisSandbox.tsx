@@ -18,6 +18,7 @@ interface OpeningAnalysisSandboxProps {
   ratingGroup: number;
   useExplorer: boolean;
   onAddMoves: (moves: SandboxMove[]) => void;
+  disabled?: boolean;
 }
 
 function applyMove(fen: string, moveUci: string): { fen: string; san: string } {
@@ -31,7 +32,7 @@ function applyMove(fen: string, moveUci: string): { fen: string; san: string } {
   return { fen: chess.fen(), san: move.san };
 }
 
-export function OpeningAnalysisSandbox({ baseFen, orientation, ratingGroup, useExplorer, onAddMoves }: OpeningAnalysisSandboxProps) {
+export function OpeningAnalysisSandbox({ baseFen, orientation, ratingGroup, useExplorer, onAddMoves, disabled = false }: OpeningAnalysisSandboxProps) {
   const [fen, setFen] = useState(baseFen);
   const [boardOrientation, setBoardOrientation] = useState(orientation);
   const [moves, setMoves] = useState<SandboxMove[]>([]);
@@ -45,6 +46,7 @@ export function OpeningAnalysisSandbox({ baseFen, orientation, ratingGroup, useE
   useEffect(() => setBoardOrientation(orientation), [orientation]);
 
   const playMove = (moveUci: string, suppliedSan?: string): void => {
+    if (disabled) return;
     try {
       const applied = applyMove(fen, moveUci);
       setMoves((current) => [...current, {
@@ -92,15 +94,15 @@ export function OpeningAnalysisSandbox({ baseFen, orientation, ratingGroup, useE
       <div className="board-toolbar opening-sandbox-toolbar">
         <span>{moves.length === 0 ? "Synced · right-drag to mark ideas" : `${moves.length} unsaved move${moves.length === 1 ? "" : "s"} · right-drag to mark`}</span>
         <div>
-          <button className="text-button" onClick={() => setBoardOrientation((current) => current === "white" ? "black" : "white")}>Flip board</button>
-          <button className="text-button" disabled={moves.length === 0} onClick={undo}>Undo</button>
-          <button className="text-button" disabled={moves.length === 0} onClick={reset}>Reset</button>
+          <button className="text-button" disabled={disabled} onClick={() => setBoardOrientation((current) => current === "white" ? "black" : "white")}>Flip board</button>
+          <button className="text-button" disabled={disabled || moves.length === 0} onClick={undo}>Undo</button>
+          <button className="text-button" disabled={disabled || moves.length === 0} onClick={reset}>Reset</button>
         </div>
       </div>
       <ChessBoard
         fen={fen}
         orientation={boardOrientation}
-        interactive
+        interactive={!disabled}
         allowAnnotations
         lastMove={lastMove}
         onMove={(uci, san) => playMove(uci, san)}
@@ -116,13 +118,15 @@ export function OpeningAnalysisSandbox({ baseFen, orientation, ratingGroup, useE
         learnerColor={orientation}
         ratingGroup={ratingGroup}
         useExplorer={useExplorer}
+        disabled={disabled}
         onChooseMove={(moveUci, moveSan) => playMove(moveUci, moveSan)}
       />
       {moveError && <p className="error">{moveError}</p>}
 
-      <button className="opening-add-analysis" disabled={moves.length === 0} onClick={addToRepertoire}>
+      <button className="opening-add-analysis" disabled={disabled || moves.length === 0 || moves.length > 24} onClick={addToRepertoire}>
         Add {moves.length || "explored"} move{moves.length === 1 ? "" : "s"} to my repertoire
       </button>
+      {moves.length > 24 && <p>Add up to 24 moves at a time. Undo the extra moves or start another sequence.</p>}
     </section>
   );
 }

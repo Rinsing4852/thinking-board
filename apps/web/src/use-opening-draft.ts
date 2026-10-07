@@ -6,6 +6,7 @@ export function useOpeningDraft() {
     try { return parseOpeningDraft(localStorage.getItem(OPENING_DRAFT_KEY)); } catch { return null; }
   });
   const [draft, setDraft] = useState(initial ?? emptyOpeningDraft());
+  const [recovered, setRecovered] = useState(Boolean(initial));
   const [storageError, setStorageError] = useState("");
   useEffect(() => {
     try {
@@ -17,6 +18,7 @@ export function useOpeningDraft() {
   const discard = () => {
     try { localStorage.removeItem(OPENING_DRAFT_KEY); } catch { /* The visible warning covers storage failure. */ }
     setDraft(emptyOpeningDraft());
+    setRecovered(false);
   };
-  return { draft, setDraft, recovered: Boolean(initial), storageError, discard };
+  return { draft, setDraft, recovered, storageError, discard };
 }

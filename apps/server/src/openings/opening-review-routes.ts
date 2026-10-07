@@ -105,12 +105,12 @@ export function registerOpeningReviewRoutes(
 
   app.post("/api/v1/openings/reviews/:sessionId/help", { schema: { body: {
     type: "object", required: ["kind", "queueEntryId"], additionalProperties: false,
-    properties: { kind: { type: "string", enum: ["piece", "move"] },
+    properties: { kind: { type: "string", enum: ["idea", "piece", "move"] },
       queueEntryId: { type: "string", minLength: 1, maxLength: 128 } },
   } } }, async (request, reply) => {
     try {
       const { sessionId } = request.params as { sessionId: string };
-      const body = request.body as { kind: "piece" | "move"; queueEntryId: string };
+      const body = request.body as { kind: "idea" | "piece" | "move"; queueEntryId: string };
       return openingReviews.help(sessionId, body.kind, body.queueEntryId);
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not save practice help" });

@@ -1,4 +1,4 @@
-import type { OpeningPlayerPreferences, OpeningRatingPlatform } from "../../../../packages/contracts/src/api.js";
+import type { OpeningPlayerPreferences, OpeningRatingPlatform, OpeningPracticePace, OpeningPausePolicy } from "../../../../packages/contracts/src/api.js";
 import type { SqliteDatabase } from "../db/database.js";
 import { now } from "../lib/ids.js";
 import { ensureActiveProfile } from "../training/profile.js";
@@ -13,6 +13,8 @@ interface PreferenceRow {
   new_moves_per_session: number;
   practice_depth: number;
   board_sounds: number;
+  practice_pace: OpeningPracticePace;
+  pause_after_move: OpeningPausePolicy;
   updated_at: string;
 }
 
@@ -26,7 +28,7 @@ export class OpeningPreferencesService {
     const profileId = ensureActiveProfile(this.db);
     const row = this.db.prepare(`
       SELECT rating_group, platform, use_explorer, new_moves_per_session,
-             practice_depth, board_sounds, updated_at
+             practice_depth, board_sounds, practice_pace, pause_after_move, updated_at
       FROM opening_player_preferences
       WHERE profile_id = ?
     `).get(profileId) as PreferenceRow | undefined;
@@ -40,6 +42,8 @@ export class OpeningPreferencesService {
       newMovesPerSession: 5,
       practiceDepth: 8,
       boardSounds: false,
+      practicePace: "normal",
+      pauseAfterMove: "never",
       updatedAt: null,
     };
   }
@@ -51,6 +55,8 @@ export class OpeningPreferencesService {
     newMovesPerSession?: number;
     practiceDepth?: number;
     boardSounds?: boolean;
+    practicePace?: OpeningPracticePace;
+    pauseAfterMove?: OpeningPausePolicy;
   }): OpeningPlayerPreferences {
     if (!RATING_GROUPS.has(input.ratingGroup)) throw new Error("Choose a supported rating range");
     if (!PLATFORMS.has(input.platform)) throw new Error("Choose where this rating comes from");
@@ -64,6 +70,10 @@ export class OpeningPreferencesService {
     const newMovesPerSession = input.newMovesPerSession ?? current.newMovesPerSession;
     const practiceDepth = input.practiceDepth ?? current.practiceDepth;
     const boardSounds = input.boardSounds ?? current.boardSounds;
+    const practicePace = input.practicePace ?? current.practicePace;
+    const pauseAfterMove = input.pauseAfterMove ?? current.pauseAfterMove;
+    if (!["normal", "relaxed"].includes(practicePace)) throw new Error("Choose normal or relaxed practice pace");
+    if (!["never", "mistakes", "notes", "always"].includes(pauseAfterMove)) throw new Error("Choose a supported practice pause setting");
     if (!Number.isInteger(newMovesPerSession) || newMovesPerSession < 1 || newMovesPerSession > 10) {
       throw new Error("Choose between 1 and 10 new moves per session");
     }
@@ -75,8 +85,8 @@ export class OpeningPreferencesService {
     this.db.prepare(`
       INSERT INTO opening_player_preferences(
         profile_id, rating_group, platform, use_explorer,
-        new_moves_per_session, practice_depth, board_sounds, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        new_moves_per_session, practice_depth, board_sounds, practice_pace, pause_after_move, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(profile_id) DO UPDATE SET
         rating_group = excluded.rating_group,
         platform = excluded.platform,
@@ -84,10 +94,12 @@ export class OpeningPreferencesService {
         new_moves_per_session = excluded.new_moves_per_session,
         practice_depth = excluded.practice_depth,
         board_sounds = excluded.board_sounds,
+        practice_pace = excluded.practice_pace,
+        pause_after_move = excluded.pause_after_move,
         updated_at = excluded.updated_at
     `).run(
       profileId, input.ratingGroup, input.platform, input.useExplorer ? 1 : 0,
-      newMovesPerSession, practiceDepth, boardSounds ? 1 : 0, updatedAt,
+      newMovesPerSession, practiceDepth, boardSounds ? 1 : 0, practicePace, pauseAfterMove, updatedAt,
     );
 
     return {
@@ -99,6 +111,8 @@ export class OpeningPreferencesService {
       newMovesPerSession,
       practiceDepth,
       boardSounds,
+      practicePace,
+      pauseAfterMove,
       updatedAt,
     };
   }
@@ -113,6 +127,8 @@ export class OpeningPreferencesService {
       newMovesPerSession: row.new_moves_per_session,
       practiceDepth: row.practice_depth,
       boardSounds: row.board_sounds === 1,
+      practicePace: row.practice_pace,
+      pauseAfterMove: row.pause_after_move,
       updatedAt: row.updated_at,
     };
   }

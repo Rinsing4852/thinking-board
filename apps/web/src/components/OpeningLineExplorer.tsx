@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Chess } from "chess.js";
+import { createRequestId } from "../request-id";
 
 import type {
   OpeningCoverageGap,
@@ -27,6 +28,7 @@ import { OpeningBranchNavigation } from "./OpeningBranchNavigation";
 import { OpeningLineLibrary } from "./OpeningLineLibrary";
 import { OpeningPracticeSelection } from "./OpeningPracticeSelection";
 import { OpeningExplanation } from "./OpeningExplanation";
+import { OpeningAnalysisSandbox, type SandboxMove } from "./OpeningAnalysisSandbox";
 import { useOpeningBranchDraft } from "../use-opening-branch-draft";
 
 interface OpeningLineExplorerProps {
@@ -36,6 +38,7 @@ interface OpeningLineExplorerProps {
   initialCoverage?: OpeningCoverageResponse | null;
   preferredRatingGroup: number;
   useExplorer: boolean;
+  startBuilding?: boolean;
   lineProgress: OpeningLineProgress[];
   busy?: boolean;
   onBack: () => void;
@@ -52,6 +55,7 @@ export function OpeningLineExplorer({
   initialCoverage = null,
   preferredRatingGroup,
   useExplorer,
+  startBuilding = false,
   lineProgress,
   busy = false,
   onBack,
@@ -82,7 +86,7 @@ export function OpeningLineExplorer({
   const savedLocation = parseOpeningLocation(window.location.hash);
   const savedLineId = savedLocation?.repertoireId === detail.repertoire.id ? savedLocation.lineId : null;
   const initial = gapInitial ?? allLines.find(({ line }) => line.id === (startingLineId ?? savedLineId)) ?? allLines[0];
-  const initialPly = initial && startingGap ? gapPlyForLine(initial.line, startingGap) ?? 0
+  const initialPly = startBuilding && initial ? initial.line.moves.length : initial && startingGap ? gapPlyForLine(initial.line, startingGap) ?? 0
     : initial && savedLineId === initial.line.id ? Math.min(savedLocation!.ply, initial.line.moves.length) : 0;
   const [lineId, setLineId] = useState(initial?.line.id ?? "");
   const [lineLibraryOpen, setLineLibraryOpen] = useState(false);
@@ -91,7 +95,13 @@ export function OpeningLineExplorer({
     const hash = openingLocationHash({ repertoireId: detail.repertoire.id, lineId, ply });
     if (window.location.hash !== hash) window.history.replaceState(null, "", hash);
   }, [detail.repertoire.id, lineId, ply]);
-  const [editing, setEditing] = useState(Boolean(startingGap));
+  const [editing, setEditing] = useState(startBuilding || Boolean(startingGap));
+  const [autoSave, setAutoSave] = useState(true);
+  const mutationLock = useRef(false);
+  const requestId = useRef("");
+  if (!requestId.current) requestId.current = createRequestId();
+  const analysisRequest = useRef({ key: "", id: "" });
+  const [analysisOpen, setAnalysisOpen] = useState(false);
   const [pendingMove, setPendingMove] = useState<{ uci: string; san: string } | null>(startingGap
     ? { uci: startingGap.moveUci, san: startingGap.moveSan }
     : null);
@@ -302,6 +312,7 @@ export function OpeningLineExplorer({
   };
 
   const previewNewMove = (uci: string, san: string): void => {
+    if (mutationLock.current || navigationBlocked) return;
     const saved = savedContinuations(navigation, lineId, ply).find(choice => choice.moveUci === uci);
     if (saved) { navigateTo(saved.target.lineId, saved.target.ply); return; }
     if (!editing) { setStatus(`${san} is not a saved continuation here. Use Edit lines if you want to add it. No changes were saved.`); return; }
@@ -309,10 +320,13 @@ export function OpeningLineExplorer({
     setNewExplanation("");
     setBranchTitle("");
     setStatus("");
+    requestId.current = createRequestId();
+    if (autoSave) void saveNewMove({ uci, san });
   };
 
-  const saveNewMove = async (): Promise<void> => {
-    if (!pendingMove || !line || localBusy) return;
+  const saveNewMove = async (chosen = pendingMove): Promise<void> => {
+    if (!chosen || !line || localBusy || mutationLock.current) return;
+    mutationLock.current = true;
     setLocalBusy(true);
     setStatus("");
     try {
@@ -320,9 +334,10 @@ export function OpeningLineExplorer({
         `/api/v1/openings/repertoires/${detail.repertoire.id}/lines/${line.id}/moves`,
         {
           afterPly: ply,
-          moveUci: pendingMove.uci,
-          branchTitle,
-          summary: newExplanation,
+          moveUci: chosen.uci,
+          branchTitle: chosen === pendingMove ? branchTitle : "",
+          summary: chosen === pendingMove ? newExplanation : "",
+          requestId: requestId.current,
         },
       );
       onDetailChanged(result.detail);
@@ -345,6 +360,7 @@ export function OpeningLineExplorer({
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not save that move");
     } finally {
+      mutationLock.current = false;
       setLocalBusy(false);
     }
   };
@@ -380,6 +396,21 @@ export function OpeningLineExplorer({
     } finally {
       setLocalBusy(false);
     }
+  };
+
+  const saveAnalysis = async (moves: SandboxMove[]): Promise<void> => {
+    if (!line || navigationBlocked || mutationLock.current || !moves.length) return;
+    const key = JSON.stringify([line.id, ply, moves.map(move => move.moveUci)]);
+    if (analysisRequest.current.key !== key) analysisRequest.current = { key, id: createRequestId() };
+    mutationLock.current = true; setLocalBusy(true); setStatus("");
+    try {
+      const result = await post<OpeningLineMutationResponse>(`/api/v1/openings/repertoires/${detail.repertoire.id}/lines/${line.id}/sequence`,
+        { afterPly: ply, moveUcis: moves.map(move => move.moveUci), requestId: analysisRequest.current.id });
+      onDetailChanged(result.detail); setLineId(result.lineId); setPly(ply + moves.length); setStatus(result.message);
+      setLastMutation(result.changed === false ? null : { lineId: result.lineId, moveId: result.moveId,
+        createdBranch: result.createdBranch, previousLineId: line.id });
+    } catch (failure) { setStatus(failure instanceof Error ? failure.message : "Could not add the analysis moves. Your exploration is kept; try again."); }
+    finally { mutationLock.current = false; setLocalBusy(false); }
   };
 
   const saveExplanation = async (): Promise<void> => {
@@ -442,7 +473,10 @@ export function OpeningLineExplorer({
     }
   };
 
-  const loadCoverage = async (): Promise<void> => {
+  const worthwhileGap = (result: OpeningCoverageResponse) => result.gaps.find(gap =>
+    gap.preparation?.decision?.choice !== "unprepared" && gap.preparation?.priority !== "low"
+    && allLines.some(({ line }) => gapPlyForLine(line, gap) !== null));
+  const loadCoverage = async (focusNext = false): Promise<void> => {
     if (coverageBusy) return;
     setCoverageBusy(true);
     setStatus("");
@@ -453,7 +487,14 @@ export function OpeningLineExplorer({
         `/api/v1/openings/repertoires/${detail.repertoire.id}/coverage?rating=${coverageRating}`,
         controller.signal,
       );
-      if (!controller.signal.aborted) setCoverage(result);
+      if (!controller.signal.aborted) {
+        setCoverage(result);
+        if (focusNext) {
+          const gap = worthwhileGap(result);
+          if (gap) focusCoverageGap(gap);
+          else setStatus("No worthwhile uncovered reply was found in the sampled positions. Keep building or practise your saved lines.");
+        }
+      }
     } catch (error) {
       if (!controller.signal.aborted) setStatus(error instanceof Error ? error.message : "Could not check practical coverage");
     } finally {
@@ -461,7 +502,7 @@ export function OpeningLineExplorer({
     }
   };
 
-  const updateLearningComment = (moveId: string, comment: string | null): void => {
+  const updateLearningComment = (moveId: string, comment: string | null, ideaHint?: string | null): void => {
     onDetailChanged({
       ...detail,
       chapters: detail.chapters.map((chapter) => ({
@@ -469,7 +510,7 @@ export function OpeningLineExplorer({
         lines: chapter.lines.map((candidate) => ({
           ...candidate,
           moves: candidate.moves.map((move) => move.id === moveId
-            ? { ...move, explanation: { ...move.explanation, personalComment: comment } }
+            ? { ...move, explanation: { ...move.explanation, personalComment: comment, ideaHint: ideaHint ?? null } }
             : move),
         })),
       })),
@@ -489,6 +530,10 @@ export function OpeningLineExplorer({
   const savedMoveUcis = useMemo(() => {
     return savedContinuations(navigation, lineId, ply).map(choice => choice.moveUci);
   }, [navigation, lineId, ply]);
+  const savedSuggestionMoves = savedContinuations(navigation, lineId, ply).flatMap(choice => {
+    const move = navigation.lines.get(choice.target.lineId)?.line.moves[choice.target.ply - 1];
+    return move ? [{ moveUci: move.moveUci, moveSan: move.moveSan, summary: move.explanation.summary }] : [];
+  });
 
   if (!line || !selected) {
     return (
@@ -524,6 +569,13 @@ export function OpeningLineExplorer({
           </button>
         </div>
       </div>
+      {editing && <div className="opening-build-mode" role="region" aria-label="Build mode">
+        <strong>Build mode · {displayFen.split(" ")[1] === (detail.repertoire.learnerColor === "white" ? "w" : "b")
+          ? "Choose your response" : "Choose their reply"}</strong>
+        <label><input type="checkbox" checked={autoSave} disabled={navigationBlocked} onChange={event => setAutoSave(event.target.checked)} /> Save each move automatically</label>
+        <small>{autoSave ? "Playing a new move saves it immediately. Saved moves navigate; alternatives keep the original line. Undo is available below."
+          : "Preview each new move and add its note before saving."}</small>
+      </div>}
       {branchDraft.storageError && <p role="alert" className="error">{branchDraft.storageError}</p>}
       {branchDraft.recovery && !pendingMove && <div className="panel opening-draft-recovery">
         <strong>Unsaved branch draft found</strong>
@@ -561,11 +613,6 @@ export function OpeningLineExplorer({
           </div>
         </div>
       )}
-      {status && <div className="opening-workspace-status" aria-live="polite">
-        <p className={status.toLowerCase().includes("could not") || status.toLowerCase().includes("not legal") ? "error" : "status"}>{status}</p>
-        {lastMutation && <button className="text-button" disabled={localBusy} onClick={() => void undoLastSave()}>Undo last save</button>}
-      </div>}
-
       <button
         className="secondary opening-line-library-toggle"
         aria-expanded={lineLibraryOpen}
@@ -575,7 +622,7 @@ export function OpeningLineExplorer({
         {lineLibraryOpen ? "Hide line list" : `Choose another line · ${lineDisplayTitle}`}
       </button>
 
-      <div className="opening-workspace-grid">
+      <div className={`opening-workspace-grid ${analysisOpen ? "with-analysis-board" : ""}`}>
         <OpeningLineLibrary chapters={detail.chapters} index={navigation} selectedLineId={line.id}
           open={lineLibraryOpen} disabled={navigationBlocked} progress={progressByLine} transpositions={transpositionsByLine} onChoose={chooseLine} />
 
@@ -591,8 +638,8 @@ export function OpeningLineExplorer({
             </div>
             <strong>{ply === 0 ? "Starting position" : `${ply} / ${line.moveCount}`}</strong>
           </div>
-          <p className="opening-board-prompt">{pendingMove ? `Unsaved move: ${pendingMove.san} — save it or choose another.`
-            : editing ? `${displayFen.split(" ")[1] === "w" ? "White" : "Black"} to move — what will you prepare here?`
+          <p className="opening-board-prompt" role="status">{pendingMove ? localBusy ? `Saving ${pendingMove.san}…` : `Unsaved move: ${pendingMove.san} — retry saving or choose another.`
+            : editing ? `${displayFen.split(" ")[1] === (detail.repertoire.learnerColor === "white" ? "w" : "b") ? "Your move — choose your prepared response." : "Their move — choose a reply to prepare for."}`
             : "Browse this line. Use the board, move list or Next."}</p>
           <div className="board-toolbar opening-line-controls">
             <button className="text-button" disabled={navigationBlocked || ply === 0} onClick={() => choosePly(0)}>Start</button>
@@ -600,6 +647,8 @@ export function OpeningLineExplorer({
             <span>{currentMove ? `${currentMove.role === "learner" ? "Your move" : "Opponent"}: ${currentMove.moveSan}` : "Choose a move below or step forward"}</span>
             <button className="text-button" title="Alt + Right arrow" disabled={navigationBlocked || ply >= line.moveCount} onClick={() => choosePly(Math.min(line.moveCount, ply + 1))}>Next</button>
             <button className="text-button" disabled={navigationBlocked || ply >= line.moveCount} onClick={() => choosePly(line.moveCount)}>End</button>
+            {editing && <button className="text-button" disabled={navigationBlocked} aria-expanded={analysisOpen} onClick={() => setAnalysisOpen(open => !open)}>
+              {analysisOpen ? "Close analysis board" : "Open analysis board"}</button>}
           </div>
           <ChessBoard
             fen={pendingFen}
@@ -634,21 +683,41 @@ export function OpeningLineExplorer({
           </div>
           <OpeningBranchNavigation index={navigation} lineId={line.id} ply={ply} disabled={navigationBlocked}
             onNavigate={navigateTo} previous={previousPosition} onReturn={returnToPreviousLine} />
+          {status && <div className="opening-workspace-status" aria-live="polite">
+            <p className={status.toLowerCase().includes("could not") || status.toLowerCase().includes("not legal") ? "error" : "status"}>{status}</p>
+            {lastMutation && <button className="text-button" disabled={localBusy} onClick={() => void undoLastSave()}>Undo last save</button>}
+          </div>}
           {!editing && !line.archived && <p className="opening-inspector-help">Play a saved move on the board to follow its line. To add a new move, choose Edit lines.</p>}
         </div>
 
         <button className="secondary opening-notes-toggle" aria-expanded={notesOpen || editing || Boolean(pendingMove)} aria-controls="opening-move-inspector"
           onClick={() => setNotesOpen(value => !value)}>{notesOpen ? "Hide notes" : "Notes and move ideas"}</button>
-        <aside id="opening-move-inspector" className={`panel opening-move-inspector ${notesOpen || editing || pendingMove ? "notes-open" : "notes-closed"}`}>
-          {editing && !pendingMove && (
+        <aside id="opening-move-inspector" className={`panel opening-move-inspector ${notesOpen || editing || pendingMove || analysisOpen ? "notes-open" : "notes-closed"}`}>
+          {analysisOpen && <OpeningAnalysisSandbox baseFen={displayFen} orientation={detail.repertoire.learnerColor}
+            ratingGroup={coverageRating} useExplorer={useExplorer} disabled={navigationBlocked}
+            onAddMoves={moves => void saveAnalysis(moves)} />}
+          {editing && !pendingMove && !analysisOpen && (
+            <>
+            <div className="opening-guided-prompt">
+              <strong>{displayFen.split(" ")[1] === (detail.repertoire.learnerColor === "white" ? "w" : "b")
+                ? "What will you play here?" : "Which reply will you prepare for?"}</strong>
+              <small>Saved moves navigate. A new choice {autoSave ? "saves immediately" : "opens a preview"}.</small>
+            </div>
             <OpeningMoveSuggestions
               fen={displayFen}
               learnerColor={detail.repertoire.learnerColor}
               ratingGroup={coverageRating}
               useExplorer={useExplorer}
               savedMoveUcis={savedMoveUcis}
+              savedMoves={savedSuggestionMoves}
+              disabled={navigationBlocked}
               onChooseMove={previewNewMove}
             />
+            {useExplorer && <button className="secondary" disabled={navigationBlocked || coverageBusy} onClick={() => {
+              const gap = coverage && worthwhileGap(coverage);
+              if (gap) focusCoverageGap(gap); else void loadCoverage(true);
+            }}>{coverageBusy ? "Checking likely replies…" : "Next worthwhile gap"}</button>}
+            </>
           )}
           {pendingMove && (
             <div className="opening-new-move">
@@ -668,12 +737,12 @@ export function OpeningLineExplorer({
                 <textarea rows={4} value={newExplanation} onChange={(event) => setNewExplanation(event.target.value)} placeholder="Optional now — you can add this later." />
               </label>
               <div className="answer-actions">
-                <button disabled={localBusy} onClick={() => void saveNewMove()}>{localBusy ? "Saving…" : "Save move"}</button>
+                <button disabled={localBusy} onClick={() => void saveNewMove()}>{localBusy ? "Saving…" : autoSave && !preparingGap ? "Retry saving move" : "Save move"}</button>
                 <button className="secondary" disabled={localBusy} onClick={() => { branchDraft.clear(); setPendingMove(null); setPreparingGap(null); }}>Choose another</button>
               </div>
             </div>
           )}
-          {!pendingMove && <>
+          {!pendingMove && !analysisOpen && <>
           <span className="eyebrow">{currentMove ? currentMove.role === "learner" ? "Your decision" : "Opponent reply" : "Line overview"}</span>
           <h3>{currentMove?.moveSan ?? lineDisplayTitle}</h3>
           {!currentMove && (
@@ -695,8 +764,9 @@ export function OpeningLineExplorer({
                 repertoireId={detail.repertoire.id}
                 moveId={currentMove.id}
                 comment={currentMove.explanation.personalComment}
+                ideaHint={currentMove.explanation.ideaHint}
                 onEditingChange={setEditingComment}
-                onSaved={(comment) => updateLearningComment(currentMove.id, comment)}
+                onSaved={(comment, hint) => updateLearningComment(currentMove.id, comment, hint)}
               />
               {detail.repertoire.editable && !editingExplanation && (
                 <button className="secondary" onClick={() => { setExplanationText(currentMove.explanation.summary); setEditingExplanation(true); }}>

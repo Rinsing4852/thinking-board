@@ -35,7 +35,7 @@ COPY LICENSE THIRD_PARTY_LICENSES.md ./
 RUN npm run build && npm prune --omit=dev
 
 FROM node:24-bookworm-slim AS runtime
-ARG APP_VERSION=1.5.16
+ARG APP_VERSION=1.5.17
 ARG APP_SOURCE_URL=https://github.com/Rinsing4852/thinking-board
 LABEL org.opencontainers.image.title="Thinking Board" \
       org.opencontainers.image.version="${APP_VERSION}" \

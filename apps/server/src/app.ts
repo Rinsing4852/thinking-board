@@ -151,6 +151,8 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       platform: { type: "string", enum: ["lichess", "chess_com", "fide", "not_sure"] },
       useExplorer: { type: "boolean" }, newMovesPerSession: { type: "integer", minimum: 1, maximum: 10 },
       practiceDepth: { type: "integer", minimum: 2, maximum: 20 }, boardSounds: { type: "boolean" },
+      practicePace: { type: "string", enum: ["normal", "relaxed"] },
+      pauseAfterMove: { type: "string", enum: ["never", "mistakes", "notes", "always"] },
     },
   } } }, async (request, reply) => {
     try {
@@ -162,6 +164,8 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
         ...(body.newMovesPerSession === undefined ? {} : { newMovesPerSession: Number(body.newMovesPerSession) }),
         ...(body.practiceDepth === undefined ? {} : { practiceDepth: Number(body.practiceDepth) }),
         ...(body.boardSounds === undefined ? {} : { boardSounds: body.boardSounds as boolean }),
+        ...(body.practicePace === undefined ? {} : { practicePace: body.practicePace as "normal" | "relaxed" }),
+        ...(body.pauseAfterMove === undefined ? {} : { pauseAfterMove: body.pauseAfterMove as "never" | "mistakes" | "notes" | "always" }),
       });
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not save opening preferences" });
@@ -281,6 +285,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
         moveUci: requiredString(body.moveUci, "Move"),
         branchTitle: typeof body.branchTitle === "string" ? body.branchTitle : undefined,
         summary: typeof body.summary === "string" ? body.summary : undefined,
+        requestId: body.requestId === undefined ? undefined : requiredString(body.requestId, "Builder request"),
       });
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not save opening move" });
@@ -294,6 +299,16 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       return openingWorkspace.undoLastMove(repertoireId, lineId, requiredString(body.moveId, "Move"));
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not undo opening move" });
+    }
+  });
+
+  app.post("/api/v1/openings/repertoires/:repertoireId/lines/:lineId/sequence", async (request, reply) => {
+    try {
+      const { repertoireId, lineId } = request.params as { repertoireId: string; lineId: string };
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      return openingWorkspace.addSequence(repertoireId, lineId, Number(body.afterPly), body.moveUcis as string[], requiredString(body.requestId, "Analysis request"));
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not add analysis sequence" });
     }
   });
 
@@ -316,7 +331,8 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       const { repertoireId, moveId } = request.params as { repertoireId: string; moveId: string };
       const body = (request.body ?? {}) as Record<string, unknown>;
       if (typeof body.comment !== "string") throw new Error("Learning comment must be text");
-      return openingWorkspace.updateLearningComment(repertoireId, moveId, body.comment);
+      if (body.ideaHint !== undefined && typeof body.ideaHint !== "string") throw new Error("Idea hint must be text");
+      return openingWorkspace.updateLearningComment(repertoireId, moveId, body.comment, body.ideaHint as string | undefined);
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not save learning comment" });
     }

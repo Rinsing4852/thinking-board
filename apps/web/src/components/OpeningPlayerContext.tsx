@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import type {
   OpeningPlayerPreferences,
   OpeningRatingPlatform,
+  OpeningPracticePace,
+  OpeningPausePolicy,
 } from "../../../../packages/contracts/src/api";
 import { patch } from "../api";
 
@@ -26,6 +28,8 @@ export function OpeningPlayerContext({ preferences, onSaved }: OpeningPlayerCont
   const [newMovesPerSession, setNewMovesPerSession] = useState(preferences.newMovesPerSession);
   const [practiceDepth, setPracticeDepth] = useState(preferences.practiceDepth);
   const [boardSounds, setBoardSounds] = useState(preferences.boardSounds);
+  const [practicePace, setPracticePace] = useState<OpeningPracticePace>(preferences.practicePace);
+  const [pauseAfterMove, setPauseAfterMove] = useState<OpeningPausePolicy>(preferences.pauseAfterMove);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -36,6 +40,8 @@ export function OpeningPlayerContext({ preferences, onSaved }: OpeningPlayerCont
     setNewMovesPerSession(preferences.newMovesPerSession);
     setPracticeDepth(preferences.practiceDepth);
     setBoardSounds(preferences.boardSounds);
+    setPracticePace(preferences.practicePace);
+    setPauseAfterMove(preferences.pauseAfterMove);
     if (!preferences.configured) setEditing(true);
   }, [preferences]);
 
@@ -51,10 +57,12 @@ export function OpeningPlayerContext({ preferences, onSaved }: OpeningPlayerCont
         newMovesPerSession,
         practiceDepth,
         boardSounds,
+        practicePace,
+        pauseAfterMove,
       });
       onSaved(saved);
       setEditing(false);
-      setMessage("Opening recommendations now use this playing level.");
+      setMessage("Opening and practice settings saved.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not save your opening context");
     } finally {
@@ -114,6 +122,22 @@ export function OpeningPlayerContext({ preferences, onSaved }: OpeningPlayerCont
           <select value={practiceDepth} onChange={(event) => setPracticeDepth(Number(event.target.value))}>
             {[4, 6, 8, 10, 12, 16, 20].map((count) => <option key={count} value={count}>{count} of your moves</option>)}
           </select>
+        </label>
+        <label>
+          Practice pace
+          <select value={practicePace} onChange={event => setPracticePace(event.target.value as OpeningPracticePace)}>
+            <option value="normal">Normal</option><option value="relaxed">Relaxed — more time to see each move</option>
+          </select>
+        </label>
+        <label>
+          Pause after a move
+          <select value={pauseAfterMove} onChange={event => setPauseAfterMove(event.target.value as OpeningPausePolicy)}>
+            <option value="never">Never — continue automatically</option>
+            <option value="mistakes">After mistakes or hints</option>
+            <option value="notes">When there is an explanation or comment</option>
+            <option value="always">Always</option>
+          </select>
+          <small>You can still retry a wrong move immediately. Pauses happen after you find the saved move.</small>
         </label>
         <label className="opening-player-explorer-choice">
           <input

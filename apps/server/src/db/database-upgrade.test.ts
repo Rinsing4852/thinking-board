@@ -38,6 +38,10 @@ describe("opening database upgrades", () => {
         VALUES ('legacy-move', 'Claim the centre', '[]', '[]')`).run();
       new ImportService(database.connection).import('[White "Alice"]\n[Black "Bob"]\n[Result "*"]\n\n1. e4 e5 *', "Alice");
       const profileId = database.connection.prepare("SELECT id FROM player_profiles WHERE display_name = 'Alice'").pluck().get();
+      database.connection.prepare(`INSERT INTO opening_player_preferences(profile_id, rating_group, platform, use_explorer, updated_at)
+        VALUES (?, 1400, 'lichess', 0, ?)`).run(profileId, seededAt);
+      database.connection.prepare(`INSERT INTO opening_learning_comments(profile_id, move_id, comment, created_at, updated_at)
+        VALUES (?, 'legacy-move', 'My centre reminder', ?, ?)`).run(profileId, seededAt, seededAt);
       const move = database.connection.prepare(`SELECT id, repertoire_id, from_position_id FROM opening_moves
         WHERE role = 'learner' AND move_uci = 'e2e4' LIMIT 1`).get() as { id: string; repertoire_id: string; from_position_id: string };
       const timestamp = "2026-09-29T12:00:00.000Z";
@@ -63,8 +67,13 @@ describe("opening database upgrades", () => {
         expect(database.connection.prepare("SELECT state, repetitions, stability FROM opening_review_items WHERE id = 'legacy-card'").get())
           .toEqual({ state: 2, repetitions: 4, stability: 12 });
         expect(database.connection.prepare("SELECT COUNT(*) FROM opening_review_events").pluck().get()).toBe(1);
+        expect(database.connection.prepare("SELECT rating_group, practice_pace, pause_after_move FROM opening_player_preferences WHERE profile_id = ?").get(profileId))
+          .toEqual({ rating_group: 1400, practice_pace: "normal", pause_after_move: "never" });
+        expect(database.connection.prepare("SELECT comment, idea_hint FROM opening_learning_comments WHERE move_id = 'legacy-move'").get())
+          .toEqual({ comment: "My centre reminder", idea_hint: null });
+        expect(database.connection.prepare("SELECT idea_hint FROM opening_review_queue WHERE id = 'legacy-queue'").pluck().get()).toBe(0);
         expect(database.connection.pragma("foreign_key_check")).toEqual([]);
-        expect(database.connection.prepare("SELECT MAX(version) FROM schema_migrations").pluck().get()).toBe(30);
+        expect(database.connection.prepare("SELECT MAX(version) FROM schema_migrations").pluck().get()).toBe(31);
         expect(database.connection.prepare("SELECT summary, board_annotations_json FROM opening_move_annotations WHERE move_id = 'legacy-move'").get())
           .toEqual({ summary: "Claim the centre", board_annotations_json: "[]" });
         // Historical position evidence must not falsely prove every alternative.

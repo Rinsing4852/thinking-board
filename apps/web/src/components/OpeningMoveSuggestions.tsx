@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Chess } from "chess.js";
 
 import type {
   Color,
@@ -14,6 +15,8 @@ interface OpeningMoveSuggestionsProps {
   ratingGroup: number;
   useExplorer: boolean;
   savedMoveUcis?: string[];
+  savedMoves?: Array<{ moveUci: string; moveSan: string }>;
+  disabled?: boolean;
   onChooseMove: (moveUci: string, moveSan: string) => void;
 }
 
@@ -43,6 +46,8 @@ export function OpeningMoveSuggestions({
   ratingGroup,
   useExplorer,
   savedMoveUcis = [],
+  savedMoves = [],
+  disabled = false,
   onChooseMove,
 }: OpeningMoveSuggestionsProps) {
   const [analysis, setAnalysis] = useState<OpeningPositionAnalysisResponse | null>(null);
@@ -51,6 +56,7 @@ export function OpeningMoveSuggestions({
   const [explorerBusy, setExplorerBusy] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
   const [explorerError, setExplorerError] = useState("");
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -59,7 +65,7 @@ export function OpeningMoveSuggestions({
     setAnalysisError("");
     const timer = window.setTimeout(() => {
       void post<OpeningPositionAnalysisResponse>("/api/v1/openings/analysis", { fen }, controller.signal)
-        .then(setAnalysis)
+        .then(result => { if (!controller.signal.aborted) setAnalysis(result); })
         .catch((error: unknown) => {
           if (!controller.signal.aborted) setAnalysisError(error instanceof Error ? error.message : "Stockfish analysis failed");
         })
@@ -86,7 +92,7 @@ export function OpeningMoveSuggestions({
       void get<OpeningExplorerPositionResponse>(
         `/api/v1/openings/explorer?rating=${ratingGroup}&fen=${encodeURIComponent(fen)}`,
         controller.signal,
-      ).then(setExplorer).catch((error: unknown) => {
+      ).then(result => { if (!controller.signal.aborted) setExplorer(result); }).catch((error: unknown) => {
         if (!controller.signal.aborted) setExplorerError(error instanceof Error ? error.message : "Practical frequencies are unavailable");
       }).finally(() => { if (!controller.signal.aborted) setExplorerBusy(false); });
     }, 300);
@@ -99,30 +105,43 @@ export function OpeningMoveSuggestions({
   const candidates = useMemo(() => {
     const analysisByMove = new Map((analysis?.lines ?? []).map((line) => [line.moveUci, line]));
     const explorerByMove = new Map((explorer?.replies ?? []).map((reply) => [reply.moveUci, reply]));
+    const savedByMove = new Map(savedMoves.map(move => [move.moveUci, move]));
     const orderedMoves = [
+      ...savedMoves.map(move => move.moveUci),
       ...(useExplorer ? (explorer?.replies ?? []).slice(0, 7).map((reply) => reply.moveUci) : []),
       ...(analysis?.lines ?? []).map((line) => line.moveUci),
-    ].filter((move, index, moves) => moves.indexOf(move) === index).slice(0, 7);
+    ].filter((move, index, moves) => moves.indexOf(move) === index).slice(0, Math.max(7, savedMoves.length));
 
     return orderedMoves.map((moveUci) => {
       const engine = analysisByMove.get(moveUci);
       const practical = explorerByMove.get(moveUci);
+      const saved = savedByMove.get(moveUci);
+      const moveSan = saved?.moveSan ?? practical?.moveSan ?? engine?.moveSan ?? moveUci;
+      let description = "";
+      try {
+        const move = new Chess(fen).move(moveSan);
+        description = ({ p: "Pawn", n: "Knight", b: "Bishop", r: "Rook", q: "Queen", k: "King" }[move.piece])
+          + (move.captured ? " captures on " : " to ") + move.to;
+        if (move.flags.includes("k")) description = "Castle kingside";
+        if (move.flags.includes("q")) description = "Castle queenside";
+      } catch { /* A stale suggestion cannot prevent playing directly on the board. */ }
       return {
         moveUci,
-        moveSan: practical?.moveSan ?? engine?.moveSan ?? moveUci,
+        moveSan,
+        description,
         engine,
         practical,
-        saved: savedMoveUcis.includes(moveUci),
+        saved: savedMoveUcis.includes(moveUci) || savedByMove.has(moveUci),
       };
     });
-  }, [analysis, explorer, savedMoveUcis, useExplorer]);
+  }, [analysis, explorer, savedMoveUcis, savedMoves, useExplorer, fen]);
 
   return (
-    <section className="opening-move-suggestions" aria-label="Moves to consider">
+    <section className={`opening-move-suggestions ${detailsOpen ? "show-evidence" : "compact-evidence"}`} aria-label="Moves to consider">
       <div className="opening-suggestion-heading">
         <div>
-          <span className="eyebrow">Moves to consider</span>
-          <strong>{explorer?.opening ? `${explorer.opening.eco} · ${explorer.opening.name}` : "Choose with evidence"}</strong>
+          <span className="eyebrow">{fen.split(" ")[1] === (learnerColor === "white" ? "w" : "b") ? "Your response" : "Their possible replies"}</span>
+          <strong>{explorer?.opening ? `${explorer.opening.eco} · ${explorer.opening.name}` : "Play on the board or choose below"}</strong>
         </div>
         {(analysisBusy || explorerBusy) && <small>Updating…</small>}
       </div>
@@ -134,14 +153,15 @@ export function OpeningMoveSuggestions({
           <button
             type="button"
             className={candidate.saved ? "saved" : ""}
-            disabled={candidate.saved}
+            disabled={disabled}
             key={candidate.moveUci}
             onClick={() => onChooseMove(candidate.moveUci, candidate.moveSan)}
           >
             <span>
               <strong>{candidate.moveSan}</strong>
+              <small>{candidate.description}</small>
               {candidate.saved
-                ? <small>Already saved</small>
+                ? <small>Saved · follow this move</small>
                 : candidate.engine?.rank === 1 && <small>Stockfish choice</small>}
             </span>
             <span>
@@ -160,7 +180,11 @@ export function OpeningMoveSuggestions({
         )}
       </div>
       {!useExplorer && <p className="opening-suggestion-note">Practical frequencies are off. Enable them in your opening settings to rank moves seen at your level.</p>}
-      <p className="opening-suggestion-note">Results describe the sampled games, not your personal results. A positive engine score favours {fen.split(" ")[1] === "b" ? "Black" : "White"}, the side to move.</p>
+      <button type="button" className="text-button" aria-expanded={detailsOpen} onClick={() => setDetailsOpen(open => !open)}>
+        {detailsOpen ? "Hide engine and results" : "Show engine and results"}
+      </button>
+      <p className="opening-suggestion-note">Frequency is measured at this position, not the chance of reaching the whole line.{explorer?.stale ? " Cached game data may be out of date." : ""}</p>
+      {detailsOpen && <p className="opening-suggestion-note">Results describe the sampled games, not your personal results. A positive engine score favours {fen.split(" ")[1] === "b" ? "Black" : "White"}, the side to move.</p>}
       {analysisError && <p className="error">{analysisError}</p>}
       {explorerError && <p className="error">{explorerError}</p>}
     </section>

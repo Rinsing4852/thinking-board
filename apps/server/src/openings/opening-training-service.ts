@@ -47,6 +47,7 @@ interface LineMoveRow {
   tactical_warning: string | null;
   common_mistake: string | null;
   personal_comment: string | null;
+  idea_hint: string | null;
 }
 
 interface AnswerRow {
@@ -392,7 +393,7 @@ export class OpeningTrainingService {
       SELECT olm.ply, m.id AS move_id, m.move_uci, m.move_san, m.role,
              m.from_position_id, before.fen AS from_fen, after.fen AS to_fen,
              a.summary, a.changes_json, a.concepts_json, a.resulting_plan,
-             a.tactical_warning, a.common_mistake, lc.comment AS personal_comment
+             a.tactical_warning, a.common_mistake, NULLIF(lc.comment, '') AS personal_comment, lc.idea_hint
       FROM opening_line_moves olm
       JOIN opening_moves m ON m.id = olm.move_id
       JOIN opening_positions before ON before.id = m.from_position_id
@@ -527,6 +528,7 @@ export class OpeningTrainingService {
         tacticalWarning: expected.tactical_warning,
         commonMistake: expected.common_mistake,
         personalComment: expected.personal_comment,
+        ideaHint: expected.idea_hint,
       },
       next,
     };

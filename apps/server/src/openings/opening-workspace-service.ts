@@ -62,6 +62,7 @@ interface MoveRow {
   tactical_warning: string | null;
   common_mistake: string | null;
   personal_comment: string | null;
+  idea_hint: string | null;
   board_annotations_json: string;
   source_explanation_json: string | null;
 }
@@ -117,12 +118,28 @@ export class OpeningWorkspaceService {
     moveUci: string;
     branchTitle?: string | undefined;
     summary?: string | undefined;
+    requestId?: string | undefined;
   }): OpeningLineMutationResponse {
     this.assertEditable(input.repertoireId);
     const profileId = ensureActiveProfile(this.db);
     if (!Number.isInteger(input.afterPly) || input.afterPly < 0) throw new Error("Choose a valid place in the line");
     const moveUci = input.moveUci.trim().toLowerCase();
     if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(moveUci)) throw new Error("Move must be legal UCI notation");
+    if (input.requestId !== undefined) {
+      if (!/^[\w-]{1,128}$/.test(input.requestId)) throw new Error("Invalid builder request ID");
+      const saved = this.db.prepare("SELECT * FROM opening_builder_requests WHERE request_id = ?").get(input.requestId) as {
+        repertoire_id: string; source_line_id: string; after_ply: number; move_uci: string;
+        line_id: string; move_id: string; created_branch: number;
+      } | undefined;
+      if (saved) {
+        if (saved.repertoire_id !== input.repertoireId || saved.source_line_id !== input.lineId
+          || saved.after_ply !== input.afterPly || saved.move_uci !== moveUci) throw new Error("Builder request has already been used for a different move");
+        if (!this.db.prepare("SELECT 1 FROM opening_line_moves WHERE line_id = ? AND move_id = ? AND ply = ?")
+          .get(saved.line_id, saved.move_id, input.afterPly + 1)) throw new Error("This saved move was undone. Choose it again to add a new move.");
+        return { detail: this.repertoire(input.repertoireId), lineId: saved.line_id, moveId: saved.move_id,
+          createdBranch: saved.created_branch === 1, changed: false, message: "Move already saved. Your line is up to date." };
+      }
+    }
     const line = this.db.prepare(`
       SELECT l.id, l.title, l.chapter_id, l.priority, r.learner_color
       FROM opening_lines l
@@ -229,6 +246,10 @@ export class OpeningWorkspaceService {
       this.db.prepare(`
         INSERT INTO opening_line_moves(line_id, move_id, ply) VALUES (?, ?, ?)
       `).run(targetLineId, moveId, input.afterPly + 1);
+      if (input.requestId) this.db.prepare(`INSERT INTO opening_builder_requests
+        (request_id, repertoire_id, source_line_id, after_ply, move_uci, line_id, move_id, created_branch)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(input.requestId, input.repertoireId, line.id, input.afterPly, moveUci, targetLineId, moveId, createdBranch ? 1 : 0);
       this.touch(input.repertoireId);
     })();
 
@@ -237,10 +258,40 @@ export class OpeningWorkspaceService {
       lineId: targetLineId,
       moveId: savedMoveId,
       createdBranch,
+      changed: true,
       message: createdBranch
         ? `${played.san} was saved as a new branch; the original line is unchanged.`
         : `${played.san} was added to the end of this line.`,
     };
+  }
+
+  addSequence(repertoireId: string, lineId: string, afterPly: number, moveUcis: string[], requestId: string): OpeningLineMutationResponse {
+    if (!Array.isArray(moveUcis) || moveUcis.length < 1 || moveUcis.length > 24
+      || moveUcis.some(move => typeof move !== "string")) throw new Error("Choose between 1 and 24 analysis moves to add");
+    if (!/^[\w-]{1,90}$/.test(requestId)) throw new Error("Invalid analysis request ID");
+    if (!Number.isInteger(afterPly) || afterPly < 0) throw new Error("Choose a valid place in the line");
+    this.assertEditable(repertoireId);
+    // Save as one transaction: an invalid later move must not leave half a sequence behind.
+    return this.db.transaction(() => {
+      let targetLineId = lineId;
+      let targetPly = afterPly;
+      let result: OpeningLineMutationResponse | null = null;
+      moveUcis.forEach((moveUci, index) => {
+        const detail = this.repertoire(repertoireId);
+        const target = detail.chapters.flatMap(chapter => chapter.lines).find(line => line.id === targetLineId);
+        if (!target || targetPly > target.moves.length) throw new Error("Analysis starting position is no longer available");
+        const saved = target.moves[targetPly];
+        if (saved?.moveUci === moveUci && !this.db.prepare("SELECT 1 FROM opening_builder_requests WHERE request_id = ?").get(`${requestId}-${index}`)) {
+          result = { detail, lineId: targetLineId, moveId: saved.id, createdBranch: false, changed: false,
+            message: "Followed existing saved moves." };
+        } else {
+          result = this.addMove({ repertoireId, lineId: targetLineId, afterPly: targetPly, moveUci, requestId: `${requestId}-${index}` });
+          targetLineId = result.lineId;
+        }
+        targetPly += 1;
+      });
+      return { ...result!, detail: this.repertoire(repertoireId), message: "Analysis sequence saved. Original lines are kept." };
+    })();
   }
 
   undoLastMove(repertoireId: string, lineId: string, moveId: string): OpeningMoveUndoResponse {
@@ -628,6 +679,7 @@ export class OpeningWorkspaceService {
     repertoireId: string,
     moveId: string,
     commentValue: string,
+    ideaHintValue?: string,
   ): OpeningLearningCommentResponse {
     const profileId = ensureActiveProfile(this.db);
     const move = this.db.prepare(`
@@ -637,22 +689,27 @@ export class OpeningWorkspaceService {
     if (!move) throw new Error("Opening move is not available");
 
     const comment = commentValue.trim().replace(/\s+/g, " ").slice(0, 1000);
+    const previousHint = this.db.prepare("SELECT idea_hint FROM opening_learning_comments WHERE profile_id = ? AND move_id = ?")
+      .pluck().get(profileId, moveId) as string | null | undefined;
+    const ideaHint = ideaHintValue === undefined ? previousHint ?? null
+      : ideaHintValue.trim().replace(/\s+/g, " ").slice(0, 280) || null;
     const timestamp = now();
-    if (!comment) {
+    if (!comment && !ideaHint) {
       this.db.prepare(`
         DELETE FROM opening_learning_comments WHERE profile_id = ? AND move_id = ?
       `).run(profileId, moveId);
-      return { moveId, comment: null };
+      return { moveId, comment: null, ideaHint: null };
     }
 
     this.db.prepare(`
-      INSERT INTO opening_learning_comments(profile_id, move_id, comment, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO opening_learning_comments(profile_id, move_id, comment, idea_hint, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(profile_id, move_id) DO UPDATE SET
         comment = excluded.comment,
+        idea_hint = excluded.idea_hint,
         updated_at = excluded.updated_at
-    `).run(profileId, moveId, comment, timestamp, timestamp);
-    return { moveId, comment };
+    `).run(profileId, moveId, comment, ideaHint, timestamp, timestamp);
+    return { moveId, comment: comment || null, ideaHint };
   }
 
   private assertEditable(repertoireId: string): void {
@@ -888,7 +945,7 @@ export class OpeningWorkspaceService {
              before.fen AS fen_before, after.fen AS fen_after,
              a.summary, a.changes_json, a.concepts_json, a.opponent_idea,
              a.resulting_plan, a.tactical_warning, a.common_mistake, a.board_annotations_json,
-             lc.comment AS personal_comment, context.explanation_json AS source_explanation_json
+             NULLIF(lc.comment, '') AS personal_comment, lc.idea_hint, context.explanation_json AS source_explanation_json
       FROM opening_line_moves olm
       JOIN opening_moves m ON m.id = olm.move_id AND m.active = 1
       JOIN opening_positions before ON before.id = m.from_position_id
@@ -920,6 +977,7 @@ export class OpeningWorkspaceService {
           tacticalWarning: row.tactical_warning,
           commonMistake: row.common_mistake,
           personalComment: row.personal_comment,
+          ideaHint: row.idea_hint,
           boardAnnotations: JSON.parse(row.board_annotations_json),
           ...(source && !personal ? { summary: source.summary, changes: [...source.changes],
             concepts: [...source.concepts], opponentIdea: source.opponentIdea ?? null,

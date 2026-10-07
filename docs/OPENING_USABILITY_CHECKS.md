@@ -10,6 +10,19 @@
 - Build a line, write a note, refresh, return to the builder and recover it.
   Restore an unfinished branch without silently saving it. Explicitly discarding
   a draft must not alter saved repertoires.
+- Start a White or Black repertoire. The first learner move creates it; build
+  moves then save without a confirmation. Failed saves keep a retryable move and
+  use the same request ID. Saved continuations navigate rather than duplicating
+  branches. Preview-before-save and Undo remain available.
+- Explore on the separate analysis board without changing saved content. Add a
+  sequence in one transaction; a later illegal move must roll back the whole save.
+- Ask for an authored idea hint without showing the answer square. Reload and
+  retain that assistance. Edit the hint separately from the full explanation.
+- Practise enabled alternatives at one position in any order. A selected-line
+  drill remains branch-specific. Completion counts first tries separately from
+  hints, mistakes and later retries, while keeping the final board visible.
+- Use relaxed pacing and optional pauses. Wrong-move retries must remain
+  available without Continue; pausing happens after finding the saved move.
 - Browse a saved position, practise that line and return without losing the
   browser position. Correct moves continue automatically; wrong moves allow a
   retry and do not reveal the answer. Explanations/context pause only on request.
@@ -42,3 +55,6 @@ Run `npm run check`, `npm run test:e2e` and the container smoke script against a
 disposable container/volume only. Check a fresh database and restart persistence.
 Never run reset/deletion smoke tests against the live installation. Database
 backup/restore is needed for history; PGN exports preserve opening content only.
+The upgrade regression preserves historical cards, events, games, personal notes
+and rating preferences, with normal/continuous defaults for the new settings.
+Idea hints and practice settings are included in database backups, not PGN exports.
