@@ -2,6 +2,24 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.5.15 — 2026-10-07
+
+### Chessground board integration
+
+- Replace the custom pointer/animation renderer with pinned Lichess Chessground
+  10.4.2. Keep chess.js legal moves, controlled practice positions, click/tap/drag
+  moves, hints, annotations, accessible square labels and keyboard controls.
+- Retain explicit promotion choices, underpromotion and cancellation. Refresh
+  board bounds before pointer input so fast clicks after scrolling remain accurate.
+- Document the combined frontend's GPL-3.0-or-later licence while retaining
+  original MIT notices and the separate backend's MIT licence. Package matching
+  frontend source, Chessground TypeScript, notices and dependency-source pointers
+  with every web build, without installation data or credentials.
+- Add native-renderer regressions for castling, en passant, promotion, pinned
+  moves, resizing, flipped boards, multiple candidate collection and source access.
+- Keep practice hint controls below the board instead of floating over the lower
+  ranks; check non-overlap and square hit targets across viewport sizes and scroll positions.
+
 ## 1.5.14 — 2026-10-06
 
 ### Mobile import and refresh reliability

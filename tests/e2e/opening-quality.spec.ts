@@ -25,7 +25,11 @@ test("keeps manual pauses independent and resumes automatically", async ({ page 
   // window on a slow runner. Other journeys still exercise real-time advancement.
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 60_000));
   await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
+  await page.clock.runFor(20);
+  const saved = page.waitForResponse(response => /\/reviews\/[^/]+\/move$/.test(response.url()) && response.request().method() === "POST");
   await board.getByRole("gridcell", { name: "e4 empty" }).click();
+  await page.clock.runFor(20); // Flush Chessground's callback/render, not the feedback window.
+  await saved;
   await page.getByRole("button", { name: "Keep this open" }).click();
   await page.getByRole("button", { name: "Explain last move", exact: true }).click();
   await page.getByRole("button", { name: "Close explanation and resume", exact: true }).click();
@@ -80,15 +84,15 @@ test("explains the previous move on request after advancing, and saves its comme
   const first = await (await answered).json();
   await expect(page.getByText("Step 2 of 3")).toBeVisible();
   await expect(board).toHaveClass(/interactive/);
-  await expect(page.locator(".board-annotations")).toHaveCount(0);
+  await expect(page.locator(".cg-shapes > g > g")).toHaveCount(0);
   await page.getByRole("button", { name: "Explain last move", exact: true }).click();
   const explanation = page.getByRole("region", { name: "Requested move explanation" });
   await expect(explanation.getByRole("heading", { name: "Why 1. e4?", exact: true })).toBeVisible();
   await expect(explanation.getByText("Claim central space and free the bishop.", { exact: true })).toBeVisible();
   await expect(page.getByText("Develop the knight and attack the central pawn.", { exact: true })).toBeHidden();
   await expect(board).not.toHaveClass(/interactive/);
-  await expect(page.locator(".board-annotations circle.annotation-green")).toHaveCount(1);
-  await expect(page.locator(".board-annotations line.annotation-blue")).toHaveCount(1);
+  await expect(page.locator(".cg-shapes circle[stroke=\'#15781B\']")).toHaveCount(1);
+  await expect(page.locator(".cg-shapes line[stroke=\'#003088\']")).toHaveCount(1);
   // The requested explanation brings back e4's board, not the next question's board.
   await expect(board.getByRole("gridcell", { name: "e7 black pawn" })).toBeVisible();
   await page.waitForTimeout(1000);
@@ -108,7 +112,7 @@ test("explains the previous move on request after advancing, and saves its comme
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
   await close.click();
   await expect(board).toHaveClass(/interactive/);
-  await expect(page.locator(".board-annotations")).toHaveCount(0);
+  await expect(page.locator(".cg-shapes > g > g")).toHaveCount(0);
   await expect(board.getByRole("gridcell", { name: "e5 black pawn" })).toBeVisible();
   const nextAnswer = page.waitForResponse(response => /\/reviews\/[^/]+\/move$/.test(response.url()) && response.request().method() === "POST");
   await board.getByRole("gridcell", { name: "g1 white knight" }).click();
@@ -197,13 +201,13 @@ test("repeats a line, skips paused chapters and restores browsing position on re
   await page.getByRole("button", { name: "Go to move 1: e4", exact: true }).click();
   expect(await page.evaluate(() => Object.fromEntries(new URLSearchParams(window.location.hash.split("?")[1]))))
     .toMatchObject({ line: last, ply: "1" });
-  await expect(page.locator(".board-annotations")).toHaveCount(0);
+  await expect(page.locator(".cg-shapes > g > g")).toHaveCount(0);
   await page.getByRole("button", { name: "Show source arrows and highlights", exact: true }).click();
-  await expect(page.locator(".board-annotations circle.annotation-green")).toHaveCount(1);
+  await expect(page.locator(".cg-shapes circle[stroke=\'#15781B\']")).toHaveCount(1);
   await page.reload();
   await expect(page.getByRole("button", { name: "Go to move 1: e4", exact: true })).toHaveAttribute("aria-current", "step");
   await expect(page.getByRole("gridcell", { name: "e4 white pawn" })).toBeVisible();
-  await expect(page.locator(".board-annotations")).toHaveCount(0);
+  await expect(page.locator(".cg-shapes > g > g")).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("restored-line-browser.png"), fullPage: true });
 });
 
@@ -233,15 +237,52 @@ test("retains hints across reloads and asks the player to execute a shown answer
   await page.getByRole("button", { name: "Show move", exact: true }).click();
   await expect(board.getByRole("gridcell", { name: "e4 empty" })).toHaveClass(/answer-highlight/);
   await expect(page.getByText("Step 1 of 3")).toBeVisible();
-  if (testInfo.project.name === "webkit") {
-    const help = await page.getByRole("button", { name: "Move highlighted — play it" }).boundingBox();
-    expect(help).not.toBeNull();
-    expect(help!.y + help!.height).toBeLessThanOrEqual(page.viewportSize()!.height);
-  }
+  const boardBounds = await board.boundingBox();
+  const helpBounds = await page.locator(".opening-recall-help").boundingBox();
+  expect(boardBounds).not.toBeNull();
+  expect(helpBounds).not.toBeNull();
+  expect(helpBounds!.y).toBeGreaterThanOrEqual(boardBounds!.y + boardBounds!.height);
+  // Capture from the document top so off-viewport fixed accessibility controls
+  // are not painted into the middle of a full-page screenshot after scrolling.
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
   await page.screenshot({ path: testInfo.outputPath("practice-help.png"), fullPage: true });
   await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
   await board.getByRole("gridcell", { name: "e4 empty" }).click();
   await expect(page.getByText("Learning", { exact: true })).toBeVisible();
+  await expect(page.getByText("Step 2 of 4")).toBeVisible();
+});
+
+test("keeps practice help below the board and lower ranks reachable when scrolling or resizing", async ({ page }, testInfo) => {
+  const board = await startPractice(page);
+  const initialViewport = page.viewportSize()!;
+  for (const height of [initialViewport.height, 600, 900]) {
+    await page.setViewportSize({ width: initialViewport.width, height });
+    const help = page.locator(".opening-recall-help");
+    for (const scrollTarget of [board, help]) {
+      await scrollTarget.scrollIntoViewIfNeeded();
+      const boardBounds = await board.boundingBox();
+      const helpBounds = await help.boundingBox();
+      expect(boardBounds).not.toBeNull();
+      expect(helpBounds).not.toBeNull();
+      expect(helpBounds!.y).toBeGreaterThanOrEqual(boardBounds!.y + boardBounds!.height);
+    }
+    // Test actual hit targets, not just visible DOM labels: an overlay can hide
+    // pieces while Playwright still reports the underlying cells as visible.
+    for (const name of ["e2 white pawn", "g1 white knight"]) {
+      const square = board.getByRole("gridcell", { name });
+      await square.scrollIntoViewIfNeeded();
+      expect(await square.evaluate(element => {
+        const rect = element.getBoundingClientRect();
+        return element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+      })).toBe(true);
+    }
+  }
+  await page.setViewportSize(initialViewport);
+  await page.getByRole("button", { name: "Hint: show the piece" }).click();
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+  await page.screenshot({ path: testInfo.outputPath("unobstructed-practice-board.png"), fullPage: true });
+  await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
+  await board.getByRole("gridcell", { name: "e4 empty" }).click();
   await expect(page.getByText("Step 2 of 4")).toBeVisible();
 });
 
@@ -702,7 +743,7 @@ test("restores an unsaved branch and returns from practice to the same browsing 
   await page.getByRole("button", { name: "Back to this repertoire", exact: true }).click();
   expect(await page.evaluate(() => location.hash)).toBe(originalHash);
   await expect(page.getByRole("grid", { name: "Chess position" }).getByRole("gridcell", { name: "f3 white knight" })).toBeVisible();
-  await expect(page.locator(".opening-line-board .moving-piece")).toHaveCount(0);
+  await expect(page.locator(".opening-line-board piece.anim")).toHaveCount(0);
   expect((await (await page.request.get(`/api/v1/openings/repertoires/${id}`)).json()).chapters[0].lines[0].moveCount).toBe(3);
   await page.screenshot({ path: testInfo.outputPath("board-first-workspace.png"), fullPage: true });
 });
@@ -712,7 +753,8 @@ test("shows a retry when the next-line context cannot load", async ({ page }) =>
   await page.route(/\/api\/v1\/openings\/repertoires\/[^/?]+$/, route => offline
     ? route.fulfill({ status: 503, json: { error: "Line list offline" } }) : route.continue());
   const board = await startPractice(page);
-  for (const [from, to] of [["e2 white pawn", "e4 empty"], ["g1 white knight", "f3 empty"], ["f1 white bishop", "c4 empty"]]) {
+  for (const [step, from, to] of [[1, "e2 white pawn", "e4 empty"], [2, "g1 white knight", "f3 empty"], [3, "f1 white bishop", "c4 empty"]] as const) {
+    await expect(page.getByText(`Step ${step} of 3`)).toBeVisible();
     await expect(board).toHaveClass(/interactive/);
     await board.getByRole("gridcell", { name: from }).click();
     await board.getByRole("gridcell", { name: to }).click();

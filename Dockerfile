@@ -30,16 +30,18 @@ RUN --mount=type=cache,target=/root/.npm npm ci
 COPY apps ./apps
 COPY packages ./packages
 COPY migrations ./migrations
+COPY scripts ./scripts
+COPY LICENSE THIRD_PARTY_LICENSES.md ./
 RUN npm run build && npm prune --omit=dev
 
 FROM node:24-bookworm-slim AS runtime
-ARG APP_VERSION=1.5.14
+ARG APP_VERSION=1.5.15
 ARG APP_SOURCE_URL=https://github.com/Rinsing4852/thinking-board
 LABEL org.opencontainers.image.title="Thinking Board" \
       org.opencontainers.image.version="${APP_VERSION}" \
       org.opencontainers.image.source="${APP_SOURCE_URL}" \
       org.opencontainers.image.description="Self-hosted chess thinking-process and opening trainer" \
-      org.opencontainers.image.licenses="MIT"
+      org.opencontainers.image.licenses="MIT AND GPL-3.0-or-later"
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=8000 \

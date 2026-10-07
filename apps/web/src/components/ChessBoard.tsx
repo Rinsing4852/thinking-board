@@ -1,75 +1,25 @@
-import {
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-  type KeyboardEvent,
-  type PointerEvent,
-} from "react";
-import { Chess } from "chess.js";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
+import { Chess, type Square } from "chess.js";
+import { Chessground } from "@lichess-org/chessground";
+import type { Api } from "@lichess-org/chessground/api";
+import type { Key } from "@lichess-org/chessground/types";
+import "@lichess-org/chessground/assets/chessground.base.css";
+import "@lichess-org/chessground/assets/chessground.brown.css";
 
 import type { Color, OpeningBoardAnnotation } from "../../../../packages/contracts/src/api";
+import { boardSquares, legalDestinations, moveSquares } from "../chessboard";
 
-const PIECE_IMAGES: Record<string, string> = {
-  wk: "/pieces/cburnett/wk.svg",
-  wq: "/pieces/cburnett/wq.svg",
-  wr: "/pieces/cburnett/wr.svg",
-  wb: "/pieces/cburnett/wb.svg",
-  wn: "/pieces/cburnett/wn.svg",
-  wp: "/pieces/cburnett/wp.svg",
-  bk: "/pieces/cburnett/bk.svg",
-  bq: "/pieces/cburnett/bq.svg",
-  br: "/pieces/cburnett/br.svg",
-  bb: "/pieces/cburnett/bb.svg",
-  bn: "/pieces/cburnett/bn.svg",
-  bp: "/pieces/cburnett/bp.svg",
-};
-const PIECE_NAMES: Record<string, string> = {
-  p: "pawn", n: "knight", b: "bishop", r: "rook", q: "queen", k: "king",
-};
+const PIECE_NAMES = { p: "pawn", n: "knight", b: "bishop", r: "rook", q: "queen", k: "king" };
 const PROMOTION_PIECES = ["q", "r", "b", "n"] as const;
-
+const NO_SQUARES: string[] = [];
+const NO_ANNOTATIONS: OpeningBoardAnnotation[] = [];
 interface PromotionChoice {
   color: "w" | "b";
-  from: string;
-  to: string;
+  from: Square;
+  to: Square;
   moves: Array<{ promotion: string; san: string; uci: string }>;
 }
-
-interface DragStart {
-  from: string;
-  image: string;
-  moved: boolean;
-  pointerId: number;
-  size: number;
-  startX: number;
-  startY: number;
-}
-
-interface DragPiece {
-  from: string;
-  image: string;
-  size: number;
-  x: number;
-  y: number;
-}
-
-type AnnotationColor = "green" | "red" | "blue" | "yellow";
-
-interface BoardAnnotation {
-  color: AnnotationColor;
-  from: string;
-  to: string;
-}
-
-interface AnnotationStart {
-  color: AnnotationColor;
-  from: string;
-  pointerId: number;
-}
-
 interface ChessBoardProps {
   fen: string;
   orientation: Color;
@@ -86,457 +36,220 @@ interface ChessBoardProps {
   animateMoves?: boolean;
 }
 
-function squareName(file: number, rank: number): string {
-  return `${"abcdefgh"[file]}${rank + 1}`;
-}
-
-function boardSquares(orientation: Color): string[] {
-  const squares: string[] = [];
-  const ranks = orientation === "white" ? [7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7];
-  const files = orientation === "white" ? [0, 1, 2, 3, 4, 5, 6, 7] : [7, 6, 5, 4, 3, 2, 1, 0];
-  for (const rank of ranks) for (const file of files) squares.push(squareName(file, rank));
-  return squares;
-}
-
-function boardPoint(square: string, orientation: Color): { x: number; y: number } {
-  const file = square.charCodeAt(0) - 97;
-  const rank = Number(square[1]) - 1;
-  return orientation === "white"
-    ? { x: file + .5, y: 7 - rank + .5 }
-    : { x: 7 - file + .5, y: rank + .5 };
-}
-
-function annotationColor(event: PointerEvent<HTMLButtonElement>): AnnotationColor {
-  if (event.shiftKey) return "red";
-  if (event.altKey) return "blue";
-  if (event.ctrlKey || event.metaKey) return "yellow";
-  return "green";
-}
-
-export function ChessBoard({
-  fen,
-  orientation,
-  interactive = false,
-  lastMove,
-  selectedSquare,
-  highlightedSquares = [],
-  rejectedMove,
-  allowAnnotations = false,
-  sourceAnnotations = [],
-  onMove,
-  onSquareSelect,
-  ariaLabel = "Chess position",
-  animateMoves = true,
-}: ChessBoardProps) {
-  const [selected, setSelected] = useState<string | null>(null);
-  const [dragPiece, setDragPiece] = useState<DragPiece | null>(null);
-  const [promotionChoice, setPromotionChoice] = useState<PromotionChoice | null>(null);
-  const [annotations, setAnnotations] = useState<BoardAnnotation[]>([]);
-  const [annotationPreview, setAnnotationPreview] = useState<BoardAnnotation | null>(null);
-  const [invalidSquare, setInvalidSquare] = useState<string | null>(null);
+export function ChessBoard(props: ChessBoardProps) {
+  const { fen, orientation, interactive = false, lastMove, selectedSquare, highlightedSquares = NO_SQUARES,
+    rejectedMove, allowAnnotations = false, sourceAnnotations = NO_ANNOTATIONS, ariaLabel = "Chess position", animateMoves = true } = props;
+  const squareSelection = Boolean(props.onSquareSelect);
   const game = useMemo(() => new Chess(fen), [fen]);
+  const destinations = useMemo(() => legalDestinations(game), [game]);
   const squares = useMemo(() => boardSquares(orientation), [orientation]);
-  const [focusedSquare, setFocusedSquare] = useState(squares[0]!);
-  const squareRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const firstPromotionButton = useRef<HTMLButtonElement | null>(null);
-  const dragStart = useRef<DragStart | null>(null);
-  const annotationStart = useRef<AnnotationStart | null>(null);
-  const invalidTimer = useRef<number | null>(null);
-  const suppressClick = useRef(false);
+  const [selected, setSelected] = useState<Key | null>(null);
+  const [focused, setFocused] = useState<Square>(squares[0]!);
+  const [promotion, setPromotion] = useState<PromotionChoice | null>(null);
+  const [boardElement, setBoardElement] = useState<HTMLElement | null>(null);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const host = useRef<HTMLDivElement | null>(null);
+  const ground = useRef<Api | null>(null);
+  const cells = useRef<Record<string, HTMLButtonElement | null>>({});
+  const picker = useRef<HTMLDivElement | null>(null);
+  const previousFen = useRef(fen);
+  const pendingFrame = useRef<number | null>(null);
+  const latest = useRef({ props, game });
+  latest.current = { props, game };
   const statusId = useId();
-  const markerId = statusId.replaceAll(":", "");
-  const targets = useMemo(() => {
-    const result = new Map<string, boolean>();
-    if (!selected) return result;
-    for (const move of game.moves({ square: selected as never, verbose: true })) {
-      result.set(move.to, Boolean(move.captured));
-    }
-    return result;
-  }, [game, selected]);
-  const checkedKing = useMemo(() => {
-    if (!game.inCheck()) return null;
-    return squares.find((square) => {
-      const piece = game.get(square as never);
-      return piece?.type === "k" && piece.color === game.turn();
-    }) ?? null;
-  }, [game, squares]);
 
-  useEffect(() => {
-    setSelected(null);
-    setDragPiece(null);
-    setPromotionChoice(null);
-    setAnnotations([]);
-    setAnnotationPreview(null);
-    setInvalidSquare(null);
-    dragStart.current = null;
-    annotationStart.current = null;
-    if (invalidTimer.current !== null) {
-      window.clearTimeout(invalidTimer.current);
-      invalidTimer.current = null;
-    }
-  }, [fen]);
-  useEffect(() => setFocusedSquare(squares[0]!), [squares]);
-  useEffect(() => {
-    if (promotionChoice) firstPromotionButton.current?.focus();
-  }, [promotionChoice]);
-  useEffect(() => () => {
-    if (invalidTimer.current !== null) window.clearTimeout(invalidTimer.current);
-  }, []);
-
-  const showInvalidMove = (square: string): void => {
-    if (invalidTimer.current !== null) window.clearTimeout(invalidTimer.current);
-    setInvalidSquare(null);
-    window.requestAnimationFrame(() => setInvalidSquare(square));
-    invalidTimer.current = window.setTimeout(() => {
-      setInvalidSquare(null);
-      invalidTimer.current = null;
-    }, 420);
+  // The parent owns the position. Restore it when a training answer is
+  // rejected, or when the caller collects candidates without playing them.
+  const restoreControlledPosition = () => {
+    const api = ground.current;
+    if (!api) return;
+    const current = latest.current;
+    api.set({ fen: current.props.fen, turnColor: current.game.turn() === "w" ? "white" : "black",
+      lastMove: moveSquares(current.props.lastMove) ?? [], movable: { dests: legalDestinations(current.game) } });
   };
-
-  const moveKeyboardFocus = (event: KeyboardEvent<HTMLButtonElement>, square: string): void => {
-    if (!interactive || event.altKey) return;
-    if (event.key === "Escape") {
-      event.preventDefault();
-      setSelected(null);
-      setPromotionChoice(null);
+  const proposeMove = (from: Key, to: Key) => {
+    if (!ground.current) return; // Ignore deferred native callbacks after unmount.
+    const current = latest.current;
+    if (!current.props.interactive || current.props.onSquareSelect) return;
+    const legal = current.game.moves({ square: from as Square, verbose: true }).filter(move => move.to === to);
+    if (!legal.length) { restoreControlledPosition(); return; }
+    if (legal[0]!.promotion) {
+      restoreControlledPosition();
+      setPromotion({ color: current.game.turn(), from: from as Square, to: to as Square,
+        moves: legal.map(move => ({ promotion: move.promotion!, san: move.san,
+          uci: `${move.from}${move.to}${move.promotion}` })) });
       return;
     }
+    const move = legal[0]!;
+    setSelected(null);
+    current.props.onMove?.(`${move.from}${move.to}`, move.san);
+    if (pendingFrame.current !== null) cancelAnimationFrame(pendingFrame.current);
+    pendingFrame.current = requestAnimationFrame(() => {
+      pendingFrame.current = null;
+      const api = ground.current;
+      if (api && api.getFen() !== latest.current.props.fen.split(" ")[0]) restoreControlledPosition();
+    });
+  };
+  const proposeRef = useRef(proposeMove);
+  proposeRef.current = proposeMove;
+
+  useLayoutEffect(() => {
+    const api = Chessground(host.current!, {
+      fen: latest.current.props.fen,
+      coordinates: false,
+      viewOnly: false, // Keep fixed: API.set cannot change native event bindings.
+      premovable: { enabled: false }, predroppable: { enabled: false },
+      movable: { free: false, rookCastle: false, events: { after: (from, to) => proposeRef.current(from, to) } },
+      events: {
+        insert: elements => setBoardElement(elements.board),
+        select: square => {
+          if (!ground.current) return;
+          const current = latest.current.props;
+          if (!current.interactive) return;
+          if (current.onSquareSelect) current.onSquareSelect(square);
+          else setSelected(ground.current?.state.selected ?? null);
+        },
+      },
+    });
+    ground.current = api;
+    // A click can follow scrolling/layout changes before the browser delivers
+    // its scroll/resize event. Measure the board at input time, not from a stale
+    // cached rectangle (especially when practice scrolls a square into view).
+    const refreshBounds = (event: Event) => {
+      api.state.dom.bounds.clear();
+      // Chessground normally suppresses a touch on any piece, even when it
+      // cannot move. Let the page scroll over read-only review boards.
+      if (event.type === "touchstart" && !latest.current.props.interactive && !latest.current.props.allowAnnotations)
+        event.stopPropagation();
+    };
+    const element = host.current!;
+    element.addEventListener("mousedown", refreshBounds, true);
+    element.addEventListener("touchstart", refreshBounds, { capture: true, passive: true });
+    return () => {
+      element.removeEventListener("mousedown", refreshBounds, true);
+      element.removeEventListener("touchstart", refreshBounds, true);
+      if (pendingFrame.current !== null) cancelAnimationFrame(pendingFrame.current);
+      ground.current = null;
+      api.destroy();
+    };
+  }, []);
+
+  useEffect(() => {
+    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReducedMotion(preference.matches);
+    update(); preference.addEventListener("change", update);
+    return () => preference.removeEventListener("change", update);
+  }, []);
+
+  // Preserve the instance during React renders. In particular, selection must
+  // not replace FEN on every click and cancel an active drag.
+  useLayoutEffect(() => {
+    const api = ground.current;
+    if (!api) return;
+    const changed = previousFen.current !== fen;
+    if (changed) {
+      api.cancelMove(); setSelected(null); setPromotion(null);
+      previousFen.current = fen;
+    }
+    const enabled = interactive && !promotion;
+    const canMove = enabled && !props.onSquareSelect;
+    if (!canMove) delete api.state.movable.color;
+    const custom = new Map<Key, string>();
+    for (const square of highlightedSquares) custom.set(square as Key, "answer-highlight");
+    for (const square of moveSquares(rejectedMove) ?? []) custom.set(square, "rejected-move");
+    if (selectedSquare) custom.set(selectedSquare as Key, "answer-highlight");
+    api.set({
+      ...(changed || api.getFen() !== fen.split(" ")[0] ? { fen } : {}),
+      orientation, turnColor: game.turn() === "w" ? "white" : "black",
+      lastMove: moveSquares(lastMove) ?? [], check: game.inCheck(),
+      animation: { enabled: animateMoves && !reducedMotion, duration: 200 },
+      movable: { ...(canMove ? { color: game.turn() === "w" ? "white" as const : "black" as const } : {}),
+        dests: destinations },
+      draggable: { enabled: enabled && !props.onSquareSelect, distance: 4, autoDistance: true, showGhost: true },
+      selectable: { enabled }, blockTouchScroll: enabled,
+      drawable: { enabled: allowAnnotations && !promotion, eraseOnMovablePieceClick: true,
+        autoShapes: sourceAnnotations.map(mark => ({ orig: mark.from as Key,
+          ...(mark.from !== mark.to ? { dest: mark.to as Key } : {}), brush: mark.color })) },
+      highlight: { custom },
+    });
+    if (!enabled) { api.cancelMove(); setSelected(null); }
+  }, [fen, orientation, interactive, promotion, squareSelection, destinations, game,
+    highlightedSquares, rejectedMove, selectedSquare, lastMove, animateMoves, reducedMotion,
+    allowAnnotations, sourceAnnotations]);
+
+  useEffect(() => setFocused(squares[0]!), [squares]);
+  useEffect(() => {
+    if (promotion) picker.current?.querySelector<HTMLButtonElement>("button")?.focus();
+  }, [promotion]);
+  const cancelPromotion = () => {
+    setPromotion(null);
+    if (promotion) cells.current[promotion.from]?.focus();
+  };
+  const keyDown = (event: KeyboardEvent<HTMLButtonElement>, square: Square) => {
+    if (!interactive || promotion || event.altKey) return;
+    if (event.key === "Escape") { ground.current?.cancelMove(); setSelected(null); return; }
     const offsets: Record<string, [number, number]> = {
-      ArrowUp: [-1, 0],
-      ArrowDown: [1, 0],
-      ArrowLeft: [0, -1],
-      ArrowRight: [0, 1],
+      ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1],
     };
     const offset = offsets[event.key];
     if (!offset) return;
+    event.preventDefault();
     const index = squares.indexOf(square);
-    const row = Math.floor(index / 8) + offset[0];
-    const column = index % 8 + offset[1];
-    if (row < 0 || row > 7 || column < 0 || column > 7) return;
-    event.preventDefault();
-    const nextSquare = squares[row * 8 + column]!;
-    setFocusedSquare(nextSquare);
-    squareRefs.current[nextSquare]?.focus();
+    const row = Math.floor(index / 8) + offset[0], column = index % 8 + offset[1];
+    if (row >= 0 && row < 8 && column >= 0 && column < 8) cells.current[squares[row * 8 + column]!]!.focus();
   };
+  const selectedPiece = selected ? game.get(selected as Square) : null;
+  const status = promotion ? `Choose a piece for the pawn on ${promotion.to}.`
+    : selected && selectedPiece ? `${PIECE_NAMES[selectedPiece.type]} on ${selected} selected. ${(destinations.get(selected) ?? []).length} legal moves.`
+    : interactive ? props.onSquareSelect ? "Choose a square on the board." : "Select a piece, then its destination, or drag it. Arrow keys move focus; Enter or Space selects a square." : "";
 
-  const finishMove = (uci: string, san: string): void => {
-    onMove?.(uci, san);
-    setPromotionChoice(null);
-    setSelected(null);
-  };
-
-  const tryMove = (from: string, to: string): boolean => {
-    const legal = game.moves({ square: from as never, verbose: true }).filter((move) => move.to === to);
-    if (legal.length === 0) return false;
-    const promotions = legal.filter((move) => move.promotion);
-    if (promotions.length > 1) {
-      const piece = game.get(from as never);
-      setPromotionChoice({
-        color: piece?.color ?? game.turn(),
-        from,
-        to,
-        moves: promotions.map((move) => ({
-          promotion: move.promotion!,
-          san: move.san,
-          uci: `${move.from}${move.to}${move.promotion}`,
-        })),
-      });
-      return true;
-    }
-    const chosen = legal[0]!;
-    const uci = `${chosen.from}${chosen.to}${chosen.promotion ?? ""}`;
-    finishMove(uci, chosen.san);
-    return true;
-  };
-
-  const clickSquare = (square: string): void => {
-    if (annotations.length > 0) setAnnotations([]);
-    if (!interactive || promotionChoice) return;
-    if (suppressClick.current) {
-      suppressClick.current = false;
-      return;
-    }
-    if (onSquareSelect) {
-      onSquareSelect(square);
-      return;
-    }
-    if (!selected) {
-      const piece = game.get(square as never);
-      if (piece && piece.color === game.turn()) setSelected(square);
-      return;
-    }
-    if (selected === square) {
-      setSelected(null);
-      return;
-    }
-    if (tryMove(selected, square)) return;
-    const piece = game.get(square as never);
-    if (piece && piece.color === game.turn()) {
-      setSelected(square);
-    } else {
-      showInvalidMove(square);
-      setSelected(null);
-    }
-  };
-
-  const startAnnotation = (event: PointerEvent<HTMLButtonElement>, square: string): boolean => {
-    if (!allowAnnotations || event.button !== 2) return false;
-    event.preventDefault();
-    annotationStart.current = {
-      color: annotationColor(event),
-      from: square,
-      pointerId: event.pointerId,
-    };
-    setAnnotationPreview({ color: annotationColor(event), from: square, to: square });
-    if (event.pointerType === "mouse") event.currentTarget.setPointerCapture(event.pointerId);
-    return true;
-  };
-
-  const startDrag = (event: PointerEvent<HTMLButtonElement>, square: string, image: string): void => {
-    if (!interactive || onSquareSelect || promotionChoice || event.button !== 0) return;
-    const piece = game.get(square as never);
-    if (!piece || piece.color !== game.turn()) return;
-    const bounds = event.currentTarget.getBoundingClientRect();
-    dragStart.current = {
-      from: square,
-      image,
-      moved: false,
-      pointerId: event.pointerId,
-      size: bounds.width * .96,
-      startX: event.clientX,
-      startY: event.clientY,
-    };
-    if (event.pointerType === "mouse") event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
-  const moveDrag = (event: PointerEvent<HTMLButtonElement>): void => {
-    const mark = annotationStart.current;
-    if (mark?.pointerId === event.pointerId) {
-      event.preventDefault();
-      const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-square]");
-      setAnnotationPreview({ color: mark.color, from: mark.from, to: target?.dataset.square ?? mark.from });
-      return;
-    }
-    const start = dragStart.current;
-    if (!start || start.pointerId !== event.pointerId) return;
-    if (!start.moved && Math.hypot(event.clientX - start.startX, event.clientY - start.startY) < 5) return;
-    start.moved = true;
-    event.preventDefault();
-    setSelected(start.from);
-    setDragPiece({ from: start.from, image: start.image, size: start.size, x: event.clientX, y: event.clientY });
-  };
-
-  const endDrag = (event: PointerEvent<HTMLButtonElement>): void => {
-    const mark = annotationStart.current;
-    if (mark?.pointerId === event.pointerId) {
-      event.preventDefault();
-      annotationStart.current = null;
-      const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-square]");
-      const annotation = { color: mark.color, from: mark.from, to: target?.dataset.square ?? mark.from };
-      setAnnotationPreview(null);
-      setAnnotations((current) => current.some((item) => item.from === annotation.from && item.to === annotation.to && item.color === annotation.color)
-        ? current.filter((item) => !(item.from === annotation.from && item.to === annotation.to && item.color === annotation.color))
-        : [...current, annotation]);
-      return;
-    }
-    const start = dragStart.current;
-    if (!start || start.pointerId !== event.pointerId) return;
-    dragStart.current = null;
-    setDragPiece(null);
-    if (!start.moved) return;
-    suppressClick.current = true;
-    window.setTimeout(() => { suppressClick.current = false; }, 0);
-    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-square]");
-    const destination = target?.dataset.square;
-    if (!destination || destination === start.from || !tryMove(start.from, destination)) {
-      setSelected(start.from);
-      showInvalidMove(destination ?? start.from);
-    }
-  };
-
-  const cancelDrag = (event: PointerEvent<HTMLButtonElement>): void => {
-    if (annotationStart.current?.pointerId === event.pointerId) {
-      annotationStart.current = null;
-      setAnnotationPreview(null);
-      return;
-    }
-    if (dragStart.current?.pointerId !== event.pointerId) return;
-    dragStart.current = null;
-    setDragPiece(null);
-  };
-
-  const selectedPiece = selected ? game.get(selected as never) : null;
-  const boardStatus = promotionChoice
-    ? `Choose a piece for the pawn on ${promotionChoice.to}.`
-    : invalidSquare
-      ? `That piece cannot move to ${invalidSquare}. Try another move.`
-    : selected && selectedPiece
-      ? `${PIECE_NAMES[selectedPiece.type]} on ${selected} selected. ${targets.size} legal ${targets.size === 1 ? "move" : "moves"}.`
-      : interactive ? "Select a piece, then choose its destination. You can also drag pieces." : "";
-
-  return (
-    <div className="chessboard-frame">
-      <div
-        className={`chessboard${interactive ? " interactive" : ""}${dragPiece ? " dragging" : ""}`}
-        role="grid"
-        aria-label={ariaLabel}
-        aria-describedby={statusId}
-        onContextMenu={(event) => { if (allowAnnotations) event.preventDefault(); }}
-      >
-        {squares.map((square) => {
-          const file = square.charCodeAt(0) - 97;
-          const rank = Number(square[1]) - 1;
-          const piece = game.get(square as never);
-          const pieceImage = piece ? PIECE_IMAGES[`${piece.color}${piece.type}`] : null;
-          const isLast = lastMove?.slice(0, 2) === square || lastMove?.slice(2, 4) === square;
-          const isRejected = rejectedMove?.slice(0, 2) === square || rejectedMove?.slice(2, 4) === square;
-          const isMovable = interactive && !onSquareSelect && piece?.color === game.turn();
-          const isTarget = targets.has(square);
-          const isMoveDestination = lastMove?.slice(2, 4) === square;
-          const moveFrom = lastMove?.slice(0, 2);
-          const fromPoint = moveFrom ? boardPoint(moveFrom, orientation) : null;
-          const toPoint = boardPoint(square, orientation);
-          const moveStyle = isMoveDestination && fromPoint
-            ? {
-                "--move-x": `${(fromPoint.x - toPoint.x) * (100 / .96)}%`,
-                "--move-y": `${(fromPoint.y - toPoint.y) * (100 / .96)}%`,
-              } as CSSProperties
-            : undefined;
-          const className = [
-            "board-square",
-            (file + rank) % 2 === 0 ? "light" : "dark",
-            selected === square || selectedSquare === square ? "selected" : "",
-            isTarget ? "target" : "",
-            isTarget && targets.get(square) ? "capture-target" : "",
-            isMovable ? "movable" : "",
-            isMoveDestination && animateMoves ? "move-destination" : "",
-            dragPiece?.from === square ? "drag-origin" : "",
-            isLast ? "last-move" : "",
-            highlightedSquares.includes(square) ? "answer-highlight" : "",
-            isRejected ? "rejected-move" : "",
-            checkedKing === square ? "in-check" : "",
-            invalidSquare === square ? "invalid-move" : "",
-          ].filter(Boolean).join(" ");
-          return (
-            <button
-              key={square}
-              type="button"
-              role="gridcell"
-              className={className}
-              data-square={square}
-              aria-label={`${square}${piece ? ` ${piece.color === "w" ? "white" : "black"} ${PIECE_NAMES[piece.type]}` : " empty"}`}
-              aria-selected={selected === square || undefined}
-              tabIndex={interactive && focusedSquare === square ? 0 : -1}
-              ref={(element) => { squareRefs.current[square] = element; }}
-              onFocus={() => setFocusedSquare(square)}
-              onKeyDown={(event) => moveKeyboardFocus(event, square)}
-              onPointerDown={(event) => {
-                if (startAnnotation(event, square)) return;
-                if (pieceImage) startDrag(event, square, pieceImage);
-              }}
-              onPointerMove={moveDrag}
-              onPointerUp={endDrag}
-              onPointerCancel={cancelDrag}
-              onClick={() => {
-                setFocusedSquare(square);
-                clickSquare(square);
-              }}
-            >
-              {pieceImage && (
-                <img
-                  key={isMoveDestination ? `${lastMove}-${fen}` : `${piece?.color}${piece?.type}`}
-                  className={`piece${isMoveDestination && animateMoves ? " moving-piece" : ""}`}
-                  src={pieceImage}
-                  alt=""
-                  aria-hidden="true"
-                  draggable={false}
-                  style={animateMoves ? moveStyle : undefined}
-                />
-              )}
-              {file === (orientation === "white" ? 7 : 0) && <span className="rank-label" aria-hidden="true">{square[1]}</span>}
-              {rank === (orientation === "white" ? 0 : 7) && <span className="file-label" aria-hidden="true">{square[0]}</span>}
-            </button>
-          );
+  return <div className="chessboard-frame">
+    <div ref={host} className={`chessboard cg-wrap${interactive ? " interactive" : ""}`} role="grid"
+      aria-label={ariaLabel} aria-describedby={statusId} />
+    {boardElement && createPortal(
+      // Inside cg-board: trusted mouse/touch events bubble to Chessground.
+      // This accessible layer does not implement a second drag engine.
+      <div className="board-square-layer">
+        {squares.map(square => {
+          const piece = game.get(square);
+          const file = square.charCodeAt(0) - 97, rank = Number(square[1]) - 1;
+          const isSelected = selected === square || selectedSquare === square;
+          const target = selected && destinations.get(selected)?.includes(square);
+          const answer = highlightedSquares.includes(square) || selectedSquare === square;
+          const rejected = moveSquares(rejectedMove)?.includes(square);
+          return <button key={square} type="button" role="gridcell" data-square={square}
+            className={`board-square ${(file + rank) % 2 === 0 ? "dark" : "light"}${isSelected ? " selected" : ""}${target ? " target" : ""}${answer ? " answer-highlight" : ""}${rejected ? " rejected-move" : ""}`}
+            aria-label={`${square}${piece ? ` ${piece.color === "w" ? "white" : "black"} ${PIECE_NAMES[piece.type]}` : " empty"}`}
+            aria-selected={isSelected || undefined} tabIndex={interactive && !promotion && focused === square ? 0 : -1}
+            ref={element => { cells.current[square] = element; }} onFocus={() => setFocused(square)}
+            onKeyDown={event => keyDown(event, square)} onPointerDown={() => setFocused(square)}
+            onClick={event => {
+              // Pointer moves are handled natively; keyboard activation has no
+              // mousedown and must explicitly select a square exactly once.
+              if (event.detail === 0 && interactive && !promotion) ground.current?.selectSquare(square);
+            }}>
+            {file === (orientation === "white" ? 7 : 0) && <span className="rank-label" aria-hidden="true">{square[1]}</span>}
+            {rank === (orientation === "white" ? 0 : 7) && <span className="file-label" aria-hidden="true">{square[0]}</span>}
+          </button>;
         })}
-        {(sourceAnnotations.length > 0 || annotations.length > 0 || annotationPreview) && (
-          <svg className="board-annotations" viewBox="0 0 8 8" aria-hidden="true">
-            <defs>
-              {(["green", "red", "blue", "yellow"] as const).map((color) => (
-                <marker key={color} id={`${markerId}-${color}`} markerWidth="3.8" markerHeight="3.8" refX="2.8" refY="1.9" orient="auto" markerUnits="strokeWidth">
-                  <path className={`annotation-${color}`} d="M0,0 L3.8,1.9 L0,3.8 z" />
-                </marker>
-              ))}
-            </defs>
-            {[...sourceAnnotations, ...annotations, ...(annotationPreview ? [annotationPreview] : [])].map((annotation, index) => {
-              const from = boardPoint(annotation.from, orientation);
-              const to = boardPoint(annotation.to, orientation);
-              const preview = index >= sourceAnnotations.length + annotations.length;
-              if (annotation.from === annotation.to) {
-                return <circle key={`${annotation.from}-${annotation.to}-${annotation.color}-${index}`} className={`annotation-mark annotation-${annotation.color}${preview ? " preview" : ""}`} cx={from.x} cy={from.y} r=".36" />;
-              }
-              const distance = Math.hypot(to.x - from.x, to.y - from.y);
-              const endRatio = Math.max(0, (distance - .28) / distance);
-              return (
-                <line
-                  key={`${annotation.from}-${annotation.to}-${annotation.color}-${index}`}
-                  className={`annotation-mark annotation-${annotation.color}${preview ? " preview" : ""}`}
-                  x1={from.x}
-                  y1={from.y}
-                  x2={from.x + (to.x - from.x) * endRatio}
-                  y2={from.y + (to.y - from.y) * endRatio}
-                  markerEnd={`url(#${markerId}-${annotation.color})`}
-                />
-              );
-            })}
-          </svg>
-        )}
-      </div>
-      {dragPiece && (
-        <img
-          className="dragged-piece"
-          src={dragPiece.image}
-          alt=""
-          aria-hidden="true"
-          style={{ height: dragPiece.size, left: dragPiece.x, top: dragPiece.y, width: dragPiece.size }}
-        />
-      )}
-      {promotionChoice && (
-        <div
-          className="promotion-picker"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Choose promotion piece"
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              event.preventDefault();
-              setPromotionChoice(null);
-              squareRefs.current[promotionChoice.from]?.focus();
-            }
-          }}
-        >
-          <strong>Promote pawn to</strong>
-          <div>
-            {PROMOTION_PIECES.map((piece) => {
-              const move = promotionChoice.moves.find((candidate) => candidate.promotion === piece);
-              if (!move) return null;
-              return (
-                <button
-                  key={piece}
-                  type="button"
-                  ref={piece === "q" ? firstPromotionButton : undefined}
-                  aria-label={`Promote to ${PIECE_NAMES[piece]}`}
-                  onClick={() => finishMove(move.uci, move.san)}
-                >
-                  <img src={PIECE_IMAGES[`${promotionChoice.color}${piece}`]} alt="" aria-hidden="true" draggable={false} />
-                  <span>{PIECE_NAMES[piece]}</span>
-                </button>
-              );
-            })}
-          </div>
-          <button className="text-button" onClick={() => setPromotionChoice(null)}>Cancel</button>
-        </div>
-      )}
-      <span id={statusId} className="sr-only" aria-live="polite">{boardStatus}</span>
-    </div>
-  );
+      </div>, boardElement)}
+    {promotion && <div ref={picker} className="promotion-picker" role="dialog" aria-modal="true" aria-label="Choose promotion piece"
+      onKeyDown={event => {
+        if (event.key === "Escape") { event.preventDefault(); cancelPromotion(); }
+        if (event.key === "Tab") {
+          const buttons = [...picker.current!.querySelectorAll<HTMLButtonElement>("button")];
+          const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+          event.preventDefault(); buttons[(index + (event.shiftKey ? -1 : 1) + buttons.length) % buttons.length]!.focus();
+        }
+      }}>
+      <strong>Promote pawn to</strong><div>{PROMOTION_PIECES.map(piece => {
+        const move = promotion.moves.find(choice => choice.promotion === piece)!;
+        return <button key={piece} type="button" aria-label={`Promote to ${PIECE_NAMES[piece]}`} onClick={() => {
+          setPromotion(null); setSelected(null); latest.current.props.onMove?.(move.uci, move.san);
+        }}><img src={`/pieces/cburnett/${promotion.color}${piece}.svg`} alt="" aria-hidden="true" draggable={false} />
+          <span>{PIECE_NAMES[piece]}</span></button>;
+      })}</div><button type="button" className="text-button" onClick={cancelPromotion}>Cancel</button>
+    </div>}
+    <span id={statusId} className="sr-only" aria-live="polite">{status}</span>
+  </div>;
 }

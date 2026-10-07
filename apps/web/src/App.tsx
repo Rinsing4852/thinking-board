@@ -224,6 +224,7 @@ export function App() {
       <footer>
         <span>Thinking Board v{APP_VERSION} · Self-hosted · SQLite · Local Stockfish</span>
         <span>SEE → CANDIDATES → CHECK</span>
+        <a href="/legal/index.html">Source &amp; licences</a>
       </footer>
     </>
   );

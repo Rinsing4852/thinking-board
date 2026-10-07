@@ -433,7 +433,13 @@ and advanced longitudinal statistics.
 
 ## Licence boundary
 
-Thinking Board's original application code is licensed under the MIT License.
+Thinking Board's original application code retains the MIT License. The browser
+frontend now integrates Lichess Chessground 10.4.2 and the combined frontend is
+distributed under GPL-3.0-or-later. The independent backend remains MIT. Private
+use does not require publishing private modifications or user data. Every normal
+web build packages its matching frontend source, build instructions, licence
+notices and exact dependency-source pointers; the app's "Source & licences" link
+provides access. See `apps/web/LICENSING.md` before distributing modified builds.
 The project is an independent implementation. The AGPL-3.0 reference project
 informed product requirements and generic architectural choices only; its
 source, schema, tests, styles, copy, and assets were not copied. See

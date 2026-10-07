@@ -324,7 +324,9 @@ button.opening-home-action.primary-route { border-color: rgba(201,243,107,.4); b
 .opening-line-mastery { display: block; margin-top: .35rem; color: var(--ink-soft); font-size: .75rem; }
 .opening-line-mastery.mastered { color: var(--lime); }
 .opening-line-mastery.weak { color: var(--orange); }
-.opening-recall-help { position: sticky; bottom: 0; z-index: 7; background: var(--panel); padding: .6rem 0; }
+/* Keep help in document flow: a sticky bottom toolbar can cover lower ranks
+   when the board is taller than the available viewport. */
+.opening-recall-help { padding: .6rem 0; }
 .opening-progress { display: grid; gap: .5rem; }
 .opening-progress-topline { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .opening-progress-topline .text-button { padding: .2rem; }
@@ -606,80 +608,42 @@ button.opening-line-buttons, .opening-line-buttons button { background: #101512;
 .board-toolbar > div { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .75rem; }
 .board-toolbar .text-button { font-size: .75rem; }
 .chessboard-frame { position: relative; width: 100%; isolation: isolate; }
-.chessboard { position: relative; aspect-ratio: 1; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); grid-template-rows: repeat(8, minmax(0, 1fr)); width: 100%; overflow: hidden; border: 1px solid rgba(225,235,221,.16); border-top: 0; border-radius: 0 0 10px 10px; background: #6b8269; box-shadow: 0 22px 60px rgba(0,0,0,.32), 0 1px 0 rgba(255,255,255,.08) inset; }
-.chessboard.interactive { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
-.board-square { --coordinate-color: rgba(24,32,25,.72); position: relative; display: grid; place-items: center; padding: 0; border: 0; border-radius: 0; min-width: 0; min-height: 0; overflow: hidden; -webkit-tap-highlight-color: transparent; }
-.chessboard.interactive .board-square { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
-.board-square:focus-visible { outline-offset: -3px; z-index: 3; }
-.board-square.light { background: #d7ddca; }
-.board-square.dark { --coordinate-color: rgba(235,241,226,.74); background: #6b8269; }
-.board-square.last-move { box-shadow: inset 0 0 0 999px rgba(243, 166, 90, .28); }
-.board-square.selected { box-shadow: inset 0 0 0 4px var(--lime); }
-.board-square.answer-highlight { outline: 4px solid var(--lime); outline-offset: -4px; z-index: 2; }
-.board-square.rejected-move::before { content: ""; position: absolute; inset: 0; z-index: 3; background: rgba(220,65,57,.24); box-shadow: inset 0 0 0 4px rgba(235,78,68,.86); pointer-events: none; }
-.board-square.in-check { background-image: radial-gradient(circle, rgba(208,55,48,.82) 0, rgba(208,55,48,.58) 36%, rgba(208,55,48,0) 74%); }
-.board-square.invalid-move::before { content: ""; position: absolute; inset: 5%; z-index: 3; border: clamp(2px, .45vw, 5px) solid rgba(235,78,68,.92); border-radius: 12%; pointer-events: none; animation: board-invalid-move .42s ease-out both; }
-.board-square.movable { cursor: grab; touch-action: none; }
-.chessboard.dragging .board-square { cursor: grabbing; }
-.board-square.target { cursor: pointer; }
-.board-square.target::after { content: ""; width: 24%; height: 24%; background: rgba(20,29,22,.48); border-radius: 50%; position: absolute; z-index: 2; pointer-events: none; }
-.board-square.target.capture-target::after { width: 78%; height: 78%; background: transparent; border: clamp(3px, .55vw, 7px) solid rgba(20,29,22,.42); }
-.board-square.drag-origin .piece { opacity: .28; }
-.piece {
-  position: relative;
-  z-index: 1;
-  display: block;
-  width: 96%;
-  height: 96%;
-  object-fit: contain;
-  pointer-events: none;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-user-drag: none;
-  -webkit-touch-callout: none;
-  filter: drop-shadow(0 2px 1px rgba(0, 0, 0, .22));
-}
-.piece.moving-piece { z-index: 4; animation: board-piece-move .18s cubic-bezier(.22,.74,.34,1) both; }
-.board-square.move-destination { overflow: visible; z-index: 4; }
-.dragged-piece { position: fixed; z-index: 100; object-fit: contain; pointer-events: none; user-select: none; transform: translate(-50%, -50%) scale(1.08); filter: drop-shadow(0 9px 7px rgba(0,0,0,.38)); }
-.board-annotations { position: absolute; inset: 0; z-index: 6; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-.annotation-mark { fill: none; stroke-width: .16; stroke-linecap: round; stroke-linejoin: round; opacity: .8; filter: drop-shadow(0 .035px .035px rgba(0,0,0,.55)); }
-.annotation-mark.preview { opacity: .58; stroke-dasharray: .14 .08; }
-.annotation-mark.annotation-green { stroke: #8fc93a; }
-.annotation-mark.annotation-red { stroke: #d84a43; }
-.annotation-mark.annotation-blue { stroke: #4d91d8; }
-.annotation-mark.annotation-yellow { stroke: #dfb73d; }
-.board-annotations path.annotation-green { fill: #8fc93a; }
-.board-annotations path.annotation-red { fill: #d84a43; }
-.board-annotations path.annotation-blue { fill: #4d91d8; }
-.board-annotations path.annotation-yellow { fill: #dfb73d; }
-.rank-label, .file-label { position: absolute; z-index: 3; font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: clamp(.6rem, 1vw, .75rem); font-weight: 800; color: var(--coordinate-color); pointer-events: none; }
-.rank-label { top: 3px; right: 4px; }
-.file-label { bottom: 2px; left: 4px; }
-.promotion-picker { position: absolute; inset: 0; z-index: 5; display: grid; place-content: center; justify-items: center; gap: 1rem; padding: 1.2rem; background: rgba(16,21,18,.88); backdrop-filter: blur(5px); }
+.chessboard { position: relative; aspect-ratio: 1; width: 100%; border-radius: 0 0 10px 10px; box-shadow: 0 22px 60px rgba(0,0,0,.32); }
+.chessboard.cg-wrap cg-container { width: 100% !important; height: 100% !important; }
+.chessboard cg-board { border-radius: inherit; }
+.chessboard, .board-square-layer { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.chessboard.interactive, .chessboard.interactive cg-board, .chessboard.interactive .board-square-layer { touch-action: none; }
+.board-square-layer { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); grid-template-rows: repeat(8, minmax(0, 1fr)); z-index: 10; }
+.board-square { --coordinate-color: #684a2e; position: relative; display: block; padding: 0; border: 0; border-radius: 0; min-width: 0; min-height: 0; background: transparent; -webkit-tap-highlight-color: transparent; }
+.board-square.dark { --coordinate-color: #f0d9b5; }
+.board-square:focus-visible { outline: 3px solid #173f6b; outline-offset: -3px; }
+.chessboard.interactive .board-square { cursor: pointer; }
+.chessboard.interactive .board-square.selected { cursor: grab; }
+.chessboard cg-board square.answer-highlight { box-shadow: inset 0 0 0 4px var(--lime); background: rgba(201,243,107,.18); }
+.chessboard cg-board square.rejected-move { background: rgba(220,65,57,.24); box-shadow: inset 0 0 0 4px rgba(235,78,68,.86); }
+.chessboard cg-board piece { background-size: contain; background-repeat: no-repeat; background-position: center; }
+.chessboard piece.white.pawn { background-image: url("/pieces/cburnett/wp.svg"); }
+.chessboard piece.white.knight { background-image: url("/pieces/cburnett/wn.svg"); }
+.chessboard piece.white.bishop { background-image: url("/pieces/cburnett/wb.svg"); }
+.chessboard piece.white.rook { background-image: url("/pieces/cburnett/wr.svg"); }
+.chessboard piece.white.queen { background-image: url("/pieces/cburnett/wq.svg"); }
+.chessboard piece.white.king { background-image: url("/pieces/cburnett/wk.svg"); }
+.chessboard piece.black.pawn { background-image: url("/pieces/cburnett/bp.svg"); }
+.chessboard piece.black.knight { background-image: url("/pieces/cburnett/bn.svg"); }
+.chessboard piece.black.bishop { background-image: url("/pieces/cburnett/bb.svg"); }
+.chessboard piece.black.rook { background-image: url("/pieces/cburnett/br.svg"); }
+.chessboard piece.black.queen { background-image: url("/pieces/cburnett/bq.svg"); }
+.chessboard piece.black.king { background-image: url("/pieces/cburnett/bk.svg"); }
+.rank-label, .file-label { position: absolute; font-size: clamp(.55rem, 1.1vw, .78rem); font-weight: 800; line-height: 1; color: var(--coordinate-color); pointer-events: none; z-index: 2; }
+.rank-label { top: 5%; right: 5%; }
+.file-label { bottom: 4%; left: 6%; }
+.promotion-picker { position: absolute; inset: 0; z-index: 20; display: grid; place-content: center; justify-items: center; gap: 1rem; padding: 1.2rem; background: rgba(16,21,18,.88); backdrop-filter: blur(5px); }
 .promotion-picker > strong { color: #fff; font-size: 1.1rem; }
 .promotion-picker > div { display: grid; grid-template-columns: repeat(4, minmax(60px, 86px)); gap: .55rem; }
 .promotion-picker > div > button { display: grid; justify-items: center; gap: .25rem; padding: .5rem; border: 2px solid transparent; border-radius: 9px; background: #d7ddca; color: #182019; font-size: .72rem; font-weight: 800; text-transform: capitalize; }
 .promotion-picker > div > button:hover, .promotion-picker > div > button:focus-visible { border-color: var(--lime); transform: translateY(-2px); }
 .promotion-picker img { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; }
 .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
-@keyframes board-piece-move {
-  from { transform: translate(var(--move-x), var(--move-y)); }
-  to { transform: translate(0, 0); }
-}
-@keyframes board-invalid-move {
-  0% { opacity: 0; transform: scale(.72); }
-  35% { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.08); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .piece.moving-piece, .board-square.invalid-move::before { animation: none; }
-}
-@media (hover: hover) {
-  .chessboard.interactive .board-square.movable:hover .piece { transform: translateY(-2px); filter: drop-shadow(0 4px 2px rgba(0,0,0,.28)); }
-  .board-square.target:hover::after { background: rgba(201,243,107,.64); }
-  .board-square.target.capture-target:hover::after { background: transparent; border-color: rgba(201,243,107,.72); }
-}
 .question-card { position: relative; padding: 2rem; }
 .question-card > .step-number { position: absolute; top: 1.4rem; right: 1.4rem; }
 .question-card h3 { font-size: 1.65rem; line-height: 1.25; margin: .8rem 0 1rem; }

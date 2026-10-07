@@ -25,22 +25,24 @@ async function expectSquareBoard(page: Page): Promise<void> {
 }
 
 async function expectSvgPieces(page: Page, boardName: string): Promise<void> {
-  const pieces = await page.getByRole("grid", { name: boardName }).locator("img.piece").evaluateAll((images) =>
+  const pieces = await page.getByRole("grid", { name: boardName }).locator("cg-board piece").evaluateAll((images) =>
     images.map((image) => {
-      const piece = image as HTMLImageElement;
+      const piece = image as HTMLElement;
       const box = piece.getBoundingClientRect();
       return {
-        complete: piece.complete,
-        naturalWidth: piece.naturalWidth,
-        source: piece.getAttribute("src"),
+        source: getComputedStyle(piece).backgroundImage,
         width: box.width,
         height: box.height,
       };
     }),
   );
   expect(pieces).toHaveLength(32);
-  expect(pieces.every((piece) => piece.complete && piece.naturalWidth > 0)).toBe(true);
-  expect(pieces.every((piece) => piece.source?.startsWith("/pieces/cburnett/"))).toBe(true);
+  expect(pieces.every((piece) => piece.source.includes("/pieces/cburnett/"))).toBe(true);
+  for (const piece of pieces) {
+    const source = piece.source.match(/url\(["']?(.*?)["']?\)/)?.[1];
+    expect(source).toBeTruthy();
+    expect((await page.request.get(source!)).ok()).toBe(true);
+  }
   expect(pieces.every((piece) => piece.width > 0 && Math.abs(piece.width - piece.height) < 1)).toBe(true);
 }
 
@@ -169,17 +171,18 @@ test.describe.serial("stable V1 browser journey", () => {
     await page.mouse.down({ button: "right" });
     await page.mouse.move(e5Box.x + e5Box.width / 2, e5Box.y + e5Box.height / 2, { steps: 6 });
     await page.mouse.up({ button: "right" });
-    await expect(board.locator(".board-annotations .annotation-mark")).toHaveCount(1);
+    await expect(board.locator(".cg-shapes > g > g")).toHaveCount(1);
     await openings.getByRole("button", { name: "Flip board" }).click();
     await expect(board.locator("[role='gridcell']").first()).toHaveAttribute("aria-label", "h1 white rook");
     await openings.getByRole("button", { name: "Flip board" }).click();
     await expect(board.locator("[role='gridcell']").first()).toHaveAttribute("aria-label", "a8 black rook");
     await e7.click();
-    await expect(board.locator(".board-annotations")).toHaveCount(0);
+    await expect(board.locator(".cg-shapes > g > g")).toHaveCount(0);
     await expect(e6).toHaveClass(/target/);
     await expect(e5).toHaveClass(/target/);
     await e7.dragTo(e5);
-    await expect(board.getByRole("gridcell", { name: "e5 black pawn" }).locator("img.piece")).toHaveClass(/moving-piece/);
+    await expect(board.getByRole("gridcell", { name: "e5 black pawn" })).toBeVisible();
+    await expect(board.locator("cg-board piece.black.pawn")).toHaveCount(8);
     await openings.getByRole("button", { name: "Add 1 move to my repertoire" }).click();
     await expect(openings.getByRole("grid", { name: "Analysis board" })).toBeHidden();
     await openings.getByRole("textbox", { name: /Challenges the centre/ }).fill("Black mirrors the central claim.");
@@ -553,7 +556,7 @@ test.describe.serial("stable V1 browser journey", () => {
     const board = surprise.getByRole("grid", { name: "Position after d6" });
     await board.getByRole("gridcell", { name: "d2 white pawn" }).click();
     await board.getByRole("gridcell", { name: "d4 empty" }).click();
-    await expect(surprise.getByText("Your reply")).toBeVisible();
+    await expect(surprise.getByRole("button", { name: "Save d6 → d4", exact: true })).toBeEnabled();
     await page.setViewportSize({ width: 390, height: 844 });
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
     await surprise.getByRole("button", { name: "Save d6 → d4" }).click();
