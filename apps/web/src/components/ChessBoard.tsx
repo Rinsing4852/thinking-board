@@ -34,11 +34,13 @@ interface ChessBoardProps {
   onSquareSelect?: (square: string) => void;
   ariaLabel?: string;
   animateMoves?: boolean;
+  animationDuration?: number;
 }
 
 export function ChessBoard(props: ChessBoardProps) {
   const { fen, orientation, interactive = false, lastMove, selectedSquare, highlightedSquares = NO_SQUARES,
-    rejectedMove, allowAnnotations = false, sourceAnnotations = NO_ANNOTATIONS, ariaLabel = "Chess position", animateMoves = true } = props;
+    rejectedMove, allowAnnotations = false, sourceAnnotations = NO_ANNOTATIONS, ariaLabel = "Chess position", animateMoves = true,
+    animationDuration = 200 } = props;
   const squareSelection = Boolean(props.onSquareSelect);
   const game = useMemo(() => new Chess(fen), [fen]);
   const destinations = useMemo(() => legalDestinations(game), [game]);
@@ -47,7 +49,7 @@ export function ChessBoard(props: ChessBoardProps) {
   const [focused, setFocused] = useState<Square>(squares[0]!);
   const [promotion, setPromotion] = useState<PromotionChoice | null>(null);
   const [boardElement, setBoardElement] = useState<HTMLElement | null>(null);
-  const [reducedMotion, setReducedMotion] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   const host = useRef<HTMLDivElement | null>(null);
   const ground = useRef<Api | null>(null);
   const cells = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -162,7 +164,7 @@ export function ChessBoard(props: ChessBoardProps) {
       ...(changed || api.getFen() !== fen.split(" ")[0] ? { fen } : {}),
       orientation, turnColor: game.turn() === "w" ? "white" : "black",
       lastMove: moveSquares(lastMove) ?? [], check: game.inCheck(),
-      animation: { enabled: animateMoves && !reducedMotion, duration: 200 },
+      animation: { enabled: animateMoves && !reducedMotion, duration: animationDuration },
       movable: { ...(canMove ? { color: game.turn() === "w" ? "white" as const : "black" as const } : {}),
         dests: destinations },
       draggable: { enabled: enabled && !props.onSquareSelect, distance: 4, autoDistance: true, showGhost: true },
@@ -174,7 +176,7 @@ export function ChessBoard(props: ChessBoardProps) {
     });
     if (!enabled) { api.cancelMove(); setSelected(null); }
   }, [fen, orientation, interactive, promotion, squareSelection, destinations, game,
-    highlightedSquares, rejectedMove, selectedSquare, lastMove, animateMoves, reducedMotion,
+    highlightedSquares, rejectedMove, selectedSquare, lastMove, animateMoves, animationDuration, reducedMotion,
     allowAnnotations, sourceAnnotations]);
 
   useEffect(() => setFocused(squares[0]!), [squares]);

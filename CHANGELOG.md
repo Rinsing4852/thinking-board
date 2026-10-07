@@ -2,6 +2,19 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.5.16 — 2026-10-07
+
+### Calmer practice feedback
+
+- Keep incorrect opening moves visible for 650 ms, then return smoothly over
+  360 ms in both recall and guided practice. Do not reveal the expected move.
+- Guard board input and hint actions during the return, cancel pending resets
+  when leaving a position, and exclude the reset interval from recall time.
+- Keep above-board retry messages short to prevent layout jumps, and respect
+  reduced-motion preferences from the first board render.
+- Check hold timing, native animation frames, retry safety, reduced motion and
+  unchanged board position on desktop and mobile.
+
 ## 1.5.15 — 2026-10-07
 
 ### Chessground board integration

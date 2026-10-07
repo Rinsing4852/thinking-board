@@ -12,6 +12,7 @@ import { post } from "../api";
 import { applyUciMove, getMoveHint } from "../opening-board";
 import { useOpeningReviewFlow } from "../opening-review-flow";
 import { useRecallClock } from "../use-recall-clock";
+import { usePracticeMoveReset } from "../use-practice-move-reset";
 import { formatMoveLabel, formatOpeningLineContext } from "../training-language";
 import { ChessBoard } from "./ChessBoard";
 import { OpeningExplanation } from "./OpeningExplanation";
@@ -102,6 +103,7 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
     ? [initialHint.square, initialExercise.introduction.repertoireMove.moveUci.slice(2, 4)]
     : initialExercise.assistance.pieceHint ? [initialHint.square] : []);
   const [rejectedMove, setRejectedMove] = useState<string | null>(null);
+  const moveReset = usePracticeMoveReset(exercise.queueEntryId, !observing && !feedback && !complete && !explanationOpen && !evidenceOpen);
   const flow = useOpeningReviewFlow();
   const [visible, setVisible] = useState(!document.hidden);
   useEffect(() => {
@@ -114,7 +116,7 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
   const autoAdvancePaused = flow.paused;
   const fullLinePractice = Boolean(exercise.lineRun);
   const lineName = exercise.lineRun ? [exercise.lineRun.chapterTitle, exercise.lineRun.lineTitle].filter(Boolean).join(" · ") : "";
-  const recallClock = useRecallClock(exercise.queueEntryId, !observing && !feedback && !complete && !flow.paused && visible && !submitting);
+  const recallClock = useRecallClock(exercise.queueEntryId, !observing && !feedback && !complete && !flow.paused && visible && !submitting && !moveReset.busy);
 
   const showExercise = (next: OpeningReviewExercise): void => {
     setExercise(next);
@@ -171,6 +173,7 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
   };
 
   const showHelp = async (kind: "piece" | "move"): Promise<void> => {
+    if (moveReset.busy) return;
     if (!flow.begin()) return;
     try {
       await post<OpeningReviewExercise>(`/api/v1/openings/reviews/${exercise.sessionId}/help`,
@@ -192,7 +195,7 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
   };
 
   const playRecallMove = (uci: string, san: string): void => {
-    if (submitting || feedback || observing || explanationOpen || complete) return;
+    if (submitting || feedback || observing || explanationOpen || complete || moveReset.busy) return;
     const accepted = exercise.acceptedMoves.some((move) => move.moveUci === uci);
     if (!accepted) {
       if (boardSounds) signalBoardResult(false);
@@ -203,6 +206,7 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
       setHintSquares([]);
       setHintShown(false);
       setRejectedMove(uci);
+      moveReset.reject(exercise.fenToMove, uci);
       setDisplayFen(exercise.fenToMove);
       setLastMove(exercise.opponentMove?.moveUci ?? null);
       if (!flow.begin()) return;
@@ -281,7 +285,7 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
   };
 
   const lineExplanationAction = fullLinePractice && <div className="answer-actions opening-line-explanation-action">
-    <button className="secondary" disabled={!lastAnswered || submitting || editingLineComment} aria-expanded={explanationOpen}
+    <button className="secondary" disabled={!lastAnswered || submitting || moveReset.busy || editingLineComment} aria-expanded={explanationOpen}
       aria-controls="opening-requested-explanation" onClick={toggleLineExplanation}>
       {explanationOpen ? complete ? "Close explanation" : "Close explanation and resume" : "Explain last move"}
     </button>
@@ -303,7 +307,7 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
       onSaved={updateLastMoveComment} />
     <p className="opening-next-due">{dueLabel(lastAnswered.nextDueAt, lastAnswered.lapseQueued)}</p>
   </section>;
-  const evidenceAction = lastAnswered && <button className="text-button" disabled={submitting || editingLineComment}
+  const evidenceAction = lastAnswered && <button className="text-button" disabled={submitting || moveReset.busy || editingLineComment}
     aria-expanded={evidenceOpen} onClick={() => {
       const open = !evidenceOpen; setEvidenceOpen(open); flow.pause("evidence", open);
     }}>{evidenceOpen ? "Close review context" : "Why this exercise?"}</button>;
@@ -376,7 +380,9 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
             : observing
             ? "Watch your opponent’s reply."
             : feedback ? `${feedback.repertoireMove.moveSan} — ${feedback.outcome === "remembered" ? "remembered" : "we’ll practise this again"}`
-              : submitting ? "Saving your answer…" : moveNotice || "Your move — play your prepared reply."}</p>
+              : moveReset.busy ? "Not in this line — the piece will return, then you can try again."
+              : submitting ? rejectedMove ? "Saving this attempt…" : "Saving your answer…"
+              : rejectedMove ? "Try again, or ask for a hint." : moveNotice || "Your move — play your prepared reply."}</p>
           <div className="candidate-banner">
             <div>
               <span>{explanationOpen ? "Your last played move" : observing
@@ -386,6 +392,7 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
                 ? "watch what changes"
                 : feedback
                   ? "the repertoire response is shown"
+                  : moveReset.busy ? "returning to the practice position…"
                   : submitting ? "checking your move…" : "play now — moves are checked immediately"}</small>
             </div>
             <strong>{explanationOpen && lastAnswered
@@ -395,9 +402,10 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
               : formatMoveLabel(exercise.moveNumber, exercise.learnerColor)}</strong>
           </div>
           <ChessBoard
-            fen={explanationOpen && lastAnswered ? lastAnswered.fenAfterMove : displayFen}
+            fen={explanationOpen && lastAnswered ? lastAnswered.fenAfterMove : moveReset.fen ?? displayFen}
             orientation={exercise.learnerColor}
-            interactive={!observing && !feedback && !submitting && !explanationOpen && !evidenceOpen}
+            interactive={!observing && !feedback && !submitting && !explanationOpen && !evidenceOpen && !moveReset.busy}
+            animationDuration={moveReset.animationDuration}
             lastMove={explanationOpen && lastAnswered ? lastAnswered.repertoireMove.moveUci : lastMove}
             highlightedSquares={explanationOpen ? [] : hintSquares}
             rejectedMove={explanationOpen ? null : rejectedMove}
@@ -405,10 +413,10 @@ export function OpeningReview({ initial, boardSounds = false, onComplete, onPaus
             onMove={playRecallMove}
           />
           {!observing && !feedback && !explanationOpen && <div className="answer-actions opening-recall-help">
-            <button className="secondary" disabled={submitting || hintShown} onClick={() => void showHelp("piece")}>
+            <button className="secondary" disabled={submitting || moveReset.busy || hintShown} onClick={() => void showHelp("piece")}>
               {hintShown ? "Piece highlighted" : "Hint: show the piece"}
             </button>
-            <button className="text-button opening-show-answer" disabled={submitting || moveShown} onClick={() => void showHelp("move")}>
+            <button className="text-button opening-show-answer" disabled={submitting || moveReset.busy || moveShown} onClick={() => void showHelp("move")}>
               {moveShown ? "Move highlighted — play it" : "Show move"}
             </button>
           </div>}

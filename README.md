@@ -26,8 +26,10 @@ the same session. Correct independent recalls move further into the future;
 missed moves enter a short relearning step.
 
 Practice is designed to stay quick: moves are checked directly on the board,
-wrong attempts reset immediately and remain marked in red without revealing the
-answer. Request a piece-only hint or deliberately choose Show move, then play
+wrong attempts stay visible briefly in red, then return smoothly to the practice
+position without revealing the answer. Retry input pauses during the return;
+that wait does not count towards recall time. Reduced-motion preferences disable
+the return animation. Request a piece-only hint or deliberately choose Show move, then play
 the shown move yourself. Requested help survives page reloads and never counts
 as independent recall. Prepared opponent replies and the
 next exercise play automatically, so normal practice needs no Continue or

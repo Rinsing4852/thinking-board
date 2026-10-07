@@ -1,9 +1,10 @@
 import { expect, test } from "@playwright/test";
 test.use({ baseURL: "http://127.0.0.1:8192" });
 
-async function startPractice(page: import("@playwright/test").Page) {
+async function startPractice(page: import("@playwright/test").Page,
+  pgn = '[Event "Quality practice"]\n[Result "*"]\n\n1. e4 {Claim central space and free the bishop. [%csl Ge4] [%cal Bf1c4]} e5 2. Nf3 {Develop the knight and attack the central pawn.} Nc6 3. Bc4 *') {
   const imported = await page.request.post("/api/v1/openings/imports/pgn", { data: {
-    pgn: '[Event "Quality practice"]\n[Result "*"]\n\n1. e4 {Claim central space and free the bishop. [%csl Ge4] [%cal Bf1c4]} e5 2. Nf3 {Develop the knight and attack the central pawn.} Nc6 3. Bc4 *',
+    pgn,
     learnerColor: "white", name: "Quality practice", sourceType: "self_authored", sourceTitle: "My notes", ownershipConfirmed: true,
   } });
   expect(imported.ok()).toBeTruthy();
@@ -14,9 +15,53 @@ async function startPractice(page: import("@playwright/test").Page) {
   await page.goto("/#openings");
   const resume = page.getByRole("button", { name: "Resume opening practice" });
   if (await resume.isVisible()) await resume.click();
-  await expect(page.getByText("Step 1 of 3")).toBeVisible();
+  await expect(page.getByText(/Step 1 of \d+/)).toBeVisible();
   return page.getByRole("grid", { name: "Chess position" });
 }
+
+test("restores a captured piece when a rejected capture returns", async ({ page }) => {
+  const board = await startPractice(page, '[Event "Capture reset"]\n[Result "*"]\n\n1. e4 d5 2. Nc3 *');
+  await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
+  await board.getByRole("gridcell", { name: "e4 empty" }).click();
+  await expect(board).toHaveClass(/interactive/);
+  await expect(board.getByRole("gridcell", { name: "d5 black pawn" })).toBeVisible();
+  await board.getByRole("gridcell", { name: "e4 white pawn" }).click();
+  await board.getByRole("gridcell", { name: "d5 black pawn" }).click();
+  await expect(board.getByRole("gridcell", { name: "d5 white pawn" })).toBeVisible();
+  await expect(board).not.toHaveClass(/interactive/);
+  await expect(board).toHaveClass(/interactive/);
+  await expect(board.getByRole("gridcell", { name: "d5 black pawn" })).toBeVisible();
+  await expect(board.getByRole("gridcell", { name: "e4 white pawn" })).toBeVisible();
+  await expect(board.locator("cg-board piece.white.pawn:not(.fading)")).toHaveCount(8);
+  await expect(board.locator("cg-board piece.black.pawn:not(.fading)")).toHaveCount(8);
+  await board.getByRole("gridcell", { name: "b1 white knight" }).click();
+  await board.getByRole("gridcell", { name: "c3 empty" }).click();
+  // A two-position line cannot interleave an assisted retry with two other
+  // positions, so it finishes and leaves the missed move for scheduled review.
+  await expect(page.getByText("Practice complete", { exact: true })).toBeVisible();
+});
+
+test("cancels a pending incorrect-move return when leaving practice", async ({ page }) => {
+  await page.clock.install();
+  const board = await startPractice(page);
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 60_000));
+  await board.getByRole("gridcell", { name: "d2 white pawn" }).click();
+  await page.clock.runFor(20);
+  const saved = page.waitForResponse(response => /\/mistakes$/.test(response.url()));
+  await board.getByRole("gridcell", { name: "d4 empty" }).click();
+  await page.clock.runFor(20);
+  await saved;
+  await expect(board.getByRole("gridcell", { name: "d4 white pawn" })).toBeVisible();
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Resume opening practice" })).toBeVisible();
+  await page.clock.runFor(1500);
+  await page.getByRole("button", { name: "Resume opening practice" }).click();
+  await expect(board.getByRole("gridcell", { name: "d2 white pawn" })).toBeVisible();
+  await expect(board).toHaveClass(/interactive/);
+  await page.clock.runFor(1500);
+  await expect(board.getByRole("gridcell", { name: "d2 white pawn" })).toBeVisible();
+  await expect(page.getByText("Step 1 of 3")).toBeVisible();
+});
 
 test("keeps manual pauses independent and resumes automatically", async ({ page }) => {
   await page.clock.install();
@@ -211,7 +256,7 @@ test("repeats a line, skips paused chapters and restores browsing position on re
   await page.screenshot({ path: testInfo.outputPath("restored-line-browser.png"), fullPage: true });
 });
 
-test("keeps a wrong move in place without revealing its answer or explanation", async ({ page }) => {
+test("returns to the same practice position without revealing the answer or explanation", async ({ page }) => {
   const board = await startPractice(page);
   await board.getByRole("gridcell", { name: "d2 white pawn" }).click();
   await board.getByRole("gridcell", { name: "d4 empty" }).click();
@@ -225,6 +270,72 @@ test("keeps a wrong move in place without revealing its answer or explanation", 
   await board.getByRole("gridcell", { name: "e4 empty" }).click();
   await expect(page.getByText("Step 2 of 4")).toBeVisible();
 });
+
+for (const reducedMotion of [false, true]) {
+  test(`holds an incorrect move, returns smoothly and guards retry input (${reducedMotion ? "reduced motion" : "animated"})`, async ({ page }, testInfo) => {
+    await page.emulateMedia({ reducedMotion: reducedMotion ? "reduce" : "no-preference" });
+    await page.clock.install();
+    const board = await startPractice(page);
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 60_000));
+    const boardTop = await board.evaluate(element => element.getBoundingClientRect().top + window.scrollY);
+    let mistakes = 0;
+    let mistakeTime = 0;
+    let answerTime = 0;
+    page.on("request", request => {
+      if (/\/mistakes$/.test(request.url()) && request.method() === "POST") {
+        mistakes++;
+        mistakeTime = request.postDataJSON().activeResponseMs;
+      }
+      if (/\/reviews\/[^/]+\/move$/.test(request.url()) && request.method() === "POST") answerTime = request.postDataJSON().activeResponseMs;
+    });
+    await board.getByRole("gridcell", { name: "d2 white pawn" }).click();
+    await page.clock.runFor(20);
+    const saved = page.waitForResponse(response => /\/mistakes$/.test(response.url()));
+    await board.getByRole("gridcell", { name: "d4 empty" }).click();
+    await page.clock.runFor(20);
+    await saved;
+    await expect(board.getByRole("gridcell", { name: "d4 white pawn" })).toBeVisible();
+    await expect(board).not.toHaveClass(/interactive/);
+    await expect(page.getByRole("button", { name: "Hint: show the piece" })).toBeDisabled();
+    await expect(board.getByRole("gridcell", { name: "d4 white pawn" })).toHaveClass(/rejected-move/);
+    expect(await board.evaluate(element => element.getBoundingClientRect().top + window.scrollY)).toBeCloseTo(boardTop, 0);
+    await board.locator("[data-square='e2']").press("Enter");
+    await board.locator("[data-square='e4']").press("Enter");
+    await page.clock.runFor(400);
+    await expect(board.getByRole("gridcell", { name: "d4 white pawn" })).toBeVisible();
+    await expect(page.getByText("Step 1 of 3")).toBeVisible();
+    await expect(page.getByText("Claim central space and free the bishop.", { exact: true })).toBeHidden();
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+    await page.screenshot({ path: testInfo.outputPath("incorrect-move-paused.png"), fullPage: true });
+    await page.clock.runFor(300);
+    await expect(board.getByRole("gridcell", { name: "d2 white pawn" })).toBeVisible();
+    if (reducedMotion) await expect(board.locator("piece.anim")).toHaveCount(0);
+    else {
+      await expect(board.locator("piece.white.pawn.anim")).toHaveCount(1);
+      // React applies the timer's state update after runFor resolves; advance
+      // native animation frames from that committed render, not just its timer.
+      await page.clock.runFor(120);
+      await expect(board).not.toHaveClass(/interactive/);
+      const source = await board.locator("[data-square='d2']").boundingBox();
+      const destination = await board.locator("[data-square='d4']").boundingBox();
+      const piece = await board.locator("piece.white.pawn.anim").boundingBox();
+      expect(piece!.y).toBeGreaterThan(destination!.y);
+      expect(piece!.y).toBeLessThan(source!.y);
+    }
+    await page.clock.runFor(400);
+    await expect(board.locator("piece.anim")).toHaveCount(0);
+    await expect(board).toHaveClass(/interactive/);
+    await expect(page.getByRole("button", { name: "Hint: show the piece" })).toBeEnabled();
+    expect(mistakes).toBe(1);
+    await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
+    await page.clock.runFor(20);
+    await board.getByRole("gridcell", { name: "e4 empty" }).click();
+    await page.clock.runFor(20);
+    await expect(page.getByText("Learning", { exact: true })).toBeVisible();
+    expect(answerTime - mistakeTime).toBeGreaterThanOrEqual(0);
+    expect(answerTime - mistakeTime).toBeLessThan(500); // The 1s visual reset is not thinking time.
+  });
+}
 
 test("retains hints across reloads and asks the player to execute a shown answer", async ({ page }, testInfo) => {
   await startPractice(page);

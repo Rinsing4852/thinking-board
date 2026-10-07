@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { openingGraphKey } from "../opening-navigation";
 import { useOpeningSession } from "../use-opening-session";
+import { usePracticeMoveReset } from "../use-practice-move-reset";
 import { parseOpeningLocation } from "../opening-location";
 
 import type {
@@ -61,6 +62,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
   const [moveNotice, setMoveNotice] = useState("");
   const [hintSquare, setHintSquare] = useState<string | null>(null);
   const [rejectedMove, setRejectedMove] = useState<string | null>(null);
+  const moveReset = usePracticeMoveReset(`${step?.attemptId}:${step?.decisionNumber}`, phase === "move");
   const [moveFeedback, setMoveFeedback] = useState<OpeningMoveAnswerResponse | null>(null);
   const [whyFeedback, setWhyFeedback] = useState<OpeningWhyAnswerResponse | null>(null);
   const [pendingNext, setPendingNext] = useState<OpeningLessonState | null>(null);
@@ -489,12 +491,13 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
   };
 
   const playLessonMove = (uci: string, san: string): void => {
-    if (!step || submittingRef.current) return;
+    if (!step || submittingRef.current || moveReset.busy) return;
     const accepted = step.acceptedMoves.some((move) => move.moveUci === uci);
     if (!accepted) {
       setMoveNotice(`${san} is not one of your saved moves here. Try again, or ask for a hint.`);
       setHintSquare(null);
       setRejectedMove(uci);
+      moveReset.reject(step.fenToMove, uci);
       setDisplayFen(step.fenToMove);
       setLastMove(step.opponentMove?.moveUci ?? null);
       return;
@@ -506,7 +509,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
   };
 
   const showLessonHint = (): void => {
-    if (!step) return;
+    if (!step || moveReset.busy) return;
     const hint = getMoveHint(step.fenToMove, step.acceptedMoves[0]?.moveUci ?? "");
     setHintSquare(hint.square);
     setRejectedMove(null);
@@ -514,7 +517,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
   };
 
   const showLessonMove = (): void => {
-    if (!step) return;
+    if (!step || moveReset.busy) return;
     const answer = step.acceptedMoves[0];
     if (!answer) return;
     setMoveNotice(`The repertoire move is ${answer.moveSan}.`);
@@ -880,7 +883,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
                   <small>You are {step.learnerColor === "white" ? "White" : "Black"} · {phase === "observe"
                     ? "watch what changes"
                     : phase === "move"
-                      ? submitting ? "checking your move…" : "play now — moves are checked immediately"
+                      ? moveReset.busy ? "returning to the practice position…" : submitting ? "checking your move…" : "play now — moves are checked immediately"
                       : "the lesson move is shown"}</small>
                 </div>
                 <strong>{phase === "observe"
@@ -890,9 +893,10 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
                     : formatMoveLabel(step.moveNumber, step.learnerColor)}</strong>
               </div>
               <ChessBoard
-                fen={displayFen}
+                fen={moveReset.fen ?? displayFen}
                 orientation={step.learnerColor}
-                interactive={phase === "move" && !submitting}
+                interactive={phase === "move" && !submitting && !moveReset.busy}
+                animationDuration={moveReset.animationDuration}
                 lastMove={lastMove}
                 highlightedSquares={hintSquare ? [hintSquare] : []}
                 rejectedMove={rejectedMove}
@@ -928,10 +932,10 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
                     </div>
                   )}
                   <div className="answer-actions">
-                    <button className="secondary" disabled={submitting} onClick={showLessonHint}>
+                    <button className="secondary" disabled={submitting || moveReset.busy} onClick={showLessonHint}>
                       Hint: show the piece
                     </button>
-                    <button className="secondary" disabled={submitting} onClick={showLessonMove}>
+                    <button className="secondary" disabled={submitting || moveReset.busy} onClick={showLessonMove}>
                       {submitting ? "Showing…" : "Show move"}
                     </button>
                   </div>
