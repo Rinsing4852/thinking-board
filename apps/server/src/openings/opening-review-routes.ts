@@ -78,6 +78,15 @@ export function registerOpeningReviewRoutes(
     }
   });
 
+  app.post("/api/v1/openings/repertoires/:repertoireId/moves/:moveId/reviews/start", async (request, reply) => {
+    try {
+      const { repertoireId, moveId } = request.params as { repertoireId: string; moveId: string };
+      return openingReviews.startMove(repertoireId, moveId);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not practise this saved response" });
+    }
+  });
+
   app.post("/api/v1/openings/reviews/:sessionId/move", { schema: { body: {
     type: "object", required: ["moveUci"], additionalProperties: false,
     properties: { moveUci: { type: "string", pattern: "^[a-h][1-8][a-h][1-8][qrbn]?$" },

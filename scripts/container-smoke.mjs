@@ -78,6 +78,23 @@ if (existing) {
 const repertoire = await request(`/api/v1/openings/repertoires/${repertoireId}`);
 const preferences = await request("/api/v1/openings/preferences");
 const firstMove = repertoire.chapters[0].lines[0].moves[0];
+const coverageUrl = `/api/v1/openings/repertoires/${repertoireId}/coverage?local=true`;
+const coverage = await request(coverageUrl);
+assert(coverage.model && coverage.evidence, "Local coverage must expose scope and evidence");
+const boundaryPosition = coverage.positions.find(position => position.fen === firstMove.fenAfter);
+assert(boundaryPosition, "Coverage must include the position after our first move");
+if (existing) {
+  assert.equal(boundaryPosition.boundary, true, "Preparation stopping points must survive restart");
+  assert.equal(coverage.model.preparedPercent, 100, "A chosen stopping point ends the estimate");
+} else {
+  await request(`/api/v1/openings/repertoires/${repertoireId}/coverage/boundary`, {
+    positionId: boundaryPosition.positionId, preparedEnough: true,
+  }, "PATCH");
+  const bounded = await request(coverageUrl);
+  assert.equal(bounded.model.preparedPercent, 100);
+  assert.deepEqual((await request(`/api/v1/openings/repertoires/${repertoireId}`)).chapters, repertoire.chapters,
+    "Marking preparation boundaries must not alter saved lines");
+}
 const hint = "Claim space in the centre.";
 if (existing) {
   assert.equal(preferences.practicePace, "relaxed", "Practice pace must survive restart");

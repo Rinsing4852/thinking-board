@@ -8,6 +8,7 @@ import { now } from "../lib/ids.js";
 import { ensureActiveProfile } from "../training/profile.js";
 import { practiceLineEligible } from "./opening-practice-eligibility.js";
 import { storeSourceExplanations } from "./opening-context.js";
+import { FIRST_RECALL_EVIDENCE } from "./opening-recall.js";
 import {
   compileOpeningCurriculum,
   type CompiledOpeningCurriculum,
@@ -162,17 +163,7 @@ export class OpeningContentService {
       line_id: string; decisions: number; mastered: number; due: number; lapses: number; average_response_ms: number | null;
     }>).map((row) => [row.line_id, row]));
     const attemptsByLine = new Map((this.db.prepare(`
-      WITH evidence AS (
-        SELECT event.*, COALESCE(played.id, queue.expected_move_id, item.move_id) AS target_move_id
-        FROM opening_review_events event
-        JOIN opening_review_items item ON item.id = event.review_item_id AND item.profile_id = ?
-        JOIN opening_review_queue queue ON queue.id = event.queue_entry_id
-        LEFT JOIN opening_moves played ON event.correct = 1 AND played.repertoire_id = item.repertoire_id
-          AND played.from_position_id = item.position_id AND played.move_uci = event.played_move_uci
-      ), recent AS (
-        SELECT *, ROW_NUMBER() OVER (PARTITION BY target_move_id ORDER BY created_at DESC, id DESC) AS recency
-        FROM evidence
-      )
+      ${FIRST_RECALL_EVIDENCE}
       SELECT membership.line_id, COUNT(*) AS attempts, COUNT(DISTINCT event.target_move_id) AS tested_decisions,
         SUM(CASE WHEN event.correct = 1 AND event.assisted = 0 THEN 1 ELSE 0 END) AS correct
       FROM recent event

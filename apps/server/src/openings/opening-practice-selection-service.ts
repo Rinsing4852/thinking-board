@@ -46,7 +46,8 @@ export class OpeningPracticeSelectionService {
         frequency: { band: !complete ? "unknown" as const : least!.percent >= 5 ? "common" as const
           : least!.percent >= 1 ? "uncommon" as const : "rare" as const,
           percent: least?.percent ?? null, moveLabel: least?.moveLabel ?? null,
-          sampleGames: least?.games ?? null, knownReplies: observed.length, totalReplies: replies.length },
+          sampleGames: least?.games ?? null, knownReplies: observed.length, totalReplies: replies.length,
+          pathPercent: complete ? Math.round(observed.reduce((probability, reply) => probability * reply.percent / 100, 1) * 10000) / 100 : null },
         recall: progress.get(line.id) ?? null,
         fullRuns: { ...runs, accuracyPercent: runs.completed ? Math.round(100 * runs.unaided / runs.completed) : null },
       };
@@ -121,15 +122,20 @@ export class OpeningPracticeSelectionService {
           COUNT(*) OVER (PARTITION BY membership.line_id) AS decisions
         FROM opening_line_moves membership JOIN opening_moves move ON move.id = membership.move_id
         WHERE move.repertoire_id = ? AND move.role = 'learner' AND move.active = 1
+      ), queue_answers AS (
+        SELECT queue.id, queue.session_id, queue.source_line_id, queue.expected_move_id, queue.sequence,
+          MIN(CASE WHEN event.correct = 1 AND event.assisted = 0 THEN 1 ELSE 0 END) AS unaided
+        FROM opening_review_queue queue LEFT JOIN opening_review_events event ON event.queue_entry_id = queue.id
+        WHERE queue.presentation_kind = 'scheduled'
+        GROUP BY queue.id
       ), runs AS (
         SELECT queue.source_line_id AS line_id, session.id, session.completed_at,
-          MIN(CASE WHEN event.correct = 1 AND event.assisted = 0 THEN 1 ELSE 0 END) AS unaided
+          MIN(queue.unaided) AS unaided
         FROM opening_review_sessions session
-        JOIN opening_review_queue queue ON queue.session_id = session.id AND queue.presentation_kind = 'scheduled'
+        JOIN queue_answers queue ON queue.session_id = session.id
         JOIN planned ON planned.line_id = queue.source_line_id AND planned.sequence = queue.sequence
           AND planned.move_id = queue.expected_move_id
-        LEFT JOIN opening_review_events event ON event.queue_entry_id = queue.id
-        WHERE session.profile_id = ? AND session.repertoire_id = ? AND session.status = 'completed'
+        WHERE session.profile_id = ? AND session.repertoire_id = ? AND session.status = 'completed' AND session.focus_move_id IS NULL
         GROUP BY session.id, queue.source_line_id
         HAVING COUNT(*) = MAX(planned.decisions) AND COUNT(*) = MAX(session.initial_item_count)
       ), recent AS (

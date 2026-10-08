@@ -224,6 +224,34 @@ describe("vertical slice", () => {
     expect(exercise).toMatchObject({ kind: "complete", positions: 2, firstTryRemembered: 2 });
   });
 
+  it("counts first encounters and includes corrected full runs in the recall denominator", async () => {
+    const app = await buildApp(config(false, false)); apps.push(app);
+    const imported = await app.inject({ method: "POST", url: "/api/v1/openings/imports/pgn", payload: {
+      pgn: '[Event "First encounter recall"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. d3 *', learnerColor: "white", ownershipConfirmed: true,
+    } });
+    const repertoireId = imported.json().repertoireIds[0];
+    const detail = (await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}` })).json();
+    const lineId = detail.chapters[0].lines[0].id;
+    let exercise = (await app.inject({ method: "POST", url: `/api/v1/openings/repertoires/${repertoireId}/lines/${lineId}/reviews/start` })).json();
+    for (let attempt = 0; exercise.kind === "exercise" && attempt < 10; attempt++) {
+      const base = `/api/v1/openings/reviews/${exercise.sessionId}`;
+      if (attempt === 0) {
+        await app.inject({ method: "POST", url: `${base}/mistakes`, payload: { moveUci: "d2d4", queueEntryId: exercise.queueEntryId } });
+        await app.inject({ method: "POST", url: `${base}/mistakes`, payload: { moveUci: "d2d3", queueEntryId: exercise.queueEntryId } });
+      }
+      expect((await app.inject({ method: "POST", url: `${base}/move`, payload: {
+        moveUci: exercise.introduction.repertoireMove.moveUci, queueEntryId: exercise.queueEntryId,
+      } })).statusCode).toBe(200);
+      exercise = (await app.inject({ method: "POST", url: `${base}/continue`, payload: { queueEntryId: exercise.queueEntryId } })).json();
+    }
+    const selection = (await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}/practice-selection` })).json();
+    expect(selection.lines[0]).toMatchObject({ recall: { accuracyPercent: 75, recallAttempts: 4, testedDecisions: 4 },
+      fullRuns: { completed: 1, unaided: 0, accuracyPercent: 0 } });
+    const local = (await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}/coverage?local=true` })).json();
+    expect(local.positions.flatMap((position: any) => position.branches).find((branch: any) => branch.moveSan === "e5"))
+      .toMatchObject({ recallPercent: 100, recallAttempts: 1, status: "needs_practice" });
+  });
+
   it("does not relabel a successful later retry as first-try recall", async () => {
     const app = await buildApp(config(false, false)); apps.push(app);
     const imported = await app.inject({ method: "POST", url: "/api/v1/openings/imports/pgn", payload: {
@@ -1254,7 +1282,7 @@ describe("vertical slice", () => {
       ratingGroup: 1600,
       positionsChecked: expect.any(Number),
       positionsAvailable: expect.any(Number),
-      coveragePercent: expect.any(Number),
+      coveragePercent: null, // A 100-game sample is too small for the headline estimate.
       gaps: expect.arrayContaining([expect.objectContaining({ moveUci: "e7e5", frequencyPercent: 80 })]),
     });
     const callsAfterFirst = explorerCalls;
@@ -1263,7 +1291,139 @@ describe("vertical slice", () => {
       url: "/api/v1/openings/repertoires/repertoire.white-e4-principled/coverage?rating=1600",
     });
     expect(second.statusCode).toBe(200);
-    expect(explorerCalls).toBe(callsAfterFirst);
+    expect(explorerCalls - callsAfterFirst).toBeLessThanOrEqual(2);
+    expect(second.json().evidence.freshPositions + second.json().evidence.smallSamplePositions)
+      .toBeGreaterThanOrEqual(first.json().evidence.smallSamplePositions);
+  });
+
+  it("separates missing responses, recall and deliberately bounded preparation", async () => {
+    globalThis.fetch = (async input => {
+      const fen = new URL(String(input)).searchParams.get("fen")!;
+      const move = new Chess(fen).moves({ verbose: true }).find(move => move.san === "e5")!;
+      return new Response(JSON.stringify({ white: 600, draws: 100, black: 300,
+        moves: [{ uci: `${move.from}${move.to}`, san: move.san, white: 600, draws: 100, black: 300 }] }), { status: 200 });
+    }) as typeof fetch;
+    const appConfig = config(false, false); appConfig.lichessApiToken = "fixture-token";
+    const app = await buildApp(appConfig); apps.push(app);
+    const imported = await app.inject({ method: "POST", url: "/api/v1/openings/imports/pgn", payload: {
+      pgn: '[Event "Response absent"]\n[Result "*"]\n\n1. e4 e5 *', learnerColor: "white", name: "Response absent",
+      sourceType: "self_authored", sourceTitle: "Fixture", ownershipConfirmed: true,
+    } });
+    const repertoireId = imported.json().repertoireIds[0];
+    const path = `/api/v1/openings/repertoires/${repertoireId}/coverage`;
+    const first = await app.inject({ method: "GET", url: `${path}?throughMove=2` });
+    expect(first.json()).toMatchObject({ coveragePercent: 0, model: { preparedPercent: 0, missingPercent: 100, unknownPercent: 0 },
+      gaps: [expect.objectContaining({ moveSan: "e5", status: "missing_response", responseSan: null })] });
+    const position = first.json().positions[0];
+    expect((await app.inject({ method: "PATCH", url: `${path}/boundary`, payload: { positionId: position.positionId, preparedEnough: true } })).statusCode).toBe(200);
+    const bounded = await app.inject({ method: "GET", url: `${path}?local=true` });
+    expect(bounded.json()).toMatchObject({ gaps: [], model: { preparedPercent: 100 }, positions: [expect.objectContaining({ boundary: true })] });
+    expect((await app.inject({ method: "PATCH", url: `${path}/boundary`, payload: { positionId: "unknown", preparedEnough: true } })).statusCode).toBe(400);
+    await app.inject({ method: "PATCH", url: `${path}/boundary`, payload: { positionId: position.positionId, preparedEnough: false } });
+    expect((await app.inject({ method: "GET", url: `${path}?local=true` })).json().model.missingPercent).toBe(100);
+    const detail = (await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}` })).json();
+    expect(detail.chapters[0].lines[0].moves).toHaveLength(2);
+    expect((await app.inject({ method: "GET", url: `${path}?throughMove=31` })).statusCode).toBe(400);
+    expect((await app.inject({ method: "GET", url: `${path}?lineId=unknown` })).statusCode).toBe(400);
+  });
+
+  it("weights paths by opponent probabilities and does not confuse saved content with recall", async () => {
+    globalThis.fetch = (async input => {
+      const chess = new Chess(new URL(String(input)).searchParams.get("fen")!);
+      const first = Number(chess.fen().split(" ")[5]) === 1;
+      const sans = first ? ["e5", "c5"] : ["Nc6", "d6"];
+      return new Response(JSON.stringify({ white: 600, draws: 100, black: 300,
+        moves: sans.map(san => { const move = chess.moves({ verbose: true }).find(move => move.san === san)!;
+          return { uci: `${move.from}${move.to}`, san, white: 300, draws: 50, black: 150 }; }) }), { status: 200 });
+    }) as typeof fetch;
+    const appConfig = config(false, false); appConfig.lichessApiToken = "fixture-token";
+    const app = await buildApp(appConfig); apps.push(app);
+    const imported = await app.inject({ method: "POST", url: "/api/v1/openings/imports/pgn", payload: {
+      pgn: '[Event "Weighted coverage"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bc4 *', learnerColor: "white", name: "Weighted coverage",
+      sourceType: "self_authored", sourceTitle: "Fixture", ownershipConfirmed: true,
+    } });
+    const repertoireId = imported.json().repertoireIds[0];
+    const result = (await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}/coverage?throughMove=3` })).json();
+    expect(result).toMatchObject({ model: { preparedPercent: 25, missingPercent: 75 },
+      evidence: { totalPositions: 2, freshPositions: 2, remainingPositions: 0 } });
+    expect(result.gaps).toEqual(expect.arrayContaining([expect.objectContaining({ moveSan: "Nc6", reachPercent: 25,
+      status: "needs_practice", responseSan: "Bc4", recallPercent: null })]));
+    const selection = (await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}/practice-selection` })).json();
+    expect(selection.lines[0].frequency.pathPercent).toBeNull(); // Practical frequencies are off by default.
+    await app.inject({ method: "PATCH", url: "/api/v1/openings/preferences", payload: { ratingGroup: 1600, platform: "lichess", useExplorer: true } });
+    const enabled = (await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}/practice-selection` })).json();
+    expect(enabled.lines[0].frequency).toMatchObject({ percent: 50, pathPercent: 25 });
+    const target = result.gaps.find((gap: any) => gap.moveSan === "Nc6");
+    const focused = await app.inject({ method: "POST", url: `/api/v1/openings/repertoires/${repertoireId}/moves/${target.responseMoveId}/reviews/start` });
+    expect(focused.statusCode).toBe(200);
+    expect(focused.json()).toMatchObject({ totalPositions: 1, lineRun: null, introduction: { repertoireMove: { moveUci: "f1c4" } } });
+    const expected = new Chess(); for (const san of ["e4", "e5", "Nf3", "Nc6"]) expected.move(san);
+    expect(focused.json().fenToMove).toBe(expected.fen());
+    const answer = await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${focused.json().sessionId}/move`,
+      payload: { queueEntryId: focused.json().queueEntryId, moveUci: "f1c4" } });
+    expect(answer.json().outcome).toBe("remembered");
+    expect((await app.inject({ method: "POST", url: `/api/v1/openings/reviews/${focused.json().sessionId}/continue`,
+      payload: { queueEntryId: focused.json().queueEntryId } })).json()).toMatchObject({ kind: "complete", firstTryRemembered: 1 });
+    const afterFocus = (await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}/practice-selection` })).json();
+    expect(afterFocus.lines[0]).toMatchObject({ recall: { testedDecisions: 1, recallAttempts: 1 }, fullRuns: { completed: 0 } });
+    expect((await app.inject({ method: "POST", url: `/api/v1/openings/repertoires/${repertoireId}/moves/unknown/reviews/start` })).statusCode).toBe(400);
+    await app.inject({ method: "POST", url: "/api/v1/imports/pgn", payload: {
+      playerName: "Coverage Learner", pgn: '[Event "Memory gap"]\n[White "Coverage Learner"]\n[Black "Opponent one"]\n[Result "*"]\n\n1. e4 e5 2. Nc3 *\n\n[Event "Content gap"]\n[White "Coverage Learner"]\n[Black "Opponent two"]\n[Result "*"]\n\n1. e4 c5 2. Nf3 *',
+    } });
+    const personal = (await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}/coverage?throughMove=3&local=true` })).json();
+    expect(personal.personal).toMatchObject({ gamesChecked: 2, gamesMatched: 2, playerDeviations: 1, opponentDeviations: 1 });
+    await app.inject({ method: "POST", url: "/api/v1/imports/pgn", payload: {
+      playerName: "Coverage Learner", pgn: '[Event "Unobserved globally"]\n[White "Coverage Learner"]\n[Black "Opponent three"]\n[Result "*"]\n\n1. e4 a6 2. Nf3 *',
+    } });
+    const uncached = (await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}/coverage?throughMove=3&local=true` })).json();
+    expect(uncached.gaps).toContainEqual(expect.objectContaining({ moveSan: "a6", games: 0, status: "unknown",
+      preparation: expect.objectContaining({ personal: expect.objectContaining({ occurrences: 1 }), frequency: expect.objectContaining({ status: "unknown", percent: null }) }) }));
+    expect(uncached.model).toMatchObject({ preparedPercent: 25, missingPercent: 75 });
+  });
+
+  it("resumes coverage beyond 32 positions in bounded batches and keeps paused content", async () => {
+    const games: string[] = [];
+    const start = new Chess(); start.move("e4");
+    for (const reply of start.moves({ verbose: true })) for (const whiteMove of ["Nc3", "Nf3"]) {
+      const chess = new Chess(); chess.move("e4"); chess.move(reply.san); chess.move(whiteMove);
+      chess.setHeader("Event", "Wide repertoire"); chess.setHeader("ChapterName", `${reply.san} ${whiteMove}`); games.push(chess.pgn());
+    }
+    let calls = 0;
+    globalThis.fetch = (async input => {
+      calls++; const chess = new Chess(new URL(String(input)).searchParams.get("fen")!);
+      const moves = chess.moves({ verbose: true });
+      return new Response(JSON.stringify({ white: moves.length * 100, draws: 0, black: 0,
+        moves: moves.map(move => ({ uci: `${move.from}${move.to}${move.promotion ?? ""}`, san: move.san,
+          white: 100, draws: 0, black: 0 })) }), { status: 200 });
+    }) as typeof fetch;
+    const appConfig = config(false, false); appConfig.lichessApiToken = "fixture-token";
+    const app = await buildApp(appConfig); apps.push(app);
+    const imported = await app.inject({ method: "POST", url: "/api/v1/openings/imports/pgn", payload: {
+      pgn: games.join("\n\n"), learnerColor: "white", name: "Wide repertoire", sourceType: "self_authored", sourceTitle: "Fixture", ownershipConfirmed: true,
+    } });
+    expect(imported.statusCode, imported.body).toBe(200);
+    const repertoireId = imported.json().repertoireIds[0];
+    const path = `/api/v1/openings/repertoires/${repertoireId}/coverage`;
+    let offset = 0; let result: any;
+    for (let batch = 0; batch < 30; batch++) {
+      const before = calls;
+      const response = await app.inject({ method: "GET", url: `${path}?offset=${offset}` });
+      expect(response.statusCode).toBe(200); result = response.json();
+      expect(calls - before).toBeLessThanOrEqual(2);
+      if (result.evidence.nextOffset === null) break;
+      expect(result.evidence.nextOffset).toBeGreaterThan(offset); offset = result.evidence.nextOffset;
+    }
+    expect(result.evidence).toMatchObject({ remainingPositions: 0, nextOffset: null });
+    expect(result.evidence.totalPositions).toBeGreaterThan(32);
+    const before = calls;
+    const local = (await app.inject({ method: "GET", url: `${path}?local=true` })).json();
+    expect(calls).toBe(before);
+    const detail = (await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}` })).json();
+    const ids = detail.chapters.flatMap((chapter: any) => chapter.lines.map((line: any) => line.id));
+    await app.inject({ method: "PATCH", url: `/api/v1/openings/repertoires/${repertoireId}/practice-selection`, payload: { lineIds: ids, enabled: false } });
+    const paused = (await app.inject({ method: "GET", url: `${path}?local=true` })).json();
+    expect(paused.model).toEqual(local.model);
+    expect(paused.positions.flatMap((position: any) => position.branches).filter((branch: any) => branch.responseSan).every((branch: any) => !branch.practiceEnabled)).toBe(true);
   });
 
   it("checks for replies after a pasted repertoire line ends", async () => {

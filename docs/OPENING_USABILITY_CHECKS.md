@@ -51,6 +51,19 @@ No retention or Chessbook-parity claim should be based solely on passing tests.
 
 ## Operational gate
 
+### Coverage evidence gate
+
+- Save a line ending on an opponent move: it must not count as a saved response.
+- Check two sequential 50% opponent choices: the full path estimate is 25%, not 50%.
+- Switch intended own moves: do not add alternative own responses as extra probability.
+- Keep missing, small and old samples unknown; show dates and counts, not false rarity.
+- Continue a repertoire with more than 32 positions; never repeat only the first batch.
+- Expand the branch map on desktop and mobile; shared positions appear once and no horizontal overflow occurs.
+- Mark a stopping point, reload and undo it; moves, notes, practice participation and review history are unchanged.
+- Wrong move followed by correction and an immediate repeat is one failed first encounter, not extra remembered encounters.
+- A completed line with corrections counts as completed but not unaided; partial runs still do not count.
+- Inspect personal game evidence from both pasted PGNs and sync. "Left repertoire" must not say "chess blunder".
+
 Run `npm run check`, `npm run test:e2e` and the container smoke script against a
 disposable container/volume only. Check a fresh database and restart persistence.
 Never run reset/deletion smoke tests against the live installation. Database

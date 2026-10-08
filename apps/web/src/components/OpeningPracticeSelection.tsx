@@ -37,7 +37,7 @@ export function OpeningPracticeSelection({ detail, disabled, onOpenLine, onChang
   const lines = (data?.lines ?? []).filter(evidence => !navigation.lines.get(evidence.lineId)?.line.archived
     && (filter === "all" || evidence.frequency.band === filter));
   if (sort === "frequency") lines.sort((a, b) => Number(a.frequency.band === "unknown") - Number(b.frequency.band === "unknown")
-    || (b.frequency.percent ?? -1) - (a.frequency.percent ?? -1));
+    || (b.frequency.pathPercent ?? b.frequency.percent ?? -1) - (a.frequency.pathPercent ?? a.frequency.percent ?? -1));
   if (sort === "recall") lines.sort((a, b) => (a.recall?.accuracyPercent ?? -1) - (b.recall?.accuracyPercent ?? -1));
   if (sort === "due") lines.sort((a, b) => (b.recall?.due ?? 0) - (a.recall?.due ?? 0));
   const activeCount = detail.chapters.flatMap(chapter => chapter.lines).filter(line => !line.archived).length;
@@ -84,7 +84,7 @@ export function OpeningPracticeSelection({ detail, disabled, onOpenLine, onChang
     {error && <div role="alert"><p className="error">{error}</p><button className="secondary" disabled={busy} onClick={() => setReload(value => value + 1)}>Reload selection</button></div>}
     {data && <>
       <div className="opening-selection-filters">
-        <label>Opponent-reply frequency<select value={filter} onChange={event => setFilter(event.target.value as typeof filter)}>
+        <label>Least-common reply in line<select aria-label="Opponent-reply frequency" value={filter} onChange={event => setFilter(event.target.value as typeof filter)}>
           <option value="all">All lines</option><option value="common">Common · 5% or more</option>
           <option value="uncommon">Uncommon · 1–5%</option><option value="rare">Rare · below 1%</option><option value="unknown">Unknown</option>
         </select></label>
@@ -95,7 +95,8 @@ export function OpeningPracticeSelection({ detail, disabled, onOpenLine, onChang
       </div>
       <details className="opening-frequency-help"><summary>What do frequency and recall mean?</summary>
         <p>Frequency uses the least-common opponent reply in each saved line, at its own position in the {data.ratingGroup} Lichess band. It is not the chance of reaching the entire line. All opponent replies need a fresh sample of at least 200 games and 5 observations of the reply; otherwise the line is Unknown. Filters only change this list, not practice participation.</p>
-        <p>Move recall is unaided accuracy from up to 20 recent answers per saved move; shared moves contribute to multiple lines. Full-line recall counts up to 20 completed exact-line runs matching the current moves. Partial, unfinished and guided study sessions do not count. Hints, shown answers and corrected mistakes are not unaided recall.</p>
+        <p>Path likelihood multiplies the conditional opponent-reply frequencies, assuming you play the saved moves, from this line's starting position. It is an estimate, not a forecast. Unknown samples remain unknown.</p>
+        <p>Move recall uses the first answer from up to 20 recent scheduled encounters per saved move; immediate retries and lapse repeats do not inflate it. Shared moves contribute to multiple lines. Full-line recall counts up to 20 completed exact-line runs matching the current moves. Partial, unfinished and guided study sessions do not count. Hints, shown answers and corrected mistakes are not unaided recall.</p>
       </details>
       <div className="opening-selection-actions">
         <button className="secondary" disabled={locked || !lines.some(line => line.enabled)} onClick={() => void run(lines.map(line => line.lineId), false)}>Pause filtered lines ({lines.length})</button>
@@ -118,6 +119,7 @@ export function OpeningPracticeSelection({ detail, disabled, onOpenLine, onChang
             <label><input type="checkbox" checked={evidence.enabled} disabled={locked} onChange={event => void run([evidence.lineId], event.target.checked)} aria-label={`Practise ${reference.chapterTitle} · ${title}`} />Practise</label></div>
           <small>{evidence.frequency.band === "unknown" ? `Frequency unknown · ${evidence.frequency.knownReplies}/${evidence.frequency.totalReplies} replies sampled`
             : `${evidence.frequency.band} · ${evidence.frequency.moveLabel}: ${evidence.frequency.percent}% at that position · ${evidence.frequency.sampleGames} sampled games`}</small>
+          <p>{evidence.frequency.pathPercent == null ? "Path likelihood: unknown" : `Estimated opponent path likelihood: ${evidence.frequency.pathPercent}% · assumes your saved moves`}</p>
           <p>{recall?.accuracyPercent === null || !recall ? "Move recall: not tested yet" : `Move recall: ${recall.accuracyPercent}% unaided · ${recall.recallAttempts ?? 0} recent answers`}</p>
           <small>{recall?.testedDecisions ?? 0}/{recall?.decisions ?? reference.line.learnerDecisionCount} moves tested · shared moves included</small><br />
           <small>{recall?.mastered ?? 0}/{recall?.decisions ?? reference.line.learnerDecisionCount} moves secure · {recall?.due ?? 0} due

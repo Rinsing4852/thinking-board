@@ -109,6 +109,34 @@ backup to preserve those settings and results.
 Changing participation ends stale practice sessions, preserving recorded results
 and due dates. If every line is paused, include a line or practise one manually.
 
+**Preparation and recall** separates missing content from memory gaps. Choose an
+intended line and "Prepare through my move" (1–30). The path estimate follows your
+selected line's own moves; where it supplies no choice, it uses the first saved
+primary response. It multiplies conditional Lichess opponent frequencies and stops
+at the first gap, chosen depth or explicit **Prepared enough — stop here** boundary.
+Boundaries are reversible, shared by transposed positions within the repertoire,
+and do not delete moves, pause practice or prove recall. All saved opponent branches
+are considered under that own-move policy; alternative own responses are not added
+together. Estimates are conditional on the starting position, not forecasts.
+
+Saved responses/stopping points, missing responses, idea-only preparation,
+deliberate omissions and unknown evidence stay separate. Small (under 200 position
+games or 5 observations of a reply), missing and stale samples remain uncertain.
+**Continue scan** checks two positions per request, including deeper positions; the
+display reports fresh, old, small and missing evidence. Refresh works in batches too.
+Unknown data is never counted as 0% frequency or full coverage.
+
+**Best next improvements** distinguishes adding a response from practising one you
+already saved, using recent personal encounters, response mistakes, estimated
+exposure and weak recall. **Practise response** starts at that decision; it is not
+counted as a full-line run. **Explore branches and stopping points** shows each shared
+position once, with reply frequency at that position, sampled date, response, recall
+and practice participation. Three recent first-try encounters with at least 80%
+unaided recall are labelled "recall tested", not guaranteed mastery. Recent-game
+evidence includes pasted and synced games; departures are not automatically chess
+mistakes. Preparation boundaries and review history require a database backup;
+PGN exports do not contain them. Local response/recall evidence works offline.
+
 Frequency filters show Common (at least 5%), Uncommon (1% to below 5%), Rare
 (below 1%) or Unknown. This is the least-common opponent reply in the saved line,
 at that reply's position in the chosen Lichess rating band—not the probability

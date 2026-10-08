@@ -28,7 +28,7 @@ interface OpeningHomeCockpitProps {
 
 function frequencyLabel(percent: number): string {
   if (percent <= 0) return "rarely played";
-  return `about 1 in ${Math.max(1, Math.round(100 / percent))} games`;
+  return `about 1 in ${Math.max(1, Math.round(100 / percent))} replies here`;
 }
 
 export function OpeningHomeCockpit({
@@ -49,7 +49,9 @@ export function OpeningHomeCockpit({
   onBuild,
   onImport,
 }: OpeningHomeCockpitProps) {
-  const gap = coverage?.gaps.find(candidate => candidate.preparation?.decision?.choice !== "unprepared"
+  const gap = coverage?.gaps.find(candidate => candidate.status !== "needs_practice"
+    && (candidate.status !== "unknown" || (candidate.preparation?.personal.occurrences ?? 0) > 0)
+    && candidate.status !== "unprepared" && candidate.preparation?.decision?.choice !== "unprepared"
     && (!candidate.preparation || ["high", "medium"].includes(candidate.preparation.priority))) ?? null;
   const weakLine = progress?.weakestLines[0] ?? null;
   const repertoire = recommendation?.repertoire ?? null;
@@ -78,7 +80,7 @@ export function OpeningHomeCockpit({
           <span>
             <span className="eyebrow">Reply worth considering</span>
             <strong>{gap.moveSan} is not covered yet</strong>
-            <small>{gap.frequencyPercent}% at this position · {frequencyLabel(gap.frequencyPercent)}</small>
+            <small>{gap.games > 0 ? `${gap.frequencyPercent}% at this position · ${frequencyLabel(gap.frequencyPercent)}` : "Frequency unknown · seen in your imported games"}</small>
           </span>
           <button onClick={() => onOpenGap(gap)}>Inspect this reply</button>
         </div>
@@ -148,7 +150,7 @@ export function OpeningHomeCockpit({
           )}
           {!libraryEmpty && preferences?.useExplorer && (
             <button className="opening-home-action" disabled={coverageLoading || !gap} onClick={() => gap && onOpenGap(gap)}>
-              <span><b>{coverageLoading ? "Checking common replies…" : gap ? `Consider ${gap.moveSan}` : "No priority reply to add"}</b><small>{gap ? `${gap.lineTitle} · ${frequencyLabel(gap.frequencyPercent)}` : "You do not need a line for every legal move. Inspect uncovered replies in the line explorer before deciding."}</small></span>
+              <span><b>{coverageLoading ? "Checking common replies…" : gap ? `Consider ${gap.moveSan}` : "No priority reply to add"}</b><small>{gap ? `${gap.lineTitle} · ${gap.games > 0 ? frequencyLabel(gap.frequencyPercent) : "frequency unknown"}` : "You do not need a line for every legal move. Inspect uncovered replies in the line explorer before deciding."}</small></span>
               <strong>{gap ? "Consider response →" : "—"}</strong>
             </button>
           )}

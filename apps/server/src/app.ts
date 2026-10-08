@@ -93,7 +93,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   const openingPreparation = new OpeningPreparationService(database.connection, openingPreferences, openingExplorer,
     openingAnalysis, config.acceptableToleranceCp);
   const openingGames = new OpeningGameService(database.connection, openingPreparation);
-  const openingCoverage = new OpeningCoverageService(database.connection, config.lichessApiToken, openingExplorer, openingPreparation);
+  const openingCoverage = new OpeningCoverageService(database.connection, config.lichessApiToken, openingExplorer, openingPreparation, openingGames);
   registerOpeningPreparationRoutes(app, database.connection, openingGames, openingPreparation);
   const analysis = new AnalysisService(database.connection, config);
   analysis.backfillWhatChanged();
@@ -341,10 +341,27 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   app.get("/api/v1/openings/repertoires/:repertoireId/coverage", async (request, reply) => {
     try {
       const { repertoireId } = request.params as { repertoireId: string };
-      const { rating } = request.query as { rating?: string };
-      return await openingCoverage.coverage(repertoireId, rating ? Number(rating) : 1600);
+      const { rating, offset, throughMove, lineId, refresh, local } = request.query as {
+        rating?: string; offset?: string; throughMove?: string; lineId?: string; refresh?: string; local?: string;
+      };
+      return await openingCoverage.coverage(repertoireId, rating ? Number(rating) : 1600, {
+        ...(offset === undefined ? {} : { offset: Number(offset) }),
+        ...(throughMove === undefined ? {} : { throughMove: Number(throughMove) }),
+        ...(lineId === undefined ? {} : { lineId }), refresh: refresh === "true", local: local === "true",
+      });
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not check opening coverage" });
+    }
+  });
+
+  app.patch("/api/v1/openings/repertoires/:repertoireId/coverage/boundary", async (request, reply) => {
+    try {
+      const { repertoireId } = request.params as { repertoireId: string };
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      if (typeof body.preparedEnough !== "boolean") throw new Error("Choose whether preparation stops here");
+      return openingCoverage.boundary(repertoireId, requiredString(body.positionId, "Position"), body.preparedEnough);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not update preparation boundary" });
     }
   });
 

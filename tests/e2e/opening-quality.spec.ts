@@ -780,6 +780,37 @@ test("keeps the board when changing move order and protects shared comments whil
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
 });
 
+test("shows honest coverage, distinct recall and reversible stopping points without altering saved lines", async ({ page }, testInfo) => {
+  const id = await openNavigationStudy(page, `Coverage map ${testInfo.project.name}`, "1. e4 e5 2. Nf3 Nc6 3. Bc4 *");
+  const url = `/api/v1/openings/repertoires/${id}`;
+  const before = await (await page.request.get(url)).json();
+  await page.getByText("Coverage and repertoire settings", { exact: true }).click();
+  const panel = page.getByRole("region", { name: "Repertoire coverage and gaps" });
+  await panel.getByRole("button", { name: "Check coverage", exact: true }).click();
+  await expect(panel.getByText("Unknown: 100%", { exact: true })).toBeVisible();
+  await expect(panel.getByText(/distinct saved responses tested/)).toContainText("0/2");
+  await expect(panel.getByRole("button", { name: "Practise response", exact: true })).toHaveCount(2);
+  await panel.getByText(/Explore branches and stopping points/).click();
+  await panel.getByRole("combobox", { name: "Show branches" }).selectOption("all");
+  const node = panel.locator(".opening-coverage-node").first();
+  await node.locator("summary").click();
+  await expect(node.getByText("Reply frequency unknown", { exact: false })).toBeVisible();
+  await node.getByRole("button", { name: "Prepared enough — stop here" }).click();
+  await expect(panel.getByText("Saved responses / stopping points: 100%", { exact: true })).toBeVisible();
+  await node.getByRole("button", { name: "Include this position again" }).click();
+  await expect(panel.getByText("Unknown: 100%", { exact: true })).toBeVisible();
+  await panel.getByRole("spinbutton", { name: "Prepare through my move" }).fill("2");
+  await panel.getByRole("button", { name: "Check coverage", exact: true }).click();
+  await expect(panel.getByRole("heading", { name: "Estimated prepared paths through your move 2" })).toBeVisible();
+  expect((await (await page.request.get(url)).json()).chapters).toEqual(before.chapters);
+  await page.screenshot({ path: testInfo.outputPath("coverage-map.png"), fullPage: true });
+  // Other journeys can leave a paused session; deliberately replace it here.
+  page.once("dialog", dialog => dialog.accept());
+  await panel.getByRole("button", { name: "Practise response", exact: true }).first().click();
+  await expect(page.getByText("Step 1 of 1", { exact: true })).toBeVisible();
+  await expect(page.getByRole("grid", { name: "Chess position" }).getByRole("gridcell", { name: "e4 white pawn" })).toBeVisible();
+});
+
 test("discards an older coverage request when the selected rating changes", async ({ page }, testInfo) => {
   await page.route("**/api/v1/openings/preferences", async route => {
     const response = await route.fetch();
@@ -795,9 +826,11 @@ test("discards an older coverage request when the selected rating changes", asyn
   await page.route("**/api/v1/openings/repertoires/*/coverage?rating=*", async route => {
     const url = new URL(route.request().url());
     const ratingGroup = Number(url.searchParams.get("rating"));
-    const result = { repertoireId: url.pathname.split("/")[5], ratingGroup, speeds: ["blitz", "rapid", "classical"],
+    const actual = await (await route.fetch()).json();
+    const result = { ...actual, repertoireId: url.pathname.split("/")[5], ratingGroup, speeds: ["blitz", "rapid", "classical"],
       positionsChecked: 1, positionsAvailable: 1, coveragePercent: ratingGroup === 2000 ? 20 : 80,
-      coveredGames: 200, totalGames: 1000, gaps: [], incomplete: false, message: "Test coverage sample." };
+      coveredGames: 200, totalGames: 1000, gaps: [], incomplete: false, message: "Test coverage sample.",
+      model: { ...actual.model, preparedPercent: ratingGroup === 2000 ? 20 : 80, missingPercent: ratingGroup === 2000 ? 80 : 20, unknownPercent: 0 } };
     if (manual && ratingGroup !== 2000) {
       delayedStarted(); await released;
       try { await route.fulfill({ json: result }); } catch { /* An aborted browser request may already be gone. */ }
@@ -807,16 +840,16 @@ test("discards an older coverage request when the selected rating changes", asyn
   await openNavigationStudy(page, `Coverage navigation ${testInfo.project.name}`, "1. e4 e5 2. Nf3 Nc6 3. Bb5 *");
   manual = true;
   await page.getByText("Coverage and repertoire settings", { exact: true }).click();
-  await page.getByRole("button", { name: /^(Check|Refresh) coverage$/ }).click();
+  await page.getByRole("button", { name: /^(Check|Recheck) coverage$/ }).click();
   await started;
-  const failed = page.waitForEvent("requestfailed", { predicate: request => request.url().includes("/coverage?rating=") && !request.url().endsWith("rating=2000") });
   await page.getByRole("combobox", { name: "Explorer rating", exact: true }).selectOption("2000");
   await page.getByRole("button", { name: "Check coverage", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "20% of replies covered", exact: true })).toBeVisible();
+  await expect(page.getByText("Saved responses / stopping points: 20%", { exact: true })).toBeVisible();
   releaseDelayed(); await finished;
-  await failed;
-  await expect(page.getByRole("heading", { name: "20% of replies covered", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "80% of replies covered", exact: true })).toBeHidden();
+  // WebKit may report a cancelled intercepted request as finished rather than
+  // requestfailed. The requirement is that its obsolete data never replaces 2000.
+  await expect(page.getByText("Saved responses / stopping points: 20%", { exact: true })).toBeVisible();
+  await expect(page.getByText("Saved responses / stopping points: 80%", { exact: true })).toBeHidden();
 });
 
 test("pauses branches without deleting them and distinguishes move recall from full-line runs", async ({ page }, testInfo) => {

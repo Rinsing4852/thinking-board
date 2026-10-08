@@ -233,14 +233,15 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
     }
   };
 
-  const startLinePractice = async (repertoireId: string, lineId: string): Promise<void> => {
+  const startLinePractice = async (repertoireId: string, lineId: string, moveId?: string): Promise<void> => {
     if (activeReview && reviewPaused && !window.confirm("Starting this line will end the paused memory session. Continue?")) return;
     if (step && pausedLessonPhase && !window.confirm("Starting this line will end the paused guided line. Continue?")) return;
     if (!beginSubmission()) return;
     setError("");
     try {
       const review = await post<OpeningReviewActiveState>(
-        `/api/v1/openings/repertoires/${repertoireId}/lines/${lineId}/reviews/start`,
+        moveId ? `/api/v1/openings/repertoires/${repertoireId}/moves/${moveId}/reviews/start`
+          : `/api/v1/openings/repertoires/${repertoireId}/lines/${lineId}/reviews/start`,
       );
       setStep(null);
       setPausedLessonPhase(null);
@@ -653,7 +654,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
             setWorkspaceDetail(null); setWorkspaceLineId(null); setWorkspaceGap(null);
             window.history.replaceState(null, "", "#openings");
           }}
-          onPractice={(lineId) => void startLinePractice(workspaceDetail.repertoire.id, lineId)}
+          onPractice={(lineId, moveId) => void startLinePractice(workspaceDetail.repertoire.id, lineId, moveId)}
           onDetailChanged={updated => {
             if (openingGraphKey(updated.chapters) !== openingGraphKey(workspaceDetail.chapters)) clearCoverageSpotlight();
             setWorkspaceDetail(updated);

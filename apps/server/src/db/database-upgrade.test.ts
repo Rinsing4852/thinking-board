@@ -73,7 +73,8 @@ describe("opening database upgrades", () => {
           .toEqual({ comment: "My centre reminder", idea_hint: null });
         expect(database.connection.prepare("SELECT idea_hint FROM opening_review_queue WHERE id = 'legacy-queue'").pluck().get()).toBe(0);
         expect(database.connection.pragma("foreign_key_check")).toEqual([]);
-        expect(database.connection.prepare("SELECT MAX(version) FROM schema_migrations").pluck().get()).toBe(31);
+        expect(database.connection.prepare("SELECT MAX(version) FROM schema_migrations").pluck().get()).toBe(32);
+        expect(database.connection.prepare("SELECT COUNT(*) FROM opening_coverage_boundaries").pluck().get()).toBe(0);
         expect(database.connection.prepare("SELECT summary, board_annotations_json FROM opening_move_annotations WHERE move_id = 'legacy-move'").get())
           .toEqual({ summary: "Claim the centre", board_annotations_json: "[]" });
         // Historical position evidence must not falsely prove every alternative.

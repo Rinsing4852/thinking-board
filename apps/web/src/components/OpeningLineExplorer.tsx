@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Chess } from "chess.js";
 import { createRequestId } from "../request-id";
 
@@ -31,6 +31,8 @@ import { OpeningExplanation } from "./OpeningExplanation";
 import { OpeningAnalysisSandbox, type SandboxMove } from "./OpeningAnalysisSandbox";
 import { useOpeningBranchDraft } from "../use-opening-branch-draft";
 
+const OpeningCoveragePanel = lazy(() => import("./OpeningCoveragePanel").then(module => ({ default: module.OpeningCoveragePanel })));
+
 interface OpeningLineExplorerProps {
   detail: OpeningRepertoireDetailResponse;
   startingLineId?: string | null;
@@ -42,7 +44,7 @@ interface OpeningLineExplorerProps {
   lineProgress: OpeningLineProgress[];
   busy?: boolean;
   onBack: () => void;
-  onPractice: (lineId: string) => void;
+  onPractice: (lineId: string, moveId?: string) => void;
   onDetailChanged: (detail: OpeningRepertoireDetailResponse) => void;
   onRepertoireDeleted: (repertoireId: string) => void;
   onPracticeSelectionChanged: () => Promise<void>;
@@ -118,6 +120,8 @@ export function OpeningLineExplorer({
   const [selectionBusy, setSelectionBusy] = useState(false);
   const [coverage, setCoverage] = useState<OpeningCoverageResponse | null>(initialCoverage);
   const [coverageRating, setCoverageRating] = useState(preferredRatingGroup);
+  const [coverageDepth, setCoverageDepth] = useState(initialCoverage?.model?.throughMove ?? 10);
+  const [coverageRoute, setCoverageRoute] = useState(initialCoverage?.model?.routeLineId ?? initial?.line.id ?? "");
   const [coverageBusy, setCoverageBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<"line" | "repertoire" | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
@@ -237,8 +241,9 @@ export function OpeningLineExplorer({
   }, [detail.repertoire.name, line?.id, line?.title]);
 
   useEffect(() => {
-    if (initialCoverage && initialCoverage.ratingGroup === coverageRating) setCoverage(initialCoverage);
-  }, [initialCoverage, coverageRating]);
+    if (initialCoverage && initialCoverage.ratingGroup === coverageRating
+      && (!initialCoverage.model || initialCoverage.model.throughMove === coverageDepth && initialCoverage.model.routeLineId === coverageRoute)) setCoverage(initialCoverage);
+  }, [initialCoverage, coverageRating, coverageDepth, coverageRoute]);
 
   useEffect(() => {
     setCoverageRating(preferredRatingGroup);
@@ -250,7 +255,22 @@ export function OpeningLineExplorer({
     setCoverageBusy(false);
     if (coverageGraphRef.current !== graphKey) { setCoverage(null); coverageGraphRef.current = graphKey; }
     return () => { coverageRequestRef.current?.abort(); };
-  }, [graphKey, coverageRating]);
+  }, [graphKey, coverageRating, coverageDepth, coverageRoute]);
+
+  useEffect(() => {
+    if (!allLines.some(({ line }) => line.id === coverageRoute && !line.archived)) {
+      setCoverageRoute(allLines.find(({ line }) => !line.archived)?.line.id ?? ""); setCoverage(null);
+    }
+  }, [allLines, coverageRoute]);
+
+  useEffect(() => {
+    const first = allLines.find(({ line }) => line.id === coverageRoute)?.line.moves[0];
+    if (!first) return;
+    const fields = first.fenBefore.split(" ");
+    const absolute = (Number(fields[5]) - 1) * 2 + Number(fields[1] === "b");
+    const minimum = Math.floor((absolute + Number(detail.repertoire.learnerColor === "white")) / 2) + 1;
+    if (coverageDepth < minimum) { setCoverageDepth(minimum); setCoverage(null); }
+  }, [allLines, coverageRoute, coverageDepth, detail.repertoire.learnerColor]);
 
   const navigateTo = (nextLineId: string, nextPly: number, remember = true): void => {
     if (navigationBlocked) return;
@@ -291,7 +311,8 @@ export function OpeningLineExplorer({
 
   const focusCoverageGap = (gap: OpeningCoverageGap): void => {
     if (navigationBlocked) return;
-    const target = allLines.find(({ line: candidate }) => candidate.title === gap.lineTitle && gapPlyForLine(candidate, gap) !== null)
+    const target = allLines.find(({ line: candidate }) => candidate.id === gap.lineId && gapPlyForLine(candidate, gap) !== null)
+      ?? allLines.find(({ line: candidate }) => candidate.title === gap.lineTitle && gapPlyForLine(candidate, gap) !== null)
       ?? allLines.find(({ line: candidate }) => gapPlyForLine(candidate, gap) !== null);
     if (!target) {
       setStatus("That source position is no longer in a saved line. Refresh coverage and try again.");
@@ -302,7 +323,10 @@ export function OpeningLineExplorer({
     setLineId(target.line.id);
     setPly(targetPly);
     setEditing(true);
-    setPendingMove({ uci: gap.moveUci, san: gap.moveSan });
+    const saved = target.line.moves[targetPly];
+    if (saved?.moveUci === gap.moveUci) {
+      setPly(targetPly + 1); setPendingMove(null);
+    } else setPendingMove({ uci: gap.moveUci, san: gap.moveSan });
     setPreparingGap(gap);
     setBranchTitle("");
     setNewExplanation("");
@@ -474,9 +498,11 @@ export function OpeningLineExplorer({
   };
 
   const worthwhileGap = (result: OpeningCoverageResponse) => result.gaps.find(gap =>
-    gap.preparation?.decision?.choice !== "unprepared" && gap.preparation?.priority !== "low"
+    gap.status !== "needs_practice" && gap.status !== "unprepared"
+    && (gap.status !== "unknown" || (gap.preparation?.personal.occurrences ?? 0) > 0)
+    && gap.preparation?.decision?.choice !== "unprepared" && gap.preparation?.priority !== "low"
     && allLines.some(({ line }) => gapPlyForLine(line, gap) !== null));
-  const loadCoverage = async (focusNext = false): Promise<void> => {
+  const loadCoverage = async (focusNext = false, offset = 0, refresh = false): Promise<void> => {
     if (coverageBusy) return;
     setCoverageBusy(true);
     setStatus("");
@@ -484,7 +510,7 @@ export function OpeningLineExplorer({
     coverageRequestRef.current?.abort(); coverageRequestRef.current = controller;
     try {
       const result = await get<OpeningCoverageResponse>(
-        `/api/v1/openings/repertoires/${detail.repertoire.id}/coverage?rating=${coverageRating}`,
+        `/api/v1/openings/repertoires/${detail.repertoire.id}/coverage?rating=${coverageRating}&throughMove=${coverageDepth}&lineId=${encodeURIComponent(coverageRoute)}&offset=${offset}&refresh=${refresh}&local=${!useExplorer}`,
         controller.signal,
       );
       if (!controller.signal.aborted) {
@@ -500,6 +526,22 @@ export function OpeningLineExplorer({
     } finally {
       if (!controller.signal.aborted) setCoverageBusy(false);
     }
+  };
+
+  const setCoverageBoundary = async (positionId: string, preparedEnough: boolean): Promise<void> => {
+    if (coverageBusy || navigationBlocked) return;
+    const controller = new AbortController(); coverageRequestRef.current?.abort(); coverageRequestRef.current = controller;
+    setCoverageBusy(true);
+    try {
+      const result = await patch<{ message: string }>(`/api/v1/openings/repertoires/${detail.repertoire.id}/coverage/boundary`,
+        { positionId, preparedEnough }, controller.signal);
+      if (!controller.signal.aborted) {
+        setStatus(result.message);
+        const updated = await get<OpeningCoverageResponse>(`/api/v1/openings/repertoires/${detail.repertoire.id}/coverage?rating=${coverageRating}&throughMove=${coverageDepth}&lineId=${encodeURIComponent(coverageRoute)}&local=true`, controller.signal);
+        if (!controller.signal.aborted) setCoverage(updated);
+      }
+    } catch (error) { if (!controller.signal.aborted) setStatus(error instanceof Error ? error.message : "Could not save stopping point"); }
+    finally { if (!controller.signal.aborted) setCoverageBusy(false); }
   };
 
   const updateLearningComment = (moveId: string, comment: string | null, ideaHint?: string | null): void => {
@@ -727,7 +769,9 @@ export function OpeningLineExplorer({
                 target={{ fen: displayFen, opponentMoveUci: pendingMove.uci, learnerColor: detail.repertoire.learnerColor,
                   repertoireId: detail.repertoire.id }} />}
               <p>{preparingGap
-                ? `This reply appears in ${preparingGap.frequencyPercent}% of the sampled games at this position. Check whether it deserves preparation. Save only if you want to add a response.`
+                ? preparingGap.games > 0
+                  ? `This reply appears in ${preparingGap.frequencyPercent}% of the sampled games at this position. Check whether it deserves preparation. Save only if you want to add a response.`
+                  : "Frequency is unknown for this reply. Inspect how you would respond before deciding to prepare a line. Save only if you want to add a response."
                 : ply < line.moveCount
                 ? "This move differs from the saved continuation. Saving creates another line and keeps the original."
                 : "This move will be added after the current end of the line."}</p>
@@ -789,29 +833,13 @@ export function OpeningLineExplorer({
       </div>
       <details className="panel opening-workspace-tools" open={toolsOpen} onToggle={event => setToolsOpen(event.currentTarget.open)}>
       <summary>Coverage and repertoire settings</summary>
-      {useExplorer && <div className="answer-actions"><label>Explorer rating
-        <select value={coverageRating} onChange={event => { coverageRequestRef.current?.abort(); setCoverageRating(Number(event.target.value)); setCoverage(null); }}>
-          {[1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500].map(rating => <option key={rating} value={rating}>{rating} band</option>)}
-        </select></label><button className="secondary" disabled={coverageBusy} onClick={() => void loadCoverage()}>
-          {coverageBusy ? "Checking…" : coverage ? "Refresh coverage" : "Check coverage"}</button></div>}
-      {coverage && (
-        <div className="panel opening-coverage" role="status">
-          <div>
-            <span className="eyebrow">Practical coverage · {coverageRating} band · Lichess</span>
-            <h3>{coverage.coveragePercent === null ? "No sample yet" : `${coverage.coveragePercent}% of replies covered`}</h3>
-            <p>{coverage.message} This measures replies at positions reached after your saved moves, not the chance of reaching the whole line.</p>
-          </div>
-          <div className="opening-coverage-gaps">
-            <strong>{coverage.gaps.length > 0 ? "Missing replies to consider" : "No common missing replies found"}</strong>
-            {coverage.gaps.slice(0, 5).map((gap) => (
-              <button key={`${gap.positionId}-${gap.moveUci}`} disabled={navigationBlocked} onClick={() => focusCoverageGap(gap)}>
-                <span><b>{gap.moveSan}</b> after {gap.lineTitle}</span>
-                <small>{gap.frequencyPercent}% at this position{gap.preparation?.decision?.choice === "unprepared" ? " · left unprepared" : gap.preparation?.priority === "low" ? " · optional" : gap.preparation?.priority === "high" ? " · worth preparing" : ""}</small>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {toolsOpen && <Suspense fallback={<p role="status">Loading preparation tools…</p>}><OpeningCoveragePanel coverage={coverage} busy={coverageBusy} disabled={navigationBlocked} useExplorer={useExplorer}
+        rating={coverageRating} throughMove={coverageDepth} routeId={coverageRoute}
+        lines={allLines.filter(({ line }) => !line.archived).map(({ chapter, line }) => ({ id: line.id, title: `${chapter.title} · ${line.title}` }))}
+        onScope={(rating, depth, routeId) => { coverageRequestRef.current?.abort(); setCoverageBusy(false); setCoverage(null);
+          setCoverageRating(rating); setCoverageDepth(depth); setCoverageRoute(routeId); }}
+        onLoad={(offset, refresh) => void loadCoverage(false, offset, refresh)} onInspect={focusCoverageGap} onPractice={onPractice}
+        onBoundary={(positionId, value) => void setCoverageBoundary(positionId, value)} /></Suspense>}
 
       {editing && (
         <div className="opening-edit-guide">

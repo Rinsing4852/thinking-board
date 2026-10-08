@@ -66,6 +66,7 @@ interface ActiveQueueRow {
   piece_hint: number;
   idea_hint: number;
   move_shown: number;
+  focus_move_id: string | null;
 }
 
 interface EventRow {
@@ -404,10 +405,17 @@ export class OpeningReviewService {
     return row ? { profileId: row.profile_id, repertoireId: row.repertoire_id, gameId: row.focus_game_id } : null;
   }
 
-  startPosition(repertoireId: string, positionId: string, gameId: string): OpeningReviewExercise {
+  startMove(repertoireId: string, moveId: string): OpeningReviewExercise {
+    const positionId = this.db.prepare("SELECT from_position_id FROM opening_moves WHERE id = ? AND repertoire_id = ? AND role = 'learner' AND active = 1")
+      .pluck().get(moveId, repertoireId) as string | undefined;
+    if (!positionId) throw new Error("Saved response not found");
+    return this.startPosition(repertoireId, positionId, null, moveId);
+  }
+
+  startPosition(repertoireId: string, positionId: string, gameId: string | null, moveId?: string): OpeningReviewExercise {
     const profileId = ensureActiveProfile(this.db);
     this.ensureItems(profileId, repertoireId, true);
-    if (!this.db.prepare("SELECT 1 FROM games WHERE id = ? AND profile_id = ?").get(gameId, profileId)) {
+    if (gameId && !this.db.prepare("SELECT 1 FROM games WHERE id = ? AND profile_id = ?").get(gameId, profileId)) {
       throw new Error("Game not found");
     }
     const item = this.db.prepare(`
@@ -430,7 +438,15 @@ export class OpeningReviewService {
     } | undefined;
     if (!item) throw new Error("The repertoire position is no longer available");
     const pool = item.state === 0 ? "new" : item.due_at <= now() ? "due" : "early";
-    return this.createSession(profileId, repertoireId, [{ id: item.id }], pool, gameId);
+    const lineId = moveId ? this.db.prepare(`SELECT membership.line_id FROM opening_line_moves membership
+      JOIN opening_lines line ON line.id = membership.line_id AND line.active = 1
+      JOIN opening_chapters chapter ON chapter.id = line.chapter_id AND chapter.active = 1
+      LEFT JOIN opening_line_preferences preference ON preference.line_id = line.id AND preference.profile_id = ?
+      WHERE membership.move_id = ? AND preference.archived_at IS NULL ORDER BY line.id LIMIT 1`)
+      .pluck().get(profileId, moveId) as string | undefined : undefined;
+    if (moveId && !lineId) throw new Error("Saved response is archived or no longer available");
+    return this.createSession(profileId, repertoireId, [{ id: item.id,
+      ...(moveId && lineId ? { expectedMoveId: moveId, sourceLineId: lineId } : {}) }], pool, gameId, moveId ?? null);
   }
 
   private recommendedSelection(profileId: string, sessionSize: number, newLimit: number): RecommendedSelection | null {
@@ -607,6 +623,7 @@ export class OpeningReviewService {
     selected: SelectedReviewItem[],
     pool: "due" | "new" | "mixed" | "early",
     focusGameId: string | null,
+    focusMoveId: string | null = null,
   ): OpeningReviewExercise {
     const timestamp = now();
 
@@ -623,9 +640,9 @@ export class OpeningReviewService {
       this.db.prepare(`
         INSERT INTO opening_review_sessions(
           id, profile_id, repertoire_id, status, selection_pool,
-          initial_item_count, started_at, created_at, focus_game_id
-        ) VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?)
-      `).run(sessionId, profileId, repertoireId, pool, selected.length, timestamp, timestamp, focusGameId);
+          initial_item_count, started_at, created_at, focus_game_id, focus_move_id
+        ) VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?, ?)
+      `).run(sessionId, profileId, repertoireId, pool, selected.length, timestamp, timestamp, focusGameId, focusMoveId);
       selected.forEach((item, sequence) => {
         this.db.prepare(`
           INSERT INTO opening_review_queue(
@@ -650,7 +667,7 @@ export class OpeningReviewService {
     const queue = this.db.prepare(`
       SELECT s.id AS session_id, s.repertoire_id, r.name AS repertoire_name, r.learner_color,
              q.id AS queue_id, q.review_item_id, q.sequence, q.presentation_kind, q.started_at,
-             q.source_line_id, q.expected_move_id, q.piece_hint, q.move_shown, q.idea_hint
+             q.source_line_id, q.expected_move_id, q.piece_hint, q.move_shown, q.idea_hint, s.focus_move_id
       FROM opening_review_sessions s
       JOIN opening_repertoires r ON r.id = s.repertoire_id
       JOIN opening_review_queue q ON q.session_id = s.id AND q.status = 'active'
@@ -944,7 +961,7 @@ export class OpeningReviewService {
     const row = this.db.prepare(`
       SELECT s.id AS session_id, s.repertoire_id, r.name AS repertoire_name, r.learner_color,
              q.id AS queue_id, q.review_item_id, q.sequence, q.presentation_kind, q.started_at,
-             q.source_line_id, q.expected_move_id, q.piece_hint, q.move_shown, q.idea_hint
+             q.source_line_id, q.expected_move_id, q.piece_hint, q.move_shown, q.idea_hint, s.focus_move_id
       FROM opening_review_sessions s
       JOIN opening_repertoires r ON r.id = s.repertoire_id
       JOIN opening_review_queue q ON q.session_id = s.id AND q.status = 'active'
@@ -1139,7 +1156,7 @@ export class OpeningReviewService {
       presentationKind: queue.presentation_kind,
       learningStage,
       practiceReason,
-      lineRun: queue.source_line_id && context ? { lineId: context.line_id, lineTitle: context.line_title, chapterTitle: context.chapter_title } : null,
+      lineRun: !queue.focus_move_id && queue.source_line_id && context ? { lineId: context.line_id, lineTitle: context.line_title, chapterTitle: context.chapter_title } : null,
       ...(context ? { sourceContext: { lineId: context.line_id, ply: context.target_ply } } : {}),
       fenBeforeOpponent: hasOpponentContext ? context!.previous_fen! : item.from_fen,
       fenToMove: item.from_fen,

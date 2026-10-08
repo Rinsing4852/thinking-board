@@ -2,6 +2,21 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.5.18 — 2026-10-08
+
+### Honest repertoire preparation and recall
+
+- Require a saved learner response, including known transpositions, before counting an opponent reply as prepared.
+- Replace the headline pooled sample ratio with a depth-scoped path estimate under an explicit own-move policy; keep missing responses, ideas, deliberate omissions and unknown evidence separate.
+- Add reversible "prepared enough" stopping points without changing saved moves or practice history.
+- Scan all in-scope positions in resumable two-request batches instead of silently limiting coverage to 32 positions and eight gaps.
+- Add a shared-position branch drill-down with sample freshness, conditional frequency, estimated exposure, saved response and first-try recall; prioritise preparation versus practice separately.
+- Start a focused response drill directly from a memory gap, without replaying the whole line or counting that drill as a completed full-line run.
+- Show first-departure evidence from recent pasted and synced games, without equating repertoire deviations with chess mistakes.
+- Count first answers per scheduled encounter for move recall; include corrected full-line runs in the denominator instead of excluding them.
+- Show estimated opponent-path likelihood separately from a line's least-common reply. No additional runtime dependencies.
+- Add migration and regression coverage; estimates are not forecasts, win rates or proof of retention.
+
 ## 1.5.17 — 2026-10-07
 
 ### Practice and builder audit improvements

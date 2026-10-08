@@ -132,6 +132,7 @@ export interface OpeningPracticeLineEvidence {
     sampleGames: number | null;
     knownReplies: number;
     totalReplies: number;
+    pathPercent?: number | null;
   };
   recall: OpeningLineProgress | null;
   fullRuns: { completed: number; unaided: number; accuracyPercent: number | null };
@@ -221,6 +222,41 @@ export interface OpeningCoverageGap {
   games: number;
   frequencyPercent: number;
   preparation?: OpeningPreparationAssessment;
+  lineId?: string;
+  status?: OpeningCoverageBranch["status"];
+  reachPercent?: number | null;
+  recallPercent?: number | null;
+  recallAttempts?: number;
+  responseLineId?: string | null;
+  responseMoveId?: string | null;
+}
+
+export interface OpeningCoverageBranch extends OpeningCoverageGap {
+  status: "prepared" | "needs_practice" | "missing_response" | "idea_only" | "unprepared" | "unknown";
+  responseSan: string | null;
+  responseMoveId: string | null;
+  responseLineId?: string | null;
+  sampledGames: number;
+  fresh: boolean;
+  reliable: boolean;
+  boundary: boolean;
+  practiceEnabled: boolean;
+}
+
+export interface OpeningCoveragePosition {
+  positionId: string;
+  fen: string;
+  lineId: string;
+  lineTitle: string;
+  chapterTitle: string;
+  ply: number;
+  pathSan?: string;
+  inScope?: boolean;
+  boundary: boolean;
+  sampleStatus: "fresh" | "stale" | "small_sample" | "missing";
+  sampledGames: number;
+  fetchedAt: string | null;
+  branches: OpeningCoverageBranch[];
 }
 
 export type OpeningPreparationChoice = "idea" | "unprepared" | "line";
@@ -263,6 +299,23 @@ export interface OpeningCoverageResponse {
   gaps: OpeningCoverageGap[];
   incomplete: boolean;
   message: string;
+  evidence?: {
+    totalPositions: number; freshPositions: number; stalePositions: number;
+    smallSamplePositions: number; missingPositions: number; remainingPositions: number;
+    nextOffset: number | null;
+    scanMode?: "missing" | "refresh";
+  };
+  positions?: OpeningCoveragePosition[];
+  personal?: {
+    gamesChecked: number; gamesMatched: number; playerDeviations: number;
+    opponentDeviations: number; repertoireEnded: number; stayedIn: number;
+  };
+  model?: {
+    throughMove: number; routeLineId: string; routeTitle: string;
+    preparedPercent: number; missingPercent: number; ideaPercent: number;
+    unpreparedPercent: number; unknownPercent: number;
+    assumptions: string;
+  };
 }
 
 export interface OpeningAnalysisLine {
