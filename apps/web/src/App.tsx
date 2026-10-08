@@ -214,6 +214,11 @@ export function App() {
               <h1>What do I repeatedly miss?</h1>
               <p>Use your real-game occurrences and practice results to choose the next thinking habit to strengthen.</p>
             </div>
+            <section className="panel opening-progress-link" aria-label="Opening progress">
+              <div><h3>Opening recall and repertoire gaps</h3>
+                <p>Find your opening memory results, due reviews and preparation gaps in Openings. The figures below cover thinking drills from your games.</p></div>
+              <button className="secondary" onClick={() => navigate("openings")}>View opening progress</button>
+            </section>
             <Dashboard onImport={() => openGamesAt("import")} refreshToken={refreshToken} onChooseMode={chooseMode} onStartSession={startSession} onProfileChanged={() => {
               setSession(null); setTrainingRequest(null); setRefreshToken((value) => value + 1);
             }} />

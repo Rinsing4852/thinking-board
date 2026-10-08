@@ -1424,7 +1424,9 @@ describe("vertical slice", () => {
     const paused = (await app.inject({ method: "GET", url: `${path}?local=true` })).json();
     expect(paused.model).toEqual(local.model);
     expect(paused.positions.flatMap((position: any) => position.branches).filter((branch: any) => branch.responseSan).every((branch: any) => !branch.practiceEnabled)).toBe(true);
-  });
+  // This fixture imports 40 lines and checks every remote-sample batch. Hosted
+  // runners need more than the default 5 seconds; retain every assertion.
+  }, 20_000);
 
   it("checks for replies after a pasted repertoire line ends", async () => {
     globalThis.fetch = (async () => new Response(JSON.stringify({

@@ -2,6 +2,21 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.5.19 — 2026-10-08
+
+### Clearer coverage and board navigation
+
+- Add a direct "Find repertoire gaps" action and bring inspected replies back into view, with a return to coverage.
+- Follow replies already saved in another branch instead of staging duplicate moves; inspection stays in browse mode.
+- Show coverage errors and stopping-point confirmations beside the relevant controls, not only above the board.
+- Allow natural depth-field editing with accessible whole-number validation; explain empty branch filters.
+- Match coverage bar colours to labelled swatches, explain unknown evidence in plain language, and put detailed methodology behind optional disclosures.
+- Label recommendations with their saved response's source line and separate opening progress from thinking-drill totals.
+- Wrap long repertoire names rather than hiding their distinguishing words. No new dependencies or schema changes.
+- Keep mobile browsing instructions from sticking over the board; size desktop browsing boards to the viewport and prevent intermediate-width grid overflow.
+- Add desktop/mobile regression checks for inspection, recovery and accessible controls.
+- Give the 40-line, multi-batch integration fixture a bounded 20-second budget on slower hosted runners; retain all publication checks and assertions.
+
 ## 1.5.18 — 2026-10-08
 
 ### Honest repertoire preparation and recall

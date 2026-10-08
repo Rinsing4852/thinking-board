@@ -780,6 +780,67 @@ test("keeps the board when changing move order and protects shared comments whil
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
 });
 
+test("inspects a covered reply in its saved branch and returns to coverage without duplicating it", async ({ page }, testInfo) => {
+  const id = await openNavigationStudy(page, `Coverage inspection ${testInfo.project.name}`, "1. e4 e5 (1... c5 2. Nf3 d6 3. d4) 2. Nf3 Nc6 3. Bc4 *");
+  const url = `/api/v1/openings/repertoires/${id}`;
+  const before = await (await page.request.get(url)).json();
+  await page.getByRole("button", { name: "Find repertoire gaps", exact: true }).click();
+  const panel = page.getByRole("region", { name: "Repertoire coverage and gaps" });
+  await panel.getByRole("button", { name: "Check coverage", exact: true }).click();
+  const task = panel.locator(".opening-coverage-tasks article").filter({ hasText: "Practise your response to c5" });
+  await task.getByRole("button", { name: "Inspect position", exact: true }).click();
+  const board = page.getByRole("region", { name: "Opening board and moves" });
+  await expect(board).toBeFocused();
+  await expect(board.getByRole("gridcell", { name: "c5 black pawn" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save move", exact: true })).toBeHidden();
+  await expect(page.getByRole("button", { name: "Edit lines", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Finish editing", exact: true })).toBeHidden();
+  expect(await board.locator(".opening-board-prompt").evaluate(element => getComputedStyle(element).position)).toBe("static");
+  await expect(page).toHaveURL(/ply=2/);
+  await expect.poll(async () => (await board.boundingBox())!.y).toBeGreaterThanOrEqual(0);
+  await expect.poll(async () => (await board.boundingBox())!.y).toBeLessThan(80);
+  await page.getByRole("button", { name: "Back to coverage", exact: true }).click();
+  await expect(page.locator(".opening-workspace-tools > summary")).toBeFocused();
+  await expect.poll(async () => (await page.locator(".opening-workspace-tools > summary").boundingBox())!.y).toBeLessThan(80);
+  await expect(task.getByRole("button", { name: "Practise response", exact: true })).toBeEnabled();
+  expect((await (await page.request.get(url)).json()).chapters).toEqual(before.chapters);
+  await page.screenshot({ path: testInfo.outputPath("coverage-inspection.png"), fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath("coverage-screen.png") });
+});
+
+test("keeps coverage errors beside the action, supports editing depth, and explains empty filters", async ({ page }, testInfo) => {
+  await openNavigationStudy(page, `Coverage recovery ${testInfo.project.name}`, "1. e4 e5 2. Nf3 Nc6 3. Bc4 *");
+  await page.getByRole("button", { name: "Find repertoire gaps", exact: true }).click();
+  const panel = page.getByRole("region", { name: "Repertoire coverage and gaps" });
+  const depth = panel.getByRole("spinbutton", { name: "Prepare through my move" });
+  await depth.fill("");
+  await expect(depth).toHaveValue("");
+  await expect(depth).toHaveAttribute("aria-invalid", "true");
+  await expect(panel.getByRole("button", { name: "Check coverage", exact: true })).toBeDisabled();
+  await depth.fill("2.5");
+  await expect(depth).toHaveAttribute("aria-invalid", "true");
+  await depth.fill("2");
+  let fail = true;
+  await page.route("**/api/v1/openings/repertoires/*/coverage?rating=*", route => fail
+    ? route.fulfill({ status: 503, json: { error: "Coverage temporarily unavailable. Please try again." } }) : route.continue());
+  await panel.getByRole("button", { name: "Check coverage", exact: true }).click();
+  await expect(panel.getByRole("alert")).toHaveText("Coverage temporarily unavailable. Please try again.");
+  fail = false;
+  await panel.getByRole("button", { name: "Check coverage", exact: true }).click();
+  await expect(panel.getByRole("alert")).toBeHidden();
+  await expect(panel.getByText(/Unknown means/)).toBeVisible();
+  await expect(panel.getByText(/Sample evidence:/)).toBeHidden();
+  await panel.getByText("Recall and sample details", { exact: true }).click();
+  await expect(panel.getByText(/Sample evidence:/)).toBeVisible();
+  await panel.getByText(/Explore branches and stopping points/).click();
+  await panel.getByRole("combobox", { name: "Show branches" }).selectOption("prepared");
+  await expect(panel.locator(".opening-coverage-node")).toHaveCount(0);
+  await expect(panel.getByText(/No positions match this filter/)).toBeVisible();
+  await panel.getByRole("combobox", { name: "Show branches" }).selectOption("all");
+  await expect(panel.locator(".opening-coverage-node")).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
+});
+
 test("shows honest coverage, distinct recall and reversible stopping points without altering saved lines", async ({ page }, testInfo) => {
   const id = await openNavigationStudy(page, `Coverage map ${testInfo.project.name}`, "1. e4 e5 2. Nf3 Nc6 3. Bc4 *");
   const url = `/api/v1/openings/repertoires/${id}`;

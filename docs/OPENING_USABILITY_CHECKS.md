@@ -32,6 +32,7 @@
   distinguish a network failure from reaching the final enabled line.
 
 Automated desktop Chromium and iPhone-size WebKit journeys check these paths.
+Intermediate-width checks cover all four home screens and the saved-line workspace at 821, 900 and 1024 pixels.
 Chromium touch-input tests also cover drag/tap and text-selection prevention.
 These are not a substitute for a physical iPhone or human learning study.
 
@@ -63,6 +64,10 @@ No retention or Chessbook-parity claim should be based solely on passing tests.
 - Wrong move followed by correction and an immediate repeat is one failed first encounter, not extra remembered encounters.
 - A completed line with corrections counts as completed but not unaided; partial runs still do not count.
 - Inspect personal game evidence from both pasted PGNs and sync. "Left repertoire" must not say "chess blunder".
+- Open "Find repertoire gaps", inspect a reply saved in another branch and return to coverage. Inspection must not create a duplicate, enable editing, or leave the board offscreen.
+- Clear and retype the preparation depth. Reject fractions and out-of-range numbers with an accessible explanation; show fetch failures beside the coverage controls and allow retry.
+- Match labelled colour swatches to the coverage bar. Explain unknown as missing reliable evidence, not missing preparation; keep detailed sample methodology optional.
+- Filter to a status with no matching branches and explain the empty result. Progress must distinguish opening practice from thinking-drill totals.
 
 Run `npm run check`, `npm run test:e2e` and the container smoke script against a
 disposable container/volume only. Check a fresh database and restart persistence.

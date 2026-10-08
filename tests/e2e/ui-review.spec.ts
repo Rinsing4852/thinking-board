@@ -27,9 +27,39 @@ test("keeps navigation history, keyboard access and first-run actions clear", as
   await expect(page).toHaveURL(/#openings$/);
   await page.getByRole("button", { name: "Progress", exact: true }).click();
   await expect(page.getByRole("button", { name: "Import a game to begin" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Opening progress", exact: true })).toContainText("figures below cover thinking drills");
   await page.screenshot({ path: testInfo.outputPath("progress-first-run.png"), fullPage: true });
+  await page.getByRole("button", { name: "View opening progress", exact: true }).click();
+  await expect(page).toHaveURL(/#openings$/);
+  await page.getByRole("button", { name: "Progress", exact: true }).click();
   await page.getByRole("button", { name: "Import a game to begin" }).click();
   await expect(page).toHaveURL(/#games$/);
+});
+
+test("keeps home screens and saved-line workspaces within intermediate tablet widths", async ({ page }, testInfo) => {
+  await page.route("**/api/v1/openings/lessons/active", route => route.fulfill({ json: null }));
+  const imported = await page.request.post("/api/v1/openings/imports/pgn", { data: {
+    pgn: '[Event "Tablet layout"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bc4 *',
+    learnerColor: "white", name: `My complete practical repertoire with a distinguishing long title ${testInfo.project.name}`, ownershipConfirmed: true,
+  } });
+  expect(imported.ok()).toBeTruthy();
+  const id = (await imported.json()).repertoireIds[0];
+  const detail = await (await page.request.get(`/api/v1/openings/repertoires/${id}`)).json();
+  const line = detail.chapters[0].lines[0];
+  for (const width of [821, 900, 1024]) {
+    await page.setViewportSize({ width, height: 768 });
+    for (const view of ["today", "openings", "games", "progress"]) {
+      await page.goto(`/#${view}`);
+      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    }
+    await page.goto(`/#openings?repertoire=${encodeURIComponent(id)}&line=${encodeURIComponent(line.id)}&ply=0`);
+    const board = page.getByRole("region", { name: "Opening board and moves" });
+    await expect(board).toBeVisible();
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    const box = await board.locator(".chessboard").boundingBox();
+    expect(box!.width).toBeCloseTo(box!.height, 0);
+    await page.screenshot({ path: testInfo.outputPath(`tablet-workspace-${width}.png`), fullPage: true });
+  }
 });
 
 test("puts pasted games before optional sync and invalidates stale previews", async ({ page }, testInfo) => {

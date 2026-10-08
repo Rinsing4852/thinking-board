@@ -126,6 +126,8 @@ export function OpeningLineExplorer({
   const [deleteTarget, setDeleteTarget] = useState<"line" | "repertoire" | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [coverageInspection, setCoverageInspection] = useState(false);
+  const [coverageNotice, setCoverageNotice] = useState<{ error: boolean; message: string } | null>(null);
   const [notesOpen, setNotesOpen] = useState(false);
   const [repertoireName, setRepertoireName] = useState(detail.repertoire.name);
   const [lineTitle, setLineTitle] = useState(initial?.line.title ?? "");
@@ -137,6 +139,23 @@ export function OpeningLineExplorer({
   } | null>(null);
   const deleteDialogRef = useRef<HTMLDivElement>(null);
   const coverageRequestRef = useRef<AbortController | null>(null);
+  const headingRef = useRef<HTMLDivElement>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const toolsRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    // Enter a workspace at its heading, not halfway down the previous card.
+    const frame = requestAnimationFrame(() => headingRef.current?.scrollIntoView({ block: "start" }));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  const reveal = (element: HTMLElement | null): void => {
+    if (!element) return;
+    element.focus({ preventScroll: true });
+    element.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+  };
+  const openCoverageTools = (): void => {
+    setToolsOpen(true);
+    requestAnimationFrame(() => reveal(toolsRef.current?.querySelector("summary") ?? null));
+  };
   const selected = allLines.find(({ line }) => line.id === lineId) ?? initial;
   const line: OpeningLineDetail | undefined = selected?.line;
   const selectedProgress = line ? progressByLine.get(line.id) : undefined;
@@ -288,8 +307,10 @@ export function OpeningLineExplorer({
   };
 
   const chooseLine = (nextLineId: string): void => {
+    if (navigationBlocked) return;
     const target = switchLineDestination(navigation, lineId, ply, nextLineId);
     navigateTo(target.lineId, target.ply);
+    requestAnimationFrame(() => reveal(boardRef.current));
   };
 
   const returnToPreviousLine = (): void => {
@@ -311,7 +332,8 @@ export function OpeningLineExplorer({
 
   const focusCoverageGap = (gap: OpeningCoverageGap): void => {
     if (navigationBlocked) return;
-    const target = allLines.find(({ line: candidate }) => candidate.id === gap.lineId && gapPlyForLine(candidate, gap) !== null)
+    const target = allLines.find(({ line: candidate }) => candidate.id === gap.responseLineId && gapPlyForLine(candidate, gap) !== null)
+      ?? allLines.find(({ line: candidate }) => candidate.id === gap.lineId && gapPlyForLine(candidate, gap) !== null)
       ?? allLines.find(({ line: candidate }) => candidate.title === gap.lineTitle && gapPlyForLine(candidate, gap) !== null)
       ?? allLines.find(({ line: candidate }) => gapPlyForLine(candidate, gap) !== null);
     if (!target) {
@@ -320,19 +342,23 @@ export function OpeningLineExplorer({
     }
     const targetPly = gapPlyForLine(target.line, gap);
     if (targetPly === null) return;
-    setLineId(target.line.id);
-    setPly(targetPly);
-    setEditing(true);
-    const saved = target.line.moves[targetPly];
-    if (saved?.moveUci === gap.moveUci) {
-      setPly(targetPly + 1); setPendingMove(null);
-    } else setPendingMove({ uci: gap.moveUci, san: gap.moveSan });
-    setPreparingGap(gap);
+    // A shared position's representative line need not contain this reply.
+    // Follow its saved continuation before offering to create a new branch.
+    const saved = savedContinuations(navigation, target.line.id, targetPly).find(choice => choice.moveUci === gap.moveUci);
+    setLineId(saved?.target.lineId ?? target.line.id);
+    setPly(saved?.target.ply ?? targetPly);
+    setEditing(!saved && detail.repertoire.editable);
+    setPendingMove(saved ? null : { uci: gap.moveUci, san: gap.moveSan });
+    setPreparingGap(saved ? null : gap);
+    setNotesOpen(true);
+    setLineLibraryOpen(false);
+    setCoverageInspection(true);
     setBranchTitle("");
     setNewExplanation("");
     setEditingExplanation(false);
     setLastMutation(null);
     setStatus("");
+    requestAnimationFrame(() => reveal(boardRef.current));
   };
 
   const previewNewMove = (uci: string, san: string): void => {
@@ -506,6 +532,7 @@ export function OpeningLineExplorer({
     if (coverageBusy) return;
     setCoverageBusy(true);
     setStatus("");
+    setCoverageNotice(null);
     const controller = new AbortController();
     coverageRequestRef.current?.abort(); coverageRequestRef.current = controller;
     try {
@@ -522,7 +549,11 @@ export function OpeningLineExplorer({
         }
       }
     } catch (error) {
-      if (!controller.signal.aborted) setStatus(error instanceof Error ? error.message : "Could not check practical coverage");
+      if (!controller.signal.aborted) {
+        const message = error instanceof Error ? error.message : "Could not check practical coverage";
+        setCoverageNotice({ error: true, message });
+        if (focusNext) { setStatus(message); openCoverageTools(); }
+      }
     } finally {
       if (!controller.signal.aborted) setCoverageBusy(false);
     }
@@ -532,15 +563,16 @@ export function OpeningLineExplorer({
     if (coverageBusy || navigationBlocked) return;
     const controller = new AbortController(); coverageRequestRef.current?.abort(); coverageRequestRef.current = controller;
     setCoverageBusy(true);
+    setCoverageNotice(null);
     try {
       const result = await patch<{ message: string }>(`/api/v1/openings/repertoires/${detail.repertoire.id}/coverage/boundary`,
         { positionId, preparedEnough }, controller.signal);
       if (!controller.signal.aborted) {
-        setStatus(result.message);
+        setCoverageNotice({ error: false, message: result.message });
         const updated = await get<OpeningCoverageResponse>(`/api/v1/openings/repertoires/${detail.repertoire.id}/coverage?rating=${coverageRating}&throughMove=${coverageDepth}&lineId=${encodeURIComponent(coverageRoute)}&local=true`, controller.signal);
         if (!controller.signal.aborted) setCoverage(updated);
       }
-    } catch (error) { if (!controller.signal.aborted) setStatus(error instanceof Error ? error.message : "Could not save stopping point"); }
+    } catch (error) { if (!controller.signal.aborted) setCoverageNotice({ error: true, message: error instanceof Error ? error.message : "Could not save stopping point" }); }
     finally { if (!controller.signal.aborted) setCoverageBusy(false); }
   };
 
@@ -594,12 +626,13 @@ export function OpeningLineExplorer({
         event.preventDefault(); choosePly(Math.max(0, Math.min(line.moveCount, ply + (event.key === "ArrowRight" ? 1 : -1))));
       }
     }}>
-      <div className="panel opening-workspace-heading">
+      <div className="panel opening-workspace-heading" ref={headingRef}>
         <div>
           <span className="eyebrow">{editing ? "Build" : "Browse"} · saved repertoire</span>
           <h2>{detail.repertoire.name}</h2>
         </div>
         <div className="opening-workspace-actions">
+          <button className="secondary" disabled={navigationBlocked} onClick={openCoverageTools}>Find repertoire gaps</button>
           {detail.repertoire.editable && (
             <button disabled={navigationBlocked} className={editing ? "active" : "secondary"} onClick={() => { setEditing((value) => !value); setPendingMove(null); }}>
               {editing ? "Finish editing" : "Edit lines"}
@@ -668,7 +701,8 @@ export function OpeningLineExplorer({
         <OpeningLineLibrary chapters={detail.chapters} index={navigation} selectedLineId={line.id}
           open={lineLibraryOpen} disabled={navigationBlocked} progress={progressByLine} transpositions={transpositionsByLine} onChoose={chooseLine} />
 
-        <div className="opening-line-board">
+        <div className="opening-line-board" ref={boardRef} tabIndex={-1} role="region" aria-label="Opening board and moves">
+          {coverageInspection && <button className="text-button" onClick={openCoverageTools}>Back to coverage</button>}
           <div className="candidate-banner">
             <div>
               <span>{selected.chapter.title} · {lineDisplayTitle}</span>
@@ -831,12 +865,13 @@ export function OpeningLineExplorer({
           </>}
         </aside>
       </div>
-      <details className="panel opening-workspace-tools" open={toolsOpen} onToggle={event => setToolsOpen(event.currentTarget.open)}>
+      <details className="panel opening-workspace-tools" ref={toolsRef} open={toolsOpen} onToggle={event => setToolsOpen(event.currentTarget.open)}>
       <summary>Coverage and repertoire settings</summary>
-      {toolsOpen && <Suspense fallback={<p role="status">Loading preparation tools…</p>}><OpeningCoveragePanel coverage={coverage} busy={coverageBusy} disabled={navigationBlocked} useExplorer={useExplorer}
+      {toolsOpen && <Suspense fallback={<p role="status">Loading preparation tools…</p>}><OpeningCoveragePanel coverage={coverage} busy={coverageBusy} disabled={navigationBlocked} useExplorer={useExplorer} notice={coverageNotice}
         rating={coverageRating} throughMove={coverageDepth} routeId={coverageRoute}
         lines={allLines.filter(({ line }) => !line.archived).map(({ chapter, line }) => ({ id: line.id, title: `${chapter.title} · ${line.title}` }))}
         onScope={(rating, depth, routeId) => { coverageRequestRef.current?.abort(); setCoverageBusy(false); setCoverage(null);
+          setCoverageNotice(null);
           setCoverageRating(rating); setCoverageDepth(depth); setCoverageRoute(routeId); }}
         onLoad={(offset, refresh) => void loadCoverage(false, offset, refresh)} onInspect={focusCoverageGap} onPractice={onPractice}
         onBoundary={(positionId, value) => void setCoverageBoundary(positionId, value)} /></Suspense>}
