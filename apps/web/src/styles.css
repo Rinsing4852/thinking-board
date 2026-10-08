@@ -494,12 +494,14 @@ button.opening-line-buttons, .opening-line-buttons button { background: #101512;
 .opening-workspace-grid.with-analysis-board > .opening-line-library { display: none; }
 .opening-workspace-grid.with-analysis-board .opening-move-inspector { min-width: 0; }
 @media (min-width: 901px) {
-  .opening-line-board > .chessboard { width: min(100%, 62svh, 680px); margin-inline: auto; }
+  .opening-line-board > .chessboard-frame { width: min(100%, 62svh, 680px); margin-inline: auto; }
+  .opening-workspace-grid.with-analysis-board .opening-line-board > .chessboard-frame { width: min(100%, 54vh, 600px); }
   .opening-workspace-grid.with-analysis-board .chessboard { width: min(100%, 54vh, 600px); margin-inline: auto; }
 }
 .board-toolbar.opening-line-controls { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto; gap: .5rem; }
 .opening-line-board .candidate-banner strong { white-space: nowrap; }
 .opening-line-controls .text-button { min-height: 44px; padding: .45rem; }
+.opening-line-controls > button[aria-expanded] { grid-column: 1 / -1; justify-self: start; }
 .opening-line-controls span { text-align: center; }
 .opening-move-strip { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem; padding: .8rem; border: 1px solid var(--line); border-top: 0; border-radius: 0 0 12px 12px; background: var(--panel); }
 .opening-move-strip button { display: inline-flex; gap: .2rem; align-items: baseline; background: #101512; color: var(--ink-soft); border: 1px solid transparent; border-radius: 6px; padding: .38rem .48rem; font-size: .76rem; }

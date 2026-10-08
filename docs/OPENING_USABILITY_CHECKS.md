@@ -13,7 +13,8 @@
 - Start a White or Black repertoire. The first learner move creates it; build
   moves then save without a confirmation. Failed saves keep a retryable move and
   use the same request ID. Saved continuations navigate rather than duplicating
-  branches. Preview-before-save and Undo remain available.
+  branches. The first save keeps the board in the viewport, with no delayed
+  scroll racing the next touch gesture. Preview-before-save and Undo remain available.
 - Explore on the separate analysis board without changing saved content. Add a
   sequence in one transaction; a later illegal move must roll back the whole save.
 - Ask for an authored idea hint without showing the answer square. Reload and

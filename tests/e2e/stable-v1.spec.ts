@@ -78,7 +78,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await expect(page.getByLabel("PGN text")).toBeVisible();
   });
 
-  test("supports tap and drag moves on a touch board without selecting page text", async ({ browser }) => {
+  test("supports tap and drag moves on a touch board without selecting page text", async ({ browser }, testInfo) => {
     const context = await browser.newContext({
       hasTouch: true,
       isMobile: true,
@@ -89,7 +89,7 @@ test.describe.serial("stable V1 browser journey", () => {
       await page.goto("/#openings");
       const openings = page.locator("#opening-practice");
       await openings.getByRole("button", { name: "Build on the board" }).click();
-      await openings.getByRole("textbox", { name: "Repertoire name" }).fill("Touch board audit");
+      await openings.getByRole("textbox", { name: "Repertoire name" }).fill(`Touch board audit ${testInfo.repeatEachIndex}-${testInfo.retry}`);
       await openings.getByRole("button", { name: "Start building", exact: true }).click();
       const board = openings.getByRole("grid", { name: "Repertoire board" });
       const boardStyles = await board.evaluate((element) => {
@@ -113,6 +113,11 @@ test.describe.serial("stable V1 browser journey", () => {
       const e7Box = await e7.boundingBox();
       const e5Box = await e5.boundingBox();
       if (!e7Box || !e5Box) throw new Error("Touch board squares are not visible");
+      // A first-move autosave must not send the next reply below the viewport.
+      for (const box of [e7Box, e5Box]) {
+        expect(box.y).toBeGreaterThanOrEqual(0);
+        expect(box.y + box.height).toBeLessThanOrEqual(844);
+      }
       const client = await context.newCDPSession(page);
       const from = { x: e7Box.x + e7Box.width / 2, y: e7Box.y + e7Box.height / 2 };
       const to = { x: e5Box.x + e5Box.width / 2, y: e5Box.y + e5Box.height / 2 };

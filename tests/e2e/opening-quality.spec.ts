@@ -193,6 +193,11 @@ test("builds with automatic saves, retry safety and a separate analysis board", 
   const id = (await (await page.request.get("/api/v1/openings/catalog")).json()).repertoires
     .find((item: { name: string }) => item.name === name).id;
   const board = page.getByRole("grid", { name: "Chess position" });
+  const initialBounds = await board.boundingBox();
+  expect(initialBounds!.y).toBeGreaterThanOrEqual(0);
+  expect(initialBounds!.y + initialBounds!.height).toBeLessThanOrEqual(page.viewportSize()!.height);
+  expect((await page.getByRole("button", { name: "Open analysis board", exact: true }).boundingBox())!.height).toBeLessThanOrEqual(50);
+  await page.screenshot({ path: testInfo.outputPath("first-save-board.png") });
   const boardTop = await board.evaluate(element => element.getBoundingClientRect().top + window.scrollY);
   const requests: string[] = [];
   let fail = true;

@@ -14,6 +14,8 @@ All notable changes to Thinking Board are recorded here.
 - Label recommendations with their saved response's source line and separate opening progress from thinking-drill totals.
 - Wrap long repertoire names rather than hiding their distinguishing words. No new dependencies or schema changes.
 - Keep mobile browsing instructions from sticking over the board; size desktop browsing boards to the viewport and prevent intermediate-width grid overflow.
+- Keep the board in view after the first builder move saves a new repertoire, settling the scroll before the next touch gesture.
+- Give the analysis-board toggle a full toolbar row instead of squeezing it into a three-line mobile label.
 - Add desktop/mobile regression checks for inspection, recovery and accessible controls.
 - Give the 40-line, multi-batch integration fixture a bounded 20-second budget on slower hosted runners; retain all publication checks and assertions.
 

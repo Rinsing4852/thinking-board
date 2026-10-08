@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Chess } from "chess.js";
 import { createRequestId } from "../request-id";
 
@@ -142,10 +142,12 @@ export function OpeningLineExplorer({
   const headingRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const toolsRef = useRef<HTMLDetailsElement>(null);
-  useEffect(() => {
-    // Enter a workspace at its heading, not halfway down the previous card.
-    const frame = requestAnimationFrame(() => headingRef.current?.scrollIntoView({ block: "start" }));
-    return () => cancelAnimationFrame(frame);
+  useLayoutEffect(() => {
+    // Saving the first move replaces the builder with this workspace. Keep
+    // playing at the board, rather than hiding it below the mobile toolbar.
+    // Settle the position before paint so the next gesture cannot race a scroll.
+    const target = startBuilding ? boardRef.current : headingRef.current;
+    target?.scrollIntoView({ block: "start", behavior: "instant" });
   }, []);
   const reveal = (element: HTMLElement | null): void => {
     if (!element) return;
