@@ -2,6 +2,17 @@
 
 All notable changes to Thinking Board are recorded here.
 
+## 1.5.20 — 2026-10-11
+
+### Faster opening-tab loading
+
+- Materialize recall evidence once per query rather than rerunning history windows for every shared-line membership.
+- Add migration 033's move-to-line lookup index without changing saved content or review history.
+- Load the library and restore saved sessions before optional practice suggestions and statistics; allow independent summary retry without blocking browsing.
+- Cancel obsolete summaries on navigation and practice/content changes, and retain normal fresh session/profile reads rather than introducing stale statistics caches.
+- Avoid updating unchanged review cards when reading recommendations.
+- Add query-plan and timing regression coverage with 1,001 shared lines and 10,000 mixed review events, plus desktop/mobile delayed-summary, failure/retry and session-restoration checks.
+
 ## 1.5.19 — 2026-10-08
 
 ### Clearer coverage and board navigation

@@ -9,6 +9,7 @@ import { ChessBoard } from "./ChessBoard";
 
 interface OpeningHomeCockpitProps {
   recommendation: OpeningReviewRecommendation | null;
+  recommendationLoading?: boolean;
   coverage: OpeningCoverageResponse | null;
   coverageLoading: boolean;
   progress: OpeningProgressResponse | null;
@@ -33,6 +34,7 @@ function frequencyLabel(percent: number): string {
 
 export function OpeningHomeCockpit({
   recommendation,
+  recommendationLoading = false,
   coverage,
   coverageLoading,
   progress,
@@ -99,7 +101,10 @@ export function OpeningHomeCockpit({
           )}
         </div>
 
-        {recommendation?.available && repertoire ? (
+        {recommendationLoading ? <div className="opening-home-primary" role="status">
+          <strong>Preparing your practice suggestions…</strong>
+          <p>Your library is ready. You can browse a repertoire or build a line while suggestions load.</p>
+        </div> : recommendation?.available && repertoire ? (
           <div className="opening-home-primary">
             <div>
               <span className="eyebrow">Recommended now</span>

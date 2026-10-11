@@ -6,6 +6,70 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/v1/training/session/active", route => route.fulfill({ json: null }));
 });
 
+test("opens the library and its board without waiting for suggestions or progress", async ({ page }, testInfo) => {
+  await page.route("**/api/v1/openings/lessons/active", route => route.fulfill({ json: null }));
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  let waiting = 0;
+  await page.route(/\/api\/v1\/openings\/(?:progress|reviews\/recommended)$/, async route => {
+    waiting++; await gate; await route.continue();
+  });
+  try {
+    await page.goto("/#today");
+    await page.getByRole("button", { name: "Openings", exact: true }).click();
+    const card = page.locator("article.opening-card").filter({ hasText: "Practical 1.e4 Repertoire" });
+    await expect(card).toBeVisible();
+    await expect.poll(() => waiting).toBe(2);
+    await expect(page.getByText("Loading opening practice…", { exact: true })).toBeHidden();
+    await expect(page.getByText("Preparing your practice suggestions…", { exact: true })).toBeVisible();
+    await card.locator("summary").click();
+    await card.getByRole("button", { name: "View all lines", exact: true }).click();
+    await expect(page.getByRole("region", { name: "Opening board and moves" })).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath("library-before-statistics.png") });
+    const completed = page.waitForResponse(response => response.url().endsWith("/api/v1/openings/progress"));
+    release(); await completed;
+    await expect(page.getByText("could not be refreshed", { exact: false })).toBeHidden();
+  } finally { release(); }
+});
+
+test("keeps the library usable when statistics fail and retries summaries independently", async ({ page }) => {
+  await page.route("**/api/v1/openings/lessons/active", route => route.fulfill({ json: null }));
+  let fail = true;
+  await page.route("**/api/v1/openings/progress", route => fail
+    ? route.fulfill({ status: 503, json: { error: "Statistics fixture failure" } }) : route.continue());
+  await page.goto("/#openings");
+  await expect(page.locator("article.opening-card").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Build on the board", exact: true })).toBeEnabled();
+  await expect(page.getByRole("alert")).toContainText("Opening statistics could not be refreshed");
+  fail = false;
+  await page.getByRole("button", { name: "Retry opening summaries", exact: true }).click();
+  await expect(page.getByRole("alert")).toBeHidden();
+  await expect(page.locator("article.opening-card").first()).toBeVisible();
+});
+
+test("restores a saved opening session before optional summaries complete", async ({ page }, testInfo) => {
+  await page.unroute("**/api/v1/openings/reviews/active");
+  const imported = await page.request.post("/api/v1/openings/imports/pgn", { data: {
+    pgn: '[Event "Fast resume"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 *',
+    learnerColor: "white", name: `Fast resume ${testInfo.project.name}`, ownershipConfirmed: true,
+  } });
+  expect(imported.ok()).toBeTruthy();
+  const id = (await imported.json()).repertoireIds[0];
+  const started = await page.request.post(`/api/v1/openings/repertoires/${id}/reviews/start`, { data: { mode: "new" } });
+  expect(started.ok()).toBeTruthy();
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route(/\/api\/v1\/openings\/(?:progress|reviews\/recommended)$/, async route => { await gate; await route.continue(); });
+  try {
+    await page.goto("/#openings");
+    await expect(page.getByRole("grid", { name: "Chess position" })).toBeVisible();
+    await expect(page.getByText("Loading opening practice…", { exact: true })).toBeHidden();
+    await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+    const completed = page.waitForResponse(response => response.url().endsWith("/api/v1/openings/progress"));
+    release(); await completed;
+  } finally { release(); }
+});
+
 test("keeps navigation history, keyboard access and first-run actions clear", async ({ page }, testInfo) => {
   const dashboard = await (await page.request.get("/api/v1/dashboard")).json();
   await page.route("**/api/v1/dashboard", route => route.fulfill({ json: { ...dashboard,

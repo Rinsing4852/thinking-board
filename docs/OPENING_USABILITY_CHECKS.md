@@ -2,6 +2,14 @@
 
 ## Implemented acceptance paths
 
+- Switch from Today to Openings while suggestions and statistics are pending.
+  The library, board browsing and saved-session restoration must remain usable.
+  A statistics failure must not hide the library; Retry opening summaries must
+  recover without restarting practice. Aborted summaries cannot overwrite later
+  practice/content updates. Migration 033 adds an index only, preserving all data.
+  Progress regression uses 1,001 shared lines and 10,000 mixed review events;
+  verify materialized recall evidence and an indexed move-to-line lookup.
+
 - Import a multi-chapter study with nested variations and conflicting chapter
   reasons for a shared move. Browse and practise each chapter independently.
   Update the source, then export/reimport in a fresh database. Paths, source notes,

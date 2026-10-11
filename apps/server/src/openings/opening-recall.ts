@@ -1,6 +1,9 @@
 import type { SqliteDatabase } from "../db/database.js";
 
-/** First answer per scheduled encounter, never immediate retries or lapse repeats. */
+/** First answer per scheduled encounter, never immediate retries or lapse repeats.
+ * Materialize once: a co-routine can rerun both history windows for every line
+ * membership when joining shared positions, turning a summary into seconds of work.
+ */
 export const FIRST_RECALL_EVIDENCE = `
   WITH answers AS (
     SELECT event.*, event.rowid AS event_order, COALESCE(played.id, queue.expected_move_id, item.move_id) AS target_move_id,
@@ -10,7 +13,7 @@ export const FIRST_RECALL_EVIDENCE = `
     JOIN opening_review_queue queue ON queue.id = event.queue_entry_id AND queue.presentation_kind = 'scheduled'
     LEFT JOIN opening_moves played ON event.correct = 1 AND played.repertoire_id = item.repertoire_id
       AND played.from_position_id = item.position_id AND played.move_uci = event.played_move_uci
-  ), recent AS (
+  ), recent AS MATERIALIZED (
     SELECT *, ROW_NUMBER() OVER (PARTITION BY target_move_id ORDER BY created_at DESC, event_order DESC) AS recency
     FROM answers WHERE encounter_answer = 1
   )`;

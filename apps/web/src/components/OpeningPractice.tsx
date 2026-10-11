@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { openingGraphKey } from "../opening-navigation";
 import { useOpeningSession } from "../use-opening-session";
+import { useOpeningInsights } from "../use-opening-insights";
 import { usePracticeMoveReset } from "../use-practice-move-reset";
 import { parseOpeningLocation } from "../opening-location";
 
@@ -54,7 +55,8 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
   const [step, setStep] = useState<OpeningLessonStep | null>(null);
   const [complete, setComplete] = useState<OpeningLessonComplete | null>(null);
   const { activeReview, reviewPaused, setActiveReview, setReviewPaused, nextLineId, contextError, contextLoading, retryContext } = useOpeningSession();
-  const [recommendation, setRecommendation] = useState<OpeningReviewRecommendation | null>(null);
+  const { recommendation, setRecommendation, progress: openingProgress, setProgress: setOpeningProgress,
+    loading: insightsLoading, error: insightsError, load: loadInsights, cancel: cancelInsights } = useOpeningInsights();
   const [phase, setPhase] = useState<LessonPhase>("catalog");
   const [pausedLessonPhase, setPausedLessonPhase] = useState<ActiveLessonPhase | null>(null);
   const [displayFen, setDisplayFen] = useState("");
@@ -81,7 +83,6 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
   const [coverageSpotlight, setCoverageSpotlight] = useState<OpeningCoverageResponse | null>(null);
   const [coverageSpotlightLoading, setCoverageSpotlightLoading] = useState(false);
   const coverageSpotlightRequestRef = useRef<AbortController | null>(null);
-  const [openingProgress, setOpeningProgress] = useState<OpeningProgressResponse | null>(null);
   const [playerPreferences, setPlayerPreferences] = useState<OpeningPlayerPreferences | null>(null);
   const activeCatalog = catalog.filter((repertoire) => !repertoire.archived);
   const archivedCatalog = catalog.filter((repertoire) => repertoire.archived);
@@ -120,8 +121,9 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
     setPhase("feedback");
   };
 
-  const beginSubmission = (): boolean => {
+  const beginSubmission = (changesPractice = true): boolean => {
     if (submittingRef.current) return false;
+    if (changesPractice) cancelInsights();
     submittingRef.current = true;
     setSubmitting(true);
     return true;
@@ -147,8 +149,18 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
       .finally(() => { if (!controller.signal.aborted) setCoverageSpotlightLoading(false); });
   };
 
+  const refreshOpeningInsights = (repertoires = catalog, preferences = playerPreferences, signal?: AbortSignal): void => {
+    void loadInsights(signal).then(recommended => {
+      if (signal?.aborted || recommended === undefined) return;
+      const repertoireId = recommended?.repertoire?.id ?? repertoires.find(repertoire => !repertoire.archived)?.id;
+      if (repertoireId && preferences?.useExplorer) loadCoverageSpotlight(repertoireId, preferences.ratingGroup);
+    });
+  };
+
   useEffect(() => {
     const controller = new AbortController();
+    cancelInsights();
+    setRecommendation(null); setOpeningProgress(null);
     clearCoverageSpotlight();
     setLoading(true);
     setError("");
@@ -156,14 +168,10 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
       get<OpeningCatalogResponse>("/api/v1/openings/catalog", controller.signal),
       get<OpeningLessonActiveState | null>("/api/v1/openings/lessons/active", controller.signal),
       get<OpeningReviewActiveState | null>("/api/v1/openings/reviews/active", controller.signal),
-      get<OpeningReviewRecommendation>("/api/v1/openings/reviews/recommended", controller.signal),
-      get<OpeningProgressResponse>("/api/v1/openings/progress", controller.signal),
       get<OpeningPlayerPreferences>("/api/v1/openings/preferences", controller.signal),
-    ]).then(([catalogResponse, active, review, recommended, progress, preferences]) => {
+    ]).then(([catalogResponse, active, review, preferences]) => {
       if (controller.signal.aborted) return;
       setCatalog(catalogResponse.repertoires);
-      setRecommendation(recommended);
-      setOpeningProgress(progress);
       setPlayerPreferences(preferences);
       setActiveReview(review);
       setReviewPaused(false);
@@ -190,20 +198,15 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
           .then(detail => { if (!controller.signal.aborted) { setWorkspaceDetail(detail); setWorkspaceLineId(location.lineId); } })
           .catch(() => { if (!controller.signal.aborted) setError("That saved repertoire is no longer available. Choose one from your library."); });
       }
-      const coverageRepertoireId = recommended.repertoire?.id
-        ?? catalogResponse.repertoires.find((repertoire) => !repertoire.archived)?.id;
-      if (coverageRepertoireId && preferences.useExplorer) {
-        loadCoverageSpotlight(coverageRepertoireId, preferences.ratingGroup);
-      } else {
-        clearCoverageSpotlight();
-      }
+      refreshOpeningInsights(catalogResponse.repertoires, preferences, controller.signal);
     }).catch((loadError) => {
       if (!controller.signal.aborted) setError(loadError instanceof Error ? loadError.message : "Could not load opening practice");
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => { controller.abort(); coverageSpotlightRequestRef.current?.abort(); };
+    return () => { controller.abort(); cancelInsights(); coverageSpotlightRequestRef.current?.abort(); };
   }, [refreshToken]);
 
   const updatePlayerPreferences = (preferences: OpeningPlayerPreferences): void => {
+    cancelInsights();
     setSettingsOpen(false);
     setPlayerPreferences(preferences);
     clearCoverageSpotlight();
@@ -261,7 +264,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
     lineId: string | null = null,
     gap: OpeningCoverageGap | null = null,
   ): Promise<void> => {
-    if (!beginSubmission()) return;
+    if (!beginSubmission(false)) return;
     setError("");
     try {
       const detail = await get<OpeningRepertoireDetailResponse>(`/api/v1/openings/repertoires/${repertoireId}`);
@@ -280,6 +283,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
   };
 
   const finishBoardBuild = async (repertoireId: string): Promise<void> => {
+    cancelInsights();
     const [updatedCatalog, detail, progress] = await Promise.all([
       get<OpeningCatalogResponse>("/api/v1/openings/catalog"),
       get<OpeningRepertoireDetailResponse>(`/api/v1/openings/repertoires/${repertoireId}`),
@@ -295,6 +299,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
   };
 
   const finishOpeningDeletion = (repertoireIds: string[], message: string): void => {
+    cancelInsights();
     const deleted = new Set(repertoireIds);
     const location = parseOpeningLocation(window.location.hash);
     if (location && deleted.has(location.repertoireId)) window.history.replaceState(null, "", "#openings");
@@ -324,6 +329,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
   const finishRepertoireDeletion = (repertoireId: string): void => finishOpeningDeletion([repertoireId], "Repertoire deleted. Your imported games were kept.");
 
   const finishSourceUpdate = async (repertoireId: string): Promise<void> => {
+    cancelInsights();
     const [catalogResponse, recommended, progress, review] = await Promise.all([
       get<OpeningCatalogResponse>("/api/v1/openings/catalog"),
       get<OpeningReviewRecommendation>("/api/v1/openings/reviews/recommended"),
@@ -430,6 +436,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
   };
 
   const finishReview = (): void => {
+    cancelInsights();
     setActiveReview(null);
     setReviewPaused(false);
     void Promise.all([
@@ -656,11 +663,13 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
           }}
           onPractice={(lineId, moveId) => void startLinePractice(workspaceDetail.repertoire.id, lineId, moveId)}
           onDetailChanged={updated => {
+            cancelInsights();
             if (openingGraphKey(updated.chapters) !== openingGraphKey(workspaceDetail.chapters)) clearCoverageSpotlight();
             setWorkspaceDetail(updated);
           }}
           onRepertoireDeleted={finishRepertoireDeletion}
           onPracticeSelectionChanged={async () => {
+            cancelInsights();
             const [updatedCatalog, recommended, progress, review] = await Promise.all([
               get<OpeningCatalogResponse>("/api/v1/openings/catalog"),
               get<OpeningReviewRecommendation>("/api/v1/openings/reviews/recommended"),
@@ -710,6 +719,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
           {!activeReview && !(step && pausedLessonPhase) && (
             <OpeningHomeCockpit
               recommendation={recommendation}
+              recommendationLoading={insightsLoading && !recommendation}
               coverage={coverageSpotlight}
               coverageLoading={coverageSpotlightLoading}
               progress={openingProgress}
@@ -727,6 +737,10 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
               onImport={() => setShowImporter((shown) => !shown)}
             />
           )}
+          {insightsError && <div className="panel" role="alert">
+            <p>{insightsError}</p>
+            <button className="secondary" disabled={insightsLoading} onClick={() => refreshOpeningInsights()}>Retry opening summaries</button>
+          </div>}
           {playerPreferences && (
             <details className="panel opening-settings" open={settingsOpen} onToggle={event => setSettingsOpen(event.currentTarget.open)}>
               <summary>
@@ -741,6 +755,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
           {archiveMessage && <p className="success opening-catalog-status" role="status">{archiveMessage}</p>}
           {showImporter && (
             <OpeningImporter onImported={async () => {
+              cancelInsights();
               const [response, progress, recommended] = await Promise.all([
                 get<OpeningCatalogResponse>("/api/v1/openings/catalog"),
                 get<OpeningProgressResponse>("/api/v1/openings/progress"),

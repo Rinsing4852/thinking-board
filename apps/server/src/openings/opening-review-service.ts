@@ -934,6 +934,8 @@ export class OpeningReviewService {
       ON CONFLICT(profile_id, repertoire_id, position_id, knowledge_dimension)
       DO UPDATE SET move_id = excluded.move_id, scheduler_version = excluded.scheduler_version,
                     updated_at = excluded.updated_at
+      WHERE opening_review_items.move_id <> excluded.move_id
+        OR opening_review_items.scheduler_version <> excluded.scheduler_version
     `);
     this.db.transaction(() => {
       for (const move of canonical.values()) {
