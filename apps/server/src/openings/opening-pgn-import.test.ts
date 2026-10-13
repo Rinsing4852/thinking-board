@@ -79,19 +79,21 @@ describe("opening PGN parsing", () => {
     expect(parsed.chapters[0]?.lines[0]?.moves[0]?.comment).toMatch(/Claims space/);
   });
 
-  it("gives useful errors for illegal moves and mixed first moves", () => {
+  it("gives useful errors for illegal moves and custom positions", () => {
     expect(() => parseOpeningPgn("1. e4 e5 2. Bh6 *")).toThrow(/Illegal or unsupported move/);
-    expect(() => parseOpeningPgn("1. e4 (1. d4) *")).toThrow(/mixes different first moves/);
     expect(() => parseOpeningPgn("[SetUp \"1\"]\n[FEN \"8/8/8/8/8/8/8/K6k w - - 0 1\"]\n1. Ka2 *"))
       .toThrow(/normal starting position/);
   });
 
-  it("can preview a mixed study and select compatible chapters before import", () => {
+  it("can import a mixed study together or select individual chapters", () => {
     const { database, importer } = services();
     const preview = importer.previewStudy({ pgn: MIXED_STUDY_PGN, learnerColor: "white" });
     expect(preview).toMatchObject({ firstMoveSan: "Multiple", chapterCount: 2 });
-    expect(preview.warnings).toEqual(expect.arrayContaining([expect.stringMatching(/different first moves/i)]));
-    expect(() => importer.preview({ pgn: MIXED_STUDY_PGN, learnerColor: "white" })).toThrow(/mixes different first moves/);
+    expect(preview.warnings.some(warning => /different first moves/i.test(warning))).toBe(false);
+    expect(importer.preview({ pgn: MIXED_STUDY_PGN, learnerColor: "white" }))
+      .toMatchObject({ firstMoveSan: "Multiple", chapterCount: 2 });
+    const imported = importer.import({ pgn: MIXED_STUDY_PGN, learnerColor: "black", ownershipConfirmed: true });
+    expect(imported.repertoireIds).toHaveLength(1);
     expect(importer.preview({
       pgn: MIXED_STUDY_PGN,
       learnerColor: "white",

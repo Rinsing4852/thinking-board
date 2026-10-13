@@ -171,7 +171,6 @@ export class OpeningUpdateService {
 
   private plan(source: SourceRow, pgn: string): UpdatePlan {
     const parsed = parseOpeningPgn(pgn);
-    if (parsed.firstMoveUci !== source.first_move_uci) throw new Error("This PGN starts with a different opening. Import it as a separate repertoire.");
     const curriculum = buildImportedCurriculum(parsed, source.learner_color, source.name, source.source_title, source.source_author, false);
     curriculum.id = source.id;
     const compiled = compileOpeningCurriculum(curriculum);

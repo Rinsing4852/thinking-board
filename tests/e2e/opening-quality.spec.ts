@@ -1185,3 +1185,31 @@ test("links a pasted-game miss to its source game only after the answer", async 
     data: { queueEntryId: practice.queueEntryId },
   })).ok()).toBeTruthy();
 });
+
+
+test("builds a Black response to a different first move in the same repertoire", async ({ page }, testInfo) => {
+  const imported = await page.request.post("/api/v1/openings/imports/pgn", { data: {
+    pgn: `[Event "Modern roots ${testInfo.project.name}"]\n\n1. e4 g6 2. d4 Bg7 *`, learnerColor: "black", name: `Modern roots ${testInfo.project.name}`,
+    sourceType: "self_authored", sourceTitle: "My board", ownershipConfirmed: true,
+  } });
+  expect(imported.ok()).toBeTruthy();
+  const repertoireId = (await imported.json()).repertoireIds[0];
+  const original = (await (await page.request.get(`/api/v1/openings/repertoires/${repertoireId}`)).json()).chapters[0].lines[0];
+  await page.goto(`/#openings?repertoire=${encodeURIComponent(repertoireId)}&line=${encodeURIComponent(original.id)}&ply=0`);
+  await page.getByRole("button", { name: "Edit lines", exact: true }).click();
+  const board = page.getByRole("grid", { name: "Chess position" });
+  await board.getByRole("gridcell", { name: "d2 white pawn" }).click();
+  await board.getByRole("gridcell", { name: "d4 empty" }).click();
+  await expect(page.getByText("d4 was saved as a new branch; the original line is unchanged.", { exact: true })).toBeVisible();
+  await board.getByRole("gridcell", { name: "g7 black pawn" }).click();
+  await board.getByRole("gridcell", { name: "g6 empty" }).click();
+  await expect(page.getByText("g6 was added to the end of this line.", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(board.getByRole("gridcell", { name: "d4 white pawn" })).toBeVisible();
+  await expect(board.getByRole("gridcell", { name: "g6 black pawn" })).toBeVisible();
+  const detail = await (await page.request.get(`/api/v1/openings/repertoires/${repertoireId}`)).json();
+  expect(detail.chapters[0].lines).toHaveLength(2);
+  expect(detail.chapters[0].lines.find((line: { id: string }) => line.id === original.id).moves).toEqual(original.moves);
+  expect(detail.chapters[0].lines.find((line: { title: string }) => line.title === "1.d4").moves
+    .map((move: { moveUci: string }) => move.moveUci)).toEqual(["d2d4", "g7g6"]);
+});

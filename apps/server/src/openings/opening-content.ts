@@ -276,9 +276,6 @@ export function compileOpeningCurriculum(curriculum: OpeningCurriculum): Compile
       if (!Array.isArray(line.moves) || line.moves.length === 0) {
         throw new Error(`Line ${line.id} must contain at least one move`);
       }
-      if (line.moves[0]?.moveUci !== curriculum.firstMoveUci && rootFen === STANDARD_START_FEN) {
-        throw new Error(`Line ${line.id} does not begin with ${curriculum.firstMoveUci}`);
-      }
 
       const chess = new Chess(rootFen);
       const moveIds: string[] = [];
@@ -322,7 +319,9 @@ export function compileOpeningCurriculum(curriculum: OpeningCurriculum): Compile
             kind,
           });
         }
-        if (moveIndex === 0 && rootFen === STANDARD_START_FEN) firstMoveSan ??= applied.san;
+        if (moveIndex === 0 && rootFen === STANDARD_START_FEN) {
+          firstMoveSan = firstMoveSan === null || firstMoveSan === applied.san ? applied.san : "Multiple";
+        }
         moveIds.push(moveId);
         positionIds.push(to.id);
       });

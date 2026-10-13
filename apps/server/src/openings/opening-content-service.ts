@@ -27,7 +27,14 @@ export class OpeningContentService {
     const profileId = ensureActiveProfile(this.db);
     const timestamp = now();
     const rows = this.db.prepare(`
-      SELECT r.id, r.slug, r.name, r.learner_color, r.first_move_uci, r.first_move_san,
+      SELECT r.id, r.slug, r.name, r.learner_color, r.first_move_uci,
+             COALESCE((SELECT CASE WHEN COUNT(DISTINCT first_move.move_uci) > 1 THEN 'Multiple'
+                                   ELSE MIN(first_move.move_san) END
+               FROM opening_chapters first_chapter
+               JOIN opening_lines first_line ON first_line.chapter_id = first_chapter.id AND first_line.active = 1
+               JOIN opening_line_moves first_membership ON first_membership.line_id = first_line.id AND first_membership.ply = 1
+               JOIN opening_moves first_move ON first_move.id = first_membership.move_id
+               WHERE first_chapter.repertoire_id = r.id AND first_chapter.active = 1), r.first_move_san) AS first_move_san,
              r.summary, r.audience_label, r.style_json, r.memory_burden,
              r.content_version, r.status, oi.source_title, oi.source_updated_at,
              COUNT(DISTINCT CASE WHEN c.active = 1 THEN c.id END) AS chapter_count

@@ -156,9 +156,6 @@ export class OpeningWorkspaceService {
     if (!fen) throw new Error("The line has no starting position");
     const nextMove = moves[input.afterPly];
     if (nextMove?.moveUci === moveUci) throw new Error(`${nextMove.moveSan} is already the next move in this line`);
-    if (input.afterPly === 0 && nextMove) {
-      throw new Error("A repertoire keeps one first move. Create a separate repertoire for a different first move.");
-    }
 
     const chess = new Chess(fen);
     let played;
@@ -226,7 +223,7 @@ export class OpeningWorkspaceService {
       if (createdBranch) {
         targetLineId = id();
         const branchTitle = input.branchTitle?.trim().slice(0, 120)
-          || `${line.title} — ${played.san} branch`;
+          || (input.afterPly === 0 ? `1.${played.san}` : `${line.title} — ${played.san} branch`);
         const priority = Number(this.db.prepare(`
           SELECT COALESCE(MAX(priority), 0) + 1 FROM opening_lines WHERE chapter_id = ?
         `).pluck().get(line.chapter_id));

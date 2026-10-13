@@ -17,7 +17,10 @@ The V1 loop turns a player's own PGN into thinking-process drills:
 
 Opening practice uses a versioned curriculum format compiled into a
 transposition-aware position graph. The web interface includes an independently
-authored curriculum format and private PGN repertoire imports. Fresh installations
+authored curriculum format and private PGN repertoire imports. A repertoire can
+include different first moves, such as responses to 1.e4, 1.d4 and 1.Nf3.
+Adding a different first move creates a separate line and keeps existing lines
+and learning progress. Mixed first moves also work in PGN imports and updates. Fresh installations
 start empty; upgrades keep existing White 1.e4/Modern starter material until you
 choose to remove it. New positions use a learn → understand →
 unassisted recall sequence before entering the local FSRS schedule. Seeing the

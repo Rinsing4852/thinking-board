@@ -308,10 +308,7 @@ export function parseOpeningPgn(pgn: string, selectedChapterIndexes?: number[]):
   }
   const first = allLines[0]?.moves[0];
   if (!first) throw new Error("The PGN contains no opening moves");
-  const differentFirstMove = allLines.find((line) => line.moves[0]?.uci !== first.uci);
-  if (differentFirstMove) {
-    throw new Error(`This import mixes different first moves. Put ${first.san} lines and ${differentFirstMove.moves[0]?.san ?? "other first-move"} lines in separate repertoires.`);
-  }
+  const multipleFirstMoves = new Set(allLines.map(line => line.moves[0]?.uci)).size > 1;
   const canonical = chapters.map((chapter) => ({
     title: chapter.title,
     lines: chapter.lines.map((line) => line.moves.map((move) => move.uci)),
@@ -320,7 +317,7 @@ export function parseOpeningPgn(pgn: string, selectedChapterIndexes?: number[]):
   return {
     suggestedName: cleanText(firstHeaders.Repertoire ?? firstHeaders.StudyName ?? firstHeaders.Opening ?? firstHeaders.Event, `${first.san} personal repertoire`),
     firstMoveUci: first.uci,
-    firstMoveSan: first.san,
+    firstMoveSan: multipleFirstMoves ? "Multiple" : first.san,
     fingerprint: sha256(JSON.stringify(canonical)),
     chapters,
   };
@@ -475,9 +472,6 @@ export class OpeningPgnImportService {
     if (lineCount > chapterPreviews.length) warnings.push("PGN variations were detected and will be imported as separate practice lines.");
     warnings.push("Imported material stays private on this installation. Only import material you own or have permission to use.");
     if (skipped.length > 0) warnings.unshift(`${skipped.length} chapter${skipped.length === 1 ? "" : "s"} without moves will be skipped.`);
-    if (new Set(chapterPreviews.map(({ preview }) => preview.firstMoveSan)).size > 1) {
-      warnings.unshift("This study contains different first moves. Select chapters from one opening for each import.");
-    }
     return {
       suggestedName: input.name?.trim() || chapterPreviews[0]!.preview.suggestedName,
       learnerColors: chapterPreviews[0]!.preview.learnerColors,

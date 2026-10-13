@@ -34,6 +34,42 @@ function setup(pgn = PGN, selectedChapterIndexes?: number[]) {
 }
 
 describe("opening source updates", () => {
+  it("builds and practises different first moves while preserving original moves and export paths", () => {
+    const { db, importer, content, workspace } = setup();
+    const repertoireId = importer.import({ pgn: "1. e4 g6 2. d4 Bg7 *", learnerColor: "black", ownershipConfirmed: true }).repertoireIds[0]!;
+    const original = workspace.repertoire(repertoireId).chapters[0]!.lines[0]!;
+    workspace.updateLearningComment(repertoireId, original.moves[1]!.id, "My Modern reminder");
+    const reviews = new OpeningReviewService(db);
+    const originalExercise = reviews.startLine(repertoireId, original.id);
+    reviews.answer(originalExercise.sessionId, "g7g6", false, false, originalExercise.queueEntryId, 10);
+    const cardsBefore = db.prepare("SELECT card.* FROM opening_move_review_cards card JOIN opening_moves move ON move.id = card.move_id WHERE move.repertoire_id = ? ORDER BY card.move_id").all(repertoireId);
+    expect(cardsBefore.length).toBeGreaterThan(0);
+    const branch = workspace.addMove({ repertoireId, lineId: original.id, afterPly: 0, moveUci: "d2d4", requestId: "root-d4" });
+    expect(branch.createdBranch).toBe(true);
+    const d4 = branch.detail.chapters[0]!.lines.find(line => line.id === branch.lineId)!;
+    expect(d4.title).toBe("1.d4");
+    expect(d4.moves.map(move => move.moveUci)).toEqual(["d2d4"]);
+    expect(workspace.addMove({ repertoireId, lineId: original.id, afterPly: 0, moveUci: "d2d4", requestId: "root-d4" }).changed).toBe(false);
+    workspace.addMove({ repertoireId, lineId: d4.id, afterPly: 1, moveUci: "g7g6" });
+    const nf3 = workspace.addMove({ repertoireId, lineId: original.id, afterPly: 0, moveUci: "g1f3" });
+    workspace.addMove({ repertoireId, lineId: nf3.lineId, afterPly: 1, moveUci: "g7g6" });
+    const after = workspace.repertoire(repertoireId);
+    expect(after.chapters[0]!.lines.find(line => line.id === original.id)!.moves.map(move => move.id))
+      .toEqual(original.moves.map(move => move.id));
+    expect(after.chapters[0]!.lines.find(line => line.id === original.id)!.moves[1]!.explanation.personalComment)
+      .toBe("My Modern reminder");
+    expect(db.prepare("SELECT card.* FROM opening_move_review_cards card JOIN opening_moves move ON move.id = card.move_id WHERE move.repertoire_id = ? ORDER BY card.move_id").all(repertoireId))
+      .toEqual(cardsBefore);
+    expect(content.catalog().repertoires.find(repertoire => repertoire.id === repertoireId)!.firstMoveSan).toBe("Multiple");
+    const exercise = new OpeningReviewService(db).startLine(repertoireId, d4.id);
+    expect(exercise.learnerColor).toBe("black");
+    expect(exercise.lineRun?.lineTitle).toBe("1.d4");
+    const restoredId = importer.import({ pgn: workspace.exportPgn(repertoireId).pgn, learnerColor: "black", ownershipConfirmed: true }).repertoireIds[0]!;
+    expect(workspace.repertoire(restoredId).chapters[0]!.lines.map(line => line.moves.map(move => move.moveUci)))
+      .toEqual(after.chapters[0]!.lines.map(line => line.moves.map(move => move.moveUci)));
+    expect(db.pragma("foreign_key_check")).toEqual([]);
+  });
+
   it("round trips the supplied Ruy Lopez study's nested variations and source highlight", () => {
     const pgn = `[Event "KiS Ruy Lopez"]\n[ChapterName "C1. KiS Ruy Lopez 7.Nc3"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. d3 b5 6. Bb3 { [%csl Gc7] } Bc5 7. Nc3 d6 (7... O-O 8. Nd5 d6 (8... h6 9. c3 d6 10. Nxf6+ Qxf6 11. Bd5 Bd7 12. Rg1 Rae8 (12... h5 13. h3 Rae8 14. g4 hxg4 (14... Ne7 15. Bg5 Qg6 16. gxh5 Qxh5 17. Bf6 Ng6 18. Nxe5) 15. hxg4 Ne7 16. Bg5 Qg6 17. Bxe7 Rxe7 18. g5) 13. g4 Qg6 14. g5 hxg5 15. Bxg5) 9. Bg5 Bg4 10. Qd2) (7... h6 8. Nd5 d6 9. c3 Be6 (9... Rb8 10. d4 Ba7 11. Be3) 10. Nxf6+ Qxf6 11. O-O O-O 12. Bxe6 fxe6 13. b4 Bb6 14. a4) 8. Nd5 Nxd5 9. Bxd5 Bd7 10. Bg5 Qc8 11. Nh4 *`;
     const original = setup(pgn);
@@ -230,13 +266,19 @@ describe("opening source updates", () => {
     expect(workspace.repertoire(repertoireId).chapters[0]!.lines).toHaveLength(2);
   });
 
-  it("allows personal notes after preview, but rejects a different opening or study", async () => {
+  it("allows personal notes and different first moves after preview, but rejects a different study", async () => {
     const { db, repertoireId, updates, workspace } = setup();
     const preview = await updates.preview(repertoireId, { pgn: UPDATED });
     const move = workspace.repertoire(repertoireId).chapters[0]!.lines[0]!.moves[0]!;
     workspace.updateLearningComment(repertoireId, move.id, "Written after preview");
     expect(() => updates.apply(repertoireId, preview.previewId, true)).not.toThrow();
-    await expect(updates.preview(repertoireId, { pgn: '[Event "Wrong"]\n\n1. d4 d5 *' })).rejects.toThrow(/different opening/);
+    const added = await updates.preview(repertoireId, { pgn: '[Event "Queen pawn"]\n\n1. d4 d5 *' });
+    expect(added.addedLines).toBe(1);
+    updates.apply(repertoireId, added.previewId, true);
+    expect(workspace.repertoire(repertoireId).chapters.flatMap(chapter => chapter.lines)
+      .some(line => line.moves[0]?.moveUci === "d2d4")).toBe(true);
+    expect(workspace.repertoire(repertoireId).chapters[0]!.lines[0]!.moves[0]!.explanation.personalComment)
+      .toBe("Written after preview");
     db.prepare("UPDATE opening_imports SET source_title = 'https://lichess.org/study/abcdefgh' WHERE repertoire_id = ?").run(repertoireId);
     await expect(updates.preview(repertoireId, { studyUrl: "https://lichess.org/study/ijklmnop" })).rejects.toThrow(/different Lichess Study/);
   });
