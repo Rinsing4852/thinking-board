@@ -40,6 +40,8 @@ function seedRepresentativeData(database: Database): void {
 }
 
 describe("database migrations", () => {
+  // Rebuild and upgrade a disk-backed database for every historical schema.
+  // Shared CI runners need more than the default five seconds for this sweep.
   it("upgrades representative data from every released schema version", () => {
     const migrationFiles = fs.readdirSync(path.resolve("migrations"))
       .filter((file) => /^\d+_.+\.sql$/.test(file))
@@ -95,7 +97,7 @@ describe("database migrations", () => {
       expect(upgraded.connection.pragma("foreign_key_check")).toEqual([]);
       upgraded.close();
     }
-  });
+  }, 30_000);
 
   it("preserves opening history when legacy move cards collapse into one position card", () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "thinking-board-opening-card-upgrade-"));
