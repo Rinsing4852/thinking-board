@@ -1,4 +1,5 @@
 import { Chess } from "chess.js";
+import { OpeningActivityService } from "./opening-activity-service.js";
 
 import type {
   OpeningReviewActiveState,
@@ -132,19 +133,29 @@ function averageResponse(previous: number | null, repetitions: number, responseM
 export class OpeningReviewService {
   constructor(private readonly db: SqliteDatabase) {}
 
-  recommendation(sessionSize = 10, newLimit?: number): OpeningReviewRecommendation {
+  recommendation(sessionSize?: number, newLimit?: number): OpeningReviewRecommendation {
     const profileId = ensureActiveProfile(this.db);
     const resolvedNewLimit = newLimit ?? this.practicePacing(profileId).newMovesPerSession;
-    const recommendation = this.recommendedSelection(profileId, sessionSize, resolvedNewLimit);
+    const activity = new OpeningActivityService(this.db).get();
+    const batchSize = sessionSize ?? Math.min(10, activity.remaining);
+    const recommendation = batchSize > 0 ? this.recommendedSelection(profileId, batchSize, resolvedNewLimit) : null;
     if (!recommendation) {
+      const saved = Number(this.db.prepare(`SELECT COUNT(*) FROM opening_moves move
+        JOIN opening_repertoires repertoire ON repertoire.id = move.repertoire_id
+        LEFT JOIN opening_repertoire_preferences preference ON preference.repertoire_id = repertoire.id AND preference.profile_id = ?
+        WHERE move.active = 1 AND move.role = 'learner' AND preference.archived_at IS NULL`).pluck().get(profileId));
       return {
+        activity,
         available: false,
         repertoire: null,
         counts: { gameMisses: 0, due: 0, new: 0, early: 0, total: 0 },
-        message: "Add learner moves or include saved lines in Practice selection to begin automatic opening practice.",
+        message: activity.goalReached ? "Daily goal reached. You can still open a repertoire to practise more."
+          : saved > 0 ? "No enabled saved responses are available for automatic practice. Open a repertoire and include a line in Practice selection, or practise that line once."
+          : "Save at least one move for your side to receive practice recommendations. Opponent replies alone are not practice responses.",
       };
     }
     return {
+      activity,
       available: true,
       repertoire: recommendation.repertoire,
       counts: recommendation.counts,
@@ -152,10 +163,12 @@ export class OpeningReviewService {
     };
   }
 
-  startRecommended(sessionSize = 10, newLimit?: number): OpeningReviewExercise {
+  startRecommended(sessionSize?: number, newLimit?: number): OpeningReviewExercise {
     const profileId = ensureActiveProfile(this.db);
     const resolvedNewLimit = newLimit ?? this.practicePacing(profileId).newMovesPerSession;
-    const recommendation = this.recommendedSelection(profileId, sessionSize, resolvedNewLimit);
+    const activity = new OpeningActivityService(this.db).get();
+    if (sessionSize === undefined && activity.goalReached) throw new Error("Daily goal reached. Open a repertoire if you want extra practice.");
+    const recommendation = this.recommendedSelection(profileId, sessionSize ?? Math.min(10, activity.remaining), resolvedNewLimit);
     if (!recommendation || recommendation.selected.length === 0) {
       throw new Error("No opening positions are enabled for practice. Include a line in Practice selection, or open a line to practise it once.");
     }

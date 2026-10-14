@@ -6,6 +6,9 @@ import { post } from "../api";
 import { ChessBoard } from "./ChessBoard";
 import { OpeningAnalysisSandbox, type SandboxMove } from "./OpeningAnalysisSandbox";
 import { OpeningMoveSuggestions } from "./OpeningMoveSuggestions";
+import { OpeningBuildGuidance } from "./OpeningBuildGuidance";
+import { openingBuildGuidance } from "../opening-build-guidance";
+import { useOpeningMoveEvidence } from "../use-opening-move-evidence";
 import { OpeningPreparationAdvice } from "./OpeningPreparationAdvice";
 import { useOpeningDraft } from "../use-opening-draft";
 import type { BuiltMove } from "../opening-draft";
@@ -46,6 +49,9 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
   const [error, setError] = useState("");
   const draftLocked = submitting || savedId.current !== null;
   const fen = moves.at(-1)?.fenAfter ?? START_FEN;
+  const [showSuggestions, setShowSuggestions] = useState(true);
+  const moveEvidence = useOpeningMoveEvidence(fen, ratingGroup, useExplorer, building && !analysisOpen);
+  const guidance = useMemo(() => openingBuildGuidance(fen, learnerColor, ratingGroup, useExplorer, moveEvidence), [fen, learnerColor, ratingGroup, useExplorer, moveEvidence]);
   const turn = fen.split(" ")[1] === "b" ? "black" : "white";
   const isLearnerTurn = turn === learnerColor;
   const learnerMoves = useMemo(
@@ -182,8 +188,10 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
                 interactive={!draftLocked}
                 lastMove={lastMove?.moveUci ?? null}
                 onMove={addMove}
+                suggestionArrows={!analysisOpen && showSuggestions ? guidance.arrows : []}
                 ariaLabel="Repertoire board"
               />
+              {!analysisOpen && <OpeningBuildGuidance guidance={guidance} shown={showSuggestions} onToggle={() => setShowSuggestions(value => !value)} />}
               <div className="opening-builder-moves" aria-label="Moves in this line">
                 {moves.map((move, index) => (
                   <span className={move.fenBefore.split(" ")[1] === (learnerColor === "white" ? "w" : "b") ? "learner" : ""} key={`${move.moveUci}-${index}`}>
@@ -206,6 +214,7 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
                     ratingGroup={ratingGroup}
                     useExplorer={useExplorer}
                     disabled={draftLocked}
+                    evidence={moveEvidence}
                     onChooseMove={addMove}
                   />
                 </>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Chess } from "chess.js";
 
 import type {
@@ -7,7 +7,7 @@ import type {
   OpeningExplorerPositionResponse,
   OpeningPositionAnalysisResponse,
 } from "../../../../packages/contracts/src/api";
-import { get, post } from "../api";
+import { useOpeningMoveEvidence, type OpeningMoveEvidence } from "../use-opening-move-evidence";
 
 interface OpeningMoveSuggestionsProps {
   fen: string;
@@ -17,6 +17,7 @@ interface OpeningMoveSuggestionsProps {
   savedMoveUcis?: string[];
   savedMoves?: Array<{ moveUci: string; moveSan: string }>;
   disabled?: boolean;
+  evidence?: OpeningMoveEvidence;
   onChooseMove: (moveUci: string, moveSan: string) => void;
 }
 
@@ -49,58 +50,12 @@ export function OpeningMoveSuggestions({
   savedMoves = [],
   disabled = false,
   onChooseMove,
+  evidence,
 }: OpeningMoveSuggestionsProps) {
-  const [analysis, setAnalysis] = useState<OpeningPositionAnalysisResponse | null>(null);
-  const [explorer, setExplorer] = useState<OpeningExplorerPositionResponse | null>(null);
-  const [analysisBusy, setAnalysisBusy] = useState(false);
-  const [explorerBusy, setExplorerBusy] = useState(false);
-  const [analysisError, setAnalysisError] = useState("");
-  const [explorerError, setExplorerError] = useState("");
+  const ownEvidence = useOpeningMoveEvidence(fen, ratingGroup, useExplorer, !evidence);
+  const { analysis, explorer, analysisBusy, explorerBusy, analysisError, explorerError } = evidence ?? ownEvidence;
   const [detailsOpen, setDetailsOpen] = useState(false);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    setAnalysis(null);
-    setAnalysisBusy(true);
-    setAnalysisError("");
-    const timer = window.setTimeout(() => {
-      void post<OpeningPositionAnalysisResponse>("/api/v1/openings/analysis", { fen }, controller.signal)
-        .then(result => { if (!controller.signal.aborted) setAnalysis(result); })
-        .catch((error: unknown) => {
-          if (!controller.signal.aborted) setAnalysisError(error instanceof Error ? error.message : "Stockfish analysis failed");
-        })
-        .finally(() => { if (!controller.signal.aborted) setAnalysisBusy(false); });
-    }, 300);
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [fen]);
-
-  useEffect(() => {
-    if (!useExplorer) {
-      setExplorer(null);
-      setExplorerError("");
-      setExplorerBusy(false);
-      return;
-    }
-    const controller = new AbortController();
-    setExplorer(null);
-    setExplorerBusy(true);
-    setExplorerError("");
-    const timer = window.setTimeout(() => {
-      void get<OpeningExplorerPositionResponse>(
-        `/api/v1/openings/explorer?rating=${ratingGroup}&fen=${encodeURIComponent(fen)}`,
-        controller.signal,
-      ).then(result => { if (!controller.signal.aborted) setExplorer(result); }).catch((error: unknown) => {
-        if (!controller.signal.aborted) setExplorerError(error instanceof Error ? error.message : "Practical frequencies are unavailable");
-      }).finally(() => { if (!controller.signal.aborted) setExplorerBusy(false); });
-    }, 300);
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [fen, ratingGroup, useExplorer]);
+  const ownTurn = fen.split(" ")[1] === (learnerColor === "white" ? "w" : "b");
 
   const candidates = useMemo(() => {
     const analysisByMove = new Map((analysis?.lines ?? []).map((line) => [line.moveUci, line]));
@@ -108,8 +63,8 @@ export function OpeningMoveSuggestions({
     const savedByMove = new Map(savedMoves.map(move => [move.moveUci, move]));
     const orderedMoves = [
       ...savedMoves.map(move => move.moveUci),
-      ...(useExplorer ? (explorer?.replies ?? []).slice(0, 7).map((reply) => reply.moveUci) : []),
-      ...(analysis?.lines ?? []).map((line) => line.moveUci),
+      ...(useExplorer ? [...(explorer?.replies ?? [])].sort((a, b) => b.games - a.games || a.moveUci.localeCompare(b.moveUci)).slice(0, 7).map((reply) => reply.moveUci) : []),
+      ...(ownTurn || detailsOpen ? analysis?.lines ?? [] : []).map((line) => line.moveUci),
     ].filter((move, index, moves) => moves.indexOf(move) === index).slice(0, Math.max(7, savedMoves.length));
 
     return orderedMoves.map((moveUci) => {
@@ -134,7 +89,7 @@ export function OpeningMoveSuggestions({
         saved: savedMoveUcis.includes(moveUci) || savedByMove.has(moveUci),
       };
     });
-  }, [analysis, explorer, savedMoveUcis, savedMoves, useExplorer, fen]);
+  }, [analysis, explorer, savedMoveUcis, savedMoves, useExplorer, fen, ownTurn, detailsOpen]);
 
   return (
     <section className={`opening-move-suggestions ${detailsOpen ? "show-evidence" : "compact-evidence"}`} aria-label="Moves to consider">
@@ -162,7 +117,7 @@ export function OpeningMoveSuggestions({
               <small>{candidate.description}</small>
               {candidate.saved
                 ? <small>Saved · follow this move</small>
-                : candidate.engine?.rank === 1 && <small>Stockfish choice</small>}
+                : ownTurn && candidate.engine?.rank === 1 && <small>Stockfish choice</small>}
             </span>
             <span>
               <strong>{frequencyLabel(candidate.practical)}</strong>

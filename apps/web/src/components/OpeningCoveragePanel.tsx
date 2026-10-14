@@ -45,7 +45,7 @@ export function OpeningCoveragePanel({ coverage, busy, disabled, useExplorer, no
     || filter === "actionable" && (position.boundary || position.sampleStatus !== "fresh"));
   return <section className="opening-coverage-panel" aria-label="Repertoire coverage and gaps">
     <h3>Preparation and recall</h3>
-    <p>Find missing responses—or practise moves you already saved. You do not need a line for every legal move.</p>
+    <p>Coverage comes from opponent replies in your imported games and Lichess frequencies at your selected rating. Saved responses and memory are measured separately.</p>
     <div className="opening-coverage-controls">
       <label>My intended route<select value={routeId} disabled={disabled} onChange={event => onScope(rating, throughMove, event.target.value)}>
         {lines.map(line => <option value={line.id} key={line.id}>{line.title}</option>)}
@@ -71,6 +71,11 @@ export function OpeningCoveragePanel({ coverage, busy, disabled, useExplorer, no
     {notice && <p className={notice.error ? "error" : "status"} role={notice.error ? "alert" : "status"}>{notice.message}</p>}
     {!useExplorer && <p className="opening-coverage-note">Common-move data is off. You can still find saved responses and practise them. Enable practical frequencies in Opening settings to estimate how often replies occur.</p>}
     {coverage && <>
+      {coverage.personal && <section className="opening-personal-coverage" aria-label="Coverage from your games">
+        <h4>Your games at saved opening positions</h4>
+        <p>{coverage.personal.replyOccurrences ? <><strong>{coverage.personal.preparedPercent}%</strong> of observed opponent replies had a saved response · {coverage.personal.preparedReplyOccurrences}/{coverage.personal.replyOccurrences} observations.</> : "No opponent replies from your recent games reached these saved positions yet."}</p>
+        <p>Uses up to 100 recent games for this side. Each position counts once per game, within the selected depth; this is your observed sample, separate from the Lichess estimate below.</p>
+      </section>}
       {model && <>
         <h4>Estimated prepared paths through your move {model.throughMove}</h4>
         <div className="opening-coverage-bar" aria-label={`Saved responses or stopping points ${model.preparedPercent}%, missing responses ${model.missingPercent}%, idea only ${model.ideaPercent}%, deliberately unprepared ${model.unpreparedPercent}%, unknown ${model.unknownPercent}%`}>
@@ -104,13 +109,13 @@ export function OpeningCoveragePanel({ coverage, busy, disabled, useExplorer, no
           <li>Saved preparation ended: {coverage.personal.repertoireEnded}</li><li>Stayed in preparation until the game ended: {coverage.personal.stayedIn}</li></ul>
         <p>These describe the first departure from this repertoire, not a chess mistake or win rate. They cover your saved lines, independently of the estimate's selected depth.</p>
       </details>}
-      <h4>Best next improvements</h4>
+      <h4>Recommended preparation</h4>
       <p>Start with these replies. Priority comes from your games, how often a reply occurs and how well you remember your response.</p>
       <div className="opening-coverage-tasks">{tasks.map(gap => <article key={`${gap.positionId}:${gap.moveUci}`}>
         <strong>{gap.status === "needs_practice" ? "Practise your response to" : gap.status === "idea_only" ? "Review your idea for" : "Consider a response to"} {gap.moveSan}</strong>
         <p>{gap.responseLineId && responseTitles.get(gap.responseLineId) || `${gap.chapterTitle} · ${gap.lineTitle}`}</p>
         <p>{gap.reachPercent == null ? "Likelihood not measured for this route" : `Estimated chance of reaching this reply: ${gap.reachPercent}%`}
-          {gap.preparation?.personal.occurrences ? ` · seen in ${gap.preparation.personal.occurrences} of your recent games` : ""}
+          {gap.personalFrequency?.games ? ` · your games: ${gap.personalFrequency.games}/${gap.personalFrequency.positionGames} at this position (${gap.personalFrequency.percent}%)` : gap.preparation?.personal.occurrences ? ` · seen in ${gap.preparation.personal.occurrences} of your recent games` : ""}
           {gap.preparation?.personal.responseMistakes ? ` · ${gap.preparation.personal.responseMistakes} response mistakes` : ""}</p>
         {gap.status === "needs_practice" && <p>{gap.recallPercent == null ? "Response saved; recall not tested yet" : `${gap.recallPercent}% unaided recall · ${gap.recallAttempts} first attempts`}</p>}
         <div className="answer-actions"><button className="secondary" disabled={locked} onClick={() => onInspect(gap)}>Inspect position</button>

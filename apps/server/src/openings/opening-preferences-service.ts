@@ -11,6 +11,8 @@ interface PreferenceRow {
   platform: OpeningRatingPlatform;
   use_explorer: number;
   new_moves_per_session: number;
+  daily_practice_goal: number;
+  practice_time_zone: string;
   practice_depth: number;
   board_sounds: number;
   practice_pace: OpeningPracticePace;
@@ -27,7 +29,7 @@ export class OpeningPreferencesService {
   get(): OpeningPlayerPreferences {
     const profileId = ensureActiveProfile(this.db);
     const row = this.db.prepare(`
-      SELECT rating_group, platform, use_explorer, new_moves_per_session,
+      SELECT rating_group, platform, use_explorer, new_moves_per_session, daily_practice_goal, practice_time_zone,
              practice_depth, board_sounds, practice_pace, pause_after_move, updated_at
       FROM opening_player_preferences
       WHERE profile_id = ?
@@ -40,6 +42,8 @@ export class OpeningPreferencesService {
       useExplorer: false,
       explorerAvailable: this.explorerAvailable,
       newMovesPerSession: 5,
+      dailyPracticeGoal: 10,
+      practiceTimeZone: "UTC",
       practiceDepth: 8,
       boardSounds: false,
       practicePace: "normal",
@@ -53,6 +57,8 @@ export class OpeningPreferencesService {
     platform: OpeningRatingPlatform;
     useExplorer: boolean;
     newMovesPerSession?: number;
+    dailyPracticeGoal?: number;
+    practiceTimeZone?: string;
     practiceDepth?: number;
     boardSounds?: boolean;
     practicePace?: OpeningPracticePace;
@@ -68,6 +74,14 @@ export class OpeningPreferencesService {
     const profileId = ensureActiveProfile(this.db);
     const current = this.get();
     const newMovesPerSession = input.newMovesPerSession ?? current.newMovesPerSession;
+    const dailyPracticeGoal = input.dailyPracticeGoal ?? current.dailyPracticeGoal;
+    const practiceTimeZone = input.practiceTimeZone ?? current.practiceTimeZone;
+    if (!Number.isInteger(dailyPracticeGoal) || dailyPracticeGoal < 1 || dailyPracticeGoal > 50) {
+      throw new Error("Choose between 1 and 50 daily practice positions");
+    }
+    if (typeof practiceTimeZone !== "string" || practiceTimeZone.length > 100) throw new Error("Choose a valid practice time zone");
+    try { new Intl.DateTimeFormat("en-GB", { timeZone: practiceTimeZone }); }
+    catch { throw new Error("Choose a valid practice time zone"); }
     const practiceDepth = input.practiceDepth ?? current.practiceDepth;
     const boardSounds = input.boardSounds ?? current.boardSounds;
     const practicePace = input.practicePace ?? current.practicePace;
@@ -85,13 +99,15 @@ export class OpeningPreferencesService {
     this.db.prepare(`
       INSERT INTO opening_player_preferences(
         profile_id, rating_group, platform, use_explorer,
-        new_moves_per_session, practice_depth, board_sounds, practice_pace, pause_after_move, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        new_moves_per_session, daily_practice_goal, practice_time_zone, practice_depth, board_sounds, practice_pace, pause_after_move, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(profile_id) DO UPDATE SET
         rating_group = excluded.rating_group,
         platform = excluded.platform,
         use_explorer = excluded.use_explorer,
         new_moves_per_session = excluded.new_moves_per_session,
+        daily_practice_goal = excluded.daily_practice_goal,
+        practice_time_zone = excluded.practice_time_zone,
         practice_depth = excluded.practice_depth,
         board_sounds = excluded.board_sounds,
         practice_pace = excluded.practice_pace,
@@ -99,7 +115,7 @@ export class OpeningPreferencesService {
         updated_at = excluded.updated_at
     `).run(
       profileId, input.ratingGroup, input.platform, input.useExplorer ? 1 : 0,
-      newMovesPerSession, practiceDepth, boardSounds ? 1 : 0, practicePace, pauseAfterMove, updatedAt,
+      newMovesPerSession, dailyPracticeGoal, practiceTimeZone, practiceDepth, boardSounds ? 1 : 0, practicePace, pauseAfterMove, updatedAt,
     );
 
     return {
@@ -109,6 +125,8 @@ export class OpeningPreferencesService {
       useExplorer: input.useExplorer,
       explorerAvailable: this.explorerAvailable,
       newMovesPerSession,
+      dailyPracticeGoal,
+      practiceTimeZone,
       practiceDepth,
       boardSounds,
       practicePace,
@@ -125,6 +143,8 @@ export class OpeningPreferencesService {
       useExplorer: row.use_explorer === 1 && this.explorerAvailable,
       explorerAvailable: this.explorerAvailable,
       newMovesPerSession: row.new_moves_per_session,
+      dailyPracticeGoal: row.daily_practice_goal,
+      practiceTimeZone: row.practice_time_zone,
       practiceDepth: row.practice_depth,
       boardSounds: row.board_sounds === 1,
       practicePace: row.practice_pace,

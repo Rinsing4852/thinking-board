@@ -23,6 +23,9 @@ import { buildOpeningNavigation, openingGraphKey, openingMoveLabel, savedContinu
 import { ChessBoard } from "./ChessBoard";
 import { OpeningLearningComment } from "./OpeningLearningComment";
 import { OpeningMoveSuggestions } from "./OpeningMoveSuggestions";
+import { OpeningBuildGuidance } from "./OpeningBuildGuidance";
+import { openingBuildGuidance } from "../opening-build-guidance";
+import { useOpeningMoveEvidence } from "../use-opening-move-evidence";
 import { OpeningPreparationAdvice } from "./OpeningPreparationAdvice";
 import { OpeningBranchNavigation } from "./OpeningBranchNavigation";
 import { OpeningLineLibrary } from "./OpeningLineLibrary";
@@ -166,7 +169,11 @@ export function OpeningLineExplorer({
   const currentMove = ply > 0 ? line?.moves[ply - 1] : undefined;
   const sourceMarks = currentMove?.explanation.boardAnnotations ?? [];
   useEffect(() => setShowSourceMarks(false), [lineId, ply]);
-  const displayFen = currentMove?.fenAfter ?? line?.moves[0]?.fenBefore ?? "start";
+  const displayFen = currentMove?.fenAfter ?? line?.moves[0]?.fenBefore ?? new Chess().fen();
+  const [showSuggestions, setShowSuggestions] = useState(true);
+  const guideEnabled = editing && !pendingMove && !analysisOpen && Boolean(line) && !line?.archived;
+  const moveEvidence = useOpeningMoveEvidence(displayFen, coverageRating, useExplorer, guideEnabled);
+  const guidance = useMemo(() => openingBuildGuidance(displayFen, detail.repertoire.learnerColor, coverageRating, useExplorer, moveEvidence), [displayFen, detail.repertoire.learnerColor, coverageRating, useExplorer, moveEvidence]);
   const navigationBlocked = localBusy || busy || selectionBusy || Boolean(pendingMove) || editingExplanation || editingComment;
   const lineDisplayTitle = navigation.branches.get(lineId)?.title ?? line?.title ?? "";
   const previousPosition = returnPositions.findLast(position => navigation.lines.has(position.lineId)) ?? null;
@@ -734,10 +741,12 @@ export function OpeningLineExplorer({
             orientation={detail.repertoire.learnerColor}
             interactive={!navigationBlocked && !line.archived}
             allowAnnotations
+            suggestionArrows={guideEnabled && showSuggestions ? guidance.arrows : []}
             sourceAnnotations={showSourceMarks && !pendingMove ? sourceMarks : []}
             lastMove={pendingMove?.uci ?? currentMove?.moveUci ?? null}
             onMove={previewNewMove}
           />
+          {guideEnabled && <OpeningBuildGuidance guidance={guidance} shown={showSuggestions} onToggle={() => setShowSuggestions(value => !value)} />}
           {!pendingMove && sourceMarks.length > 0 && <button className="text-button" aria-pressed={showSourceMarks}
             onClick={() => setShowSourceMarks(value => !value)}>
             {showSourceMarks ? "Hide source arrows and highlights" : "Show source arrows and highlights"}
@@ -789,6 +798,7 @@ export function OpeningLineExplorer({
               savedMoveUcis={savedMoveUcis}
               savedMoves={savedSuggestionMoves}
               disabled={navigationBlocked}
+              evidence={moveEvidence}
               onChooseMove={previewNewMove}
             />
             {useExplorer && <button className="secondary" disabled={navigationBlocked || coverageBusy} onClick={() => {

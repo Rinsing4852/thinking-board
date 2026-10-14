@@ -26,6 +26,8 @@ export function OpeningPlayerContext({ preferences, onSaved }: OpeningPlayerCont
   const [platform, setPlatform] = useState<OpeningRatingPlatform>(preferences.platform);
   const [useExplorer, setUseExplorer] = useState(preferences.useExplorer);
   const [newMovesPerSession, setNewMovesPerSession] = useState(preferences.newMovesPerSession);
+  const [dailyPracticeGoal, setDailyPracticeGoal] = useState(preferences.dailyPracticeGoal);
+  const [practiceTimeZone, setPracticeTimeZone] = useState(preferences.configured ? preferences.practiceTimeZone : Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [practiceDepth, setPracticeDepth] = useState(preferences.practiceDepth);
   const [boardSounds, setBoardSounds] = useState(preferences.boardSounds);
   const [practicePace, setPracticePace] = useState<OpeningPracticePace>(preferences.practicePace);
@@ -38,6 +40,8 @@ export function OpeningPlayerContext({ preferences, onSaved }: OpeningPlayerCont
     setPlatform(preferences.platform);
     setUseExplorer(preferences.useExplorer);
     setNewMovesPerSession(preferences.newMovesPerSession);
+    setDailyPracticeGoal(preferences.dailyPracticeGoal);
+    setPracticeTimeZone(preferences.configured ? preferences.practiceTimeZone : Intl.DateTimeFormat().resolvedOptions().timeZone);
     setPracticeDepth(preferences.practiceDepth);
     setBoardSounds(preferences.boardSounds);
     setPracticePace(preferences.practicePace);
@@ -55,6 +59,8 @@ export function OpeningPlayerContext({ preferences, onSaved }: OpeningPlayerCont
         platform,
         useExplorer,
         newMovesPerSession,
+        dailyPracticeGoal,
+        practiceTimeZone,
         practiceDepth,
         boardSounds,
         practicePace,
@@ -78,7 +84,7 @@ export function OpeningPlayerContext({ preferences, onSaved }: OpeningPlayerCont
           <strong>{PLATFORM_LABELS[preferences.platform]} · {preferences.ratingGroup}+</strong>
           <small>{preferences.useExplorer
             ? "Common-move data is shown while building and checking coverage."
-            : "Local Stockfish only; practical game frequencies are off."} {preferences.newMovesPerSession} new per session · {preferences.practiceDepth}-move line runs.</small>
+            : "Local Stockfish only; practical game frequencies are off."} {preferences.dailyPracticeGoal} positions per day · {preferences.newMovesPerSession} new per session · {preferences.practiceDepth}-move line runs.</small>
         </div>
         <button className="text-button" onClick={() => { setEditing(true); setMessage(""); }}>Change</button>
         {message && <p className="status" role="status">{message}</p>}
@@ -116,6 +122,19 @@ export function OpeningPlayerContext({ preferences, onSaved }: OpeningPlayerCont
           <select value={newMovesPerSession} onChange={(event) => setNewMovesPerSession(Number(event.target.value))}>
             {[1, 2, 3, 4, 5, 6, 8, 10].map((count) => <option key={count} value={count}>{count}</option>)}
           </select>
+        </label>
+        <label>
+          Daily practice goal
+          <select value={dailyPracticeGoal} onChange={event => setDailyPracticeGoal(Number(event.target.value))}>
+            {[5, 10, 15, 20, 30, 50].map(count => <option key={count} value={count}>{count} positions</option>)}
+            {![5, 10, 15, 20, 30, 50].includes(dailyPracticeGoal) && <option value={dailyPracticeGoal}>{dailyPracticeGoal} positions</option>}
+          </select>
+          <small>Completed practice counts toward your goal; hints and corrections stay separate from unaided recall.</small>
+        </label>
+        <label>
+          Practice time zone
+          <input value={practiceTimeZone} onChange={event => setPracticeTimeZone(event.target.value)} placeholder="Europe/London" />
+          <small>Days and streaks use this time zone.</small>
         </label>
         <label>
           Repertoire-run depth

@@ -1376,7 +1376,8 @@ describe("vertical slice", () => {
       playerName: "Coverage Learner", pgn: '[Event "Unobserved globally"]\n[White "Coverage Learner"]\n[Black "Opponent three"]\n[Result "*"]\n\n1. e4 a6 2. Nf3 *',
     } });
     const uncached = (await app.inject({ method: "GET", url: `/api/v1/openings/repertoires/${repertoireId}/coverage?throughMove=3&local=true` })).json();
-    expect(uncached.gaps).toContainEqual(expect.objectContaining({ moveSan: "a6", games: 0, status: "unknown",
+    expect(uncached.gaps).toContainEqual(expect.objectContaining({ moveSan: "a6", games: 0, status: "missing_response",
+      personalFrequency: { games: 1, positionGames: 3, percent: 33.3 },
       preparation: expect.objectContaining({ personal: expect.objectContaining({ occurrences: 1 }), frequency: expect.objectContaining({ status: "unknown", percent: null }) }) }));
     expect(uncached.model).toMatchObject({ preparedPercent: 25, missingPercent: 75 });
   });

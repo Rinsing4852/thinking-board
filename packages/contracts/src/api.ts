@@ -221,6 +221,7 @@ export interface OpeningCoverageGap {
   moveSan: string;
   games: number;
   frequencyPercent: number;
+  personalFrequency?: { games: number; positionGames: number; percent: number | null };
   preparation?: OpeningPreparationAssessment;
   lineId?: string;
   status?: OpeningCoverageBranch["status"];
@@ -307,6 +308,7 @@ export interface OpeningCoverageResponse {
   };
   positions?: OpeningCoveragePosition[];
   personal?: {
+    replyOccurrences?: number; preparedReplyOccurrences?: number; preparedPercent?: number | null;
     gamesChecked: number; gamesMatched: number; playerDeviations: number;
     opponentDeviations: number; repertoireEnded: number; stayedIn: number;
   };
@@ -369,11 +371,25 @@ export interface OpeningPlayerPreferences {
   useExplorer: boolean;
   explorerAvailable: boolean;
   newMovesPerSession: number;
+  dailyPracticeGoal: number;
+  practiceTimeZone: string;
   practiceDepth: number;
   boardSounds: boolean;
   practicePace: OpeningPracticePace;
   pauseAfterMove: OpeningPausePolicy;
   updatedAt: string | null;
+}
+
+export interface OpeningPracticeActivity {
+  date: string;
+  timeZone: string;
+  goal: number;
+  completedToday: number;
+  independentToday: number;
+  remaining: number;
+  goalReached: boolean;
+  streakDays: number;
+  days: Array<{ date: string; completed: number; independent: number }>;
 }
 
 export interface LichessConnectionResponse {
@@ -621,6 +637,7 @@ export interface OpeningReviewOpponentMove {
 export type OpeningReviewReasonKind = "game_miss" | "due" | "new" | "early" | "retry";
 
 export interface OpeningReviewRecommendation {
+  activity?: OpeningPracticeActivity;
   available: boolean;
   repertoire: { id: string; name: string; learnerColor: Color } | null;
   counts: {

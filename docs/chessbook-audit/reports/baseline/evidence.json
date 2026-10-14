@@ -1,0 +1,1469 @@
+{
+  "commit": "25d5efe79f89977d8df7faa48df839230f338b71",
+  "measuredAt": "2026-10-14",
+  "records": [
+    {
+      "kind": "unit",
+      "title": "persists practice preferences and idea help without claiming an independent recall",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 178.214334
+    },
+    {
+      "kind": "unit",
+      "title": "recalls all enabled shared responses without requiring them in one fixed order",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 77.59554199999991
+    },
+    {
+      "kind": "unit",
+      "title": "keeps automatic branch saves idempotent and analysis sequences atomic",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 77.16208400000005
+    },
+    {
+      "kind": "unit",
+      "title": "does not add paused alternatives to shared-response practice",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 78.28679199999999
+    },
+    {
+      "kind": "unit",
+      "title": "counts first encounters and includes corrected full runs in the recall denominator",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 84.84770800000013
+    },
+    {
+      "kind": "unit",
+      "title": "does not relabel a successful later retry as first-try recall",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 73.234375
+    },
+    {
+      "kind": "unit",
+      "title": "assesses an actual opponent surprise, keeps ideas without cards and carries them into later practice",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 1632.925542
+    },
+    {
+      "kind": "unit",
+      "title": "keeps missing, small and stale Explorer samples uncertain and rejects invalid preparation decisions",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 46.20983299999989
+    },
+    {
+      "kind": "unit",
+      "title": "reconsiders repeated encounters while preserving a deliberate no-line choice",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 50.56462499999998
+    },
+    {
+      "kind": "unit",
+      "title": "starts with an empty opening library without silently restoring starter repertoires",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 33.2817500000001
+    },
+    {
+      "kind": "unit",
+      "title": "deletes built-in lines without restoring them after a restart",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 50.33679200000006
+    },
+    {
+      "kind": "unit",
+      "title": "clears the confirmed library including archives but keeps games, jobs and preferences",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 52.06895900000018
+    },
+    {
+      "kind": "unit",
+      "title": "rolls back every repertoire deletion if clearing the library fails part-way through",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 41.68858300000011
+    },
+    {
+      "kind": "unit",
+      "title": "can re-import a repertoire export containing multiple practice lines",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 26.59533300000021
+    },
+    {
+      "kind": "unit",
+      "title": "previews and confirms a PGN source update through the API without creating another repertoire",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 45.11720800000012
+    },
+    {
+      "kind": "unit",
+      "title": "refreshes a private study once and applies its preview without downloading again",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 44.14783299999999
+    },
+    {
+      "kind": "unit",
+      "title": "finishes a short assisted drill instead of immediately repeating the shown answer forever",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 38.41216600000007
+    },
+    {
+      "kind": "unit",
+      "title": "persists requested hints and move reveals without completing the answer",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 39.96970800000008
+    },
+    {
+      "kind": "unit",
+      "title": "credits the actual alternative move without mastering another branch",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 41.60450000000037
+    },
+    {
+      "kind": "unit",
+      "title": "reuses game matches until the repertoire graph or archive state changes",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 36.99054100000012
+    },
+    {
+      "kind": "unit",
+      "title": "varies bounded line rehearsals and rejects archived repertoires",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 38.61604100000022
+    },
+    {
+      "kind": "unit",
+      "title": "stores the player's practical opening context",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 34.415707999999995
+    },
+    {
+      "kind": "unit",
+      "title": "keeps practical frequencies off when no Lichess token is configured",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 34.89079099999981
+    },
+    {
+      "kind": "unit",
+      "title": "serves the independently authored opening preview catalog",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 41.699333000000024
+    },
+    {
+      "kind": "unit",
+      "title": "exposes every named opening line and can practise a selected branch",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 40.82091700000001
+    },
+    {
+      "kind": "unit",
+      "title": "previews, privately imports, and deduplicates a trainable opening PGN",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 41.92008299999998
+    },
+    {
+      "kind": "unit",
+      "title": "authenticates, previews, and imports a private multi-chapter Lichess Study",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 41.741875000000164
+    },
+    {
+      "kind": "unit",
+      "title": "edits a private repertoire without overwriting its original line",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 39.4692500000001
+    },
+    {
+      "kind": "unit",
+      "title": "archives built-in opening material without deleting its lines or progress",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 43.81295799999998
+    },
+    {
+      "kind": "unit",
+      "title": "renames, reorders, exports and immediately undoes changes to a personal repertoire",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 39.56754100000035
+    },
+    {
+      "kind": "unit",
+      "title": "deletes a personal line safely and can remove the whole repertoire to start again",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 43.81108300000005
+    },
+    {
+      "kind": "unit",
+      "title": "connects and incrementally imports public Lichess games through the normal analysis queue",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 38.920874999999796
+    },
+    {
+      "kind": "unit",
+      "title": "reports practical opening gaps and reuses cached explorer data",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 88.3705829999999
+    },
+    {
+      "kind": "unit",
+      "title": "separates missing responses, recall and deliberately bounded preparation",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 25.834749999999985
+    },
+    {
+      "kind": "unit",
+      "title": "weights paths by opponent probabilities and does not confuse saved content with recall",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 40.569000000000415
+    },
+    {
+      "kind": "unit",
+      "title": "resumes coverage beyond 32 positions in bounded batches and keeps paused content",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 2963.7587089999997
+    },
+    {
+      "kind": "unit",
+      "title": "checks for replies after a pasted repertoire line ends",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 41.19262499999968
+    },
+    {
+      "kind": "unit",
+      "title": "serves cached local analysis and current-position practical moves for the opening studio",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 108.0161250000001
+    },
+    {
+      "kind": "unit",
+      "title": "teaches and restores a guided opening line before any PGN is imported",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 48.69916699999976
+    },
+    {
+      "kind": "unit",
+      "title": "keeps due review separate from new learning",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 36.5430409999999
+    },
+    {
+      "kind": "unit",
+      "title": "practises one selected line continuously and keeps its branch move exact",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 39.35770800000046
+    },
+    {
+      "kind": "unit",
+      "title": "records an honest answer reveal as assisted learning",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 37.016208000000006
+    },
+    {
+      "kind": "unit",
+      "title": "keeps the exact wrong move and prevents a corrected retry counting as independent recall",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 36.78112500000043
+    },
+    {
+      "kind": "unit",
+      "title": "stores a personal learning comment without modifying built-in opening content",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 36.24566700000014
+    },
+    {
+      "kind": "unit",
+      "title": "records active recall time and rejects stale or invalid timed attempts",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 43.44350000000031
+    },
+    {
+      "kind": "unit",
+      "title": "restarts the response timer when a paused opening review resumes",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 39.07695799999965
+    },
+    {
+      "kind": "unit",
+      "title": "teaches new opening decisions without counting assisted moves as remembered",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 47.38037500000064
+    },
+    {
+      "kind": "unit",
+      "title": "records an unassisted off-repertoire move as a lapse",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 37.75383399999919
+    },
+    {
+      "kind": "unit",
+      "title": "connects a game deviation to its exact repertoire review position",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 42.26733299999978
+    },
+    {
+      "kind": "unit",
+      "title": "groups repeated game deviations in a persistent opening inbox",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 39.62866699999995
+    },
+    {
+      "kind": "unit",
+      "title": "builds one recommended opening session from game misses, due work, and limited new material",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 47.12220900000011
+    },
+    {
+      "kind": "unit",
+      "title": "does not blame the player when the opponent leaves the repertoire first",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 38.16875000000073
+    },
+    {
+      "kind": "unit",
+      "title": "turns an opponent surprise into an editable repertoire branch",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 48.78595799999948
+    },
+    {
+      "kind": "unit",
+      "title": "offers an early opening review when every learned position is scheduled for later",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 41.603000000000065
+    },
+    {
+      "kind": "unit",
+      "title": "describes an off-repertoire opening move without calling it a blunder",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 37.5131250000004
+    },
+    {
+      "kind": "unit",
+      "title": "acknowledges an authored secondary benefit without calling it wrong",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 36.74120799999946
+    },
+    {
+      "kind": "unit",
+      "title": "abandons an active lesson safely when its curriculum version changes",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 38.96891599999981
+    },
+    {
+      "kind": "unit",
+      "title": "restores a failed analysis job for the active player and retries it",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 37.332042
+    },
+    {
+      "kind": "unit",
+      "title": "previews, imports, and deduplicates PGN",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 37.2627080000002
+    },
+    {
+      "kind": "unit",
+      "title": "turns an allowed mate into a Blunder Check and records the answer",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 1240.9451660000004
+    },
+    {
+      "kind": "unit",
+      "title": "persists practice switches without changing pasted-game repertoire matching and validates batch boundaries",
+      "file": "apps/server/src/app.integration.test.ts",
+      "status": "passed",
+      "durationMs": 28.816917000000103
+    },
+    {
+      "kind": "unit",
+      "title": "orders all 64 accessible squares from either side",
+      "file": "apps/web/src/chessboard.test.ts",
+      "status": "passed",
+      "durationMs": 2.41945800000002
+    },
+    {
+      "kind": "unit",
+      "title": "supplies only legal destinations, not pseudo-legal moves",
+      "file": "apps/web/src/chessboard.test.ts",
+      "status": "passed",
+      "durationMs": 2.742874999999998
+    },
+    {
+      "kind": "unit",
+      "title": "supports castling and en passant",
+      "file": "apps/web/src/chessboard.test.ts",
+      "status": "passed",
+      "durationMs": 5.250458000000009
+    },
+    {
+      "kind": "unit",
+      "title": "deduplicates promotions without changing the rules position",
+      "file": "apps/web/src/chessboard.test.ts",
+      "status": "passed",
+      "durationMs": 0.7548340000000167
+    },
+    {
+      "kind": "unit",
+      "title": "does not offer moves in mate and validates last-move coordinates",
+      "file": "apps/web/src/chessboard.test.ts",
+      "status": "passed",
+      "durationMs": 0.9095829999999978
+    },
+    {
+      "kind": "unit",
+      "title": "applies a UCI move to the displayed position",
+      "file": "apps/web/src/opening-board.test.ts",
+      "status": "passed",
+      "durationMs": 1.9542920000000095
+    },
+    {
+      "kind": "unit",
+      "title": "turns the expected source square into a beginner-friendly piece hint",
+      "file": "apps/web/src/opening-board.test.ts",
+      "status": "passed",
+      "durationMs": 0.40279200000000515
+    },
+    {
+      "kind": "unit",
+      "title": "replays a recovered draft rather than trusting its stored board",
+      "file": "apps/web/src/opening-draft.test.ts",
+      "status": "passed",
+      "durationMs": 2.605667000000011
+    },
+    {
+      "kind": "unit",
+      "title": "rejects malformed or illegal draft moves without trusting browser storage",
+      "file": "apps/web/src/opening-draft.test.ts",
+      "status": "passed",
+      "durationMs": 0.3464999999999918
+    },
+    {
+      "kind": "unit",
+      "title": "hides storage boilerplate but keeps actual chess reasons",
+      "file": "apps/web/src/opening-draft.test.ts",
+      "status": "passed",
+      "durationMs": 0.35866699999999696
+    },
+    {
+      "kind": "unit",
+      "title": "finds the initial, intermediate, and terminal board positions",
+      "file": "apps/web/src/opening-line-position.test.ts",
+      "status": "passed",
+      "durationMs": 1.0956249999999983
+    },
+    {
+      "kind": "unit",
+      "title": "ignores move counters while preserving the legal position fields",
+      "file": "apps/web/src/opening-line-position.test.ts",
+      "status": "passed",
+      "durationMs": 0.09391699999999048
+    },
+    {
+      "kind": "unit",
+      "title": "returns null when the position is outside the line",
+      "file": "apps/web/src/opening-line-position.test.ts",
+      "status": "passed",
+      "durationMs": 0.08120799999998951
+    },
+    {
+      "kind": "unit",
+      "title": "invalidates coverage for graph changes, but not personal notes or renaming",
+      "file": "apps/web/src/opening-navigation.test.ts",
+      "status": "passed",
+      "durationMs": 11.292791999999992
+    },
+    {
+      "kind": "unit",
+      "title": "describes nested variations at their actual branching point without changing source titles",
+      "file": "apps/web/src/opening-navigation.test.ts",
+      "status": "passed",
+      "durationMs": 2.0627079999999864
+    },
+    {
+      "kind": "unit",
+      "title": "preserves custom names and keeps chapters' prefix descriptions independent",
+      "file": "apps/web/src/opening-navigation.test.ts",
+      "status": "passed",
+      "durationMs": 1.136917000000011
+    },
+    {
+      "kind": "unit",
+      "title": "groups the saved replies once and prefers staying on the exact selected branch",
+      "file": "apps/web/src/opening-navigation.test.ts",
+      "status": "passed",
+      "durationMs": 2.3447500000000048
+    },
+    {
+      "kind": "unit",
+      "title": "does not offer archived replies while retaining their shared-note membership",
+      "file": "apps/web/src/opening-navigation.test.ts",
+      "status": "passed",
+      "durationMs": 2.180583999999982
+    },
+    {
+      "kind": "unit",
+      "title": "keeps the current board when switching before a fork and returns to the fork after it",
+      "file": "apps/web/src/opening-navigation.test.ts",
+      "status": "passed",
+      "durationMs": 1.4121249999999748
+    },
+    {
+      "kind": "unit",
+      "title": "does not call shared opening moves transpositions",
+      "file": "apps/web/src/opening-navigation.test.ts",
+      "status": "passed",
+      "durationMs": 3.4211249999999893
+    },
+    {
+      "kind": "unit",
+      "title": "switches genuine move orders at the same position and shares their later move annotations",
+      "file": "apps/web/src/opening-navigation.test.ts",
+      "status": "passed",
+      "durationMs": 0.9809160000000077
+    },
+    {
+      "kind": "unit",
+      "title": "keeps repeated board occurrences distinct by move order",
+      "file": "apps/web/src/opening-navigation.test.ts",
+      "status": "passed",
+      "durationMs": 0.49708400000000097
+    },
+    {
+      "kind": "unit",
+      "title": "handles ended lines and different starting positions safely",
+      "file": "apps/web/src/opening-navigation.test.ts",
+      "status": "passed",
+      "durationMs": 0.7376250000000084
+    },
+    {
+      "kind": "unit",
+      "title": "indexes a large set of shared lines without generating duplicate move choices",
+      "file": "apps/web/src/opening-navigation.test.ts",
+      "status": "passed",
+      "durationMs": 127.155542
+    },
+    {
+      "kind": "unit",
+      "title": "slows observation, success and rejection at relaxed pace",
+      "file": "apps/web/src/opening-practice-settings.test.ts",
+      "status": "passed",
+      "durationMs": 1.6033749999999998
+    },
+    {
+      "kind": "unit",
+      "title": "pauses only at the chosen feedback boundary",
+      "file": "apps/web/src/opening-practice-settings.test.ts",
+      "status": "passed",
+      "durationMs": 0.2290840000000003
+    },
+    {
+      "kind": "unit",
+      "title": "keeps a manual pause when an explanation or editor closes",
+      "file": "apps/web/src/opening-review-flow.test.ts",
+      "status": "passed",
+      "durationMs": 1.247667000000007
+    },
+    {
+      "kind": "unit",
+      "title": "stops automatic retries after a failed request and allows a deliberate retry",
+      "file": "apps/web/src/opening-review-flow.test.ts",
+      "status": "passed",
+      "durationMs": 0.48400000000000887
+    },
+    {
+      "kind": "unit",
+      "title": "cannot pause an empty session and clears pause when replacing a session",
+      "file": "apps/web/src/opening-session-state.test.ts",
+      "status": "passed",
+      "durationMs": 1.114707999999979
+    },
+    {
+      "kind": "unit",
+      "title": "round-trips repertoire/line/move links and normalises malformed cursor values",
+      "file": "apps/web/src/opening-session-state.test.ts",
+      "status": "passed",
+      "durationMs": 0.41420800000000213
+    },
+    {
+      "kind": "unit",
+      "title": "advances through chapter order without enabling paused, archived or empty lines",
+      "file": "apps/web/src/opening-session-state.test.ts",
+      "status": "passed",
+      "durationMs": 0.1185000000000116
+    },
+    {
+      "kind": "unit",
+      "title": "excludes all suspended time and handles overlapping pauses idempotently",
+      "file": "apps/web/src/recall-clock.test.ts",
+      "status": "passed",
+      "durationMs": 0.8716670000000022
+    },
+    {
+      "kind": "unit",
+      "title": "restores saved active time without counting time away",
+      "file": "apps/web/src/recall-clock.test.ts",
+      "status": "passed",
+      "durationMs": 0.08020799999999895
+    },
+    {
+      "kind": "unit",
+      "title": "generates distinct server-safe retry IDs",
+      "file": "apps/web/src/request-id.test.ts",
+      "status": "passed",
+      "durationMs": 5.423082999999991
+    },
+    {
+      "kind": "unit",
+      "title": "does not depend on secure-context-only randomUUID",
+      "file": "apps/web/src/request-id.test.ts",
+      "status": "passed",
+      "durationMs": 0.11604099999999562
+    },
+    {
+      "kind": "unit",
+      "title": "formats white and black move numbers without ambiguous punctuation",
+      "file": "apps/web/src/training-language.test.ts",
+      "status": "passed",
+      "durationMs": 0.7705409999999944
+    },
+    {
+      "kind": "unit",
+      "title": "explains grades without requiring engine numbers",
+      "file": "apps/web/src/training-language.test.ts",
+      "status": "passed",
+      "durationMs": 0.12091599999999403
+    },
+    {
+      "kind": "unit",
+      "title": "preserves all four colours, ignores malformed marks and removes duplicates",
+      "file": "packages/contracts/src/board-annotations.test.ts",
+      "status": "passed",
+      "durationMs": 1.850875000000002
+    },
+    {
+      "kind": "unit",
+      "title": "bounds imported marks and exports only valid board coordinates",
+      "file": "packages/contracts/src/board-annotations.test.ts",
+      "status": "passed",
+      "durationMs": 0.5800830000000019
+    },
+    {
+      "kind": "unit",
+      "title": "parses MultiPV centipawn lines",
+      "file": "apps/server/src/analysis/uci-engine.test.ts",
+      "status": "passed",
+      "durationMs": 1.4532910000000072
+    },
+    {
+      "kind": "unit",
+      "title": "keeps mate scores separate",
+      "file": "apps/server/src/analysis/uci-engine.test.ts",
+      "status": "passed",
+      "durationMs": 0.29416700000001583
+    },
+    {
+      "kind": "unit",
+      "title": "restricts a root search to the played move",
+      "file": "apps/server/src/analysis/uci-engine.test.ts",
+      "status": "passed",
+      "durationMs": 114.52425
+    },
+    {
+      "kind": "unit",
+      "title": "rejects initialization instead of crashing when the engine cannot start",
+      "file": "apps/server/src/analysis/uci-engine.test.ts",
+      "status": "passed",
+      "durationMs": 4.027291000000048
+    },
+    {
+      "kind": "unit",
+      "title": "finds direct and discovered attacks created by Nc5",
+      "file": "apps/server/src/analysis/what-changed-generator.test.ts",
+      "status": "passed",
+      "durationMs": 22.925292000000013
+    },
+    {
+      "kind": "unit",
+      "title": "ignores newly attacked pawns in the first slice",
+      "file": "apps/server/src/analysis/what-changed-generator.test.ts",
+      "status": "passed",
+      "durationMs": 2.6625829999999837
+    },
+    {
+      "kind": "unit",
+      "title": "validates, restores, and keeps a rollback copy of the replaced database",
+      "file": "apps/server/src/db/backup-restore.test.ts",
+      "status": "passed",
+      "durationMs": 164.05987499999998
+    },
+    {
+      "kind": "unit",
+      "title": "upgrades representative data from every released schema version",
+      "file": "apps/server/src/db/database-migrations.test.ts",
+      "status": "passed",
+      "durationMs": 1042.9705840000001
+    },
+    {
+      "kind": "unit",
+      "title": "preserves opening history when legacy move cards collapse into one position card",
+      "file": "apps/server/src/db/database-migrations.test.ts",
+      "status": "passed",
+      "durationMs": 32.437000000000126
+    },
+    {
+      "kind": "unit",
+      "title": "upgrades an existing v1.5.3 database without losing games, cards or review history",
+      "file": "apps/server/src/db/database-upgrade.test.ts",
+      "status": "passed",
+      "durationMs": 43.23525000000001
+    },
+    {
+      "kind": "unit",
+      "title": "splits and parses multiple games",
+      "file": "apps/server/src/chess/pgn.test.ts",
+      "status": "passed",
+      "durationMs": 7.3316250000000025
+    },
+    {
+      "kind": "unit",
+      "title": "uses canonical moves rather than comments in the fingerprint",
+      "file": "apps/server/src/chess/pgn.test.ts",
+      "status": "passed",
+      "durationMs": 5.707542000000018
+    },
+    {
+      "kind": "unit",
+      "title": "reports empty input without throwing",
+      "file": "apps/server/src/chess/pgn.test.ts",
+      "status": "passed",
+      "durationMs": 0.09491700000000947
+    },
+    {
+      "kind": "unit",
+      "title": "generates a position and grades a legal candidate",
+      "file": "apps/server/src/training/candidate-generation-flow.test.ts",
+      "status": "passed",
+      "durationMs": 553.0948330000001
+    },
+    {
+      "kind": "unit",
+      "title": "does not include modes that exist only for another player",
+      "file": "apps/server/src/training/player-scope.test.ts",
+      "status": "passed",
+      "durationMs": 41.37629099999998
+    },
+    {
+      "kind": "unit",
+      "title": "generates a quiet improvement, scores it, and exposes it in the player model",
+      "file": "apps/server/src/training/quiet-position-flow.test.ts",
+      "status": "passed",
+      "durationMs": 39.49066699999997
+    },
+    {
+      "kind": "unit",
+      "title": "makes a failed item due immediately",
+      "file": "apps/server/src/training/review-scheduler.test.ts",
+      "status": "passed",
+      "durationMs": 1.9907079999999837
+    },
+    {
+      "kind": "unit",
+      "title": "uses the mastery intervals from the recorded attempt time",
+      "file": "apps/server/src/training/review-scheduler.test.ts",
+      "status": "passed",
+      "durationMs": 0.9145409999999856
+    },
+    {
+      "kind": "unit",
+      "title": "generates, serves, and scores the Nc5 attacked-piece exercise",
+      "file": "apps/server/src/training/what-changed-flow.test.ts",
+      "status": "passed",
+      "durationMs": 61.247040999999996
+    },
+    {
+      "kind": "unit",
+      "title": "compiles authored lines into a graph and merges transpositions",
+      "file": "apps/server/src/openings/opening-content.test.ts",
+      "status": "passed",
+      "durationMs": 5.6041250000000105
+    },
+    {
+      "kind": "unit",
+      "title": "rejects illegal moves with their authored location",
+      "file": "apps/server/src/openings/opening-content.test.ts",
+      "status": "passed",
+      "durationMs": 0.7167080000000396
+    },
+    {
+      "kind": "unit",
+      "title": "requires an explanation of every opponent move's idea",
+      "file": "apps/server/src/openings/opening-content.test.ts",
+      "status": "passed",
+      "durationMs": 0.30499999999995
+    },
+    {
+      "kind": "unit",
+      "title": "rejects a line that never gives the learner a decision",
+      "file": "apps/server/src/openings/opening-content.test.ts",
+      "status": "passed",
+      "durationMs": 0.29624999999998636
+    },
+    {
+      "kind": "unit",
+      "title": "requires cited provenance and validates authored metadata",
+      "file": "apps/server/src/openings/opening-content.test.ts",
+      "status": "passed",
+      "durationMs": 0.2948339999999803
+    },
+    {
+      "kind": "unit",
+      "title": "loads the starter repertoire idempotently with annotations and provenance",
+      "file": "apps/server/src/openings/opening-content.test.ts",
+      "status": "passed",
+      "durationMs": 101.13858299999998
+    },
+    {
+      "kind": "unit",
+      "title": "requires a version increase when persisted curriculum content changes",
+      "file": "apps/server/src/openings/opening-content.test.ts",
+      "status": "passed",
+      "durationMs": 45.11037500000003
+    },
+    {
+      "kind": "unit",
+      "title": "multiplies successive opponent probabilities rather than pooling sample counts",
+      "file": "apps/server/src/openings/opening-coverage-model.test.ts",
+      "status": "passed",
+      "durationMs": 3.1970000000000027
+    },
+    {
+      "kind": "unit",
+      "title": "does not count a saved opponent move without our response",
+      "file": "apps/server/src/openings/opening-coverage-model.test.ts",
+      "status": "passed",
+      "durationMs": 0.2827920000000006
+    },
+    {
+      "kind": "unit",
+      "title": "keeps ideas and deliberate omissions separate, without renormalising",
+      "file": "apps/server/src/openings/opening-coverage-model.test.ts",
+      "status": "passed",
+      "durationMs": 0.26095800000001645
+    },
+    {
+      "kind": "unit",
+      "title": "stops at an explicit boundary without inventing deeper gaps",
+      "file": "apps/server/src/openings/opening-coverage-model.test.ts",
+      "status": "passed",
+      "durationMs": 0.47591699999998127
+    },
+    {
+      "kind": "unit",
+      "title": "does not make stale, small or unrepresented samples into 0% gaps",
+      "file": "apps/server/src/openings/opening-coverage-model.test.ts",
+      "status": "passed",
+      "durationMs": 0.8803330000000074
+    },
+    {
+      "kind": "unit",
+      "title": "does not add probabilities for alternative moves on our side",
+      "file": "apps/server/src/openings/opening-coverage-model.test.ts",
+      "status": "passed",
+      "durationMs": 0.1503330000000176
+    },
+    {
+      "kind": "unit",
+      "title": "combines transpositions and bounds cycles by preparation depth",
+      "file": "apps/server/src/openings/opening-coverage-model.test.ts",
+      "status": "passed",
+      "durationMs": 0.36658299999999144
+    },
+    {
+      "kind": "unit",
+      "title": "respects the chosen horizon",
+      "file": "apps/server/src/openings/opening-coverage-model.test.ts",
+      "status": "passed",
+      "durationMs": 0.1984160000000088
+    },
+    {
+      "kind": "unit",
+      "title": "resolves a complete public study to the official PGN export endpoint",
+      "file": "apps/server/src/openings/opening-lichess-import.test.ts",
+      "status": "passed",
+      "durationMs": 1.9611670000000174
+    },
+    {
+      "kind": "unit",
+      "title": "preserves a selected chapter",
+      "file": "apps/server/src/openings/opening-lichess-import.test.ts",
+      "status": "passed",
+      "durationMs": 0.3564169999999933
+    },
+    {
+      "kind": "unit",
+      "title": "rejects non-Lichess and malformed URLs before making a request",
+      "file": "apps/server/src/openings/opening-lichess-import.test.ts",
+      "status": "passed",
+      "durationMs": 0.4787500000000193
+    },
+    {
+      "kind": "unit",
+      "title": "authenticates a private full-study preview with the configured study token",
+      "file": "apps/server/src/openings/opening-lichess-import.test.ts",
+      "status": "passed",
+      "durationMs": 35.60258400000001
+    },
+    {
+      "kind": "unit",
+      "title": "authenticates a selected chapter import and preserves chapter selection",
+      "file": "apps/server/src/openings/opening-lichess-import.test.ts",
+      "status": "passed",
+      "durationMs": 0.7284999999999968
+    },
+    {
+      "kind": "unit",
+      "title": "keeps public study imports unauthenticated when no token is configured",
+      "file": "apps/server/src/openings/opening-lichess-import.test.ts",
+      "status": "passed",
+      "durationMs": 0.2651249999999834
+    },
+    {
+      "kind": "unit",
+      "title": "explains missing study:read access without exposing the token",
+      "file": "apps/server/src/openings/opening-lichess-import.test.ts",
+      "status": "passed",
+      "durationMs": 0.3653750000000002
+    },
+    {
+      "kind": "unit",
+      "title": "guides private-study users when an unauthenticated export is hidden",
+      "file": "apps/server/src/openings/opening-lichess-import.test.ts",
+      "status": "passed",
+      "durationMs": 0.19533300000000509
+    },
+    {
+      "kind": "unit",
+      "title": "does not repeat the previous line when another is available",
+      "file": "apps/server/src/openings/opening-line-selection.test.ts",
+      "status": "passed",
+      "durationMs": 1.8872919999999738
+    },
+    {
+      "kind": "unit",
+      "title": "normalises urgency by depth instead of always choosing the longest line",
+      "file": "apps/server/src/openings/opening-line-selection.test.ts",
+      "status": "passed",
+      "durationMs": 0.28504200000000424
+    },
+    {
+      "kind": "unit",
+      "title": "handles a single or empty repertoire",
+      "file": "apps/server/src/openings/opening-line-selection.test.ts",
+      "status": "passed",
+      "durationMs": 0.217583999999988
+    },
+    {
+      "kind": "unit",
+      "title": "preserves a main line, side variation, and comments",
+      "file": "apps/server/src/openings/opening-pgn-import.test.ts",
+      "status": "passed",
+      "durationMs": 6.245249999999999
+    },
+    {
+      "kind": "unit",
+      "title": "gives useful errors for illegal moves and custom positions",
+      "file": "apps/server/src/openings/opening-pgn-import.test.ts",
+      "status": "passed",
+      "durationMs": 1.6297910000000115
+    },
+    {
+      "kind": "unit",
+      "title": "can import a mixed study together or select individual chapters",
+      "file": "apps/server/src/openings/opening-pgn-import.test.ts",
+      "status": "passed",
+      "durationMs": 55.99687499999999
+    },
+    {
+      "kind": "unit",
+      "title": "skips text-only study chapters while preserving source indexes",
+      "file": "apps/server/src/openings/opening-pgn-import.test.ts",
+      "status": "passed",
+      "durationMs": 29.267333000000008
+    },
+    {
+      "kind": "unit",
+      "title": "uses Lichess StudyName and ChapterName headers for multi-chapter imports",
+      "file": "apps/server/src/openings/opening-pgn-import.test.ts",
+      "status": "passed",
+      "durationMs": 1.8391249999999673
+    },
+    {
+      "kind": "unit",
+      "title": "counts a shared decision's reason even when it appears only in a later chapter",
+      "file": "apps/server/src/openings/opening-pgn-import.test.ts",
+      "status": "passed",
+      "durationMs": 33.318708000000015
+    },
+    {
+      "kind": "unit",
+      "title": "reuses an existing board position even when it has a workspace-generated id",
+      "file": "apps/server/src/openings/opening-pgn-import.test.ts",
+      "status": "passed",
+      "durationMs": 42.005292
+    },
+    {
+      "kind": "unit",
+      "title": "previews and imports both sides as private, deduplicated repertoires",
+      "file": "apps/server/src/openings/opening-pgn-import.test.ts",
+      "status": "passed",
+      "durationMs": 27.92950000000002
+    },
+    {
+      "kind": "unit",
+      "title": "defaults on, pauses a branch without hiding it, keeps shared moves and excludes unique paused moves",
+      "file": "apps/server/src/openings/opening-practice-selection-service.test.ts",
+      "status": "passed",
+      "durationMs": 88.33541600000001
+    },
+    {
+      "kind": "unit",
+      "title": "supports all off, explicit one-off practice, retained answers and re-enabling",
+      "file": "apps/server/src/openings/opening-practice-selection-service.test.ts",
+      "status": "passed",
+      "durationMs": 50.61533399999996
+    },
+    {
+      "kind": "unit",
+      "title": "isolates player choices and preserves them through archive/restore and source import",
+      "file": "apps/server/src/openings/opening-practice-selection-service.test.ts",
+      "status": "passed",
+      "durationMs": 41.60183299999994
+    },
+    {
+      "kind": "unit",
+      "title": "validates the whole batch atomically and leaves another repertoire unchanged",
+      "file": "apps/server/src/openings/opening-practice-selection-service.test.ts",
+      "status": "passed",
+      "durationMs": 34.98354100000006
+    },
+    {
+      "kind": "unit",
+      "title": "does not abandon a session when saving an unchanged selection",
+      "file": "apps/server/src/openings/opening-practice-selection-service.test.ts",
+      "status": "passed",
+      "durationMs": 35.101
+    },
+    {
+      "kind": "unit",
+      "title": "retains opponent-move context for deliberately reviewing a paused position from a game",
+      "file": "apps/server/src/openings/opening-practice-selection-service.test.ts",
+      "status": "passed",
+      "durationMs": 26.811874999999986
+    },
+    {
+      "kind": "unit",
+      "title": "uses fresh complete reply samples, not products or unknown-as-rare estimates",
+      "file": "apps/server/src/openings/opening-practice-selection-service.test.ts",
+      "status": "passed",
+      "durationMs": 28.64625000000001
+    },
+    {
+      "kind": "unit",
+      "title": "does not classify incomplete, tiny or incompatible samples as rare: UPDATE opening_explorer_cache SET total_games = 50",
+      "file": "apps/server/src/openings/opening-practice-selection-service.test.ts",
+      "status": "passed",
+      "durationMs": 53.1652499999999
+    },
+    {
+      "kind": "unit",
+      "title": "does not classify incomplete, tiny or incompatible samples as rare: UPDATE opening_explorer_cache SET moves_json = '[]'",
+      "file": "apps/server/src/openings/opening-practice-selection-service.test.ts",
+      "status": "passed",
+      "durationMs": 51.57662499999992
+    },
+    {
+      "kind": "unit",
+      "title": "does not classify incomplete, tiny or incompatible samples as rare: UPDATE opening_player_preferences SET rating_group = 2000",
+      "file": "apps/server/src/openings/opening-practice-selection-service.test.ts",
+      "status": "passed",
+      "durationMs": 30.695333000000005
+    },
+    {
+      "kind": "unit",
+      "title": "does not classify incomplete, tiny or incompatible samples as rare: UPDATE opening_player_preferences SET use_explorer = 0",
+      "file": "apps/server/src/openings/opening-practice-selection-service.test.ts",
+      "status": "passed",
+      "durationMs": 33.08120799999995
+    },
+    {
+      "kind": "unit",
+      "title": "loads bounded shared-position batches only on explicit request and respects frequency opt-out",
+      "file": "apps/server/src/openings/opening-practice-selection-service.test.ts",
+      "status": "passed",
+      "durationMs": 58.93662500000005
+    },
+    {
+      "kind": "unit",
+      "title": "distinguishes full-line unaided runs from partial drills, hints and shared move recall",
+      "file": "apps/server/src/openings/opening-practice-selection-service.test.ts",
+      "status": "passed",
+      "durationMs": 93.56833400000005
+    },
+    {
+      "kind": "unit",
+      "title": "does not demand a line for a rare reply handled well",
+      "file": "apps/server/src/openings/opening-preparation-policy.test.ts",
+      "status": "passed",
+      "durationMs": 2.670749999999998
+    },
+    {
+      "kind": "unit",
+      "title": "does not call a rare reply easy without response evidence",
+      "file": "apps/server/src/openings/opening-preparation-policy.test.ts",
+      "status": "passed",
+      "durationMs": 0.3893329999999935
+    },
+    {
+      "kind": "unit",
+      "title": "keeps rare but precise_reply replies worth understanding",
+      "file": "apps/server/src/openings/opening-preparation-policy.test.ts",
+      "status": "passed",
+      "durationMs": 0.18879100000000903
+    },
+    {
+      "kind": "unit",
+      "title": "keeps rare but forcing replies worth understanding",
+      "file": "apps/server/src/openings/opening-preparation-policy.test.ts",
+      "status": "passed",
+      "durationMs": 0.11762500000000387
+    },
+    {
+      "kind": "unit",
+      "title": "prioritises repeated personal encounters even when the move is rare globally",
+      "file": "apps/server/src/openings/opening-preparation-policy.test.ts",
+      "status": "passed",
+      "durationMs": 0.12479100000001608
+    },
+    {
+      "kind": "unit",
+      "title": "does not ignore a weak opponent move that is commonly played",
+      "file": "apps/server/src/openings/opening-preparation-policy.test.ts",
+      "status": "passed",
+      "durationMs": 0.12391700000000583
+    },
+    {
+      "kind": "unit",
+      "title": "increases priority after repeated response mistakes",
+      "file": "apps/server/src/openings/opening-preparation-policy.test.ts",
+      "status": "passed",
+      "durationMs": 0.11958300000000577
+    },
+    {
+      "kind": "unit",
+      "title": "does not invent rarity from unknown evidence",
+      "file": "apps/server/src/openings/opening-preparation-policy.test.ts",
+      "status": "passed",
+      "durationMs": 0.1164579999999944
+    },
+    {
+      "kind": "unit",
+      "title": "does not invent rarity from small_sample evidence",
+      "file": "apps/server/src/openings/opening-preparation-policy.test.ts",
+      "status": "passed",
+      "durationMs": 0.11054199999998104
+    },
+    {
+      "kind": "unit",
+      "title": "does not invent rarity from off evidence",
+      "file": "apps/server/src/openings/opening-preparation-policy.test.ts",
+      "status": "passed",
+      "durationMs": 0.12954099999998903
+    },
+    {
+      "kind": "unit",
+      "title": "does not invent rarity from unavailable evidence",
+      "file": "apps/server/src/openings/opening-preparation-policy.test.ts",
+      "status": "passed",
+      "durationMs": 0.079166999999984
+    },
+    {
+      "kind": "unit",
+      "title": "does not trust stale frequency for priority",
+      "file": "apps/server/src/openings/opening-preparation-policy.test.ts",
+      "status": "passed",
+      "durationMs": 0.09999999999999432
+    },
+    {
+      "kind": "unit",
+      "title": "retains the user's deliberate choice without changing the underlying evidence",
+      "file": "apps/server/src/openings/opening-preparation-policy.test.ts",
+      "status": "passed",
+      "durationMs": 0.12958399999999415
+    },
+    {
+      "kind": "unit",
+      "title": "uses the observed probability at the opponent's position without remote requests",
+      "file": "apps/server/src/openings/opening-preparation-store.test.ts",
+      "status": "passed",
+      "durationMs": 24.453417
+    },
+    {
+      "kind": "unit",
+      "title": "falls back to authored weighting when evidence is unsuitable: UPDATE opening_explorer_cache SET fetched_at = '2020-01-01'",
+      "file": "apps/server/src/openings/opening-preparation-store.test.ts",
+      "status": "passed",
+      "durationMs": 34.57475000000005
+    },
+    {
+      "kind": "unit",
+      "title": "falls back to authored weighting when evidence is unsuitable: UPDATE opening_explorer_cache SET total_games = 10",
+      "file": "apps/server/src/openings/opening-preparation-store.test.ts",
+      "status": "passed",
+      "durationMs": 31.16716699999995
+    },
+    {
+      "kind": "unit",
+      "title": "falls back to authored weighting when evidence is unsuitable: UPDATE opening_explorer_cache SET moves_json = 'broken'",
+      "file": "apps/server/src/openings/opening-preparation-store.test.ts",
+      "status": "passed",
+      "durationMs": 28.20904200000001
+    },
+    {
+      "kind": "unit",
+      "title": "falls back to authored weighting when evidence is unsuitable: UPDATE opening_player_preferences SET rating_group = 1800",
+      "file": "apps/server/src/openings/opening-preparation-store.test.ts",
+      "status": "passed",
+      "durationMs": 33.05600000000004
+    },
+    {
+      "kind": "unit",
+      "title": "falls back to authored weighting when evidence is unsuitable: UPDATE opening_player_preferences SET use_explorer = 0",
+      "file": "apps/server/src/openings/opening-preparation-store.test.ts",
+      "status": "passed",
+      "durationMs": 31.13900000000001
+    },
+    {
+      "kind": "unit",
+      "title": "calculates progress with a large shared-line library and review history",
+      "file": "apps/server/src/openings/opening-progress.test.ts",
+      "status": "passed",
+      "durationMs": 353.25541599999997
+    },
+    {
+      "kind": "unit",
+      "title": "uses active time for new clients, but retains legacy wall time",
+      "file": "apps/server/src/openings/opening-response-time.test.ts",
+      "status": "passed",
+      "durationMs": 0.8250830000000065
+    },
+    {
+      "kind": "unit",
+      "title": "rejects invalid active time and clamps backwards wall-clock adjustments",
+      "file": "apps/server/src/openings/opening-response-time.test.ts",
+      "status": "passed",
+      "durationMs": 0.4443330000000003
+    },
+    {
+      "kind": "unit",
+      "title": "schedules a first successful recall for the next day",
+      "file": "apps/server/src/openings/opening-review-scheduler.test.ts",
+      "status": "passed",
+      "durationMs": 3.3320830000000115
+    },
+    {
+      "kind": "unit",
+      "title": "puts a missed move into a short learning step",
+      "file": "apps/server/src/openings/opening-review-scheduler.test.ts",
+      "status": "passed",
+      "durationMs": 0.1564999999999941
+    },
+    {
+      "kind": "unit",
+      "title": "uses a shorter hard-recall schedule when a correct answer takes over a minute",
+      "file": "apps/server/src/openings/opening-review-scheduler.test.ts",
+      "status": "passed",
+      "durationMs": 0.14016699999999105
+    },
+    {
+      "kind": "unit",
+      "title": "builds and practises different first moves while preserving original moves and export paths",
+      "file": "apps/server/src/openings/opening-update-service.test.ts",
+      "status": "passed",
+      "durationMs": 64.10612500000002
+    },
+    {
+      "kind": "unit",
+      "title": "round trips the supplied Ruy Lopez study's nested variations and source highlight",
+      "file": "apps/server/src/openings/opening-update-service.test.ts",
+      "status": "passed",
+      "durationMs": 209.774042
+    },
+    {
+      "kind": "unit",
+      "title": "preserves a shorter saved path when exporting a chapter with longer continuations",
+      "file": "apps/server/src/openings/opening-update-service.test.ts",
+      "status": "passed",
+      "durationMs": 71.55995799999994
+    },
+    {
+      "kind": "unit",
+      "title": "keeps chapter-specific reasons and marks with shared memory, including updates and export/reimport",
+      "file": "apps/server/src/openings/opening-update-service.test.ts",
+      "status": "passed",
+      "durationMs": 111.09558300000003
+    },
+    {
+      "kind": "unit",
+      "title": "keeps imported board marks through practice, export and source-only updates",
+      "file": "apps/server/src/openings/opening-update-service.test.ts",
+      "status": "passed",
+      "durationMs": 47.348791000000006
+    },
+    {
+      "kind": "unit",
+      "title": "merges nested variations, extends a source line and preserves cards, notes, names and archives",
+      "file": "apps/server/src/openings/opening-update-service.test.ts",
+      "status": "passed",
+      "durationMs": 38.98887500000001
+    },
+    {
+      "kind": "unit",
+      "title": "updates comments alone without duplicating or renumbering lines",
+      "file": "apps/server/src/openings/opening-update-service.test.ts",
+      "status": "passed",
+      "durationMs": 35.87812500000007
+    },
+    {
+      "kind": "unit",
+      "title": "keeps absent lines and local branches instead of deleting them",
+      "file": "apps/server/src/openings/opening-update-service.test.ts",
+      "status": "passed",
+      "durationMs": 43.07691699999998
+    },
+    {
+      "kind": "unit",
+      "title": "refreshes only selected study chapters, using private auth and the previewed snapshot",
+      "file": "apps/server/src/openings/opening-update-service.test.ts",
+      "status": "passed",
+      "durationMs": 104.36712499999987
+    },
+    {
+      "kind": "unit",
+      "title": "supports legacy imports and chapter rename/reorder through stable source chapter IDs",
+      "file": "apps/server/src/openings/opening-update-service.test.ts",
+      "status": "passed",
+      "durationMs": 62.35729100000003
+    },
+    {
+      "kind": "unit",
+      "title": "reuses workspace-created move IDs and positions without breaking references",
+      "file": "apps/server/src/openings/opening-update-service.test.ts",
+      "status": "passed",
+      "durationMs": 77.48870800000009
+    },
+    {
+      "kind": "unit",
+      "title": "rejects stale, expired, wrong-target and unconfirmed previews without changing the graph",
+      "file": "apps/server/src/openings/opening-update-service.test.ts",
+      "status": "passed",
+      "durationMs": 58.360582999999906
+    },
+    {
+      "kind": "unit",
+      "title": "allows personal notes and different first moves after preview, but rejects a different study",
+      "file": "apps/server/src/openings/opening-update-service.test.ts",
+      "status": "passed",
+      "durationMs": 50.16062499999998
+    },
+    {
+      "kind": "unit",
+      "title": "refuses built-in updates and rolls back a failed merge completely",
+      "file": "apps/server/src/openings/opening-update-service.test.ts",
+      "status": "passed",
+      "durationMs": 54.92941700000006
+    },
+    {
+      "kind": "unit",
+      "title": "keeps a running session and graph revision unchanged when the source is unchanged",
+      "file": "apps/server/src/openings/opening-update-service.test.ts",
+      "status": "passed",
+      "durationMs": 34.182458
+    },
+    {
+      "kind": "unit",
+      "title": "does not duplicate chapters when a full study is reordered and renamed",
+      "file": "apps/server/src/openings/opening-update-service.test.ts",
+      "status": "passed",
+      "durationMs": 26.787874999999985
+    },
+    {
+      "kind": "unit",
+      "title": "does not count drawing-only PGN comments as explanations",
+      "file": "apps/server/src/openings/opening-update-service.test.ts",
+      "status": "passed",
+      "durationMs": 30.74679200000014
+    },
+    {
+      "kind": "unit",
+      "title": "imports and refreshes all seven deeply nested Ruy Lopez branches",
+      "file": "apps/server/src/openings/opening-update-service.test.ts",
+      "status": "passed",
+      "durationMs": 114.11574999999993
+    }
+  ]
+}

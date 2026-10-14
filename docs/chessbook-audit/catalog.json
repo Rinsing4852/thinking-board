@@ -1,0 +1,2827 @@
+{
+  "schemaVersion": 1,
+  "auditDate": "2026-10-14",
+  "baselineCommit": "25d5efe79f89977d8df7faa48df839230f338b71",
+  "scope": "Full publicly accessible feature audit; openings and practice prioritised. Account/paid/destructive workflows remain unverified.",
+  "sources": [
+    {
+      "id": "UI",
+      "url": "https://chessbook.com/",
+      "title": "Chessbook guest app \u2014 direct UI audit",
+      "observedAt": "2026-10-14",
+      "method": "Guest browser inspection",
+      "limits": "Account connections, paid purchase, autofill execution, trimming, learning reset and deletion were not performed."
+    },
+    {
+      "id": "APP",
+      "url": "https://play.google.com/store/apps/details?id=com.chessbook.android",
+      "title": "Official Chessbook Android listing",
+      "observedAt": "2026-10-14",
+      "method": "Publisher feature description",
+      "limits": "Claims about availability do not prove runtime quality; store limits can change."
+    },
+    {
+      "id": "COMPLETION",
+      "url": "https://wiki.chessbook.com/completion",
+      "title": "Chessbook completion documentation",
+      "observedAt": "2026-10-14",
+      "method": "Official documentation read in browser",
+      "limits": "Coverage algorithm description, not a validated prediction."
+    },
+    {
+      "id": "STATS",
+      "url": "https://wiki.chessbook.com/repertoire-statistics",
+      "title": "Chessbook repertoire statistics documentation",
+      "observedAt": "2026-10-14",
+      "method": "Official documentation read in browser",
+      "limits": "Calibration and trained models cannot be independently reproduced from descriptions."
+    },
+    {
+      "id": "AUTOFILL",
+      "url": "https://wiki.chessbook.com/autofill",
+      "title": "Chessbook autofill documentation",
+      "observedAt": "2026-10-14",
+      "method": "Official documentation read in browser",
+      "limits": "Live autofill control blocked by automatic approval review because it could modify repertoire data."
+    },
+    {
+      "id": "SRS",
+      "url": "https://wiki.chessbook.com/spaced-repetition",
+      "title": "Chessbook spaced repetition documentation",
+      "observedAt": "2026-10-14",
+      "method": "Official documentation read in browser",
+      "limits": "Scheduling policy described, no internal code or parameters inspected."
+    },
+    {
+      "id": "SOFT",
+      "url": "https://wiki.chessbook.com/soft-fails",
+      "title": "Chessbook soft fails documentation",
+      "observedAt": "2026-10-14",
+      "method": "Official documentation read in browser",
+      "limits": "Terminal no-penalty handling not live-tested."
+    },
+    {
+      "id": "RECOMMENDED",
+      "url": "https://wiki.chessbook.com/recommended-moves",
+      "title": "Chessbook recommended moves documentation",
+      "observedAt": "2026-10-14",
+      "method": "Official documentation read in browser",
+      "limits": "No measured competitor throughput or effectiveness."
+    },
+    {
+      "id": "EVAL",
+      "url": "https://wiki.chessbook.com/evaluations",
+      "title": "Chessbook engine evaluations documentation",
+      "observedAt": "2026-10-14",
+      "method": "Official documentation read in browser",
+      "limits": "Precomputed engine database was not accessed or copied."
+    },
+    {
+      "id": "EXTENSION",
+      "url": null,
+      "title": "Audit-driven independent improvement",
+      "observedAt": "2026-10-14",
+      "method": "Own product requirement",
+      "limits": "Not asserted to be a Chessbook feature."
+    }
+  ],
+  "features": [
+    {
+      "id": "CB01",
+      "name": "White and Black repertoire collections",
+      "category": "Build",
+      "priority": "P0",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Guest home exposes separate White and Black collections and Add new.",
+      "desiredBehavior": "Create named repertoires for either side; preserve separate learning context while allowing several sources within a repertoire.",
+      "acceptanceChecks": [
+        {
+          "id": "CB01.1",
+          "requirement": "A private PGN produces the selected sides without duplicate repertoires.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "previews and imports both sides as private, deduplicated repertoires"
+            }
+          ]
+        },
+        {
+          "id": "CB01.2",
+          "requirement": "Build and reopen a repertoire for either side on desktop and phone.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "builds with automatic saves, retry safety and a separate analysis board",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB01.3",
+          "requirement": "A new repertoire can be created in under 60 seconds in a first-use study.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-pgn-import.ts"
+      ],
+      "benchmark": {
+        "task": "Build and reopen a repertoire for either side on desktop and phone.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB02",
+      "name": "Multiple first moves in one repertoire",
+      "category": "Build",
+      "priority": "P0",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Black collection and alternative-move controls are visible; saving several root branches was not exercised.",
+      "desiredBehavior": "Allow e4, d4, Nf3 and other initial branches together, with names that describe the new route and unchanged progress on existing paths.",
+      "acceptanceChecks": [
+        {
+          "id": "CB02.1",
+          "requirement": "Root branches preserve old move IDs and review cards.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "builds and practises different first moves while preserving original moves and export paths"
+            }
+          ]
+        },
+        {
+          "id": "CB02.2",
+          "requirement": "Save d4 and g6 from the start of an existing e4 repertoire, then reload.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "builds a Black response to a different first move in the same repertoire",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB02.3",
+          "requirement": "A duplicate network retry never creates a second root branch.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "builds and practises different first moves while preserving original moves and export paths"
+            }
+          ]
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-workspace-service.ts"
+      ],
+      "benchmark": {
+        "task": "Save d4 and g6 from the start of an existing e4 repertoire, then reload.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB03",
+      "name": "Alternative saved responses",
+      "category": "Build",
+      "priority": "P0",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Saved move view offers Add an alternative move.",
+      "desiredBehavior": "Save several learner responses at a position; practise all enabled responses without treating one fixed order as chess truth.",
+      "acceptanceChecks": [
+        {
+          "id": "CB03.1",
+          "requirement": "Every enabled alternative appears in the shared-response queue.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "recalls all enabled shared responses without requiring them in one fixed order"
+            }
+          ]
+        },
+        {
+          "id": "CB03.2",
+          "requirement": "Recall alternatives without requiring them in a fixed order.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "automatically recalls different saved responses at the same position without a fixed order",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB03.3",
+          "requirement": "Paused alternatives stay saved but are not automatically requested.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "does not add paused alternatives to shared-response practice"
+            }
+          ]
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-review-service.ts"
+      ],
+      "benchmark": {
+        "task": "Recall alternatives without requiring them in a fixed order.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB04",
+      "name": "Board editing and immediate save",
+      "category": "Build",
+      "priority": "P0",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Moves can be selected on the board while building.",
+      "desiredBehavior": "Support click, drag, keyboard and legal promotions, save new moves immediately, and show failures without moving to an unsaved position.",
+      "acceptanceChecks": [
+        {
+          "id": "CB04.1",
+          "requirement": "Illegal moves are rejected with a useful location.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "rejects illegal moves with their authored location"
+            }
+          ]
+        },
+        {
+          "id": "CB04.2",
+          "requirement": "Create and extend a branch with automatic saves and a separate analysis board.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "builds with automatic saves, retry safety and a separate analysis board",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB04.3",
+          "requirement": "After a save failure, the original position and an explicit retry are available.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/web/src/components/ChessBoard.tsx",
+        "apps/web/src/components/OpeningLineExplorer.tsx"
+      ],
+      "benchmark": {
+        "task": "Create and extend a branch with automatic saves and a separate analysis board.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB05",
+      "name": "Branch navigation and opening names",
+      "category": "Build",
+      "priority": "P0",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Opponent moves show opening names and lead to saved continuations.",
+      "desiredBehavior": "Provide line search, fork summaries, back/forward traversal and optional opening names; navigation never writes moves.",
+      "acceptanceChecks": [
+        {
+          "id": "CB05.1",
+          "requirement": "Navigation retains fork context across line changes.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "preserves the current position across shared lines and returns to the fork for divergent lines"
+            }
+          ]
+        },
+        {
+          "id": "CB05.2",
+          "requirement": "Browse nested variations through shared moves without writing the repertoire.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "navigates nested variations through shared moves without changing the repertoire",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB05.3",
+          "requirement": "Finding a named branch takes no more than three actions from its repertoire.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/web/src/opening-navigation.ts"
+      ],
+      "benchmark": {
+        "task": "Browse nested variations through shared moves without writing the repertoire.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB06",
+      "name": "Transposition handling",
+      "category": "Build",
+      "priority": "P0",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "APP"
+      ],
+      "chessbookObservation": "Official feature list describes transpositions.",
+      "desiredBehavior": "Identify equal chess positions across legal move orders, share recall where appropriate, and preserve route-specific source explanations.",
+      "acceptanceChecks": [
+        {
+          "id": "CB06.1",
+          "requirement": "Equivalent move orders converge to the same graph position.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "compiles authored lines into a graph and merges transpositions"
+            }
+          ]
+        },
+        {
+          "id": "CB06.2",
+          "requirement": "Change move order while retaining the board and protecting shared notes.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "keeps the board when changing move order and protects shared comments while editing",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB06.3",
+          "requirement": "Alternatives at one position must not be collapsed into one required move.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-content.ts"
+      ],
+      "benchmark": {
+        "task": "Change move order while retaining the board and protecting shared notes.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB07",
+      "name": "Move notes and visual annotations",
+      "category": "Build",
+      "priority": "P0",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Saved c4 includes an explanation and Edit note.",
+      "desiredBehavior": "Keep source notes, personal notes, idea hints and coloured board marks distinct, portable and visible only when they help the current task.",
+      "acceptanceChecks": [
+        {
+          "id": "CB07.1",
+          "requirement": "Chapter-specific reasons and marks survive shared moves and updates.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "keeps chapter-specific reasons and marks with shared memory, including updates and export/reimport"
+            }
+          ]
+        },
+        {
+          "id": "CB07.2",
+          "requirement": "Explain the prior move and save a comment without spoiling the next recall.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "explains the previous move on request after advancing, and saves its comment without spoiling the next move",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB07.3",
+          "requirement": "Reimport preserves each note and arrow without changing personal learning history.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-context.ts",
+        "apps/web/src/components/OpeningLearningComment.tsx"
+      ],
+      "benchmark": {
+        "task": "Explain the prior move and save a comment without spoiling the next recall.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB08",
+      "name": "PGN import",
+      "category": "Import",
+      "priority": "P0",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Import menu exposes PGN file.",
+      "desiredBehavior": "Preview legal PGN with variations and comments, select side, and import multiple chapters and initial moves into one repertoire.",
+      "acceptanceChecks": [
+        {
+          "id": "CB08.1",
+          "requirement": "Nested variations and comments parse without loss.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "preserves a main line, side variation, and comments"
+            }
+          ]
+        },
+        {
+          "id": "CB08.2",
+          "requirement": "Import a PGN through the visible importer and reopen its saved lines.",
+          "evidence": []
+        },
+        {
+          "id": "CB08.3",
+          "requirement": "Invalid PGN leaves the existing library unchanged.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "gives useful errors for illegal moves and custom positions"
+            }
+          ]
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-pgn-import.ts"
+      ],
+      "benchmark": {
+        "task": "Import a PGN through the visible importer and reopen its saved lines.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB09",
+      "name": "Lichess study import",
+      "category": "Import",
+      "priority": "P0",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Import menu exposes Lichess study.",
+      "desiredBehavior": "Import selected public or authorised private study chapters with names and explanations; support source-only refreshes without replacing personal notes.",
+      "acceptanceChecks": [
+        {
+          "id": "CB09.1",
+          "requirement": "Private study import authenticates and preserves multiple chapters.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "authenticates, previews, and imports a private multi-chapter Lichess Study"
+            }
+          ]
+        },
+        {
+          "id": "CB09.2",
+          "requirement": "Preview and apply source changes in an expanded repertoire card.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "previews and applies source changes from an expanded repertoire card",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB09.3",
+          "requirement": "A failed private fetch never leaks the token or corrupts existing lines.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-lichess-import.ts"
+      ],
+      "benchmark": {
+        "task": "Preview and apply source changes in an expanded repertoire card.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB10",
+      "name": "PGN export and round trip",
+      "category": "Import",
+      "priority": "P0",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Repertoire settings exposes Export to PGN.",
+      "desiredBehavior": "Export chapters, nested branches, shorter terminal paths, comments and marks; reimport recovers the same playable content.",
+      "acceptanceChecks": [
+        {
+          "id": "CB10.1",
+          "requirement": "A shorter saved path survives export alongside longer continuations.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "preserves a shorter saved path when exporting a chapter with longer continuations"
+            }
+          ]
+        },
+        {
+          "id": "CB10.2",
+          "requirement": "Export and reimport e4, d4 and Nf3 paths together.",
+          "evidence": []
+        },
+        {
+          "id": "CB10.3",
+          "requirement": "Explain that PGN is content portability rather than a review-history backup.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "round trips the supplied Ruy Lopez study's nested variations and source highlight"
+            }
+          ]
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-pgn-export.ts"
+      ],
+      "benchmark": {
+        "task": "Export and reimport e4, d4 and Nf3 paths together.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB11",
+      "name": "Combine material and refresh sources",
+      "category": "Import",
+      "priority": "P0",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "APP"
+      ],
+      "chessbookObservation": "Official description promotes combining opening sources.",
+      "desiredBehavior": "Merge changed source chapters by stable identities; keep locally added branches, archived lines, private notes and recall cards.",
+      "acceptanceChecks": [
+        {
+          "id": "CB11.1",
+          "requirement": "Source updates retain cards, notes, names and archives.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "merges nested variations, extends a source line and preserves cards, notes, names and archives"
+            }
+          ]
+        },
+        {
+          "id": "CB11.2",
+          "requirement": "Preview a source update before applying it.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "previews and applies source changes from an expanded repertoire card",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB11.3",
+          "requirement": "A stale preview or mid-merge failure leaves the previous graph intact.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "rejects stale, expired, wrong-target and unconfirmed previews without changing the graph"
+            }
+          ]
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-update-service.ts"
+      ],
+      "benchmark": {
+        "task": "Preview a source update before applying it.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB12",
+      "name": "Disable lines for practice",
+      "category": "Build",
+      "priority": "P0",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "A saved move has Disable control.",
+      "desiredBehavior": "Pause selected practice paths independently of deleting content; shared moves needed by enabled paths still practise.",
+      "acceptanceChecks": [
+        {
+          "id": "CB12.1",
+          "requirement": "Paused branches retain shared progress and exclude unique paused moves.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "defaults on, pauses a branch without hiding it, keeps shared moves and excludes unique paused moves"
+            }
+          ]
+        },
+        {
+          "id": "CB12.2",
+          "requirement": "Pause branches and inspect separate move recall and full-line recall.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "pauses branches without deleting them and distinguishes move recall from full-line runs",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB12.3",
+          "requirement": "Practice selection is isolated between players.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "isolates player choices and preserves them through archive/restore and source import"
+            }
+          ]
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-practice-selection-service.ts"
+      ],
+      "benchmark": {
+        "task": "Pause branches and inspect separate move recall and full-line recall.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB13",
+      "name": "Exclude responses and set stopping points",
+      "category": "Coverage",
+      "priority": "P0",
+      "baselineState": "partial",
+      "currentState": "partial",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Opponent reply list offers Exclude specific moves.",
+      "desiredBehavior": "Deliberately leave replies unprepared or stop at a justified boundary; retain the reason and show excluded probability instead of silently renormalising.",
+      "acceptanceChecks": [
+        {
+          "id": "CB13.1",
+          "requirement": "Ideas and deliberate omissions remain separate outcomes.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "keeps ideas and deliberate omissions separate, without renormalising"
+            }
+          ]
+        },
+        {
+          "id": "CB13.2",
+          "requirement": "Choose and reverse a stopping point without changing saved lines.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "shows honest coverage, distinct recall and reversible stopping points without altering saved lines",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB13.3",
+          "requirement": "A deliberate omission is never displayed as a saved response or learned move.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-preparation-service.ts"
+      ],
+      "benchmark": {
+        "task": "Choose and reverse a stopping point without changing saved lines.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB14",
+      "name": "Trim unnecessary moves",
+      "category": "Build",
+      "priority": "P2",
+      "baselineState": "absent",
+      "currentState": "absent",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Repertoire settings offers Trim unnecessary moves; destructive action not exercised.",
+      "desiredBehavior": "Preview branches below a selected practical reach threshold; archive approved candidates, with a recovery path and no removal of shared required moves.",
+      "acceptanceChecks": [
+        {
+          "id": "CB14.1",
+          "requirement": "Preview identifies exactly which branches and notes are affected.",
+          "evidence": []
+        },
+        {
+          "id": "CB14.2",
+          "requirement": "Review and archive an unwanted branch, then restore it.",
+          "evidence": []
+        },
+        {
+          "id": "CB14.3",
+          "requirement": "Unknown frequency or shared membership prevents automatic trimming.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [],
+      "benchmark": {
+        "task": "Review and archive an unwanted branch, then restore it.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB15",
+      "name": "Delete and reset repertoire content",
+      "category": "Build",
+      "priority": "P1",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Repertoire settings exposes Delete; no deletion was performed.",
+      "desiredBehavior": "Support explicit line, repertoire and library removal with named targets, export access and transactional validation; keep imported games.",
+      "acceptanceChecks": [
+        {
+          "id": "CB15.1",
+          "requirement": "A failed library clear rolls back every targeted deletion.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "rolls back every repertoire deletion if clearing the library fails part-way through"
+            }
+          ]
+        },
+        {
+          "id": "CB15.2",
+          "requirement": "Delete the final line or library without losing games.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "deletes the final line and clears a confirmed library without losing games",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB15.3",
+          "requirement": "A changed target list is rejected before any destructive write.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-workspace-service.ts"
+      ],
+      "benchmark": {
+        "task": "Delete the final line or library without losing games.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB16",
+      "name": "Rating and platform context",
+      "category": "Coverage",
+      "priority": "P0",
+      "baselineState": "partial",
+      "currentState": "partial",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Settings has rating, platform and time control; default visible settings are inconsistent with slider until confirmed.",
+      "desiredBehavior": "Let the user set a rating band and its source; show the actual Lichess sample band instead of implying rating conversion that has not been established.",
+      "acceptanceChecks": [
+        {
+          "id": "CB16.1",
+          "requirement": "Player context persists and practical data can remain off.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "stores the player's practical opening context"
+            }
+          ]
+        },
+        {
+          "id": "CB16.2",
+          "requirement": "Change level, save, reload and see the same sample band.",
+          "evidence": []
+        },
+        {
+          "id": "CB16.3",
+          "requirement": "A missing token or unknown mapping cannot produce claimed platform-specific statistics.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-preferences-service.ts"
+      ],
+      "benchmark": {
+        "task": "Change level, save, reload and see the same sample band.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB17",
+      "name": "Time-control selection for samples",
+      "category": "Coverage",
+      "priority": "P1",
+      "baselineState": "absent",
+      "currentState": "absent",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Rating settings exposes Blitz time control.",
+      "desiredBehavior": "Select supported speeds and include them in explorer cache identity, coverage summaries and all sample citations.",
+      "acceptanceChecks": [
+        {
+          "id": "CB17.1",
+          "requirement": "Blitz and rapid requests use different cache keys.",
+          "evidence": []
+        },
+        {
+          "id": "CB17.2",
+          "requirement": "Change speed and see refreshed frequencies without losing the current board.",
+          "evidence": []
+        },
+        {
+          "id": "CB17.3",
+          "requirement": "A late response for the previous speed cannot replace the current sample.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [],
+      "benchmark": {
+        "task": "Change speed and see refreshed frequencies without losing the current board.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB18",
+      "name": "Encounter-based coverage goal",
+      "category": "Coverage",
+      "priority": "P0",
+      "baselineState": "partial",
+      "currentState": "partial",
+      "sourceIds": [
+        "COMPLETION"
+      ],
+      "chessbookObservation": "Settings offers practical reach thresholds from 1 in 150 through 1 in 800 games.",
+      "desiredBehavior": "Choose a reach-probability target separately from depth; show which likely positions still require a response and how study burden changes.",
+      "acceptanceChecks": [
+        {
+          "id": "CB18.1",
+          "requirement": "Coverage threshold uses opponent path probabilities under an explicit learner policy.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "multiplies successive opponent probabilities rather than pooling sample counts"
+            }
+          ]
+        },
+        {
+          "id": "CB18.2",
+          "requirement": "Change target and inspect newly relevant gaps.",
+          "evidence": []
+        },
+        {
+          "id": "CB18.3",
+          "requirement": "Unknown or small samples cannot be counted as meeting the target.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-coverage-model.ts"
+      ],
+      "benchmark": {
+        "task": "Change target and inspect newly relevant gaps.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB19",
+      "name": "Honest coverage calculation",
+      "category": "Coverage",
+      "priority": "P0",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "COMPLETION"
+      ],
+      "chessbookObservation": "Completion documentation follows saved learner choices and multiplies opponent probabilities.",
+      "desiredBehavior": "Separate prepared paths, missing responses, idea-only, deliberately unprepared and unknown; make chosen route, horizon and sample provenance visible. Show per-reply personal-game counts and empirical prepared coverage independently of Lichess sample probabilities; a single real missing reply is evidenced even without a global frequency sample.",
+      "acceptanceChecks": [
+        {
+          "id": "CB19.1",
+          "requirement": "Personal and Lichess frequencies retain independent sample denominators.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "retains independent Lichess denominators when both sources exist"
+            }
+          ]
+        },
+        {
+          "id": "CB19.2",
+          "requirement": "Inspect coverage explanations and reverse boundaries.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "shows honest coverage, distinct recall and reversible stopping points without altering saved lines",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB19.3",
+          "requirement": "A saved opponent move without a learner reply is not prepared coverage.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "does not count a saved opponent move without our response"
+            }
+          ]
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-coverage-model.ts"
+      ],
+      "benchmark": {
+        "task": "Inspect coverage explanations and reverse boundaries.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB20",
+      "name": "Find the biggest useful gap",
+      "category": "Coverage",
+      "priority": "P0",
+      "baselineState": "existing",
+      "currentState": "enhanced",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Build screens offer biggest-gap and next-gap navigation.",
+      "desiredBehavior": "Rank replies by reliable practical evidence and actual personal encounters; open the matching board with a direct path to prepare or practise it.",
+      "acceptanceChecks": [
+        {
+          "id": "CB20.1",
+          "requirement": "Choose personal preparation gaps independently of the repertoire selected for memory practice.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "finds a game-based preparation gap independently of a different recommended practice repertoire"
+            }
+          ]
+        },
+        {
+          "id": "CB20.2",
+          "requirement": "Show and open game-based preparation recommendations even with Lichess frequencies off.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "shows game-based preparation recommendations even with Lichess frequencies off",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB20.3",
+          "requirement": "If frequency is unavailable, label uncertainty rather than inventing a biggest probability gap.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-preparation-policy.ts"
+      ],
+      "benchmark": {
+        "task": "Inspect a covered reply in its saved branch without creating duplicates.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB21",
+      "name": "Engine move comparison",
+      "category": "Analysis",
+      "priority": "P0",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "EVAL"
+      ],
+      "chessbookObservation": "Build view shows Eval; official docs specify precomputed Stockfish analysis.",
+      "desiredBehavior": "Show legal Stockfish candidates with explicit perspective, search depth and mate units; cache compatible requests and keep editing usable if analysis fails.",
+      "acceptanceChecks": [
+        {
+          "id": "CB21.1",
+          "requirement": "Current-position local analysis is cached and exposes legal moves.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "serves cached local analysis and current-position practical moves for the opening studio"
+            }
+          ]
+        },
+        {
+          "id": "CB21.2",
+          "requirement": "Use the analysis board without writing unsaved variations.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "builds with automatic saves, retry safety and a separate analysis board",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB21.3",
+          "requirement": "Measured warm-cache response is below 500ms and failed engine requests stay local to analysis.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-analysis-service.ts"
+      ],
+      "benchmark": {
+        "task": "Use the analysis board without writing unsaved variations.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB22",
+      "name": "Master-game move statistics",
+      "category": "Analysis",
+      "priority": "P1",
+      "baselineState": "absent",
+      "currentState": "absent",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Build table includes Masters alongside Eval and Peer results.",
+      "desiredBehavior": "Offer master-database popularity and results beside practical samples, with independent denominators, source and date.",
+      "acceptanceChecks": [
+        {
+          "id": "CB22.1",
+          "requirement": "Master and rating-band samples use distinct schemas and cache keys.",
+          "evidence": []
+        },
+        {
+          "id": "CB22.2",
+          "requirement": "Compare the same position in the master and practical databases.",
+          "evidence": []
+        },
+        {
+          "id": "CB22.3",
+          "requirement": "Empty samples display unknown rather than 0% popularity.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [],
+      "benchmark": {
+        "task": "Compare the same position in the master and practical databases.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB23",
+      "name": "Practical results at the player level",
+      "category": "Analysis",
+      "priority": "P0",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Build view shows peer results next to each candidate.",
+      "desiredBehavior": "Show win, draw and loss counts and expected score for the selected side, accompanied by sample size and stale-data warnings.",
+      "acceptanceChecks": [
+        {
+          "id": "CB23.1",
+          "requirement": "Explorer responses retain the current position and practical moves.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "serves cached local analysis and current-position practical moves for the opening studio"
+            }
+          ]
+        },
+        {
+          "id": "CB23.2",
+          "requirement": "Change a rating and ignore the older delayed response.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "discards an older coverage request when the selected rating changes",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB23.3",
+          "requirement": "A small sample is not presented as a predicted personal win rate.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-explorer-service.ts"
+      ],
+      "benchmark": {
+        "task": "Change a rating and ignore the older delayed response.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB24",
+      "name": "Repertoire effectiveness assessment",
+      "category": "Quality",
+      "priority": "P1",
+      "baselineState": "absent",
+      "currentState": "absent",
+      "sourceIds": [
+        "STATS"
+      ],
+      "chessbookObservation": "Official docs describe reach-weighted practical results with rating-specific calibration.",
+      "desiredBehavior": "Provide an independently defined practical-results report with uncertainty and sample support; never copy Chessbook calibration constants or call results a personal forecast.",
+      "acceptanceChecks": [
+        {
+          "id": "CB24.1",
+          "requirement": "Learner perspective and draws are handled correctly.",
+          "evidence": []
+        },
+        {
+          "id": "CB24.2",
+          "requirement": "Inspect the sample and path contribution behind each result.",
+          "evidence": []
+        },
+        {
+          "id": "CB24.3",
+          "requirement": "If data is insufficient, expose unknown and exclude unsupported paths from confidence claims.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [],
+      "benchmark": {
+        "task": "Inspect the sample and path contribution behind each result.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB25",
+      "name": "Repertoire soundness assessment",
+      "category": "Quality",
+      "priority": "P1",
+      "baselineState": "absent",
+      "currentState": "absent",
+      "sourceIds": [
+        "STATS"
+      ],
+      "chessbookObservation": "Official docs aggregate path concession and critical risky routes.",
+      "desiredBehavior": "Show engine concessions along saved routes using compatible engine settings and a clear worst-path view; compare gambit risk with practical aims.",
+      "acceptanceChecks": [
+        {
+          "id": "CB25.1",
+          "requirement": "Sign, mate scores and engine budgets remain compatible across positions.",
+          "evidence": []
+        },
+        {
+          "id": "CB25.2",
+          "requirement": "Open the route contributing most to objective concessions.",
+          "evidence": []
+        },
+        {
+          "id": "CB25.3",
+          "requirement": "Do not manufacture a 1\u201399 parity score from a different engine or search budget.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [],
+      "benchmark": {
+        "task": "Open the route contributing most to objective concessions.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB26",
+      "name": "Learnability assessment",
+      "category": "Quality",
+      "priority": "P1",
+      "baselineState": "partial",
+      "currentState": "partial",
+      "sourceIds": [
+        "STATS"
+      ],
+      "chessbookObservation": "Official docs use a model trained on user recall mistakes and positional similarity.",
+      "desiredBehavior": "Use this player\u2019s first-try recall, hint use, depth and repeated mistakes as transparent difficulty evidence; mark untested moves unknown rather than pretending to reproduce their AI.",
+      "acceptanceChecks": [
+        {
+          "id": "CB26.1",
+          "requirement": "First-encounter evidence excludes retries and includes corrected failures.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "counts first encounters and includes corrected full runs in the recall denominator"
+            }
+          ]
+        },
+        {
+          "id": "CB26.2",
+          "requirement": "Compare tested-move evidence with complete-line recall.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "pauses branches without deleting them and distinguishes move recall from full-line runs",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB26.3",
+          "requirement": "A new or sparsely tested line must not be called easy or mastered.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-recall.ts"
+      ],
+      "benchmark": {
+        "task": "Compare tested-move evidence with complete-line recall.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB27",
+      "name": "Autofill repertoire gaps",
+      "category": "Build",
+      "priority": "P1",
+      "baselineState": "absent",
+      "currentState": "absent",
+      "sourceIds": [
+        "AUTOFILL"
+      ],
+      "chessbookObservation": "Official docs describe drafting then whole-repertoire refinement; live control was not executed.",
+      "desiredBehavior": "Generate a bounded, reviewable draft around user-authored choices using supported engine and sample data; require preview, explicit apply, provenance and cancellation.",
+      "acceptanceChecks": [
+        {
+          "id": "CB27.1",
+          "requirement": "Existing authored moves and notes are never replaced.",
+          "evidence": []
+        },
+        {
+          "id": "CB27.2",
+          "requirement": "Preview a single gap and a bounded full build before saving.",
+          "evidence": []
+        },
+        {
+          "id": "CB27.3",
+          "requirement": "Same inputs and source snapshots give reproducible output; cancellation and failed data leave saved content intact.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [],
+      "benchmark": {
+        "task": "Preview a single gap and a bounded full build before saving.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB28",
+      "name": "Autofill style preferences",
+      "category": "Build",
+      "priority": "P2",
+      "baselineState": "absent",
+      "currentState": "absent",
+      "sourceIds": [
+        "AUTOFILL"
+      ],
+      "chessbookObservation": "Official docs allocate style between practical results, soundness and learnability.",
+      "desiredBehavior": "Provide transparent weighting of supported objectives; describe trade-offs and display the actual formula and unavailable inputs.",
+      "acceptanceChecks": [
+        {
+          "id": "CB28.1",
+          "requirement": "Each objective weight changes a controlled fixture as documented.",
+          "evidence": []
+        },
+        {
+          "id": "CB28.2",
+          "requirement": "Compare two proposed styles without editing the saved repertoire.",
+          "evidence": []
+        },
+        {
+          "id": "CB28.3",
+          "requirement": "Missing objectives are not silently treated as zero or renormalised without disclosure.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [],
+      "benchmark": {
+        "task": "Compare two proposed styles without editing the saved repertoire.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB29",
+      "name": "Undo generated repertoire moves",
+      "category": "Build",
+      "priority": "P1",
+      "baselineState": "absent",
+      "currentState": "absent",
+      "sourceIds": [
+        "AUTOFILL"
+      ],
+      "chessbookObservation": "Settings includes Remove autofilled moves; docs promise authored moves remain.",
+      "desiredBehavior": "Record generated batches separately and let the user undo only an identified batch while retaining authored content and any shared nodes still required.",
+      "acceptanceChecks": [
+        {
+          "id": "CB29.1",
+          "requirement": "Batch provenance distinguishes generated from authored content.",
+          "evidence": []
+        },
+        {
+          "id": "CB29.2",
+          "requirement": "Undo a draft batch and confirm authored branches remain.",
+          "evidence": []
+        },
+        {
+          "id": "CB29.3",
+          "requirement": "User-edited generated nodes are protected or explicitly reviewed before removal.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [],
+      "benchmark": {
+        "task": "Undo a draft batch and confirm authored branches remain.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB30",
+      "name": "FSRS spaced repetition",
+      "category": "Practice",
+      "priority": "P0",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "SRS"
+      ],
+      "chessbookObservation": "Official docs identify FSRS and shared move review histories.",
+      "desiredBehavior": "Schedule per-position and explicit-response recall, distinguish assistance from independent success, and avoid multiplying reviews for retries.",
+      "acceptanceChecks": [
+        {
+          "id": "CB30.1",
+          "requirement": "First success schedules a later review and failure schedules relearning.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "schedules a first successful recall for the next day"
+            }
+          ]
+        },
+        {
+          "id": "CB30.2",
+          "requirement": "Retry a mistaken move without relabelling the first attempt as successful.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "persists relaxed practice and pauses only after the saved move is found",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB30.3",
+          "requirement": "Historical progress remains after source edits and process restart.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "merges nested variations, extends a source line and preserves cards, notes, names and archives"
+            }
+          ]
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-review-scheduler.ts"
+      ],
+      "benchmark": {
+        "task": "Retry a mistaken move without relabelling the first attempt as successful.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB31",
+      "name": "Shared progress across repertoires",
+      "category": "Practice",
+      "priority": "P1",
+      "baselineState": "partial",
+      "currentState": "partial",
+      "sourceIds": [
+        "SRS"
+      ],
+      "chessbookObservation": "Official docs state equivalent moves share progress even between repertoires.",
+      "desiredBehavior": "Keep graph sharing within a repertoire; add cross-repertoire recall sharing only when side, position, target and source context are unambiguous.",
+      "acceptanceChecks": [
+        {
+          "id": "CB31.1",
+          "requirement": "The same recalled position in two repertoires does not need duplicate scheduling.",
+          "evidence": []
+        },
+        {
+          "id": "CB31.2",
+          "requirement": "Review one repertoire and inspect equivalent recall in another.",
+          "evidence": []
+        },
+        {
+          "id": "CB31.3",
+          "requirement": "Alternative responses and different players never inherit false success.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-review-service.ts"
+      ],
+      "benchmark": {
+        "task": "Review one repertoire and inspect equivalent recall in another.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB32",
+      "name": "Individual moves and complete lines",
+      "category": "Practice",
+      "priority": "P0",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Practice settings offers individual moves and complete lines every time or once per session.",
+      "desiredBehavior": "Provide scheduled recall and continuous full-line practice with bounded depth, branch variety, repeat and next enabled line.",
+      "acceptanceChecks": [
+        {
+          "id": "CB32.1",
+          "requirement": "Full-line evidence is distinct from partial drills and hints.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "distinguishes full-line unaided runs from partial drills, hints and shared move recall"
+            }
+          ]
+        },
+        {
+          "id": "CB32.2",
+          "requirement": "Play a whole line without automatic explanations or Continue buttons.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "plays a complete line without automatic explanations or Continue buttons",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB32.3",
+          "requirement": "Changing paths invalidates old exact-line evidence without deleting recorded attempts.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-review-service.ts"
+      ],
+      "benchmark": {
+        "task": "Play a whole line without automatic explanations or Continue buttons.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB33",
+      "name": "Sound alternatives versus recall errors",
+      "category": "Practice",
+      "priority": "P0",
+      "baselineState": "partial",
+      "currentState": "partial",
+      "sourceIds": [
+        "SOFT"
+      ],
+      "chessbookObservation": "Soft-fail docs separate sound unsaved moves from chess errors and terminal alternatives.",
+      "desiredBehavior": "Grade repertoire recall independently from chess quality; allow a supported engine judgment on sound alternatives without granting recalled-move credit.",
+      "acceptanceChecks": [
+        {
+          "id": "CB33.1",
+          "requirement": "An unsaved move cannot count as remembered repertoire content.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "records an unassisted off-repertoire move as a lapse"
+            }
+          ]
+        },
+        {
+          "id": "CB33.2",
+          "requirement": "Play a sound alternative and see separate chess-quality and recall feedback.",
+          "evidence": []
+        },
+        {
+          "id": "CB33.3",
+          "requirement": "A failed or shallow engine evaluation cannot label the move a blunder.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-review-service.ts"
+      ],
+      "benchmark": {
+        "task": "Play a sound alternative and see separate chess-quality and recall feedback.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB34",
+      "name": "Hints and first exposure",
+      "category": "Practice",
+      "priority": "P0",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "First guest practice shows a reminder arrow and Skip first practice.",
+      "desiredBehavior": "Teach unseen moves, offer optional idea, piece and answer help, and retain assistance across reload without claiming unaided recall.",
+      "acceptanceChecks": [
+        {
+          "id": "CB34.1",
+          "requirement": "Idea help persists and assisted moves do not count as independent recall.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "persists practice preferences and idea help without claiming an independent recall"
+            }
+          ]
+        },
+        {
+          "id": "CB34.2",
+          "requirement": "Use an idea hint without exposing the answer and retain help after reload.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "uses optional idea hints without revealing a square, and keeps that assistance after reload",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB34.3",
+          "requirement": "Shown answers still require the learner to execute a move.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "teaches new opening decisions without counting assisted moves as remembered"
+            }
+          ]
+        }
+      ],
+      "implementationPaths": [
+        "apps/web/src/components/OpeningReview.tsx"
+      ],
+      "benchmark": {
+        "task": "Use an idea hint without exposing the answer and retain help after reload.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB35",
+      "name": "Pacing and pause policy",
+      "category": "Practice",
+      "priority": "P1",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Settings offers never, always, errors, and notes pauses.",
+      "desiredBehavior": "Offer normal or relaxed feedback and deliberate pauses after mistakes, notes or every move; exclude pauses and hidden time from response timing.",
+      "acceptanceChecks": [
+        {
+          "id": "CB35.1",
+          "requirement": "Timed attempts reject invalid and stale requests.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "records active recall time and rejects stale or invalid timed attempts"
+            }
+          ]
+        },
+        {
+          "id": "CB35.2",
+          "requirement": "Reading notes and hidden-tab time do not inflate recall time.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "excludes reading notes and hidden-tab time from the next recall",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB35.3",
+          "requirement": "Manual pause survives reload and is not conflated with automatic feedback pause.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/web/src/recall-clock.ts"
+      ],
+      "benchmark": {
+        "task": "Reading notes and hidden-tab time do not inflate recall time.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB36",
+      "name": "Recommended short sessions",
+      "category": "Practice",
+      "priority": "P0",
+      "baselineState": "existing",
+      "currentState": "enhanced",
+      "sourceIds": [
+        "RECOMMENDED"
+      ],
+      "chessbookObservation": "Recommended-move docs select due moves with a daily goal, commonness and coherent paths.",
+      "desiredBehavior": "Offer small coherent batches from game misses, due work and bounded new material; size the next batch to the remaining daily target. Keep recommended next steps visible and explain empty, paused and goal-complete states. Preparation recommendations can come from a different repertoire than the practice session.",
+      "acceptanceChecks": [
+        {
+          "id": "CB36.1",
+          "requirement": "A recommended queue combines game misses, due work and limited new moves.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "sizes recommended batches to the remaining goal and leaves extra practice available"
+            }
+          ]
+        },
+        {
+          "id": "CB36.2",
+          "requirement": "Start a session after setting a goal and complete only the remaining practice.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "tracks the daily goal, streak and activity without inflating unaided recall",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB36.3",
+          "requirement": "Paused-only moves and completed daily targets do not appear in automatic queues.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "does not add paused alternatives to shared-response practice"
+            }
+          ]
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-review-service.ts"
+      ],
+      "benchmark": {
+        "task": "Start a session after setting a goal and complete only the remaining practice.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB37",
+      "name": "Daily practice goal",
+      "category": "Practice",
+      "priority": "P0",
+      "baselineState": "absent",
+      "currentState": "implemented",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Settings exposes a daily goal, default 10 moves.",
+      "desiredBehavior": "Set 1\u201350 completed scheduled encounters per day in a validated time zone; preserve settings, show remaining work and allow optional extra practice.",
+      "acceptanceChecks": [
+        {
+          "id": "CB37.1",
+          "requirement": "Goal and time zone persist; omitted fields preserve values; invalid values change nothing.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "persists goal and time zone, preserves omitted settings, and rejects invalid input without changes"
+            }
+          ]
+        },
+        {
+          "id": "CB37.2",
+          "requirement": "Complete the goal with help and see practice credit separately from independent recall.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "tracks the daily goal, streak and activity without inflating unaided recall",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB37.3",
+          "requirement": "Local midnight and time-zone changes produce correct daily buckets.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "uses local calendar days across midnight, daylight saving and fractional-hour zones"
+            }
+          ]
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-activity-service.ts"
+      ],
+      "benchmark": {
+        "task": "Complete the goal with help and see practice credit separately from independent recall.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB38",
+      "name": "Practice streak",
+      "category": "Practice",
+      "priority": "P1",
+      "baselineState": "absent",
+      "currentState": "implemented",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Guest home displays a streak indicator.",
+      "desiredBehavior": "Count consecutive local days with completed scheduled practice, keep yesterday\u2019s streak while today is still open, and never imply a streak proves mastery.",
+      "acceptanceChecks": [
+        {
+          "id": "CB38.1",
+          "requirement": "Yesterday\u2019s consecutive practice is retained today and resets after a missed day.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "keeps yesterday's streak available today and resets it after a missed day"
+            }
+          ]
+        },
+        {
+          "id": "CB38.2",
+          "requirement": "Show the current streak after a completed encounter and after reload.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "tracks the daily goal, streak and activity without inflating unaided recall",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB38.3",
+          "requirement": "Assisted effort is allowed, but retries and lapse repeats cannot manufacture extra daily credit.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "counts completed scheduled encounters once and keeps assistance separate from recall"
+            }
+          ]
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-activity-service.ts"
+      ],
+      "benchmark": {
+        "task": "Show the current streak after a completed encounter and after reload.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB39",
+      "name": "Daily activity and recall history",
+      "category": "Practice",
+      "priority": "P1",
+      "baselineState": "absent",
+      "currentState": "implemented",
+      "sourceIds": [
+        "EXTENSION"
+      ],
+      "chessbookObservation": "Chessbook exposes daily tasks and mastery; a daily history chart was not inspected.",
+      "desiredBehavior": "Show 28 local calendar days of practice and independent recall, a compact seven-day home view, and plain definitions. This is our audit-driven extension.",
+      "acceptanceChecks": [
+        {
+          "id": "CB39.1",
+          "requirement": "Scheduled encounters count once; assisted and corrected answers remain separate.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "counts completed scheduled encounters once and keeps assistance separate from recall"
+            }
+          ]
+        },
+        {
+          "id": "CB39.2",
+          "requirement": "A seven-day practice history remains visible after reload.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "tracks the daily goal, streak and activity without inflating unaided recall",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB39.3",
+          "requirement": "History and targets are isolated by player profile.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "isolates practice activity and daily targets for each player"
+            }
+          ]
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-activity-service.ts"
+      ],
+      "benchmark": {
+        "task": "A seven-day practice history remains visible after reload.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB40",
+      "name": "Model-game learning",
+      "category": "Study",
+      "priority": "P1",
+      "baselineState": "absent",
+      "currentState": "absent",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Guest model game matches saved opening moves and supports next move, hint, random and history.",
+      "desiredBehavior": "Find a relevant legitimately sourced model game for a saved route; allow guided replay or guess-the-move with plan notes and independent history.",
+      "acceptanceChecks": [
+        {
+          "id": "CB40.1",
+          "requirement": "Source, players, ratings, date and legal full game are retained.",
+          "evidence": []
+        },
+        {
+          "id": "CB40.2",
+          "requirement": "Play through a model game or guess the continuation without changing repertoire recall.",
+          "evidence": []
+        },
+        {
+          "id": "CB40.3",
+          "requirement": "Missing games and unavailable providers show explicit empty and retry states.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [],
+      "benchmark": {
+        "task": "Play through a model game or guess the continuation without changing repertoire recall.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB41",
+      "name": "Master and online model-game sources",
+      "category": "Study",
+      "priority": "P2",
+      "baselineState": "absent",
+      "currentState": "absent",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Settings offers high-level online, master, or both sources.",
+      "desiredBehavior": "Let users filter model-game source and display selection criteria; do not describe user-imported wins as engine-verified models without evidence.",
+      "acceptanceChecks": [
+        {
+          "id": "CB41.1",
+          "requirement": "Source filters alter available candidates consistently.",
+          "evidence": []
+        },
+        {
+          "id": "CB41.2",
+          "requirement": "Switch sources while preserving a saved study session.",
+          "evidence": []
+        },
+        {
+          "id": "CB41.3",
+          "requirement": "An empty filtered pool does not substitute an unrelated game.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [],
+      "benchmark": {
+        "task": "Switch sources while preserving a saved study session.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB42",
+      "name": "Lichess game connection",
+      "category": "Games",
+      "priority": "P0",
+      "baselineState": "partial",
+      "currentState": "partial",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Connected accounts offers Lichess and promises automatic checks.",
+      "desiredBehavior": "Incrementally fetch authorised games, retain sync cursor and duplicates, then compare openings locally; disclose whether sync is manual or automatic.",
+      "acceptanceChecks": [
+        {
+          "id": "CB42.1",
+          "requirement": "Connected Lichess games enter the normal queue incrementally.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "connects and incrementally imports public Lichess games through the normal analysis queue"
+            }
+          ]
+        },
+        {
+          "id": "CB42.2",
+          "requirement": "Connect or inspect an existing account and request game refresh without duplicates.",
+          "evidence": []
+        },
+        {
+          "id": "CB42.3",
+          "requirement": "Token failures retain previous games and never expose credentials in client output.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/imports/lichess-sync-service.ts"
+      ],
+      "benchmark": {
+        "task": "Connect or inspect an existing account and request game refresh without duplicates.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB43",
+      "name": "Chess.com game connection",
+      "category": "Games",
+      "priority": "P1",
+      "baselineState": "absent",
+      "currentState": "absent",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Connected accounts and import menus both offer Chess.com.",
+      "desiredBehavior": "Use supported public archive APIs for a chosen username; track month cursors, colour, deduplication and import errors.",
+      "acceptanceChecks": [
+        {
+          "id": "CB43.1",
+          "requirement": "Repeated month imports do not duplicate games.",
+          "evidence": []
+        },
+        {
+          "id": "CB43.2",
+          "requirement": "Import a chosen player\u2019s supported archive and inspect matched openings.",
+          "evidence": []
+        },
+        {
+          "id": "CB43.3",
+          "requirement": "Private or unavailable accounts show a supported limitation without scraping hidden data.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [],
+      "benchmark": {
+        "task": "Import a chosen player\u2019s supported archive and inspect matched openings.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB44",
+      "name": "Played games contribute recall evidence",
+      "category": "Games",
+      "priority": "P1",
+      "baselineState": "absent",
+      "currentState": "absent",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Connected-account UI promises correct game moves count as practice.",
+      "desiredBehavior": "Keep game-play evidence separate from deliberate recall; define when clocks, assistance uncertainty and correspondence games make credit unreliable.",
+      "acceptanceChecks": [
+        {
+          "id": "CB44.1",
+          "requirement": "Game credit has distinct provenance and is idempotent.",
+          "evidence": []
+        },
+        {
+          "id": "CB44.2",
+          "requirement": "Inspect game-derived practice separately from scheduled recall.",
+          "evidence": []
+        },
+        {
+          "id": "CB44.3",
+          "requirement": "Unverified game conditions cannot inflate unaided memory accuracy.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [],
+      "benchmark": {
+        "task": "Inspect game-derived practice separately from scheduled recall.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB45",
+      "name": "Repair opening mistakes from games",
+      "category": "Games",
+      "priority": "P0",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Home offers correction of opening mistakes for connected accounts.",
+      "desiredBehavior": "Group actual player deviations, keep opponent surprises separate, locate the source game and practise or prepare the exact position.",
+      "acceptanceChecks": [
+        {
+          "id": "CB45.1",
+          "requirement": "A game deviation maps to its exact repertoire review position.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "connects a game deviation to its exact repertoire review position"
+            }
+          ]
+        },
+        {
+          "id": "CB45.2",
+          "requirement": "A pasted-game miss links to the source game after the answer.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "links a pasted-game miss to its source game only after the answer",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB45.3",
+          "requirement": "An opponent leaving the repertoire is not called the player\u2019s mistake.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "does not blame the player when the opponent leaves the repertoire first"
+            }
+          ]
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-game-service.ts"
+      ],
+      "benchmark": {
+        "task": "A pasted-game miss links to the source game after the answer.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB46",
+      "name": "Performance by opening",
+      "category": "Games",
+      "priority": "P1",
+      "baselineState": "partial",
+      "currentState": "partial",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Home offers View performance by opening; connected view not accessed.",
+      "desiredBehavior": "Group the user\u2019s games by matched opening route and side, with W/D/L, sample size, deviation rates and source links.",
+      "acceptanceChecks": [
+        {
+          "id": "CB46.1",
+          "requirement": "Each game is counted once with the player\u2019s result perspective.",
+          "evidence": []
+        },
+        {
+          "id": "CB46.2",
+          "requirement": "Open an opening\u2019s results and inspect contributing games.",
+          "evidence": []
+        },
+        {
+          "id": "CB46.3",
+          "requirement": "Small samples and unanalysed games are disclosed; no causal claims about an opening.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-game-service.ts"
+      ],
+      "benchmark": {
+        "task": "Open an opening\u2019s results and inspect contributing games.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB47",
+      "name": "Board themes",
+      "category": "Experience",
+      "priority": "P2",
+      "baselineState": "absent",
+      "currentState": "absent",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Board appearance lists Chessbook, Lichess, Chess.com and Anarchy.",
+      "desiredBehavior": "Offer independently styled high-contrast boards and pieces, with persistent settings; retain coordinates and target sizes.",
+      "acceptanceChecks": [
+        {
+          "id": "CB47.1",
+          "requirement": "Theme settings persist per player or device as documented.",
+          "evidence": []
+        },
+        {
+          "id": "CB47.2",
+          "requirement": "Switch theme and keep the current board and focus.",
+          "evidence": []
+        },
+        {
+          "id": "CB47.3",
+          "requirement": "Every supported theme passes contrast and touch-target checks.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [],
+      "benchmark": {
+        "task": "Switch theme and keep the current board and focus.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB48",
+      "name": "Sounds and haptics",
+      "category": "Experience",
+      "priority": "P2",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Settings contains separate sound and haptics controls.",
+      "desiredBehavior": "Provide optional restrained board feedback and graceful unsupported-device behaviour; separate controls can follow later.",
+      "acceptanceChecks": [
+        {
+          "id": "CB48.1",
+          "requirement": "Board-feedback preference persists without affecting recall.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "persists practice preferences and idea help without claiming an independent recall"
+            }
+          ]
+        },
+        {
+          "id": "CB48.2",
+          "requirement": "Enable feedback in settings and practise on a supported device.",
+          "evidence": []
+        },
+        {
+          "id": "CB48.3",
+          "requirement": "Reduced-motion and device limitations do not prevent a move.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/web/src/components/OpeningPlayerContext.tsx"
+      ],
+      "benchmark": {
+        "task": "Enable feedback in settings and practise on a supported device.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB49",
+      "name": "Animation preference",
+      "category": "Experience",
+      "priority": "P2",
+      "baselineState": "partial",
+      "currentState": "partial",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Settings exposes normal animation speed.",
+      "desiredBehavior": "Retain reduced-motion support and offer adjustable animation separately from recall timers; moves remain interactive only when valid.",
+      "acceptanceChecks": [
+        {
+          "id": "CB49.1",
+          "requirement": "Board display and timing are independently controlled.",
+          "evidence": []
+        },
+        {
+          "id": "CB49.2",
+          "requirement": "Resize or scroll during feedback without losing lower ranks.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "keeps practice help below the board and lower ranks reachable when scrolling or resizing",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB49.3",
+          "requirement": "Reduced-motion mode never waits on a visual animation to proceed.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/web/src/components/ChessBoard.tsx"
+      ],
+      "benchmark": {
+        "task": "Resize or scroll during feedback without losing lower ranks.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB50",
+      "name": "Responsive web and native availability",
+      "category": "Experience",
+      "priority": "P0",
+      "baselineState": "partial",
+      "currentState": "partial",
+      "sourceIds": [
+        "APP"
+      ],
+      "chessbookObservation": "Guest web works and official stores list iOS and Android apps.",
+      "desiredBehavior": "Provide a responsive web experience on desktop, mobile and tablet first; track native packaging and device sync as separate optional work.",
+      "acceptanceChecks": [
+        {
+          "id": "CB50.1",
+          "requirement": "No horizontal overflow at supported mobile and tablet widths.",
+          "evidence": []
+        },
+        {
+          "id": "CB50.2",
+          "requirement": "Complete a first-move branch and recall session on mobile WebKit.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "builds a Black response to a different first move in the same repertoire",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB50.3",
+          "requirement": "Saved work and keyboard navigation remain usable while optional summaries fail.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/web/src/styles.css"
+      ],
+      "benchmark": {
+        "task": "Complete a first-move branch and recall session on mobile WebKit.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB51",
+      "name": "Accounts and cross-device sync",
+      "category": "Platform",
+      "priority": "P2",
+      "baselineState": "absent",
+      "currentState": "absent",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Guest header offers log in and sign up; account creation and sync were not exercised.",
+      "desiredBehavior": "Preserve local profiles and portable backups now; design opt-in authenticated cross-device sync with conflict recovery before exposing data beyond self-hosting.",
+      "acceptanceChecks": [
+        {
+          "id": "CB51.1",
+          "requirement": "Identity and access boundaries are defined and tested.",
+          "evidence": []
+        },
+        {
+          "id": "CB51.2",
+          "requirement": "Edit on two devices, reconcile a conflict and recover saved content.",
+          "evidence": []
+        },
+        {
+          "id": "CB51.3",
+          "requirement": "No account, credential or public sharing is created automatically.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [],
+      "benchmark": {
+        "task": "Edit on two devices, reconcile a conflict and recover saved content.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB52",
+      "name": "Subscription and plan limits",
+      "category": "Platform",
+      "priority": "P2",
+      "baselineState": "not_targeted",
+      "currentState": "not_targeted",
+      "sourceIds": [
+        "APP"
+      ],
+      "chessbookObservation": "Settings offers upgrade for unlimited moves; official Android listing describes a free move cap.",
+      "desiredBehavior": "Keep the personal self-hosted tool free of repertoire move caps. Record vendor billing as a benchmark context, not a feature to add without a commercial requirement.",
+      "acceptanceChecks": [
+        {
+          "id": "CB52.1",
+          "requirement": "No arbitrary move cap is enforced in the self-hosted repertoire.",
+          "evidence": []
+        },
+        {
+          "id": "CB52.2",
+          "requirement": "Build or import a large repertoire on supported hardware.",
+          "evidence": []
+        },
+        {
+          "id": "CB52.3",
+          "requirement": "Billing remains outside implementation until the user chooses a commercial product.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [],
+      "benchmark": {
+        "task": "Build or import a large repertoire on supported hardware.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB53",
+      "name": "Reset learning separately from content",
+      "category": "Practice",
+      "priority": "P2",
+      "baselineState": "absent",
+      "currentState": "absent",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Settings exposes Reset all learning; destructive action not exercised.",
+      "desiredBehavior": "Preview a profile-specific recall reset that retains repertoire content and other players\u2019 progress; provide a backup and explicit confirmation.",
+      "acceptanceChecks": [
+        {
+          "id": "CB53.1",
+          "requirement": "Only the selected profile\u2019s review state is reset.",
+          "evidence": []
+        },
+        {
+          "id": "CB53.2",
+          "requirement": "Confirm a reset and still browse every saved line and note.",
+          "evidence": []
+        },
+        {
+          "id": "CB53.3",
+          "requirement": "A changed target or failed reset is transactional and recoverable.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [],
+      "benchmark": {
+        "task": "Confirm a reset and still browse every saved line and note.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB54",
+      "name": "Help and feedback paths",
+      "category": "Experience",
+      "priority": "P2",
+      "baselineState": "partial",
+      "currentState": "partial",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Guest home offers Discord, feedback and referral links.",
+      "desiredBehavior": "Provide useful local help and instructions for reporting a reproducible issue; share no user game, token or report automatically.",
+      "acceptanceChecks": [
+        {
+          "id": "CB54.1",
+          "requirement": "Feature definitions and troubleshooting match shipped behaviour.",
+          "evidence": []
+        },
+        {
+          "id": "CB54.2",
+          "requirement": "Find instructions from the relevant settings or empty state.",
+          "evidence": []
+        },
+        {
+          "id": "CB54.3",
+          "requirement": "Sending feedback is a deliberate user action.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "README.md"
+      ],
+      "benchmark": {
+        "task": "Find instructions from the relevant settings or empty state.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB55",
+      "name": "Guest onboarding and empty states",
+      "category": "Experience",
+      "priority": "P0",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Guest app starts with a small sample repertoire and no signup requirement.",
+      "desiredBehavior": "Allow local use without signup; explain build/import choices and retain an intentionally empty library after restart.",
+      "acceptanceChecks": [
+        {
+          "id": "CB55.1",
+          "requirement": "Fresh production startup does not silently restore starter content.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "starts with an empty opening library without silently restoring starter repertoires"
+            }
+          ]
+        },
+        {
+          "id": "CB55.2",
+          "requirement": "Recover a draft after refresh without changing saved repertoires.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "recovers an unfinished board draft after refresh without changing saved repertoires",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB55.3",
+          "requirement": "An empty or failed optional summary offers a meaningful next action.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/web/src/components/OpeningBoardBuilder.tsx"
+      ],
+      "benchmark": {
+        "task": "Recover a draft after refresh without changing saved repertoires.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB56",
+      "name": "Guided understanding before recall",
+      "category": "Study",
+      "priority": "P0",
+      "baselineState": "existing",
+      "currentState": "existing",
+      "sourceIds": [
+        "UI"
+      ],
+      "chessbookObservation": "Guest first exposure includes explanatory notes; model games illustrate plans.",
+      "desiredBehavior": "Teach move purpose, opponent ideas and plans in a separate optional guided mode; recall does not automatically display the answer or explanation.",
+      "acceptanceChecks": [
+        {
+          "id": "CB56.1",
+          "requirement": "New assisted decisions are not counted as remembered.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "teaches new opening decisions without counting assisted moves as remembered"
+            }
+          ]
+        },
+        {
+          "id": "CB56.2",
+          "requirement": "Play a complete line while explanations stay hidden until requested.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "plays a complete line without automatic explanations or Continue buttons",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB56.3",
+          "requirement": "Source notes, personal hints and full answers have distinct roles.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/web/src/components/OpeningExplanation.tsx"
+      ],
+      "benchmark": {
+        "task": "Play a complete line while explanations stay hidden until requested.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
+      }
+    },
+    {
+      "id": "CB57",
+      "name": "Turn-aware move arrows while building",
+      "category": "Build",
+      "priority": "P0",
+      "baselineState": "absent",
+      "currentState": "implemented",
+      "sourceIds": [
+        "EXTENSION"
+      ],
+      "chessbookObservation": "User-requested independent extension; not asserted to duplicate a Chessbook board-arrow feature.",
+      "desiredBehavior": "On the repertoire learner\u2019s turn draw the leading legal Stockfish candidate in green; on the opponent\u2019s turn draw up to three frequent legal Lichess replies in blue, ranked by sample counts. Explain data source and depth; allow hiding; never display guidance during recall.",
+      "acceptanceChecks": [
+        {
+          "id": "CB57.1",
+          "requirement": "Rank opponent replies by frequency, not engine strength, using the repertoire side.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "ranks three opponent replies by sample frequency rather than engine strength"
+            },
+            {
+              "kind": "unit",
+              "title": "uses the repertoire side rather than fixed white and black roles"
+            }
+          ]
+        },
+        {
+          "id": "CB57.2",
+          "requirement": "Draw, hide and restore arrows in a real builder, then remove them on leaving edit mode.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "draws our strongest move and the three most frequent opponent replies while building",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB57.3",
+          "requirement": "Reject stale, small, mismatched and illegal suggestions without inventing a third reply.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "rejects stale, small, wrong-position and wrong-rating samples"
+            },
+            {
+              "kind": "unit",
+              "title": "never draws an illegal move or fabricates a third reply from too few observations"
+            }
+          ]
+        }
+      ],
+      "implementationPaths": [
+        "apps/web/src/opening-build-guidance.ts",
+        "apps/web/src/use-opening-move-evidence.ts",
+        "apps/web/src/components/ChessBoard.tsx"
+      ],
+      "benchmark": {
+        "task": "Build a repertoire move and inspect three likely opponent replies; hide arrows and leave editing.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Legal, correctly ranked, labelled guidance only while building; no recall spoilers."
+      }
+    }
+  ]
+}

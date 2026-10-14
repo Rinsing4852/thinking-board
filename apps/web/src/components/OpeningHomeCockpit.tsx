@@ -25,6 +25,7 @@ interface OpeningHomeCockpitProps {
   onOpenWeakLine: (repertoireId: string, lineId: string) => void;
   onBuild: () => void;
   onImport: () => void;
+  onSettings: () => void;
 }
 
 function frequencyLabel(percent: number): string {
@@ -50,14 +51,17 @@ export function OpeningHomeCockpit({
   onOpenWeakLine,
   onBuild,
   onImport,
+  onSettings,
 }: OpeningHomeCockpitProps) {
   const gap = coverage?.gaps.find(candidate => candidate.status !== "needs_practice"
-    && (candidate.status !== "unknown" || (candidate.preparation?.personal.occurrences ?? 0) > 0)
     && candidate.status !== "unprepared" && candidate.preparation?.decision?.choice !== "unprepared"
-    && (!candidate.preparation || ["high", "medium"].includes(candidate.preparation.priority))) ?? null;
+    && ((candidate.personalFrequency?.games ?? candidate.preparation?.personal.occurrences ?? 0) > 0
+      || candidate.preparation?.priority === "high" || candidate.preparation?.priority === "medium"
+      || (!candidate.preparation && candidate.status === "missing_response"))) ?? null;
   const weakLine = progress?.weakestLines[0] ?? null;
   const repertoire = recommendation?.repertoire ?? null;
-  const orientation = repertoire?.learnerColor ?? weakLine?.learnerColor ?? "white";
+  const activity = recommendation?.activity;
+  const orientation = gap ? gap.fen.split(" ")[1] === "w" ? "black" : "white" : repertoire?.learnerColor ?? weakLine?.learnerColor ?? "white";
   const masteredPercent = progress && progress.totalLines > 0
     ? Math.round((progress.masteredLines / progress.totalLines) * 100)
     : 0;
@@ -67,7 +71,7 @@ export function OpeningHomeCockpit({
       {gap && <section className="opening-home-board-pane" aria-label="Opening position preview">
         <div className="candidate-banner">
           <div>
-            <span>{repertoire?.name ?? "Your opening repertoire"}</span>
+            <span>{gap.lineTitle}</span>
             <small>{gap ? `Position before ${gap.moveSan}` : `Board shown from ${orientation}'s side`}</small>
           </div>
           <strong>{orientation === "white" ? "White" : "Black"}</strong>
@@ -82,7 +86,7 @@ export function OpeningHomeCockpit({
           <span>
             <span className="eyebrow">Reply worth considering</span>
             <strong>{gap.moveSan} is not covered yet</strong>
-            <small>{gap.games > 0 ? `${gap.frequencyPercent}% at this position · ${frequencyLabel(gap.frequencyPercent)}` : "Frequency unknown · seen in your imported games"}</small>
+            <small>{gap.games > 0 ? `${gap.frequencyPercent}% at this position · ${frequencyLabel(gap.frequencyPercent)}` : `Lichess frequency unknown · seen ${gap.personalFrequency?.games ?? gap.preparation?.personal.occurrences ?? 0} times in your games`}</small>
           </span>
           <button onClick={() => onOpenGap(gap)}>Inspect this reply</button>
         </div>
@@ -93,6 +97,22 @@ export function OpeningHomeCockpit({
           <span className="eyebrow">Understand your opening</span>
           <h2>Opening Practice</h2>
           <p>One useful task at a time: prepare likely replies, repair game misses, and remember the ideas behind your moves.</p>
+          {activity && <section className="opening-daily-activity" aria-label="Daily opening practice">
+            <div className="opening-daily-summary">
+              <strong>{activity.goalReached ? "Daily goal reached" : "Today's practice"}</strong>
+              <span>{activity.completedToday} / {activity.goal} positions · {activity.streakDays}-day streak</span>
+            </div>
+            <progress aria-label="Daily practice goal" value={Math.min(activity.completedToday, activity.goal)} max={activity.goal} />
+            <small>{activity.independentToday} recalled without help today · {activity.remaining} to your goal · {activity.timeZone}</small>
+            <div className="opening-activity-days" aria-label="Practice over the last seven days">
+              {activity.days.slice(-7).map(day => <span key={day.date} className={day.completed > 0 ? "practised" : ""}
+                title={`${day.date}: ${day.completed} positions, ${day.independent} without help`}>
+                <small>{new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: "UTC" }).format(new Date(`${day.date}T12:00:00Z`))}</small>
+                <b>{day.completed}</b>
+              </span>)}
+            </div>
+            <small>A streak means completing practice on consecutive days. Corrected or hinted answers count as practice, but not unaided recall.</small>
+          </section>}
           {progress && progress.totalLines > 0 && (
             <div className="opening-home-progress" aria-label={`${progress.masteredLines} of ${progress.totalLines} opening lines secure for now`}>
               <span><i style={{ width: `${masteredPercent}%` }} /></span>
@@ -101,6 +121,12 @@ export function OpeningHomeCockpit({
           )}
         </div>
 
+        {coverage?.personal?.replyOccurrences ? <p className="opening-home-coverage-summary">
+          <strong>Your games: {coverage.personal.preparedPercent}% of observed replies prepared</strong> · {coverage.personal.preparedReplyOccurrences}/{coverage.personal.replyOccurrences} replies at saved positions.
+          <br />Lichess {coverage.ratingGroup} band: {preferences?.useExplorer ? `${coverage.evidence?.freshPositions ?? 0} fresh position samples` : "frequency data is off"}.
+        </p> : null}
+        <h3>Recommended next steps</h3>
+        <p>Practise saved responses, prepare replies from your games, or use Lichess samples at your level.</p>
         {recommendationLoading ? <div className="opening-home-primary" role="status">
           <strong>Preparing your practice suggestions…</strong>
           <p>Your library is ready. You can browse a repertoire or build a line while suggestions load.</p>
@@ -130,8 +156,8 @@ export function OpeningHomeCockpit({
           <div className="opening-home-primary empty">
             <div>
               <span className="eyebrow">Ready when you are</span>
-              <h3>{libraryEmpty ? "Your opening library is empty" : "No scheduled positions right now"}</h3>
-              <p>{libraryEmpty ? "Build moves on the board, paste opening lines as PGN, or bring in your Lichess Study. Then practise the moves and their ideas." : "Open a repertoire’s lines and include them in Practice selection, practise a line once, or add your own moves below."}</p>
+              <h3>{libraryEmpty ? "Your opening library is empty" : activity?.goalReached ? "Your daily practice is complete" : "No scheduled positions right now"}</h3>
+              <p>{libraryEmpty ? "Build moves on the board, paste opening lines as PGN, or bring in your Lichess Study. Then practise the moves and their ideas." : activity?.goalReached ? "Come back tomorrow, or open a repertoire to practise extra moves or a complete line." : recommendation?.message ?? "Practice suggestions could not be loaded yet. Retry the summary or open a saved line to practise it directly."}</p>
               {libraryEmpty && <div className="answer-actions">
                 <button onClick={onImport}>{importOpen ? "Close importer" : "Import repertoire lines"}</button>
                 <button className="secondary" onClick={onBuild}>Build on the board</button>
@@ -153,9 +179,9 @@ export function OpeningHomeCockpit({
               <strong>Review →</strong>
             </button>
           )}
-          {!libraryEmpty && preferences?.useExplorer && (
+          {!libraryEmpty && (
             <button className="opening-home-action" disabled={coverageLoading || !gap} onClick={() => gap && onOpenGap(gap)}>
-              <span><b>{coverageLoading ? "Checking common replies…" : gap ? `Consider ${gap.moveSan}` : "No priority reply to add"}</b><small>{gap ? `${gap.lineTitle} · ${gap.games > 0 ? frequencyLabel(gap.frequencyPercent) : "frequency unknown"}` : "You do not need a line for every legal move. Inspect uncovered replies in the line explorer before deciding."}</small></span>
+              <span><b>{coverageLoading ? "Checking common replies…" : gap ? `Consider ${gap.moveSan}` : "No evidenced preparation gap yet"}</b><small>{gap ? `${gap.lineTitle} · ${gap.games > 0 ? frequencyLabel(gap.frequencyPercent) : "frequency unknown"}` : coverage?.personal?.gamesChecked ? "No unsaved priority reply was found in these games and samples. Inspect a repertoire to check more positions." : "Import or sync your games to find replies you have faced. Lichess samples can identify other common replies."}</small></span>
               <strong>{gap ? "Consider response →" : "—"}</strong>
             </button>
           )}
@@ -169,6 +195,11 @@ export function OpeningHomeCockpit({
           )}
         </div>
 
+        {preferences && !preferences.useExplorer && <div className="opening-recommendation-setup" role="region" aria-label="Lichess recommendation setup">
+          <strong>{preferences.explorerAvailable ? "Add rating-based Lichess suggestions" : "Lichess frequency data needs setup"}</strong>
+          <p>{preferences.explorerAvailable ? "Enable practical frequencies and choose your Lichess rating band in Opening settings." : "Your games still provide preparation recommendations. Add a Lichess API token to the server to also rank common replies at your level."}</p>
+          <button className="secondary" onClick={onSettings}>Open recommendation settings</button>
+        </div>}
         {!libraryEmpty && <div className="opening-home-create">
           <span>Build or import repertoire</span>
           <div>

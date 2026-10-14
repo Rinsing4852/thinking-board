@@ -1213,3 +1213,115 @@ test("builds a Black response to a different first move in the same repertoire",
   expect(detail.chapters[0].lines.find((line: { title: string }) => line.title === "1.d4").moves
     .map((move: { moveUci: string }) => move.moveUci)).toEqual(["d2d4", "g7g6"]);
 });
+
+test("tracks the daily goal, streak and activity without inflating unaided recall", async ({ page }, testInfo) => {
+  const player = `Daily learner ${testInfo.project.name}`;
+  expect((await page.request.post("/api/v1/imports/pgn", { data: {
+    pgn: `[White "${player}"]\n[Black "Opponent"]\n[Result "*"]\n\n1. e4 e5 *`, playerName: player,
+  } })).ok()).toBeTruthy();
+  const profiles = await (await page.request.get("/api/v1/profiles")).json();
+  const profile = profiles.profiles.find((item: { displayName: string }) => item.displayName === player);
+  expect((await page.request.post(`/api/v1/profiles/${profile.id}/activate`)).ok()).toBeTruthy();
+  expect((await page.request.patch("/api/v1/openings/preferences", { data: {
+    ratingGroup: 1600, platform: "not_sure", useExplorer: false, dailyPracticeGoal: 1, practiceTimeZone: "Europe/London",
+  } })).ok()).toBeTruthy();
+  const imported = await page.request.post("/api/v1/openings/imports/pgn", { data: {
+    pgn: `[Event "Daily practice ${testInfo.project.name}"]\n\n1. e4 e5 *`, learnerColor: "white", ownershipConfirmed: true,
+  } });
+  const repertoireId = (await imported.json()).repertoireIds[0];
+  const detail = await (await page.request.get(`/api/v1/openings/repertoires/${repertoireId}`)).json();
+  const started = await page.request.post(`/api/v1/openings/repertoires/${repertoireId}/lines/${detail.chapters[0].lines[0].id}/reviews/start`);
+  const exercise = await started.json();
+  await page.goto("/#openings");
+  const resume = page.getByRole("button", { name: "Resume opening practice" });
+  if (await resume.isVisible()) await resume.click();
+  await page.getByRole("button", { name: "Hint: show the piece", exact: true }).click();
+  const board = page.getByRole("grid", { name: "Chess position" });
+  await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
+  await board.getByRole("gridcell", { name: "e4 empty" }).click();
+  await expect(page.getByText("Practice complete", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Back to this repertoire", exact: true }).click();
+  await page.getByRole("button", { name: "Back to repertoires", exact: true }).click();
+  const activity = page.getByRole("region", { name: "Daily opening practice", exact: true });
+  await expect(activity).toContainText("Daily goal reached");
+  await expect(activity).toContainText("1 / 1 positions · 1-day streak");
+  await expect(activity).toContainText("0 recalled without help today");
+  await expect(activity.getByRole("progressbar", { name: "Daily practice goal", exact: true })).toHaveAttribute("value", "1");
+  await expect(activity.getByLabel("Practice over the last seven days")).toBeVisible();
+  await page.reload();
+  await expect(activity).toContainText("Daily goal reached");
+  await page.screenshot({ path: testInfo.outputPath("daily-practice-tracker.png"), fullPage: true });
+  const before = await (await page.request.get("/api/v1/openings/preferences")).json();
+  expect((await page.request.patch("/api/v1/openings/preferences", { data: {
+    ratingGroup: 1600, platform: "not_sure", useExplorer: false, dailyPracticeGoal: 0,
+  } })).status()).toBe(400);
+  expect(await (await page.request.get("/api/v1/openings/preferences")).json()).toEqual(before);
+  expect((await page.request.get("/api/v1/openings/reviews/recommended")).ok()).toBeTruthy();
+  expect(exercise.kind).toBe("exercise");
+});
+
+test("draws our strongest move and the three most frequent opponent replies while building", async ({ page }, testInfo) => {
+  await page.route("**/api/v1/openings/reviews/active", route => route.fulfill({ json: null }));
+  await page.route("**/api/v1/openings/lessons/active", route => route.fulfill({ json: null }));
+  await page.route("**/api/v1/openings/preferences", async route => {
+    const response = await route.fetch();
+    await route.fulfill({ json: { ...await response.json(), useExplorer: true, explorerAvailable: true, ratingGroup: 1600 } });
+  });
+  await page.route("**/api/v1/openings/analysis", async route => {
+    const fen = route.request().postDataJSON().fen;
+    const ownTurn = fen.split(" ")[1] === "w";
+    await route.fulfill({ json: { fen, depth: 14, lines: [{ rank: 1, moveUci: ownTurn ? "e2e4" : "d7d5", moveSan: ownTurn ? "e4" : "d5", pvSan: [], score: { kind: "centipawns", value: 20, perspective: "side_to_move" } }] } });
+  });
+  await page.route("**/api/v1/openings/explorer?*", async route => {
+    const url = new URL(route.request().url()); const fen = url.searchParams.get("fen");
+    await route.fulfill({ json: { fen, ratingGroup: 1600, speeds: ["blitz", "rapid", "classical"], totalGames: 1000, cached: false, stale: false, fetchedAt: new Date().toISOString(), opening: null,
+      replies: fen?.split(" ")[1] === "b" ? [["e7e6", "e6", 150], ["c7c5", "c5", 500], ["e7e5", "e5", 250], ["d7d5", "d5", 100]].map(([uci, san, games]) => ({ moveUci: uci, moveSan: san, games, frequencyPercent: Number(games) / 10, whiteWins: games, draws: 0, blackWins: 0 })) : [] } });
+  });
+  await page.goto("/#openings");
+  await page.getByRole("button", { name: "Build on the board", exact: true }).click();
+  await page.getByLabel("Repertoire name", { exact: true }).fill(`Board guidance ${testInfo.project.name}`);
+  await page.getByRole("button", { name: "Start building", exact: true }).click();
+  const guide = page.getByRole("region", { name: "Board move suggestions" });
+  await expect(guide).toContainText("Your strongest engine suggestion");
+  await expect(guide.getByRole("listitem")).toHaveText(["e4"]);
+  await expect(page.locator(".cg-shapes line[stroke='#15781B']")).toHaveCount(1);
+  const initialBoard = page.getByRole("grid", { name: "Repertoire board" });
+  await initialBoard.getByRole("gridcell", { name: "e2 white pawn" }).click();
+  await initialBoard.getByRole("gridcell", { name: "e4 empty" }).click();
+  await expect(guide).toContainText("Most likely opponent replies");
+  await expect(guide.getByRole("listitem")).toHaveText(["c5 · 50% · 500 games", "e5 · 25% · 250 games", "e6 · 15% · 150 games"]);
+  await expect(page.locator(".cg-shapes line[stroke='#003088']")).toHaveCount(3);
+  await guide.getByRole("button", { name: "Hide suggestion arrows", exact: true }).click();
+  await expect(page.locator(".cg-shapes line")).toHaveCount(0);
+  await guide.getByRole("button", { name: "Show suggestion arrows", exact: true }).click();
+  await expect(page.locator(".cg-shapes line[stroke='#003088']")).toHaveCount(3);
+  await page.screenshot({ path: testInfo.outputPath("opponent-frequency-arrows.png"), fullPage: true });
+  await page.getByRole("button", { name: "Finish editing", exact: true }).click();
+  await expect(guide).toBeHidden();
+  await expect(page.locator(".cg-shapes line")).toHaveCount(0);
+});
+
+test("shows game-based preparation recommendations even with Lichess frequencies off", async ({ page }, testInfo) => {
+  const player = `Game coverage learner ${testInfo.project.name}`;
+  const imported = await page.request.post("/api/v1/openings/imports/pgn", { data: {
+    pgn: `[Event "Personal coverage ${testInfo.project.name}"]\n\n1. e4 g6 *`, learnerColor: "black", ownershipConfirmed: true,
+  } });
+  expect(imported.ok()).toBeTruthy();
+  expect((await page.request.post("/api/v1/imports/pgn", { data: {
+    pgn: `[White "Opponent"]\n[Black "${player}"]\n[Result "*"]\n\n${testInfo.project.name === "webkit" ? "1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. e3 O-O 5. Bd3 d5" : "1. d4 d5 2. c4 e6 3. Nc3 Bb4 4. a3 Bxc3+ 5. bxc3 Ne7"} *`, playerName: player,
+  } })).ok()).toBeTruthy();
+  const profiles = await (await page.request.get("/api/v1/profiles")).json();
+  const profile = profiles.profiles.find((item: { displayName: string }) => item.displayName === player);
+  await page.request.post(`/api/v1/profiles/${profile.id}/activate`);
+  await page.request.patch("/api/v1/openings/preferences", { data: { ratingGroup: 1600, platform: "lichess", useExplorer: false } });
+  await page.route("**/api/v1/openings/reviews/active", route => route.fulfill({ json: null }));
+  await page.route("**/api/v1/openings/lessons/active", route => route.fulfill({ json: null }));
+  await page.goto("/#openings");
+  await expect(page.getByRole("heading", { name: "Recommended next steps", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Consider d4/ })).toBeEnabled();
+  await expect(page.getByRole("region", { name: "Lichess recommendation setup", exact: true })).toContainText("Your games still provide preparation recommendations");
+  await page.getByRole("button", { name: /Consider d4/ }).click();
+  const board = page.getByRole("grid", { name: "Chess position" });
+  await expect(board.getByRole("gridcell", { name: "d4 white pawn" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Finish editing", exact: true })).toBeVisible();
+});

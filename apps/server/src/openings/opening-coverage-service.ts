@@ -39,6 +39,38 @@ export class OpeningCoverageService {
       ORDER BY c.sort_order, l.priority, l.id, membership.ply`).all(profileId, profileId, repertoireId) as GraphRow[];
   }
 
+  /** Preparation recommendations are independent of the chosen memory session.
+   * First compare local game evidence; only the selected repertoire can fetch
+   * the next bounded Lichess sample batch. */
+  async recommended(ratingGroup = 1600, local = true, preferredId?: string): Promise<OpeningCoverageResponse | null> {
+    if (!RATINGS.has(ratingGroup)) throw new Error("Choose a supported Lichess rating group");
+    const profileId = ensureActiveProfile(this.db);
+    const repertoires = this.db.prepare(`SELECT r.id FROM opening_repertoires r
+      LEFT JOIN opening_repertoire_preferences preference ON preference.repertoire_id = r.id AND preference.profile_id = ?
+      WHERE preference.archived_at IS NULL AND EXISTS (SELECT 1 FROM opening_chapters chapter
+        JOIN opening_lines line ON line.chapter_id = chapter.id AND line.active = 1
+        WHERE chapter.repertoire_id = r.id AND chapter.active = 1)
+      ORDER BY (SELECT COUNT(*) FROM games game WHERE game.profile_id = ? AND game.player_color = r.learner_color) DESC,
+        CASE WHEN r.id = ? THEN 0 ELSE 1 END, r.name LIMIT 12`)
+      .all(profileId, profileId, preferredId ?? "") as Array<{ id: string }>;
+    let best: OpeningCoverageResponse | null = null;
+    let bestScore = -1;
+    for (const repertoire of repertoires) {
+      let result;
+      try { result = await this.coverage(repertoire.id, ratingGroup, { local: true }); }
+      catch { continue; }
+      const score = Number((result.personal?.replyOccurrences ?? 0) > 0) + Math.max(0, ...result.gaps.filter(gap => !["needs_practice", "unprepared"].includes(gap.status ?? "unknown"))
+        .map(gap => (gap.personalFrequency?.games ?? gap.preparation?.personal.occurrences ?? 0) * 10
+          + (gap.preparation?.personal.responseMistakes ?? 0) * 30
+          + (gap.reachPercent ?? 0)));
+      if (!best || score > bestScore || score === bestScore && result.repertoireId === preferredId) {
+        best = result; bestScore = score;
+      }
+    }
+    if (best && !local && this.apiToken) return this.coverage(best.repertoireId, ratingGroup);
+    return best;
+  }
+
   boundary(repertoireId: string, positionId: string, preparedEnough: boolean): { message: string } {
     const profileId = ensureActiveProfile(this.db);
     const graph = this.graph(repertoireId, profileId);
@@ -111,13 +143,22 @@ export class OpeningCoverageService {
         position_key: string; opponent_move_uci: string; choice: "idea" | "unprepared" | "line";
       }>;
     const personalReplies = new Map<string, Map<string, string>>();
+    const personalSamples = new Map<string, { total: number; moves: Map<string, number> }>();
+    const visitedGamePositions = new Set<string>();
     const gameReplies = this.db.prepare(`WITH recent AS (SELECT id FROM games WHERE profile_id = ? AND player_color = ?
       ORDER BY COALESCE(played_at, created_at) DESC, created_at DESC LIMIT 100)
-      SELECT move.uci, move.san, before.fen FROM recent JOIN moves move ON move.game_id = recent.id
-      JOIN positions before ON before.id = move.from_position_id WHERE move.mover_color <> ?`)
-      .all(profileId, repertoire.learner_color, repertoire.learner_color) as Array<{ uci: string; san: string; fen: string }>;
+      SELECT move.uci, move.san, move.game_id AS gameId, before.fen FROM recent JOIN moves move ON move.game_id = recent.id
+      JOIN positions before ON before.id = move.from_position_id WHERE move.mover_color <> ? ORDER BY move.game_id, move.ply`)
+      .all(profileId, repertoire.learner_color, repertoire.learner_color) as Array<{ uci: string; san: string; fen: string; gameId: string }>;
     for (const move of gameReplies) {
       const key = openingPositionKey(move.fen);
+      const visit = `${move.gameId}:${key}`;
+      if (visitedGamePositions.has(visit)) continue;
+      visitedGamePositions.add(visit);
+      const personalSample = personalSamples.get(key) ?? { total: 0, moves: new Map<string, number>() };
+      personalSample.total += 1;
+      personalSample.moves.set(move.uci, (personalSample.moves.get(move.uci) ?? 0) + 1);
+      personalSamples.set(key, personalSample);
       if (!personalReplies.has(key)) personalReplies.set(key, new Map());
       personalReplies.get(key)!.set(move.uci, move.san);
     }
@@ -154,13 +195,17 @@ export class OpeningCoverageService {
         const memory = response ? recall.get(response.id) : undefined;
         const choice = decisions.get(`${position.from}:${reply.moveUci}`);
         const reliable = reliablePosition && reply.games >= 5;
+        const personalSample = personalSamples.get(openingPositionKey(position.fen));
+        const personalGames = personalSample?.moves.get(reply.moveUci) ?? 0;
         const status = response ? memory && memory.attempts >= 3 && memory.percent >= 80 ? "prepared" : "needs_practice"
-          : choice === "idea" ? "idea_only" : choice === "unprepared" ? "unprepared" : reliable ? "missing_response" : "unknown";
+          : choice === "idea" ? "idea_only" : choice === "unprepared" ? "unprepared" : reliable || personalGames > 0 ? "missing_response" : "unknown";
         const preparation = this.preparation?.cached({ fen: position.fen, opponentMoveUci: reply.moveUci,
           learnerColor: repertoire.learner_color as "white" | "black", repertoireId }, { ratingGroup, useExplorer: true });
         return { positionId: position.from, fen: position.fen, lineId: position.lineId, lineTitle: position.lineTitle,
           chapterTitle: position.chapterTitle, moveUci: reply.moveUci, moveSan: reply.moveSan,
-          games: reply.games, frequencyPercent: reply.frequencyPercent, status, ...(preparation ? { preparation } : {}),
+          games: reply.games, frequencyPercent: reply.frequencyPercent, status,
+          personalFrequency: { games: personalGames, positionGames: personalSample?.total ?? 0,
+            percent: personalSample?.total ? Math.round(1000 * personalGames / personalSample.total) / 10 : null }, ...(preparation ? { preparation } : {}),
           responseSan: response?.san ?? null, responseMoveId: response?.id ?? null,
           responseLineId: response?.lineId ?? null,
           recallPercent: memory?.percent ?? null, recallAttempts: memory?.attempts ?? 0,
@@ -195,7 +240,7 @@ export class OpeningCoverageService {
     const score = (branch: OpeningCoverageGap) => {
       if (branch.status === "unprepared") return -1;
       const personal = branch.preparation?.personal;
-      return (personal?.responseMistakes ?? 0) * 20 + Math.min(10, personal?.occurrences ?? 0) * 3
+      return (personal?.responseMistakes ?? 0) * 20 + Math.min(10, branch.personalFrequency?.games ?? personal?.occurrences ?? 0) * 3
         + (branch.reachPercent ?? 0) + (branch.status === "needs_practice" ? (100 - (branch.recallPercent ?? 0)) / 10 : 0)
         + ({ high: 15, medium: 8, unknown: 0, low: 0 }[branch.preparation?.priority ?? "unknown"]);
     };
@@ -216,12 +261,18 @@ export class OpeningCoverageService {
           ORDER BY COALESCE(played_at, created_at) DESC, created_at DESC LIMIT 100)
       GROUP BY status`).all(repertoireId, profileId, profileId, repertoire.learner_color) as Array<{ status: string; count: number }>)
       .map(row => [row.status, row.count]));
+    const personalBranches = evidence.flatMap(position => position.branches).filter(branch => (branch.personalFrequency?.games ?? 0) > 0);
+    const replyOccurrences = personalBranches.reduce((sum, branch) => sum + branch.personalFrequency!.games, 0);
+    const preparedReplyOccurrences = personalBranches.filter(branch => branch.responseSan !== null)
+      .reduce((sum, branch) => sum + branch.personalFrequency!.games, 0);
     return { repertoireId, ratingGroup, speeds: EXPLORER_SPEEDS.split(","), positionsChecked: batch.length,
       positionsAvailable: evidence.filter(position => position.sampledGames > 0).length,
       // Compatibility only: local-response sample ratio, not a whole-repertoire forecast.
       coveragePercent: totalGames ? Math.round(1000 * coveredGames / totalGames) / 10 : null, coveredGames, totalGames,
       gaps, positions: evidence, incomplete: unscanned.length > 0 || count("small_sample") > 0,
-      personal: { gamesChecked: recentGames.length, gamesMatched: [...matched.values()].reduce((sum, count) => sum + count, 0),
+      personal: { replyOccurrences, preparedReplyOccurrences,
+        preparedPercent: replyOccurrences ? Math.round(1000 * preparedReplyOccurrences / replyOccurrences) / 10 : null,
+        gamesChecked: recentGames.length, gamesMatched: [...matched.values()].reduce((sum, count) => sum + count, 0),
         playerDeviations: matched.get("player_deviation") ?? 0, opponentDeviations: matched.get("opponent_deviation") ?? 0,
         repertoireEnded: matched.get("repertoire_ended") ?? 0, stayedIn: matched.get("in_repertoire") ?? 0 },
       evidence: { totalPositions: positions.length, freshPositions: count("fresh"), stalePositions: count("stale"),

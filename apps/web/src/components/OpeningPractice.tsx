@@ -83,6 +83,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
   const [coverageSpotlight, setCoverageSpotlight] = useState<OpeningCoverageResponse | null>(null);
   const [coverageSpotlightLoading, setCoverageSpotlightLoading] = useState(false);
   const coverageSpotlightRequestRef = useRef<AbortController | null>(null);
+  const settingsRef = useRef<HTMLDetailsElement>(null);
   const [playerPreferences, setPlayerPreferences] = useState<OpeningPlayerPreferences | null>(null);
   const activeCatalog = catalog.filter((repertoire) => !repertoire.archived);
   const archivedCatalog = catalog.filter((repertoire) => repertoire.archived);
@@ -139,11 +140,11 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
     setCoverageSpotlight(null); setCoverageSpotlightLoading(false);
   };
 
-  const loadCoverageSpotlight = (repertoireId: string, ratingGroup: number): void => {
+  const loadCoverageSpotlight = (repertoireId: string, ratingGroup: number, useExplorer = false): void => {
     clearCoverageSpotlight();
     const controller = new AbortController(); coverageSpotlightRequestRef.current = controller;
     setCoverageSpotlightLoading(true);
-    void get<OpeningCoverageResponse>(`/api/v1/openings/repertoires/${repertoireId}/coverage?rating=${ratingGroup}`, controller.signal)
+    void get<OpeningCoverageResponse | null>(`/api/v1/openings/coverage/recommended?rating=${ratingGroup}&preferred=${encodeURIComponent(repertoireId)}${useExplorer ? "" : "&local=true"}`, controller.signal)
       .then(result => { if (!controller.signal.aborted) setCoverageSpotlight(result); })
       .catch(() => { if (!controller.signal.aborted) setCoverageSpotlight(null); })
       .finally(() => { if (!controller.signal.aborted) setCoverageSpotlightLoading(false); });
@@ -153,7 +154,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
     void loadInsights(signal).then(recommended => {
       if (signal?.aborted || recommended === undefined) return;
       const repertoireId = recommended?.repertoire?.id ?? repertoires.find(repertoire => !repertoire.archived)?.id;
-      if (repertoireId && preferences?.useExplorer) loadCoverageSpotlight(repertoireId, preferences.ratingGroup);
+      if (repertoireId) loadCoverageSpotlight(repertoireId, preferences?.ratingGroup ?? 1600, preferences?.useExplorer ?? false);
     });
   };
 
@@ -209,10 +210,11 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
     cancelInsights();
     setSettingsOpen(false);
     setPlayerPreferences(preferences);
+    void loadInsights();
     clearCoverageSpotlight();
     const repertoireId = recommendation?.repertoire?.id ?? activeCatalog[0]?.id;
-    if (!preferences.useExplorer || !repertoireId) return;
-    loadCoverageSpotlight(repertoireId, preferences.ratingGroup);
+    if (!repertoireId) return;
+    loadCoverageSpotlight(repertoireId, preferences.ratingGroup, preferences.useExplorer);
   };
 
   const startLesson = async (repertoireId: string): Promise<void> => {
@@ -727,6 +729,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
               libraryEmpty={catalog.length === 0}
               busy={submitting}
               importOpen={showImporter}
+              onSettings={() => { setSettingsOpen(true); requestAnimationFrame(() => settingsRef.current?.scrollIntoView({ block: "start" })); }}
               onStartRecommended={() => void startRecommendedReview()}
               onStartRun={(repertoireId) => void startTreePractice(repertoireId)}
               onOpenGames={onOpenGames}
@@ -742,7 +745,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
             <button className="secondary" disabled={insightsLoading} onClick={() => refreshOpeningInsights()}>Retry opening summaries</button>
           </div>}
           {playerPreferences && (
-            <details className="panel opening-settings" open={settingsOpen} onToggle={event => setSettingsOpen(event.currentTarget.open)}>
+            <details ref={settingsRef} className="panel opening-settings" open={settingsOpen} onToggle={event => setSettingsOpen(event.currentTarget.open)}>
               <summary>
                 <span><strong>Opening settings</strong><small>Playing level and common-move data</small></span>
                 <b>{playerPreferences.configured

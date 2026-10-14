@@ -30,6 +30,7 @@ interface ChessBoardProps {
   rejectedMove?: string | null;
   allowAnnotations?: boolean;
   sourceAnnotations?: OpeningBoardAnnotation[];
+  suggestionArrows?: OpeningBoardAnnotation[];
   onMove?: (uci: string, san: string) => void;
   onSquareSelect?: (square: string) => void;
   ariaLabel?: string;
@@ -40,7 +41,7 @@ interface ChessBoardProps {
 export function ChessBoard(props: ChessBoardProps) {
   const { fen, orientation, interactive = false, lastMove, selectedSquare, highlightedSquares = NO_SQUARES,
     rejectedMove, allowAnnotations = false, sourceAnnotations = NO_ANNOTATIONS, ariaLabel = "Chess position", animateMoves = true,
-    animationDuration = 200 } = props;
+    animationDuration = 200, suggestionArrows = NO_ANNOTATIONS } = props;
   const squareSelection = Boolean(props.onSquareSelect);
   const game = useMemo(() => new Chess(fen), [fen]);
   const destinations = useMemo(() => legalDestinations(game), [game]);
@@ -170,14 +171,14 @@ export function ChessBoard(props: ChessBoardProps) {
       draggable: { enabled: enabled && !props.onSquareSelect, distance: 4, autoDistance: true, showGhost: true },
       selectable: { enabled }, blockTouchScroll: enabled,
       drawable: { enabled: allowAnnotations && !promotion, eraseOnMovablePieceClick: true,
-        autoShapes: sourceAnnotations.map(mark => ({ orig: mark.from as Key,
+        autoShapes: [...sourceAnnotations, ...suggestionArrows].map(mark => ({ orig: mark.from as Key,
           ...(mark.from !== mark.to ? { dest: mark.to as Key } : {}), brush: mark.color })) },
       highlight: { custom },
     });
     if (!enabled) { api.cancelMove(); setSelected(null); }
   }, [fen, orientation, interactive, promotion, squareSelection, destinations, game,
     highlightedSquares, rejectedMove, selectedSquare, lastMove, animateMoves, animationDuration, reducedMotion,
-    allowAnnotations, sourceAnnotations]);
+    allowAnnotations, sourceAnnotations, suggestionArrows]);
 
   useEffect(() => setFocused(squares[0]!), [squares]);
   useEffect(() => {

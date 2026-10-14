@@ -1042,3 +1042,18 @@ footer { border-top: 1px solid var(--line); padding: 2rem 4vw; color: #69756d; d
   .opening-coverage-controls { grid-template-columns: minmax(0, 1fr); }
   .opening-progress-link { align-items: start; flex-direction: column; }
 }
+
+.opening-daily-activity { display: grid; gap: .65rem; padding: 1rem; margin-top: 1rem; border: 1px solid var(--line); border-radius: 12px; }
+.opening-daily-summary { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .5rem; }
+.opening-daily-activity progress { width: 100%; height: .7rem; accent-color: #c4ed78; }
+.opening-daily-activity small { color: var(--ink-soft); line-height: 1.5; }
+.opening-activity-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: .35rem; }
+.opening-activity-days > span { display: grid; text-align: center; gap: .25rem; border-radius: 6px; padding: .5rem .1rem; background: rgba(128, 128, 128, .1); }
+.opening-activity-days > span.practised { background: rgba(160, 200, 90, .2); }
+
+.opening-build-guidance { padding: .8rem 1rem; margin: .65rem 0; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.opening-build-guidance > div { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .4rem; }
+.opening-build-guidance ol { display: flex; flex-wrap: wrap; gap: .65rem 2rem; padding-left: 1.3rem; margin: .4rem 0; }
+.opening-build-guidance p, .opening-recommendation-setup p { color: var(--ink-soft); font-size: .85rem; line-height: 1.5; }
+.opening-recommendation-setup { border: 1px solid var(--line); padding: 1rem; margin-top: .8rem; border-radius: 10px; }
+.opening-personal-coverage { border: 1px solid var(--line); padding: .8rem; border-radius: 10px; margin-top: .8rem; }

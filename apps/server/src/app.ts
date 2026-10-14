@@ -27,6 +27,7 @@ import { OpeningWorkspaceService } from "./openings/opening-workspace-service.js
 import { OpeningCoverageService } from "./openings/opening-coverage-service.js";
 import { OpeningAnalysisService } from "./openings/opening-analysis-service.js";
 import { OpeningExplorerService } from "./openings/opening-explorer-service.js";
+import { OpeningActivityService } from "./openings/opening-activity-service.js";
 import { OpeningPreferencesService } from "./openings/opening-preferences-service.js";
 import { OpeningPracticeSelectionService } from "./openings/opening-practice-selection-service.js";
 import { registerOpeningPracticeSelectionRoutes } from "./openings/opening-practice-selection-routes.js";
@@ -142,6 +143,18 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
 
   app.get("/api/v1/openings/progress", async () => openingContent.progress());
 
+  app.get("/api/v1/openings/coverage/recommended", async (request, reply) => {
+    try {
+      const { rating, local, preferred } = request.query as { rating?: string; local?: string; preferred?: string };
+      return await openingCoverage.recommended(rating === undefined ? openingPreferences.get().ratingGroup : Number(rating),
+        local === "true" || !openingPreferences.get().useExplorer, preferred);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not recommend opening preparation" });
+    }
+  });
+
+  app.get("/api/v1/openings/activity", async () => new OpeningActivityService(database.connection).get());
+
   app.get("/api/v1/openings/preferences", async () => openingPreferences.get());
 
   app.patch("/api/v1/openings/preferences", { schema: { body: {
@@ -150,6 +163,8 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       ratingGroup: { type: "integer", enum: [1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500] },
       platform: { type: "string", enum: ["lichess", "chess_com", "fide", "not_sure"] },
       useExplorer: { type: "boolean" }, newMovesPerSession: { type: "integer", minimum: 1, maximum: 10 },
+      dailyPracticeGoal: { type: "integer", minimum: 1, maximum: 50 },
+      practiceTimeZone: { type: "string", minLength: 1, maxLength: 100 },
       practiceDepth: { type: "integer", minimum: 2, maximum: 20 }, boardSounds: { type: "boolean" },
       practicePace: { type: "string", enum: ["normal", "relaxed"] },
       pauseAfterMove: { type: "string", enum: ["never", "mistakes", "notes", "always"] },
@@ -162,6 +177,8 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
         platform: body.platform as "lichess" | "chess_com" | "fide" | "not_sure",
         useExplorer: body.useExplorer as boolean,
         ...(body.newMovesPerSession === undefined ? {} : { newMovesPerSession: Number(body.newMovesPerSession) }),
+        ...(body.dailyPracticeGoal === undefined ? {} : { dailyPracticeGoal: Number(body.dailyPracticeGoal) }),
+        ...(body.practiceTimeZone === undefined ? {} : { practiceTimeZone: body.practiceTimeZone as string }),
         ...(body.practiceDepth === undefined ? {} : { practiceDepth: Number(body.practiceDepth) }),
         ...(body.boardSounds === undefined ? {} : { boardSounds: body.boardSounds as boolean }),
         ...(body.practicePace === undefined ? {} : { practicePace: body.practicePace as "normal" | "relaxed" }),

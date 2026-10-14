@@ -409,6 +409,15 @@ mode, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Verification
 
+The [Chessbook feature audit](docs/chessbook-audit/README.md) contains independent
+feature descriptions, a filterable quality tracker and explicit remaining gaps.
+Run `npm run audit:features:verify` to regenerate its test evidence. Daily opening
+practice has a configurable goal and time zone, a consecutive-day practice streak
+and a recent activity history. Completed scheduled encounters count once;
+assisted answers count as practice effort but stay separate from unaided recall.
+Recommended batches stop at the remaining goal; deliberate extra line practice
+stays available.
+
 ```sh
 npm run typecheck
 npm test

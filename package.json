@@ -20,7 +20,9 @@
     "test:watch": "vitest",
     "check": "npm run typecheck && npm test && npm run build",
     "backup": "node scripts/backup.mjs",
-    "restore": "node scripts/restore.mjs"
+    "restore": "node scripts/restore.mjs",
+    "audit:features": "node scripts/feature-audit.mjs",
+    "audit:features:verify": "node scripts/feature-audit.mjs --verify"
   },
   "dependencies": {
     "@fastify/static": "^10.1.3",

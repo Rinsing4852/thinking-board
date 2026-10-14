@@ -1,0 +1,4 @@
+# Raw runner files are local diagnostics. The generated quality-report.json
+# contains portable, compact per-criterion evidence for the checked revision.
+current/
+baseline/unit.json

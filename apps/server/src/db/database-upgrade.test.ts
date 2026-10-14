@@ -67,13 +67,13 @@ describe("opening database upgrades", () => {
         expect(database.connection.prepare("SELECT state, repetitions, stability FROM opening_review_items WHERE id = 'legacy-card'").get())
           .toEqual({ state: 2, repetitions: 4, stability: 12 });
         expect(database.connection.prepare("SELECT COUNT(*) FROM opening_review_events").pluck().get()).toBe(1);
-        expect(database.connection.prepare("SELECT rating_group, practice_pace, pause_after_move FROM opening_player_preferences WHERE profile_id = ?").get(profileId))
-          .toEqual({ rating_group: 1400, practice_pace: "normal", pause_after_move: "never" });
+        expect(database.connection.prepare("SELECT rating_group, practice_pace, pause_after_move, daily_practice_goal, practice_time_zone FROM opening_player_preferences WHERE profile_id = ?").get(profileId))
+          .toEqual({ rating_group: 1400, practice_pace: "normal", pause_after_move: "never", daily_practice_goal: 10, practice_time_zone: "UTC" });
         expect(database.connection.prepare("SELECT comment, idea_hint FROM opening_learning_comments WHERE move_id = 'legacy-move'").get())
           .toEqual({ comment: "My centre reminder", idea_hint: null });
         expect(database.connection.prepare("SELECT idea_hint FROM opening_review_queue WHERE id = 'legacy-queue'").pluck().get()).toBe(0);
         expect(database.connection.pragma("foreign_key_check")).toEqual([]);
-        expect(database.connection.prepare("SELECT MAX(version) FROM schema_migrations").pluck().get()).toBe(33);
+        expect(database.connection.prepare("SELECT MAX(version) FROM schema_migrations").pluck().get()).toBe(fs.readdirSync("migrations").filter(file => /^\d+_.+\.sql$/.test(file)).length);
         expect(database.connection.prepare("SELECT COUNT(*) FROM opening_coverage_boundaries").pluck().get()).toBe(0);
         expect(database.connection.prepare("SELECT summary, board_annotations_json FROM opening_move_annotations WHERE move_id = 'legacy-move'").get())
           .toEqual({ summary: "Claim the centre", board_annotations_json: "[]" });
