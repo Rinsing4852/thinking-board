@@ -1058,3 +1058,8 @@ footer { border-top: 1px solid var(--line); padding: 2rem 4vw; color: #69756d; d
 .opening-workspace-grid.trying-moves .opening-sandbox { max-width: 680px; margin-inline: auto; }
 .opening-workspace-grid > [hidden] { display: none; }
 @media (max-width: 900px) { .opening-workspace-grid.trying-moves { grid-template-columns: minmax(0, 1fr); } }
+
+.opening-coverage-settings, .opening-coverage-details { margin-block: .8rem; border-top: 1px solid var(--line); padding-top: .5rem; }
+.opening-coverage-task-counts { padding-left: 1.2rem; color: var(--ink-soft); font-size: .82rem; line-height: 1.6; }
+.opening-coverage-task-counts strong { color: #e9eee9; }
+.opening-coverage-tasks article > small { display: block; margin-block: .5rem; color: var(--ink-soft); }

@@ -790,7 +790,10 @@ test("inspects a covered reply in its saved branch and returns to coverage witho
   const before = await (await page.request.get(url)).json();
   await page.getByRole("button", { name: "Find repertoire gaps", exact: true }).click();
   const panel = page.getByRole("region", { name: "Repertoire coverage and gaps" });
-  await panel.getByRole("button", { name: "Check coverage", exact: true }).click();
+  await panel.getByRole("button", { name: /^(Check|Recheck) coverage$/ }).click();
+  await expect(panel.getByRole("heading", { name: "Start here", exact: true })).toBeVisible();
+  const moreTasks = panel.getByRole("button", { name: /^See all / });
+  if (await moreTasks.isVisible()) await moreTasks.click();
   const task = panel.locator(".opening-coverage-tasks article").filter({ hasText: "Practise your response to c5" });
   await task.getByRole("button", { name: "Inspect position", exact: true }).click();
   const board = page.getByRole("region", { name: "Opening board and moves" });
@@ -816,22 +819,24 @@ test("keeps coverage errors beside the action, supports editing depth, and expla
   await openNavigationStudy(page, `Coverage recovery ${testInfo.project.name}`, "1. e4 e5 2. Nf3 Nc6 3. Bc4 *");
   await page.getByRole("button", { name: "Find repertoire gaps", exact: true }).click();
   const panel = page.getByRole("region", { name: "Repertoire coverage and gaps" });
+  await panel.getByText("Change line, move limit or rating", { exact: true }).click();
   const depth = panel.getByRole("spinbutton", { name: "Prepare through my move" });
   await depth.fill("");
   await expect(depth).toHaveValue("");
   await expect(depth).toHaveAttribute("aria-invalid", "true");
-  await expect(panel.getByRole("button", { name: "Check coverage", exact: true })).toBeDisabled();
+  await expect(panel.getByRole("button", { name: /^(Check|Recheck) coverage$/ })).toBeDisabled();
   await depth.fill("2.5");
   await expect(depth).toHaveAttribute("aria-invalid", "true");
   await depth.fill("2");
   let fail = true;
   await page.route("**/api/v1/openings/repertoires/*/coverage?rating=*", route => fail
     ? route.fulfill({ status: 503, json: { error: "Coverage temporarily unavailable. Please try again." } }) : route.continue());
-  await panel.getByRole("button", { name: "Check coverage", exact: true }).click();
+  await panel.getByRole("button", { name: /^(Check|Recheck) coverage$/ }).click();
   await expect(panel.getByRole("alert")).toHaveText("Coverage temporarily unavailable. Please try again.");
   fail = false;
-  await panel.getByRole("button", { name: "Check coverage", exact: true }).click();
+  await panel.getByRole("button", { name: /^(Check|Recheck) coverage$/ }).click();
   await expect(panel.getByRole("alert")).toBeHidden();
+  await panel.getByText("Detailed estimates and practice history", { exact: true }).click();
   await expect(panel.getByText(/Unknown means/)).toBeVisible();
   await expect(panel.getByText(/Sample evidence:/)).toBeHidden();
   await panel.getByText("Recall and sample details", { exact: true }).click();
@@ -851,7 +856,9 @@ test("shows honest coverage, distinct recall and reversible stopping points with
   const before = await (await page.request.get(url)).json();
   await page.getByText("Coverage and repertoire settings", { exact: true }).click();
   const panel = page.getByRole("region", { name: "Repertoire coverage and gaps" });
-  await panel.getByRole("button", { name: "Check coverage", exact: true }).click();
+  await panel.getByRole("button", { name: /^(Check|Recheck) coverage$/ }).click();
+  await expect(panel.getByText("Unknown: 100%", { exact: true })).toBeHidden();
+  await panel.getByText("Detailed estimates and practice history", { exact: true }).click();
   await expect(panel.getByText("Unknown: 100%", { exact: true })).toBeVisible();
   await expect(panel.getByText(/distinct saved responses tested/)).toContainText("0/2");
   await expect(panel.getByRole("button", { name: "Practise response", exact: true })).toHaveCount(2);
@@ -864,9 +871,10 @@ test("shows honest coverage, distinct recall and reversible stopping points with
   await expect(panel.getByText("Saved responses / stopping points: 100%", { exact: true })).toBeVisible();
   await node.getByRole("button", { name: "Include this position again" }).click();
   await expect(panel.getByText("Unknown: 100%", { exact: true })).toBeVisible();
+  await panel.getByText("Change line, move limit or rating", { exact: true }).click();
   await panel.getByRole("spinbutton", { name: "Prepare through my move" }).fill("2");
-  await panel.getByRole("button", { name: "Check coverage", exact: true }).click();
-  await expect(panel.getByRole("heading", { name: "Estimated prepared paths through your move 2" })).toBeVisible();
+  await panel.getByRole("button", { name: /^(Check|Recheck) coverage$/ }).click();
+  await expect(panel.getByRole("heading", { name: "Can this line handle replies until your move 2?" })).toBeVisible();
   expect((await (await page.request.get(url)).json()).chapters).toEqual(before.chapters);
   await page.screenshot({ path: testInfo.outputPath("coverage-map.png"), fullPage: true });
   // Other journeys can leave a paused session; deliberately replace it here.
@@ -907,8 +915,10 @@ test("discards an older coverage request when the selected rating changes", asyn
   await page.getByText("Coverage and repertoire settings", { exact: true }).click();
   await page.getByRole("button", { name: /^(Check|Recheck) coverage$/ }).click();
   await started;
-  await page.getByRole("combobox", { name: "Explorer rating", exact: true }).selectOption("2000");
-  await page.getByRole("button", { name: "Check coverage", exact: true }).click();
+  await page.getByText("Change line, move limit or rating", { exact: true }).click();
+  await page.getByRole("combobox", { name: "Lichess rating", exact: true }).selectOption("2000");
+  await page.getByRole("button", { name: /^(Check|Recheck) coverage$/ }).click();
+  await page.getByText("Detailed estimates and practice history", { exact: true }).click();
   await expect(page.getByText("Saved responses / stopping points: 20%", { exact: true })).toBeVisible();
   releaseDelayed(); await finished;
   // WebKit may report a cancelled intercepted request as finished rather than
@@ -1333,4 +1343,47 @@ test("shows game-based preparation recommendations even with Lichess frequencies
   const board = page.getByRole("grid", { name: "Chess position" });
   await expect(board.getByRole("gridcell", { name: "d4 white pawn" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Finish editing", exact: true })).toBeVisible();
+});
+
+test("explains large preparation lists as distinct tasks and keeps estimates optional", async ({ page }, testInfo) => {
+  await page.route("**/api/v1/openings/repertoires/*/coverage?*", async route => {
+    const response = await route.fetch();
+    const actual = await response.json();
+    const base = actual.gaps[0];
+    expect(base).toBeTruthy();
+    await route.fulfill({ json: { ...actual,
+      personal: { ...actual.personal, replyOccurrences: 100, preparedReplyOccurrences: 84, preparedPercent: 84 },
+      model: { ...actual.model, preparedPercent: .1, missingPercent: 99.7, unknownPercent: .2 },
+      gaps: Array.from({ length: 558 }, (_, i) => ({ ...base, positionId: `${base.positionId}-fixture-${i}`,
+        status: i === 1 ? "missing_response" : i === 2 ? "idea_only" : "needs_practice",
+        recallAttempts: 0, recallPercent: null,
+        ...(i === 1 || i === 2 ? { responseLineId: null, responseMoveId: null } : {}),
+      })),
+    } });
+  });
+  await openNavigationStudy(page, `Plain coverage ${testInfo.project.name}`, "1. e4 e5 2. Nf3 Nc6 3. Bc4 *");
+  await page.getByRole("button", { name: "Find repertoire gaps", exact: true }).click();
+  await page.getByRole("button", { name: /^(Check|Recheck) coverage$/ }).click();
+  const panel = page.getByRole("region", { name: "Repertoire coverage and gaps", exact: true });
+  await expect(panel.getByRole("heading", { name: "What should I work on?", exact: true })).toBeVisible();
+  const counts = panel.getByLabel("Types of next steps", { exact: true });
+  await expect(counts).toContainText("556 saved responses to practise");
+  await expect(counts).toContainText("1 opponent reply without a saved answer");
+  await expect(counts).toContainText("1 idea to review");
+  await expect(panel.locator(".opening-coverage-tasks article")).toHaveCount(3);
+  await expect(panel.getByText("Your answer is already saved. It has not been tested in practice yet.", { exact: true })).toBeVisible();
+  await expect(panel.getByText("This opponent reply has no saved answer. Open the position and choose what you would play.", { exact: true })).toBeVisible();
+  await expect(panel.getByText("You saved an idea, but no response move. Check whether you want to add one.", { exact: true })).toBeVisible();
+  await expect(panel.getByText(/of the estimated sequences reach/)).toBeHidden();
+  await expect(panel.getByText(/558 improvements/)).toHaveCount(0);
+  await expect(panel.getByRole("spinbutton", { name: "Prepare through my move", exact: true })).toBeHidden();
+  await page.screenshot({ path: testInfo.outputPath("plain-coverage-next-steps.png"), fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
+  await panel.getByRole("button", { name: "See all 558 practice and preparation tasks", exact: true }).click();
+  await expect(panel.locator(".opening-coverage-tasks article")).toHaveCount(558);
+  await panel.getByRole("button", { name: "Show just three tasks", exact: true }).click();
+  await expect(panel.locator(".opening-coverage-tasks article")).toHaveCount(3);
+  await panel.getByText("Detailed estimates and practice history", { exact: true }).click();
+  await expect(panel.getByText(/of the estimated sequences reach/)).toBeVisible();
+  await expect(panel.getByText(/This is not the percentage of moves you know/)).toBeVisible();
 });
