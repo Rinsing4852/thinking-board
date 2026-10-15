@@ -134,7 +134,12 @@ test("drags from Black's side and moves keyboard focus in the displayed directio
 
 test("provides licence notices and this build's source without private installation data", async ({ page }) => {
   await page.goto("/#openings");
-  await page.getByRole("link", { name: "Source & licences", exact: true }).click();
+  // The opening summary can grow while requests finish. Verify keyboard
+  // activation of the real link without racing a moving footer hit target.
+  const licences = page.getByRole("link", { name: "Source & licences", exact: true });
+  await expect(licences).toHaveAttribute("href", "/legal/index.html");
+  await licences.press("Enter");
+  await expect(page).toHaveURL(/\/legal\/index\.html$/);
   await expect(page.getByRole("heading", { name: "Source and licences" })).toBeVisible();
   const source = await page.request.get("/source/thinking-board-frontend.tar.gz");
   expect(source.ok()).toBe(true);

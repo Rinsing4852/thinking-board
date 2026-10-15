@@ -442,6 +442,11 @@ for (const reducedMotion of [false, true]) {
     await page.emulateMedia({ reducedMotion: reducedMotion ? "reduce" : "no-preference" });
     await page.clock.install();
     const board = await startPractice(page);
+    // Finish initial board/layout frames before freezing time and taking the
+    // baseline. The assertion below measures rejection, not initial rendering.
+    await expect(board).toHaveClass(/interactive/);
+    await page.clock.runFor(100);
+    await expect(board.locator("cg-board piece.white.king")).toBeVisible();
     await page.clock.pauseAt(await page.evaluate(() => Date.now() + 60_000));
     const boardTop = await board.evaluate(element => element.getBoundingClientRect().top + window.scrollY);
     let mistakes = 0;
