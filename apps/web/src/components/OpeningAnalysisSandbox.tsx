@@ -86,7 +86,7 @@ export function OpeningAnalysisSandbox({ baseFen, orientation, ratingGroup, useE
     <section className="opening-sandbox" aria-label="Analysis sandbox">
       <div className="candidate-banner opening-studio-banner">
         <div>
-          <span>Analysis sandbox</span>
+          <span>Try moves without saving</span>
           <small>Explore freely. Nothing is saved until you add it.</small>
         </div>
         <strong>{turn} to move</strong>

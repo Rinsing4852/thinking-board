@@ -13,7 +13,7 @@ This is an independent behavioural specification. Chessbook source code, assets,
 - Acceptance checks: 81 passed, 0 failed, 0 flaky, 42 unknown, 45 unmet, 3 excluded.
 - Priority-weighted verified requirement coverage: **58.6%** (373/636 points). This is a conservative evidence measure, not “58.6% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
 - Like-for-like unit-evidence baseline: 29.1% → 36.5%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
-- Current validation records: 227 unit/integration tests and 126 browser journeys; 0 failures, 0 flaky results, 0 skipped.
+- Current validation records: 231 unit/integration tests and 126 browser journeys; 0 failures, 0 flaky results, 0 skipped.
 
 ## Implemented from this audit
 
@@ -65,7 +65,7 @@ Our feature description: Create named repertoires for either side; preserve sepa
 Acceptance criteria:
 
 - **passed** — A private PGN produces the selected sides without duplicate repertoires. Evidence: unit: previews and imports both sides as private, deduplicated repertoires.
-- **passed** — Build and reopen a repertoire for either side on desktop and phone. Evidence: browser/chromium: builds with automatic saves, retry safety and a separate analysis board; browser/webkit: builds with automatic saves, retry safety and a separate analysis board.
+- **passed** — Build and reopen a repertoire for either side on desktop and phone. Evidence: browser/chromium: builds with automatic saves, retry safety and one board with an optional unsaved exploration mode; browser/webkit: builds with automatic saves, retry safety and one board with an optional unsaved exploration mode.
 - **unknown** — A new repertoire can be created in under 60 seconds in a first-use study.
 
 Implementation: `apps/server/src/openings/opening-pgn-import.ts`
@@ -119,12 +119,12 @@ Our feature description: Support click, drag, keyboard and legal promotions, sav
 Acceptance criteria:
 
 - **passed** — Illegal moves are rejected with a useful location. Evidence: unit: rejects illegal moves with their authored location.
-- **passed** — Create and extend a branch with automatic saves and a separate analysis board. Evidence: browser/chromium: builds with automatic saves, retry safety and a separate analysis board; browser/webkit: builds with automatic saves, retry safety and a separate analysis board.
+- **passed** — Create and extend a branch with automatic saves and one board with an optional unsaved exploration mode. Evidence: browser/chromium: builds with automatic saves, retry safety and one board with an optional unsaved exploration mode; browser/webkit: builds with automatic saves, retry safety and one board with an optional unsaved exploration mode.
 - **unknown** — After a save failure, the original position and an explicit retry are available.
 
 Implementation: `apps/web/src/components/ChessBoard.tsx`, `apps/web/src/components/OpeningLineExplorer.tsx`
 
-Repeatable comparison task: Create and extend a branch with automatic saves and a separate analysis board. Competitor timing and our user-task timing remain unmeasured.
+Repeatable comparison task: Create and extend a branch with automatic saves and one board with an optional unsaved exploration mode. Competitor timing and our user-task timing remain unmeasured.
 
 ## CB05 — Branch navigation and opening names
 
@@ -425,7 +425,7 @@ Our feature description: Show legal Stockfish candidates with explicit perspecti
 Acceptance criteria:
 
 - **passed** — Current-position local analysis is cached and exposes legal moves. Evidence: unit: serves cached local analysis and current-position practical moves for the opening studio.
-- **passed** — Use the analysis board without writing unsaved variations. Evidence: browser/chromium: builds with automatic saves, retry safety and a separate analysis board; browser/webkit: builds with automatic saves, retry safety and a separate analysis board.
+- **passed** — Use the analysis board without writing unsaved variations. Evidence: browser/chromium: builds with automatic saves, retry safety and one board with an optional unsaved exploration mode; browser/webkit: builds with automatic saves, retry safety and one board with an optional unsaved exploration mode.
 - **unknown** — Measured warm-cache response is below 500ms and failed engine requests stay local to analysis.
 
 Implementation: `apps/server/src/openings/opening-analysis-service.ts`

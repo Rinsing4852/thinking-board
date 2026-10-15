@@ -12,7 +12,7 @@ export interface OpeningMoveEvidence {
 }
 
 /** One request pair feeds both the board arrows and move-comparison panel. */
-export function useOpeningMoveEvidence(fen: string, rating: number, useExplorer: boolean, enabled = true): OpeningMoveEvidence {
+export function useOpeningMoveEvidence(fen: string, rating: number, useExplorer: boolean, enabled = true, savedMoveUcis: string[] = []): OpeningMoveEvidence {
   const [state, setState] = useState<OpeningMoveEvidence>({ analysis: null, explorer: null,
     analysisBusy: false, explorerBusy: false, analysisError: "", explorerError: "" });
   useEffect(() => {
@@ -32,6 +32,31 @@ export function useOpeningMoveEvidence(fen: string, rating: number, useExplorer:
     }, 300);
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [fen, rating, useExplorer, enabled]);
+  const requestedMoves = [...new Set([
+    ...(useExplorer && state.explorer?.fen === fen && state.explorer.ratingGroup === rating
+      ? [...state.explorer.replies].sort((a, b) => b.games - a.games).slice(0, 7).map(move => move.moveUci) : []),
+    ...savedMoveUcis,
+  ])].join(",");
+  const analysedFen = state.analysis?.fen;
+  useEffect(() => {
+    if (!enabled || analysedFen !== fen || !requestedMoves) return;
+    const controller = new AbortController();
+    setState(current => ({ ...current, analysisBusy: true }));
+    void (async () => {
+      const moves = requestedMoves.split(",");
+      // Bound each request while still evaluating every visible saved choice.
+      for (let offset = 0; offset < moves.length; offset += 12) {
+        const analysis = await post<OpeningPositionAnalysisResponse>("/api/v1/openings/analysis", { fen, moveUcis: moves.slice(offset, offset + 12) }, controller.signal);
+        if (controller.signal.aborted) return;
+        setState(current => ({ ...current, analysis: { ...analysis, lines: [...new Map([
+          ...(current.analysis?.fen === fen ? current.analysis.lines : []), ...analysis.lines,
+        ].map(line => [line.moveUci, line])).values()] }, analysisError: "" }));
+      }
+    })()
+      .catch(error => { if (!controller.signal.aborted) setState(current => ({ ...current, analysisError: error instanceof Error ? error.message : "Move evaluations are unavailable" })); })
+      .finally(() => { if (!controller.signal.aborted) setState(current => ({ ...current, analysisBusy: false })); });
+    return () => controller.abort();
+  }, [fen, rating, enabled, requestedMoves, analysedFen]);
   // Never display evidence from the previous position or rating while effects
   // are being cleaned up. Cancellation also rejects late successful responses.
   return { ...state, analysis: state.analysis?.fen === fen ? state.analysis : null,

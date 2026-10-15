@@ -169,7 +169,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await openings.getByRole("textbox", { name: "Your learning comment" }).fill("Claims the centre and opens the bishop.");
     await openings.getByRole("button", { name: "Save comment" }).click();
 
-    await openings.getByRole("button", { name: "Open analysis board" }).click();
+    await openings.getByRole("button", { name: "Try moves without saving" }).click();
     await expect(openings.getByRole("grid", { name: "Analysis board" }).locator("[role='gridcell'][tabindex='0']")).toHaveCount(1);
     board = openings.getByRole("grid", { name: "Analysis board" });
     const e7 = board.getByRole("gridcell", { name: "e7 black pawn" });
@@ -197,7 +197,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await expect(board.locator("cg-board piece.black.pawn")).toHaveCount(8);
     await openings.getByRole("button", { name: "Add 1 move to my repertoire" }).click();
     await expect(openings.getByText("Analysis sequence saved. Original lines are kept.")).toBeVisible();
-    await openings.getByRole("button", { name: "Close analysis board" }).click();
+    await openings.getByRole("button", { name: "Return to saved line" }).click();
     await expect(openings.getByRole("heading", { name: "Board-built Italian", level: 2 })).toBeVisible();
     await expect(openings.getByRole("grid", { name: "Chess position" }).getByRole("gridcell", { name: "e5 black pawn" })).toBeVisible();
     await expect(openings.getByRole("button", { name: "Practise this line" })).toBeEnabled();

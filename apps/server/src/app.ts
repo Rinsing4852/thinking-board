@@ -385,7 +385,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   app.post("/api/v1/openings/analysis", async (request, reply) => {
     try {
       const body = (request.body ?? {}) as Record<string, unknown>;
-      return await openingAnalysis.analyze(requiredString(body.fen, "Position"));
+      return await openingAnalysis.analyze(requiredString(body.fen, "Position"), body.moveUcis as string[] | undefined);
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not analyse opening position" });
     }

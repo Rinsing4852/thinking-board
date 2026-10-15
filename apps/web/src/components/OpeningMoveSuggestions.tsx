@@ -5,8 +5,9 @@ import type {
   Color,
   OpeningExplorerReply,
   OpeningExplorerPositionResponse,
-  OpeningPositionAnalysisResponse,
 } from "../../../../packages/contracts/src/api";
+import { openingEvaluation } from "../opening-evaluation";
+import type { BuildGuidance } from "../opening-build-guidance";
 import { useOpeningMoveEvidence, type OpeningMoveEvidence } from "../use-opening-move-evidence";
 
 interface OpeningMoveSuggestionsProps {
@@ -18,6 +19,9 @@ interface OpeningMoveSuggestionsProps {
   savedMoves?: Array<{ moveUci: string; moveSan: string }>;
   disabled?: boolean;
   evidence?: OpeningMoveEvidence;
+  guidance?: BuildGuidance;
+  arrowsShown?: boolean;
+  onToggleArrows?: () => void;
   onChooseMove: (moveUci: string, moveSan: string) => void;
 }
 
@@ -32,15 +36,6 @@ function learnerScore(reply: OpeningExplorerReply | undefined, learnerColor: Col
   return `${Math.round(((wins + reply.draws / 2) / reply.games) * 100)}%`;
 }
 
-function scoreLabel(line: OpeningPositionAnalysisResponse["lines"][number] | undefined): string {
-  if (!line) return "—";
-  if (line.score.kind === "mate") {
-    return line.score.value > 0 ? `M${line.score.value}` : `−M${Math.abs(line.score.value)}`;
-  }
-  const pawns = line.score.value / 100;
-  return `${pawns >= 0 ? "+" : ""}${pawns.toFixed(2)}`;
-}
-
 export function OpeningMoveSuggestions({
   fen,
   learnerColor,
@@ -50,9 +45,9 @@ export function OpeningMoveSuggestions({
   savedMoves = [],
   disabled = false,
   onChooseMove,
-  evidence,
+  evidence, guidance, arrowsShown, onToggleArrows,
 }: OpeningMoveSuggestionsProps) {
-  const ownEvidence = useOpeningMoveEvidence(fen, ratingGroup, useExplorer, !evidence);
+  const ownEvidence = useOpeningMoveEvidence(fen, ratingGroup, useExplorer, !evidence, savedMoves.map(move => move.moveUci));
   const { analysis, explorer, analysisBusy, explorerBusy, analysisError, explorerError } = evidence ?? ownEvidence;
   const [detailsOpen, setDetailsOpen] = useState(false);
   const ownTurn = fen.split(" ")[1] === (learnerColor === "white" ? "w" : "b");
@@ -61,11 +56,13 @@ export function OpeningMoveSuggestions({
     const analysisByMove = new Map((analysis?.lines ?? []).map((line) => [line.moveUci, line]));
     const explorerByMove = new Map((explorer?.replies ?? []).map((reply) => [reply.moveUci, reply]));
     const savedByMove = new Map(savedMoves.map(move => [move.moveUci, move]));
+    const popularMoves = useExplorer ? [...(explorer?.replies ?? [])].sort((a, b) => b.games - a.games || a.moveUci.localeCompare(b.moveUci)).slice(0, 7).map(reply => reply.moveUci) : [];
+    const engineMoves = (analysis?.lines ?? []).filter(line => line.rank <= 3).sort((a, b) => a.rank - b.rank).map(line => line.moveUci);
     const orderedMoves = [
+      ...(ownTurn ? engineMoves : popularMoves),
       ...savedMoves.map(move => move.moveUci),
-      ...(useExplorer ? [...(explorer?.replies ?? [])].sort((a, b) => b.games - a.games || a.moveUci.localeCompare(b.moveUci)).slice(0, 7).map((reply) => reply.moveUci) : []),
-      ...(ownTurn || detailsOpen ? analysis?.lines ?? [] : []).map((line) => line.moveUci),
-    ].filter((move, index, moves) => moves.indexOf(move) === index).slice(0, Math.max(7, savedMoves.length));
+      ...(ownTurn ? popularMoves : popularMoves.length === 0 ? engineMoves : []),
+    ].filter((move, index, moves) => moves.indexOf(move) === index).slice(0, Math.max(7, savedMoves.length + (ownTurn ? engineMoves.length : popularMoves.length)));
 
     return orderedMoves.map((moveUci) => {
       const engine = analysisByMove.get(moveUci);
@@ -89,19 +86,28 @@ export function OpeningMoveSuggestions({
         saved: savedMoveUcis.includes(moveUci) || savedByMove.has(moveUci),
       };
     });
-  }, [analysis, explorer, savedMoveUcis, savedMoves, useExplorer, fen, ownTurn, detailsOpen]);
+  }, [analysis, explorer, savedMoveUcis, savedMoves, useExplorer, fen, ownTurn]);
 
   return (
     <section className={`opening-move-suggestions ${detailsOpen ? "show-evidence" : "compact-evidence"}`} aria-label="Moves to consider">
       <div className="opening-suggestion-heading">
         <div>
-          <span className="eyebrow">{fen.split(" ")[1] === (learnerColor === "white" ? "w" : "b") ? "Your response" : "Their possible replies"}</span>
-          <strong>{explorer?.opening ? `${explorer.opening.eco} · ${explorer.opening.name}` : "Play on the board or choose below"}</strong>
+          <strong>{ownTurn ? "Your move options" : explorer?.replies.length && useExplorer ? "Opponent replies by frequency" : "Opponent move options"}</strong>
+          {explorer?.opening && <small>{explorer.opening.eco} · {explorer.opening.name}</small>}
         </div>
         {(analysisBusy || explorerBusy) && <small>Updating…</small>}
       </div>
+      <div className="opening-position-evaluation" aria-label="Position evaluation">
+        <strong>Position: {openingEvaluation(analysis?.lines.find(line => line.rank === 1), fen)}</strong>
+        <small>White's perspective · + favours White, − favours Black{analysis ? ` · depth ${analysis.depth}` : analysisBusy ? " · analysing…" : " · unavailable"}</small>
+      </div>
+      {guidance && <section className="opening-arrow-controls" aria-label="Board move suggestions">
+        <div><small>{ownTurn ? "Green arrow: engine's leading move" : "Blue arrows: up to three most frequent replies"}</small>
+          <button type="button" className="text-button" aria-pressed={arrowsShown} onClick={onToggleArrows}>{arrowsShown ? "Hide suggestion arrows" : "Show suggestion arrows"}</button></div>
+        {guidance.moves.length === 0 && <p className="opening-suggestion-note">{guidance.message}</p>}
+      </section>}
       <div className="opening-suggestion-labels" aria-hidden="true">
-        <span>Move</span><span>{useExplorer ? `Seen in ${ratingGroup} band` : "Seen"}</span><span>Results for {learnerColor === "white" ? "White" : "Black"}</span><span>Engine</span>
+        <span>Move</span><span>{useExplorer ? `Seen in ${ratingGroup} band` : "Seen"}</span><span>Results for {learnerColor === "white" ? "White" : "Black"}</span><span>Evaluation</span>
       </div>
       <div className="opening-suggestion-list">
         {candidates.map((candidate) => (
@@ -127,7 +133,7 @@ export function OpeningMoveSuggestions({
               <strong>{learnerScore(candidate.practical, learnerColor)}</strong>
               {candidate.practical && <small>sample wins + ½ draws</small>}
             </span>
-            <span><strong>{scoreLabel(candidate.engine)}</strong></span>
+            <span aria-label={`Evaluation for ${candidate.moveSan}`}><strong>{candidate.engine ? openingEvaluation(candidate.engine, fen) : analysisBusy ? "…" : "—"}</strong></span>
           </button>
         ))}
         {!analysisBusy && !explorerBusy && candidates.length === 0 && !analysisError && !explorerError && (
@@ -136,10 +142,10 @@ export function OpeningMoveSuggestions({
       </div>
       {!useExplorer && <p className="opening-suggestion-note">Practical frequencies are off. Enable them in your opening settings to rank moves seen at your level.</p>}
       <button type="button" className="text-button" aria-expanded={detailsOpen} onClick={() => setDetailsOpen(open => !open)}>
-        {detailsOpen ? "Hide engine and results" : "Show engine and results"}
+        {detailsOpen ? "Hide game results" : "Show game results"}
       </button>
-      <p className="opening-suggestion-note">Frequency is measured at this position, not the chance of reaching the whole line.{explorer?.stale ? " Cached game data may be out of date." : ""}</p>
-      {detailsOpen && <p className="opening-suggestion-note">Results describe the sampled games, not your personal results. A positive engine score favours {fen.split(" ")[1] === "b" ? "Black" : "White"}, the side to move.</p>}
+      <p className="opening-suggestion-note">{ownTurn ? "Your engine choices come first." : explorer?.replies.length && useExplorer ? "Replies are ordered by frequency, not engine strength." : "Engine choices shown; reply frequencies are unavailable."} Frequency applies at this position.{explorer?.stale ? " Cached game data may be out of date." : ""}</p>
+      {detailsOpen && <p className="opening-suggestion-note">Results describe the sampled games, not your personal results. Move evaluations use White’s perspective and describe the position after that move, assuming best play.</p>}
       {analysisError && <p className="error">{analysisError}</p>}
       {explorerError && <p className="error">{explorerError}</p>}
     </section>

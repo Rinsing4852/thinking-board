@@ -177,7 +177,7 @@ test("explains the previous move on request after advancing, and saves its comme
   await expect(page.getByText("Step 3 of 3")).toBeVisible();
 });
 
-test("builds with automatic saves, retry safety and a separate analysis board", async ({ page }, testInfo) => {
+test("builds with automatic saves, retry safety and one board with an optional unsaved exploration mode", async ({ page }, testInfo) => {
   await startPractice(page, `[Event "Paused builder ${testInfo.project.name}"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 *`);
   const paused = await (await page.request.get("/api/v1/openings/reviews/active")).json();
   await page.getByRole("button", { name: "Pause", exact: true }).click();
@@ -196,7 +196,7 @@ test("builds with automatic saves, retry safety and a separate analysis board", 
   const initialBounds = await board.boundingBox();
   expect(initialBounds!.y).toBeGreaterThanOrEqual(0);
   expect(initialBounds!.y + initialBounds!.height).toBeLessThanOrEqual(page.viewportSize()!.height);
-  expect((await page.getByRole("button", { name: "Open analysis board", exact: true }).boundingBox())!.height).toBeLessThanOrEqual(50);
+  expect((await page.getByRole("button", { name: "Try moves without saving", exact: true }).boundingBox())!.height).toBeLessThanOrEqual(50);
   await page.screenshot({ path: testInfo.outputPath("first-save-board.png") });
   const boardTop = await board.evaluate(element => element.getBoundingClientRect().top + window.scrollY);
   const requests: string[] = [];
@@ -221,14 +221,13 @@ test("builds with automatic saves, retry safety and a separate analysis board", 
   await expect(page.getByText("Nf3 was added to the end of this line.", { exact: true })).toBeVisible();
   let detail = await (await page.request.get(`/api/v1/openings/repertoires/${id}`)).json();
   expect(detail.chapters[0].lines[0].moveCount).toBe(3);
-  await page.getByRole("button", { name: "Open analysis board", exact: true }).click();
+  await page.getByRole("button", { name: "Try moves without saving", exact: true }).click();
   const analysis = page.getByRole("grid", { name: "Analysis board" });
-  if (page.viewportSize()!.width > 900) {
-    expect((await board.boundingBox())!.width).toBeCloseTo((await analysis.boundingBox())!.width, 0);
-  }
+  await expect(board).toHaveCount(0);
+  await expect(page.getByRole("grid")).toHaveCount(1);
   await analysis.getByRole("gridcell", { name: "b8 black knight" }).click();
   await analysis.getByRole("gridcell", { name: "c6 empty" }).click();
-  await expect(board.getByRole("gridcell", { name: "b8 black knight" })).toBeVisible();
+  expect((await (await page.request.get(`/api/v1/openings/repertoires/${id}`)).json()).chapters[0].lines[0].moveCount).toBe(3);
   await analysis.getByRole("gridcell", { name: "f1 white bishop" }).click();
   await analysis.getByRole("gridcell", { name: "c4 empty" }).click();
   await page.screenshot({ path: testInfo.outputPath("automatic-builder-analysis.png"), fullPage: true });
@@ -238,7 +237,7 @@ test("builds with automatic saves, retry safety and a separate analysis board", 
   detail = await (await page.request.get(`/api/v1/openings/repertoires/${id}`)).json();
   expect(detail.chapters[0].lines).toHaveLength(1);
   expect(detail.chapters[0].lines[0].moveCount).toBe(5);
-  await page.getByRole("button", { name: "Close analysis board", exact: true }).click();
+  await page.getByRole("button", { name: "Return to saved line", exact: true }).click();
   await page.getByRole("button", { name: "Undo last save", exact: true }).click();
   await expect(page.getByText("Bc4 was removed.", { exact: true })).toBeVisible();
   detail = await (await page.request.get(`/api/v1/openings/repertoires/${id}`)).json();
@@ -1268,9 +1267,13 @@ test("draws our strongest move and the three most frequent opponent replies whil
     await route.fulfill({ json: { ...await response.json(), useExplorer: true, explorerAvailable: true, ratingGroup: 1600 } });
   });
   await page.route("**/api/v1/openings/analysis", async route => {
-    const fen = route.request().postDataJSON().fen;
+    const { fen, moveUcis = [] } = route.request().postDataJSON();
     const ownTurn = fen.split(" ")[1] === "w";
-    await route.fulfill({ json: { fen, depth: 14, lines: [{ rank: 1, moveUci: ownTurn ? "e2e4" : "d7d5", moveSan: ownTurn ? "e4" : "d5", pvSan: [], score: { kind: "centipawns", value: 20, perspective: "side_to_move" } }] } });
+    const best = ownTurn ? "e2e4" : "d7d5";
+    await route.fulfill({ json: { fen, depth: 14, lines: [
+      { rank: 1, moveUci: best, moveSan: ownTurn ? "e4" : "d5", pvSan: [], score: { kind: "centipawns", value: 20, perspective: "side_to_move" } },
+      ...moveUcis.filter((uci: string) => uci !== best).map((uci: string) => ({ rank: 100, moveUci: uci, moveSan: uci === "e7e6" ? "e6" : uci === "c7c5" ? "c5" : "e5", pvSan: [], score: { kind: "centipawns", value: -60, perspective: "side_to_move" } })),
+    ] } });
   });
   await page.route("**/api/v1/openings/explorer?*", async route => {
     const url = new URL(route.request().url()); const fen = url.searchParams.get("fen");
@@ -1282,14 +1285,20 @@ test("draws our strongest move and the three most frequent opponent replies whil
   await page.getByLabel("Repertoire name", { exact: true }).fill(`Board guidance ${testInfo.project.name}`);
   await page.getByRole("button", { name: "Start building", exact: true }).click();
   const guide = page.getByRole("region", { name: "Board move suggestions" });
-  await expect(guide).toContainText("Your strongest engine suggestion");
-  await expect(guide.getByRole("listitem")).toHaveText(["e4"]);
+  await expect(guide).toContainText("Green arrow: engine's leading move");
+  const choices = page.getByRole("region", { name: "Moves to consider", exact: true });
+  await expect(choices).toHaveCount(1);
+  await expect(choices.getByLabel("Position evaluation", { exact: true })).toContainText("Position: +0.20");
+  await expect(choices.getByLabel("Evaluation for e4", { exact: true })).toHaveText("+0.20");
   await expect(page.locator(".cg-shapes line[stroke='#15781B']")).toHaveCount(1);
   const initialBoard = page.getByRole("grid", { name: "Repertoire board" });
   await initialBoard.getByRole("gridcell", { name: "e2 white pawn" }).click();
   await initialBoard.getByRole("gridcell", { name: "e4 empty" }).click();
-  await expect(guide).toContainText("Most likely opponent replies");
-  await expect(guide.getByRole("listitem")).toHaveText(["c5 · 50% · 500 games", "e5 · 25% · 250 games", "e6 · 15% · 150 games"]);
+  await expect(guide).toContainText("Blue arrows: up to three most frequent replies");
+  await expect(choices.getByText("Opponent replies by frequency", { exact: true })).toHaveCount(1);
+  await expect(choices.locator(".opening-suggestion-list button > span:first-child > strong")).toHaveText(["c5", "e5", "e6", "d5"]);
+  await expect(choices.getByLabel("Position evaluation", { exact: true })).toContainText("Position: -0.20");
+  await expect(choices.getByLabel("Evaluation for e6", { exact: true })).toHaveText("+0.60");
   await expect(page.locator(".cg-shapes line[stroke='#003088']")).toHaveCount(3);
   await guide.getByRole("button", { name: "Hide suggestion arrows", exact: true }).click();
   await expect(page.locator(".cg-shapes line")).toHaveCount(0);

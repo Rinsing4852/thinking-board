@@ -23,7 +23,6 @@ import { buildOpeningNavigation, openingGraphKey, openingMoveLabel, savedContinu
 import { ChessBoard } from "./ChessBoard";
 import { OpeningLearningComment } from "./OpeningLearningComment";
 import { OpeningMoveSuggestions } from "./OpeningMoveSuggestions";
-import { OpeningBuildGuidance } from "./OpeningBuildGuidance";
 import { openingBuildGuidance } from "../opening-build-guidance";
 import { useOpeningMoveEvidence } from "../use-opening-move-evidence";
 import { OpeningPreparationAdvice } from "./OpeningPreparationAdvice";
@@ -172,7 +171,7 @@ export function OpeningLineExplorer({
   const displayFen = currentMove?.fenAfter ?? line?.moves[0]?.fenBefore ?? new Chess().fen();
   const [showSuggestions, setShowSuggestions] = useState(true);
   const guideEnabled = editing && !pendingMove && !analysisOpen && Boolean(line) && !line?.archived;
-  const moveEvidence = useOpeningMoveEvidence(displayFen, coverageRating, useExplorer, guideEnabled);
+  const moveEvidence = useOpeningMoveEvidence(displayFen, coverageRating, useExplorer, guideEnabled, savedContinuations(navigation, lineId, ply).map(choice => choice.moveUci));
   const guidance = useMemo(() => openingBuildGuidance(displayFen, detail.repertoire.learnerColor, coverageRating, useExplorer, moveEvidence), [displayFen, detail.repertoire.learnerColor, coverageRating, useExplorer, moveEvidence]);
   const navigationBlocked = localBusy || busy || selectionBusy || Boolean(pendingMove) || editingExplanation || editingComment;
   const lineDisplayTitle = navigation.branches.get(lineId)?.title ?? line?.title ?? "";
@@ -706,7 +705,7 @@ export function OpeningLineExplorer({
         {lineLibraryOpen ? "Hide line list" : `Choose another line · ${lineDisplayTitle}`}
       </button>
 
-      <div className={`opening-workspace-grid ${analysisOpen ? "with-analysis-board" : ""}`}>
+      <div className={`opening-workspace-grid ${analysisOpen ? "trying-moves" : ""}`}>
         <OpeningLineLibrary chapters={detail.chapters} index={navigation} selectedLineId={line.id}
           open={lineLibraryOpen} disabled={navigationBlocked} progress={progressByLine} transpositions={transpositionsByLine} onChoose={chooseLine} />
 
@@ -733,9 +732,11 @@ export function OpeningLineExplorer({
             <button className="text-button" title="Alt + Right arrow" disabled={navigationBlocked || ply >= line.moveCount} onClick={() => choosePly(Math.min(line.moveCount, ply + 1))}>Next</button>
             <button className="text-button" disabled={navigationBlocked || ply >= line.moveCount} onClick={() => choosePly(line.moveCount)}>End</button>
             {editing && <button className="text-button" disabled={navigationBlocked} aria-expanded={analysisOpen} onClick={() => setAnalysisOpen(open => !open)}>
-              {analysisOpen ? "Close analysis board" : "Open analysis board"}</button>}
+              {analysisOpen ? "Return to saved line" : "Try moves without saving"}</button>}
           </div>
-          <ChessBoard
+          {analysisOpen ? <OpeningAnalysisSandbox baseFen={displayFen} orientation={detail.repertoire.learnerColor}
+            ratingGroup={coverageRating} useExplorer={useExplorer} disabled={navigationBlocked}
+            onAddMoves={moves => void saveAnalysis(moves)} /> : <ChessBoard
             fen={pendingFen}
             animateMoves={false}
             orientation={detail.repertoire.learnerColor}
@@ -745,8 +746,7 @@ export function OpeningLineExplorer({
             sourceAnnotations={showSourceMarks && !pendingMove ? sourceMarks : []}
             lastMove={pendingMove?.uci ?? currentMove?.moveUci ?? null}
             onMove={previewNewMove}
-          />
-          {guideEnabled && <OpeningBuildGuidance guidance={guidance} shown={showSuggestions} onToggle={() => setShowSuggestions(value => !value)} />}
+          />}
           {!pendingMove && sourceMarks.length > 0 && <button className="text-button" aria-pressed={showSourceMarks}
             onClick={() => setShowSourceMarks(value => !value)}>
             {showSourceMarks ? "Hide source arrows and highlights" : "Show source arrows and highlights"}
@@ -779,10 +779,8 @@ export function OpeningLineExplorer({
 
         <button className="secondary opening-notes-toggle" aria-expanded={notesOpen || editing || Boolean(pendingMove)} aria-controls="opening-move-inspector"
           onClick={() => setNotesOpen(value => !value)}>{notesOpen ? "Hide notes" : "Notes and move ideas"}</button>
-        <aside id="opening-move-inspector" className={`panel opening-move-inspector ${notesOpen || editing || pendingMove || analysisOpen ? "notes-open" : "notes-closed"}`}>
-          {analysisOpen && <OpeningAnalysisSandbox baseFen={displayFen} orientation={detail.repertoire.learnerColor}
-            ratingGroup={coverageRating} useExplorer={useExplorer} disabled={navigationBlocked}
-            onAddMoves={moves => void saveAnalysis(moves)} />}
+        <aside hidden={analysisOpen} id="opening-move-inspector" className={`panel opening-move-inspector ${notesOpen || editing || pendingMove || analysisOpen ? "notes-open" : "notes-closed"}`}>
+
           {editing && !pendingMove && !analysisOpen && (
             <>
             <div className="opening-guided-prompt">
@@ -799,6 +797,7 @@ export function OpeningLineExplorer({
               savedMoves={savedSuggestionMoves}
               disabled={navigationBlocked}
               evidence={moveEvidence}
+              guidance={guidance} arrowsShown={showSuggestions} onToggleArrows={() => setShowSuggestions(value => !value)}
               onChooseMove={previewNewMove}
             />
             {useExplorer && <button className="secondary" disabled={navigationBlocked || coverageBusy} onClick={() => {

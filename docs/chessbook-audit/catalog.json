@@ -115,7 +115,7 @@
           "evidence": [
             {
               "kind": "browser",
-              "title": "builds with automatic saves, retry safety and a separate analysis board",
+              "title": "builds with automatic saves, retry safety and one board with an optional unsaved exploration mode",
               "projects": [
                 "chromium",
                 "webkit"
@@ -280,11 +280,11 @@
         },
         {
           "id": "CB04.2",
-          "requirement": "Create and extend a branch with automatic saves and a separate analysis board.",
+          "requirement": "Create and extend a branch with automatic saves and one board with an optional unsaved exploration mode.",
           "evidence": [
             {
               "kind": "browser",
-              "title": "builds with automatic saves, retry safety and a separate analysis board",
+              "title": "builds with automatic saves, retry safety and one board with an optional unsaved exploration mode",
               "projects": [
                 "chromium",
                 "webkit"
@@ -303,7 +303,7 @@
         "apps/web/src/components/OpeningLineExplorer.tsx"
       ],
       "benchmark": {
-        "task": "Create and extend a branch with automatic saves and a separate analysis board.",
+        "task": "Create and extend a branch with automatic saves and one board with an optional unsaved exploration mode.",
         "chessbookMeasuredResult": null,
         "ourMeasuredLatencyMs": null,
         "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
@@ -1144,7 +1144,7 @@
           "evidence": [
             {
               "kind": "browser",
-              "title": "builds with automatic saves, retry safety and a separate analysis board",
+              "title": "builds with automatic saves, retry safety and one board with an optional unsaved exploration mode",
               "projects": [
                 "chromium",
                 "webkit"

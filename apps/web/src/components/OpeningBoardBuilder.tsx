@@ -6,7 +6,6 @@ import { post } from "../api";
 import { ChessBoard } from "./ChessBoard";
 import { OpeningAnalysisSandbox, type SandboxMove } from "./OpeningAnalysisSandbox";
 import { OpeningMoveSuggestions } from "./OpeningMoveSuggestions";
-import { OpeningBuildGuidance } from "./OpeningBuildGuidance";
 import { openingBuildGuidance } from "../opening-build-guidance";
 import { useOpeningMoveEvidence } from "../use-opening-move-evidence";
 import { OpeningPreparationAdvice } from "./OpeningPreparationAdvice";
@@ -164,7 +163,7 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
       {moves.length > 0 && <p className="opening-studio-lock-note">Building for {learnerColor}. Undo every repertoire move before changing colour.</p>}
       {error && <p className="error" role="alert">{error}</p>}
 
-      {building && <div className={`opening-builder-grid ${analysisOpen ? "opening-studio-grid" : "opening-guided-grid"}`}>
+      {building && <div className={`opening-builder-grid opening-guided-grid`}>
         <section className={`opening-studio-pane repertoire${analysisOpen ? "" : " guided"}`} aria-label="Repertoire builder board">
           <div className="candidate-banner opening-studio-banner">
             <div>
@@ -174,15 +173,22 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
             <strong>{turn === "white" ? "White" : "Black"} to move</strong>
           </div>
           <div className="board-toolbar">
-            <span>{analysisOpen ? "Explore separately, then add only the sequence you want" : "A move chosen here is added to this line immediately"}</span>
+            <span>{analysisOpen ? "Try moves here; add the sequence only when you choose" : "A move chosen here is added to this line immediately"}</span>
             <div>
-              <button className="text-button" disabled={draftLocked} onClick={() => setAnalysisOpen((open) => !open)}>{analysisOpen ? "Back to guided choices" : "Open analysis board"}</button>
+              <button className="text-button" disabled={draftLocked} onClick={() => setAnalysisOpen((open) => !open)}>{analysisOpen ? "Return to building" : "Try moves without saving"}</button>
               <button className="text-button" disabled={moves.length === 0 || draftLocked} onClick={() => setMoves((current) => current.slice(0, -1))}>Undo last move</button>
             </div>
           </div>
           <div className="opening-guided-content">
             <div className="opening-guided-board">
-              <ChessBoard
+              {analysisOpen ? <OpeningAnalysisSandbox
+                baseFen={fen}
+                orientation={learnerColor}
+                ratingGroup={ratingGroup}
+                useExplorer={useExplorer}
+                onAddMoves={addExploredMoves}
+                disabled={draftLocked}
+              /> : <ChessBoard
                 fen={fen}
                 orientation={learnerColor}
                 interactive={!draftLocked}
@@ -190,8 +196,7 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
                 onMove={addMove}
                 suggestionArrows={!analysisOpen && showSuggestions ? guidance.arrows : []}
                 ariaLabel="Repertoire board"
-              />
-              {!analysisOpen && <OpeningBuildGuidance guidance={guidance} shown={showSuggestions} onToggle={() => setShowSuggestions(value => !value)} />}
+              />}
               <div className="opening-builder-moves" aria-label="Moves in this line">
                 {moves.map((move, index) => (
                   <span className={move.fenBefore.split(" ")[1] === (learnerColor === "white" ? "w" : "b") ? "learner" : ""} key={`${move.moveUci}-${index}`}>
@@ -215,6 +220,7 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
                     useExplorer={useExplorer}
                     disabled={draftLocked}
                     evidence={moveEvidence}
+              guidance={guidance} arrowsShown={showSuggestions} onToggleArrows={() => setShowSuggestions(value => !value)}
                     onChooseMove={addMove}
                   />
                 </>
@@ -236,19 +242,11 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
               {lastMove && !lastMoveBelongsToLearner && <OpeningPreparationAdvice target={{
                 fen: lastMove.fenBefore, opponentMoveUci: lastMove.moveUci, learnerColor,
               }} />}
-              {!lastMove && analysisOpen && <p className="opening-builder-empty-note">Explore on the analysis board, then add the sequence when it makes sense.</p>}
+              {!lastMove && analysisOpen && <p className="opening-builder-empty-note">Try moves without changing your line, then add the sequence when it makes sense.</p>}
             </div>
           </div>
         </section>
 
-        {analysisOpen && <OpeningAnalysisSandbox
-          baseFen={fen}
-          orientation={learnerColor}
-          ratingGroup={ratingGroup}
-          useExplorer={useExplorer}
-          onAddMoves={addExploredMoves}
-          disabled={draftLocked}
-        />}
       </div>}
     </div>
   );
