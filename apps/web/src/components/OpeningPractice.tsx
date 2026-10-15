@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { openingGraphKey } from "../opening-navigation";
 import { useOpeningSession } from "../use-opening-session";
 import { useOpeningInsights } from "../use-opening-insights";
@@ -94,7 +94,8 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
     || (step && phase !== "catalog"),
   );
 
-  useEffect(() => {
+  // Set the page width and focus layout before the board's first paint.
+  useLayoutEffect(() => {
     onFocusChange?.(practiceFocused);
     return () => onFocusChange?.(false);
   }, [onFocusChange, practiceFocused]);
