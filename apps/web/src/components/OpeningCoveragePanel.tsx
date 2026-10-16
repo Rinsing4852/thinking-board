@@ -1,3 +1,4 @@
+import { openingTask, rankedOpeningTasks } from "../../../../packages/contracts/src/opening-tasks";
 import { useEffect, useId, useState } from "react";
 import type { OpeningCoverageBranch, OpeningCoverageGap, OpeningCoverageResponse } from "../../../../packages/contracts/src/api";
 
@@ -15,11 +16,12 @@ interface Props {
   onLoad: (offset?: number, refresh?: boolean) => void;
   onInspect: (gap: OpeningCoverageGap) => void;
   onPractice: (lineId: string, moveId?: string) => void;
+  onTaskChoice?: (taskId: string, action: "later" | "skip" | "restore") => void;
   onBoundary: (positionId: string, value: boolean) => void;
 }
 
 export function OpeningCoveragePanel({ coverage, busy, disabled, useExplorer, notice, rating, throughMove, routeId,
-  lines, onScope, onLoad, onInspect, onPractice, onBoundary }: Props) {
+  lines, onScope, onLoad, onInspect, onPractice, onBoundary, onTaskChoice }: Props) {
   const [filter, setFilter] = useState("actionable");
   const [showAll, setShowAll] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -37,8 +39,7 @@ export function OpeningCoveragePanel({ coverage, busy, disabled, useExplorer, no
     .filter(branch => branch.responseMoveId).map(branch => [branch.responseMoveId, branch]));
   const tested = [...responses.values()].filter(branch => (branch.recallAttempts ?? 0) > 0);
   const retained = [...responses.values()].filter(branch => branch.status === "prepared");
-  const candidates = coverage?.gaps.filter(gap => gap.status !== "unprepared"
-    && (gap.status !== "unknown" || (gap.personalFrequency?.games ?? gap.preparation?.personal.occurrences ?? 0) > 0)) ?? [];
+  const candidates = rankedOpeningTasks(coverage?.gaps ?? []);
   const toPractise = candidates.filter(gap => gap.status === "needs_practice").length;
   const toFinish = candidates.filter(gap => gap.status === "idea_only").length;
   const toAdd = candidates.length - toPractise - toFinish;
@@ -80,8 +81,16 @@ export function OpeningCoveragePanel({ coverage, busy, disabled, useExplorer, no
     {coverage && <>
       {coverage.personal && <section className="opening-personal-coverage" aria-label="Coverage from your games">
         <h4>What happened in your games</h4>
+        {coverage.scope && <small>{coverage.scope.personal}</small>}
         <p>{coverage.personal.replyOccurrences ? <><strong>{coverage.personal.preparedPercent}%</strong> of opponent replies seen at your saved positions had an answer in your repertoire · {coverage.personal.preparedReplyOccurrences}/{coverage.personal.replyOccurrences} observations.</> : "No opponent replies from your recent games reached these saved positions yet."}</p>
         <details><summary>Which games does this use?</summary><p>Up to 100 recent imported games for this side, at positions already in your repertoire and within the selected move limit. Each position counts once per game. This does not mean the same percentage of entire games is prepared.</p></details>
+      </section>}
+      {coverage.goal && <section className="opening-personal-coverage" aria-label="Preparation goal">
+        <h4>Your preparation goal</h4>
+        <p>Prepare positions expected at least once in {coverage.goal.games} games along this line.</p>
+        <p>{coverage.goal.met ? "Goal reached for the checked line and move limit." : coverage.goal.relevantMissing > 0 ? `${coverage.goal.relevantMissing} relevant replies still need an answer.` : "More reliable samples are needed before this goal can be confirmed."}</p>
+        {coverage.goal.uncertain > 0 && <small>{coverage.goal.uncertain} positions have uncertain frequency data.</small>}
+        <small>Includes any stopping points you chose. Change the encounter goal and time control in Opening settings. The move limit stays a separate safety cap.</small>
       </section>}
       <h4>Start here</h4>
       <p>These are tasks, not a count of chess mistakes. You do not need to complete everything at once.</p>
@@ -97,16 +106,25 @@ export function OpeningCoveragePanel({ coverage, busy, disabled, useExplorer, no
           ? (gap.recallAttempts ?? 0) === 0 ? "Your answer is already saved. It has not been tested in practice yet." : "Your answer is already saved. Practise recalling it without a hint."
           : gap.status === "idea_only" ? "You saved an idea, but no response move. Check whether you want to add one."
           : "This opponent reply has no saved answer. Open the position and choose what you would play."}</p>
-        {(gap.personalFrequency?.games ?? gap.preparation?.personal.occurrences ?? 0) > 0 && <small>Seen {gap.personalFrequency?.games ?? gap.preparation?.personal.occurrences} times in your recent games.</small>}
+        <p className="opening-task-reason"><strong>Why this next:</strong> {openingTask(gap).reason}</p>
+        {gap.sourceGames?.map(game => <a key={game.id} className="opening-source-game" href={`#games?game=${encodeURIComponent(game.id)}`}>View source game · move {Math.ceil(game.ply / 2)}</a>)}
         <div className="answer-actions"><button className="secondary" disabled={locked} onClick={() => onInspect(gap)}>Inspect position</button>
           {gap.status === "needs_practice" && <button disabled={locked || !gap.responseLineId}
-            onClick={() => onPractice(gap.responseLineId!, gap.responseMoveId ?? undefined)}>Practise response</button>}</div>
+            onClick={() => onPractice(gap.responseLineId!, gap.responseMoveId ?? undefined)}>Practise response</button>}
+          {onTaskChoice && <><button className="text-button" disabled={locked} onClick={() => onTaskChoice(openingTask(gap).id, "later")}>Later · 7 days</button>
+            <button className="text-button" disabled={locked} onClick={() => onTaskChoice(openingTask(gap).id, "skip")}>Skip suggestion</button></>}
+        </div>
       </article>)}</div>
       {!tasks.length && <p>No next step found in the checked games and positions. You can still practise a saved line or check another line.</p>}
+      {!!coverage.taskHistory?.length && <details><summary>Postponed and skipped suggestions ({coverage.taskHistory.length})</summary>
+        {coverage.taskHistory.map(gap => <article key={openingTask(gap).id}><p>{gap.moveSan} · {gap.taskChoice?.choice === "later" ? `postponed until ${gap.taskChoice.untilAt?.slice(0, 10)}` : "skipped"}</p>
+          <button className="text-button" disabled={locked} onClick={() => onTaskChoice?.(openingTask(gap).id,"restore")}>Restore suggestion</button></article>)}
+      </details>}
       {candidates.length > 3 && <button className="text-button" onClick={() => setShowAll(!showAll)}>{showAll ? "Show just three tasks" : `See all ${candidates.length} practice and preparation tasks`}</button>}
 <details className="opening-coverage-details" open={detailsOpen} onToggle={event => setDetailsOpen(event.currentTarget.open)}><summary>Detailed estimates and practice history</summary>
       {model && <>
         <h4>Can this line handle replies until your move {model.throughMove}?</h4>
+        <p>{coverage.scope?.lichess}</p>
         <p>This estimate follows your selected line against replies sampled from Lichess. It stops each possible sequence at the first reply without a saved answer, or at a stopping point you chose.</p>
         <p><strong>{model.preparedPercent}%</strong> of the estimated sequences reach that limit or a chosen stopping point. This is not the percentage of moves you know, your win chance, or your practice score.</p>
         <div className="opening-coverage-bar" aria-label={`Saved responses or stopping points ${model.preparedPercent}%, missing responses ${model.missingPercent}%, idea only ${model.ideaPercent}%, deliberately unprepared ${model.unpreparedPercent}%, unknown ${model.unknownPercent}%`}>

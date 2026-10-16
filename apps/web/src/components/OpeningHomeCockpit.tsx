@@ -1,3 +1,4 @@
+import { firstPreparationTask } from "../../../../packages/contracts/src/opening-tasks";
 import type {
   OpeningCoverageGap,
   OpeningCoverageResponse,
@@ -53,11 +54,7 @@ export function OpeningHomeCockpit({
   onImport,
   onSettings,
 }: OpeningHomeCockpitProps) {
-  const gap = coverage?.gaps.find(candidate => candidate.status !== "needs_practice"
-    && candidate.status !== "unprepared" && candidate.preparation?.decision?.choice !== "unprepared"
-    && ((candidate.personalFrequency?.games ?? candidate.preparation?.personal.occurrences ?? 0) > 0
-      || candidate.preparation?.priority === "high" || candidate.preparation?.priority === "medium"
-      || (!candidate.preparation && candidate.status === "missing_response"))) ?? null;
+  const gap = coverage ? firstPreparationTask(coverage.gaps) : null;
   const weakLine = progress?.weakestLines[0] ?? null;
   const repertoire = recommendation?.repertoire ?? null;
   const activity = recommendation?.activity;
@@ -86,6 +83,7 @@ export function OpeningHomeCockpit({
           <span>
             <span className="eyebrow">Reply worth considering</span>
             <strong>{gap.moveSan} is not covered yet</strong>
+            <small>{gap.task?.reason}</small>
             <small>{gap.games > 0 ? `${gap.frequencyPercent}% at this position · ${frequencyLabel(gap.frequencyPercent)}` : `Lichess frequency unknown · seen ${gap.personalFrequency?.games ?? gap.preparation?.personal.occurrences ?? 0} times in your games`}</small>
           </span>
           <button onClick={() => onOpenGap(gap)}>Inspect this reply</button>

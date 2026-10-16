@@ -1,3 +1,4 @@
+import { openingQualityMetrics } from "./opening-quality-metrics.js";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Database } from "../db/database.js";
@@ -105,5 +106,33 @@ describe("daily opening practice", () => {
     for (const dailyPracticeGoal of [0, 51, 1.5]) expect(() => preferences.update({ ...input, dailyPracticeGoal })).toThrow();
     expect(() => preferences.update({ ...input, practiceTimeZone: "Moon/Base" })).toThrow(/time zone/);
     expect(preferences.get()).toEqual(before);
+  });
+});
+
+
+describe("quality outcome measurements", () => {
+  it("keeps missing evidence unknown and separates delayed unaided recall from assisted answers", () => {
+    const {db,reviewed}=setup();
+    expect(openingQualityMetrics(db).delayedRecall.every(cohort=>cohort.percent===null)).toBe(true);
+    reviewed("2026-10-01T12:00:00Z");
+    reviewed("2026-10-09T12:00:00Z");
+    reviewed("2026-10-24T12:00:00Z",true);
+    const metrics=openingQualityMetrics(db);
+    expect(metrics.delayedRecall).toMatchObject([{encounters:1,independent:1,percent:100},{encounters:1,independent:0,percent:0}]);
+    expect(metrics.games.departuresPer100Games).toBeNull();
+  });
+});
+
+
+describe("automatic task postponement", () => {
+  it("keeps postponed memory work out of automatic sessions and restores it after expiry", () => {
+    const {db,reviews,repertoireId}=setup();
+    const profile=ensureActiveProfile(db);
+    const moves=db.prepare("SELECT id FROM opening_moves WHERE repertoire_id=? AND role='learner'").all(repertoireId) as Array<{id:string}>;
+    for(const move of moves) db.prepare("INSERT INTO opening_task_choices(profile_id,repertoire_id,task_id,choice,until_at,updated_at) VALUES(?,?,?,'later',?,?)")
+      .run(profile,repertoireId,`practice:${move.id}`,"2026-10-15T12:00:00Z","2026-10-14T12:00:00Z");
+    expect(reviews.recommendation().available).toBe(false);
+    vi.setSystemTime(new Date("2026-10-16T12:00:00Z"));
+    expect(reviews.recommendation().available).toBe(true);
   });
 });

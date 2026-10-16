@@ -966,7 +966,7 @@
       "category": "Coverage",
       "priority": "P0",
       "baselineState": "partial",
-      "currentState": "partial",
+      "currentState": "improved",
       "sourceIds": [
         "COMPLETION"
       ],
@@ -986,16 +986,37 @@
         {
           "id": "CB18.2",
           "requirement": "Change target and inspect newly relevant gaps.",
-          "evidence": []
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "changes relevant gaps at the exact encounter threshold using unrounded probabilities"
+            },
+            {
+              "kind": "browser",
+              "title": "persists preparation goals and allows postponing, skipping and restoring tasks",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
         },
         {
           "id": "CB18.3",
           "requirement": "Unknown or small samples cannot be counted as meeting the target.",
-          "evidence": []
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "considers a useful thirteenth repertoire and does not confirm an unknown coverage goal"
+            }
+          ]
         }
       ],
       "implementationPaths": [
-        "apps/server/src/openings/opening-coverage-model.ts"
+        "apps/server/src/openings/opening-coverage-model.ts",
+        "apps/server/src/openings/opening-quality-preferences.ts",
+        "apps/web/src/components/OpeningPlayerContext.tsx",
+        "apps/web/src/components/OpeningCoveragePanel.tsx"
       ],
       "benchmark": {
         "task": "Change target and inspect newly relevant gaps.",

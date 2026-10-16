@@ -116,6 +116,7 @@ export class UciEngine {
     depth: number,
     multiPv: number,
     searchMoves: string[] = [],
+    nodes?: number,
   ): Promise<EngineAnalysis> {
     await this.initialize();
     if (this.analyzing) throw new Error("Stockfish analysis is already running");
@@ -163,7 +164,7 @@ export class UciEngine {
         parseUciMove(move);
         return move;
       });
-      this.send(`go depth ${depth}${restrictedMoves.length ? ` searchmoves ${restrictedMoves.join(" ")}` : ""}`);
+      this.send(`go ${nodes ? `nodes ${nodes}` : `depth ${depth}`}${restrictedMoves.length ? ` searchmoves ${restrictedMoves.join(" ")}` : ""}`);
       await completion;
 
       const whiteToMove = board.turn() === "w";

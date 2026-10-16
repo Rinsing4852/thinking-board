@@ -587,10 +587,14 @@ export class OpeningReviewService {
       const selected: Array<{ id: string }> = [];
       const selectedIds = new Set<string>();
       const counts = { gameMisses: 0, due: 0, new: 0, early: 0, total: 0 };
+      const excluded = new Set((this.db.prepare(`SELECT ori.id FROM opening_review_items ori JOIN opening_task_choices choice
+        ON choice.task_id = 'practice:' || ori.move_id AND choice.profile_id = ori.profile_id AND choice.repertoire_id = ori.repertoire_id
+        WHERE ori.profile_id = ? AND ori.repertoire_id = ? AND (choice.choice = 'skip' OR choice.until_at > ?)`)
+        .all(profileId,repertoire.id,timestamp) as Array<{ id: string }>).map(row => row.id));
       const append = (items: Array<{ id: string }>, key: "gameMisses" | "due" | "new" | "early", limit = sessionSize): void => {
         for (const item of items) {
           if (selected.length >= sessionSize || counts[key] >= limit) break;
-          if (selectedIds.has(item.id)) continue;
+          if (selectedIds.has(item.id) || excluded.has(item.id)) continue;
           selectedIds.add(item.id);
           selected.push({ id: item.id });
           counts[key] += 1;

@@ -21,6 +21,8 @@ const PLATFORM_LABELS: Record<OpeningRatingPlatform, string> = {
 };
 
 export function OpeningPlayerContext({ preferences, onSaved }: OpeningPlayerContextProps) {
+  const [coverageGoalGames, setCoverageGoalGames] = useState(preferences.coverageGoalGames ?? 200);
+  const [speeds, setSpeeds] = useState((preferences.explorerSpeeds ?? ["blitz","rapid","classical"]).join(","));
   const [editing, setEditing] = useState(!preferences.configured);
   const [ratingGroup, setRatingGroup] = useState(preferences.ratingGroup);
   const [platform, setPlatform] = useState<OpeningRatingPlatform>(preferences.platform);
@@ -36,6 +38,8 @@ export function OpeningPlayerContext({ preferences, onSaved }: OpeningPlayerCont
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    setCoverageGoalGames(preferences.coverageGoalGames ?? 200);
+    setSpeeds((preferences.explorerSpeeds ?? ["blitz","rapid","classical"]).join(","));
     setRatingGroup(preferences.ratingGroup);
     setPlatform(preferences.platform);
     setUseExplorer(preferences.useExplorer);
@@ -55,6 +59,7 @@ export function OpeningPlayerContext({ preferences, onSaved }: OpeningPlayerCont
     setMessage("");
     try {
       const saved = await patch<OpeningPlayerPreferences>("/api/v1/openings/preferences", {
+        coverageGoalGames, explorerSpeeds: speeds.split(","),
         ratingGroup,
         platform,
         useExplorer,
@@ -136,6 +141,12 @@ export function OpeningPlayerContext({ preferences, onSaved }: OpeningPlayerCont
           <input value={practiceTimeZone} onChange={event => setPracticeTimeZone(event.target.value)} placeholder="Europe/London" />
           <small>Days and streaks use this time zone.</small>
         </label>
+        <label>Preparation goal<select value={coverageGoalGames} onChange={event => setCoverageGoalGames(Number(event.target.value))}>
+          {[50,100,200,500].map(goal => <option key={goal} value={goal}>Positions expected at least once in {goal} games</option>)}
+        </select><small>A higher number includes rarer positions and more preparation.</small></label>
+        <label>Game data time control<select value={speeds} onChange={event => setSpeeds(event.target.value)}>
+          <option value="blitz,rapid,classical">Blitz, rapid and classical</option><option value="blitz">Blitz</option><option value="rapid">Rapid</option><option value="classical">Classical</option>
+        </select><small>Applies to Lichess frequencies. Your own game observations stay separate.</small></label>
         <label>
           Repertoire-run depth
           <select value={practiceDepth} onChange={(event) => setPracticeDepth(Number(event.target.value))}>

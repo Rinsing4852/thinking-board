@@ -1279,7 +1279,7 @@ test("draws our strongest move and the three most frequent opponent replies whil
   await page.route("**/api/v1/openings/lessons/active", route => route.fulfill({ json: null }));
   await page.route("**/api/v1/openings/preferences", async route => {
     const response = await route.fetch();
-    await route.fulfill({ json: { ...await response.json(), useExplorer: true, explorerAvailable: true, ratingGroup: 1600 } });
+    await route.fulfill({ json: { ...await response.json(), useExplorer: true, explorerAvailable: true, ratingGroup: 1600, explorerSpeeds: ["blitz", "rapid", "classical"] } });
   });
   await page.route("**/api/v1/openings/analysis", async route => {
     const { fen, moveUcis = [] } = route.request().postDataJSON();
@@ -1315,6 +1315,10 @@ test("draws our strongest move and the three most frequent opponent replies whil
   await expect(choices.getByLabel("Position evaluation", { exact: true })).toContainText("Position: -0.20");
   await expect(choices.getByLabel("Evaluation for e6", { exact: true })).toHaveText("+0.60");
   await expect(page.locator(".cg-shapes line[stroke='#003088']")).toHaveCount(3);
+  await expect(page.locator(".opening-arrow-rank")).toHaveText(["1", "2", "3"]);
+  await choices.getByRole("button").filter({hasText:"c5"}).focus();
+  await expect(page.locator(".cg-shapes line[stroke='#003088']")).toHaveCount(1);
+  await guide.getByRole("button", { name: "Hide suggestion arrows", exact: true }).focus();
   await guide.getByRole("button", { name: "Hide suggestion arrows", exact: true }).click();
   await expect(page.locator(".cg-shapes line")).toHaveCount(0);
   await guide.getByRole("button", { name: "Show suggestion arrows", exact: true }).click();
@@ -1360,8 +1364,9 @@ test("explains large preparation lists as distinct tasks and keeps estimates opt
       personal: { ...actual.personal, replyOccurrences: 100, preparedReplyOccurrences: 84, preparedPercent: 84 },
       model: { ...actual.model, preparedPercent: .1, missingPercent: 99.7, unknownPercent: .2 },
       gaps: Array.from({ length: 558 }, (_, i) => ({ ...base, positionId: `${base.positionId}-fixture-${i}`,
+        responseMoveId: `${base.responseMoveId}-fixture-${i}`,
         status: i === 1 ? "missing_response" : i === 2 ? "idea_only" : "needs_practice",
-        recallAttempts: 0, recallPercent: null,
+        recallAttempts: 0, recallPercent: null, personalFrequency: { games: i === 1 || i === 2 ? 3 : 0, positionGames: 10, percent: i === 1 || i === 2 ? 30 : 0 },
         ...(i === 1 || i === 2 ? { responseLineId: null, responseMoveId: null } : {}),
       })),
     } });
@@ -1376,7 +1381,7 @@ test("explains large preparation lists as distinct tasks and keeps estimates opt
   await expect(counts).toContainText("1 opponent reply without a saved answer");
   await expect(counts).toContainText("1 idea to review");
   await expect(panel.locator(".opening-coverage-tasks article")).toHaveCount(3);
-  await expect(panel.getByText("Your answer is already saved. It has not been tested in practice yet.", { exact: true })).toBeVisible();
+  await expect(panel.getByText("Your answer is already saved. It has not been tested in practice yet.", { exact: true }).first()).toBeVisible();
   await expect(panel.getByText("This opponent reply has no saved answer. Open the position and choose what you would play.", { exact: true })).toBeVisible();
   await expect(panel.getByText("You saved an idea, but no response move. Check whether you want to add one.", { exact: true })).toBeVisible();
   await expect(panel.getByText(/of the estimated sequences reach/)).toBeHidden();
@@ -1391,4 +1396,53 @@ test("explains large preparation lists as distinct tasks and keeps estimates opt
   await panel.getByText("Detailed estimates and practice history", { exact: true }).click();
   await expect(panel.getByText(/of the estimated sequences reach/)).toBeVisible();
   await expect(panel.getByText(/This is not the percentage of moves you know/)).toBeVisible();
+});
+
+test("persists preparation goals and allows postponing, skipping and restoring tasks", async ({ page }, testInfo) => {
+  await page.route("**/api/v1/openings/reviews/active", route => route.fulfill({ json: null }));
+  await page.route("**/api/v1/openings/lessons/active", route => route.fulfill({ json: null }));
+  await openNavigationStudy(page,`Task choices ${testInfo.project.name}`,"1. e4 e5 2. Nf3 Nc6 3. Bb5 *");
+  const preferences=await (await page.request.get("/api/v1/openings/preferences")).json();
+  await page.getByRole("button", {name:"Back to repertoires",exact:true}).click();
+  const settings=page.locator("details.opening-settings");
+  await settings.locator("summary").click();
+  const change=settings.getByRole("button",{name:"Change",exact:true});
+  if(await change.isVisible()) await change.click();
+  await settings.getByLabel(/^Preparation goal/).selectOption("100");
+  await settings.getByLabel(/^Game data time control/).selectOption("rapid");
+  const saving=page.waitForResponse(response => response.url().endsWith("/api/v1/openings/preferences") && response.request().method()==="PATCH");
+  await settings.getByRole("button",{name:"Use these settings",exact:true}).click();
+  expect((await saving).ok()).toBeTruthy();
+  await expect(settings).not.toHaveAttribute("open", "");
+  const saved=await (await page.request.get("/api/v1/openings/preferences")).json();
+  expect(saved.coverageGoalGames).toBe(100);
+  expect(saved.explorerSpeeds).toEqual(["rapid"]);
+  const savedCard=page.locator("article.opening-card").filter({hasText:`Task choices ${testInfo.project.name}`});
+  await savedCard.locator("summary").first().click();
+  await savedCard.getByRole("button",{name:"View all lines",exact:true}).click();
+  await page.getByRole("button",{name:"Find repertoire gaps",exact:true}).click();
+  const panel=page.getByRole("region",{name:"Repertoire coverage and gaps",exact:true});
+  await panel.getByRole("button",{name:/^(Check|Recheck) coverage$/}).click();
+  await expect(panel.getByLabel("Preparation goal")).toContainText("once in 100 games");
+  await expect(panel.locator(".opening-task-reason").first()).toContainText("not been tested");
+  await panel.getByRole("button",{name:"Later · 7 days",exact:true}).first().click();
+  await expect(panel.getByRole("status")).toContainText("Postponed for seven days");
+  const history=panel.getByText(/Postponed and skipped suggestions/);
+  await history.click();
+  await panel.getByRole("button",{name:"Restore suggestion",exact:true}).click();
+  await expect(panel.getByRole("status")).toContainText("restored");
+  await panel.getByRole("button",{name:"Skip suggestion",exact:true}).first().click();
+  await expect(panel.getByRole("status")).toContainText("Skipped from suggestions");
+  await page.reload();
+  const card=page.locator("article.opening-card").filter({hasText:`Task choices ${testInfo.project.name}`});
+  const heading=page.getByRole("heading",{name:`Task choices ${testInfo.project.name}`,level:2,exact:true});
+  await expect(heading.or(card.locator("summary").first())).toBeVisible();
+  if (!(await heading.isVisible())) {await card.locator("summary").first().click();await card.getByRole("button",{name:"View all lines",exact:true}).click();}
+  await page.getByRole("button",{name:"Find repertoire gaps",exact:true}).click();
+  await panel.getByRole("button",{name:/^(Check|Recheck) coverage$/}).click();
+  await expect(panel.getByText(/Postponed and skipped suggestions/)).toBeVisible();
+  await panel.getByText(/Postponed and skipped suggestions/).click();
+  await expect(panel.getByText(/· skipped/)).toBeVisible();
+  await panel.getByRole("button",{name:"Restore suggestion",exact:true}).click();
+  await page.request.patch("/api/v1/openings/preferences", {data:{ratingGroup:preferences.ratingGroup, platform:preferences.platform, useExplorer:preferences.useExplorer, coverageGoalGames:preferences.coverageGoalGames, explorerSpeeds:preferences.explorerSpeeds}});
 });

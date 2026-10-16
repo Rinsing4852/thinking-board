@@ -1,3 +1,4 @@
+import type { SqliteDatabase } from "../db/database.js";
 import { Chess } from "chess.js";
 
 import type { OpeningPositionAnalysisResponse } from "../../../../packages/contracts/src/api.js";
@@ -9,13 +10,14 @@ const CACHE_LIMIT = 128;
 export class OpeningAnalysisService {
   private readonly engine: UciEngine;
   private readonly cache = new Map<string, OpeningPositionAnalysisResponse>();
+  private inFlight = new Map<string, { promise: Promise<OpeningPositionAnalysisResponse>; signals: Set<AbortSignal | undefined> }>();
   private queue: Promise<void> = Promise.resolve();
 
-  constructor(private readonly config: AppConfig) {
+  constructor(private readonly config: AppConfig, private readonly db?: SqliteDatabase) {
     this.engine = new UciEngine(config.stockfishBinary, 1, Math.min(64, config.stockfishHashMb));
   }
 
-  analyze(fen: string, moveUcis: string[] = []): Promise<OpeningPositionAnalysisResponse> {
+  analyze(fen: string, moveUcis: string[] = [], signal?: AbortSignal): Promise<OpeningPositionAnalysisResponse> {
     let chess: Chess;
     try {
       chess = new Chess(fen);
@@ -31,8 +33,17 @@ export class OpeningAnalysisService {
     const key = `${canonicalFen}|${requested.join(",")}`;
     const cached = this.cache.get(key);
     if (cached) return Promise.resolve(cached);
-    const operation = this.queue.then(() => this.evaluate(chess, requested, key));
+    const pending = this.inFlight.get(key);
+    if (pending) { pending.signals.add(signal); return pending.promise; }
+    const signals = new Set([signal]);
+    const cancelled = () => [...signals].every(signal => signal?.aborted);
+    const operation = this.queue.then(() => {
+      if (cancelled()) throw new Error("Obsolete analysis request cancelled");
+      return this.evaluate(chess, requested, key, cancelled);
+    });
+    this.inFlight.set(key, { promise: operation, signals });
     this.queue = operation.then(() => undefined, () => undefined);
+    void operation.finally(() => this.inFlight.delete(key)).catch(() => undefined);
     return operation;
   }
 
@@ -45,17 +56,36 @@ export class OpeningAnalysisService {
     await this.engine.close();
   }
 
-  private async evaluate(chess: Chess, requested: string[], key: string): Promise<OpeningPositionAnalysisResponse> {
+  private async evaluate(chess: Chess, requested: string[], key: string, cancelled: () => boolean): Promise<OpeningPositionAnalysisResponse> {
+    await this.engine.initialize();
+    const nodes = this.config.openingAnalysisNodes ?? 200000;
+    if (!Number.isSafeInteger(nodes) || nodes < 1000 || nodes > 5000000) throw new Error("Choose an opening analysis budget from 1,000 to 5,000,000 nodes");
+    const prefix = `opening-v2|${this.engine.name}|${this.config.stockfishBinary}|${nodes}|1|${Math.min(64, this.config.stockfishHashMb)}|`;
+    const read = (key: string): OpeningPositionAnalysisResponse | undefined => {
+      const memory = this.cache.get(key); if (memory) return memory;
+      const row = this.db?.prepare("SELECT response_json FROM opening_eval_cache WHERE cache_key = ?").get(prefix + key) as { response_json: string } | undefined;
+      if (!row) return undefined;
+      try { const value = JSON.parse(row.response_json) as OpeningPositionAnalysisResponse;
+        if (value.fen !== chess.fen() || !Array.isArray(value.lines)) return undefined;
+        this.cache.set(key,value); return value;
+      } catch { return undefined; }
+    };
+    const write = (key: string, value: OpeningPositionAnalysisResponse) => {
+      this.cache.set(key,value);
+      this.db?.prepare(`INSERT INTO opening_eval_cache(cache_key,response_json,updated_at) VALUES(?,?,?)
+        ON CONFLICT(cache_key) DO UPDATE SET response_json=excluded.response_json,updated_at=excluded.updated_at`)
+        .run(prefix + key,JSON.stringify(value),new Date().toISOString());
+    };
     const fen = chess.fen();
-    const cached = this.cache.get(key);
+    const cached = read(key);
     if (cached) return cached;
     const depth = Math.max(10, this.config.stockfishDepth - 2);
     const baseKey = `${fen}|`;
-    const base = this.cache.get(baseKey);
-    const result = base ? null : await this.engine.analyze(fen, depth, 3);
+    const base = read(baseKey);
+    const result = base ? null : await this.engine.analyze(fen, depth, 3, [], nodes);
     const sideFactor = chess.turn() === "w" ? 1 : -1;
     const response: OpeningPositionAnalysisResponse = {
-      fen,
+      fen, engineName: this.engine.name, nodes,
       depth: base?.depth ?? result!.depth,
       lines: base?.lines.slice(0, 3) ?? result!.lines.slice(0, 3).map((line) => ({
         rank: line.rank,
@@ -67,15 +97,16 @@ export class OpeningAnalysisService {
           : { kind: "centipawns", value: (line.centipawnsWhite ?? 0) * sideFactor, perspective: "side_to_move" },
       })),
     };
-    this.cache.set(baseKey, { ...response, lines: [...response.lines] });
+    write(baseKey, { ...response, lines: [...response.lines] });
     // Keep the unrestricted leading move as the position score. A popular reply
     // can be weaker than all three engine candidates, so evaluate it explicitly.
     for (const move of requested) {
+      if (cancelled()) throw new Error("Obsolete analysis request cancelled");
       if (response.lines.some(line => line.moveUci === move)) continue;
       const moveKey = `${fen}|move:${move}`;
-      let evaluated = this.cache.get(moveKey);
+      let evaluated = read(moveKey);
       if (!evaluated) {
-        const restricted = await this.engine.analyze(fen, depth, 1, [move]);
+        const restricted = await this.engine.analyze(fen, depth, 1, [move], nodes);
         const line = restricted.lines.find(line => line.moveUci === move);
         evaluated = { fen, depth: restricted.depth, lines: line ? [{ rank: 100,
           moveUci: line.moveUci, moveSan: line.moveSan, pvSan: line.pvSan,
@@ -83,16 +114,17 @@ export class OpeningAnalysisService {
             ? { kind: "mate", value: line.mateInWhite * sideFactor, perspective: "side_to_move" }
             : { kind: "centipawns", value: (line.centipawnsWhite ?? 0) * sideFactor, perspective: "side_to_move" },
         }] : [] };
-        this.cache.set(moveKey, evaluated);
+        write(moveKey, evaluated);
       }
       response.lines.push(...evaluated.lines);
     }
-    this.cache.set(key, response);
+    write(key, response);
     while (this.cache.size > CACHE_LIMIT) {
       const oldest = this.cache.keys().next().value as string | undefined;
       if (!oldest) break;
       this.cache.delete(oldest);
     }
+    this.db?.prepare("DELETE FROM opening_eval_cache WHERE cache_key NOT IN (SELECT cache_key FROM opening_eval_cache ORDER BY updated_at DESC LIMIT 2048)").run();
     return response;
   }
 }

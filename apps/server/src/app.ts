@@ -1,3 +1,4 @@
+import { openingQualityMetrics } from "./openings/opening-quality-metrics.js";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -86,7 +87,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   const openingTraining = new OpeningTrainingService(database.connection);
   const openingReviews = new OpeningReviewService(database.connection);
   const openingWorkspace = new OpeningWorkspaceService(database.connection);
-  const openingAnalysis = new OpeningAnalysisService(config);
+  const openingAnalysis = new OpeningAnalysisService(config, database.connection);
   const openingExplorer = new OpeningExplorerService(database.connection, config.lichessApiToken);
   const openingPreferences = new OpeningPreferencesService(database.connection, Boolean(config.lichessApiToken));
   registerOpeningPracticeSelectionRoutes(app, new OpeningPracticeSelectionService(database.connection,
@@ -155,11 +156,15 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
 
   app.get("/api/v1/openings/activity", async () => new OpeningActivityService(database.connection).get());
 
+  app.get("/api/v1/openings/quality/metrics", async () => openingQualityMetrics(database.connection));
+
   app.get("/api/v1/openings/preferences", async () => openingPreferences.get());
 
   app.patch("/api/v1/openings/preferences", { schema: { body: {
     type: "object", additionalProperties: false, required: ["ratingGroup", "platform", "useExplorer"],
     properties: {
+      coverageGoalGames: { type: "integer", minimum: 10, maximum: 10000 },
+      explorerSpeeds: { type: "array", minItems: 1, uniqueItems: true, items: { type: "string", enum: ["blitz", "rapid", "classical"] } },
       ratingGroup: { type: "integer", enum: [1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500] },
       platform: { type: "string", enum: ["lichess", "chess_com", "fide", "not_sure"] },
       useExplorer: { type: "boolean" }, newMovesPerSession: { type: "integer", minimum: 1, maximum: 10 },
@@ -173,6 +178,8 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     try {
       const body = (request.body ?? {}) as Record<string, unknown>;
       return openingPreferences.update({
+        ...(body.coverageGoalGames === undefined ? {} : { coverageGoalGames: Number(body.coverageGoalGames) }),
+        ...(body.explorerSpeeds === undefined ? {} : { explorerSpeeds: body.explorerSpeeds as string[] }),
         ratingGroup: Number(body.ratingGroup),
         platform: body.platform as "lichess" | "chess_com" | "fide" | "not_sure",
         useExplorer: body.useExplorer as boolean,
@@ -371,6 +378,14 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     }
   });
 
+  app.patch("/api/v1/openings/repertoires/:repertoireId/coverage/task", async (request, reply) => {
+    try {
+      const { repertoireId } = request.params as { repertoireId: string };
+      const body = (request.body ?? {}) as { taskId: string; action: "later" | "skip" | "restore" };
+      return await openingCoverage.chooseTask(repertoireId, requiredString(body.taskId, "Task"), body.action);
+    } catch (error) { return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not update this suggestion" }); }
+  });
+
   app.patch("/api/v1/openings/repertoires/:repertoireId/coverage/boundary", async (request, reply) => {
     try {
       const { repertoireId } = request.params as { repertoireId: string };
@@ -385,7 +400,9 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   app.post("/api/v1/openings/analysis", async (request, reply) => {
     try {
       const body = (request.body ?? {}) as Record<string, unknown>;
-      return await openingAnalysis.analyze(requiredString(body.fen, "Position"), body.moveUcis as string[] | undefined);
+      const controller = new AbortController();
+      reply.raw.once("close", () => { if (!reply.raw.writableEnded) controller.abort(); });
+      return await openingAnalysis.analyze(requiredString(body.fen, "Position"), body.moveUcis as string[] | undefined, controller.signal);
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not analyse opening position" });
     }
@@ -393,8 +410,8 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
 
   app.get("/api/v1/openings/explorer", async (request, reply) => {
     try {
-      const { fen, rating } = request.query as { fen?: string; rating?: string };
-      return await openingExplorer.position(requiredString(fen, "Position"), rating ? Number(rating) : 1600);
+      const { fen, rating, speeds } = request.query as { fen?: string; rating?: string; speeds?: string };
+      return await openingExplorer.position(requiredString(fen, "Position"), rating ? Number(rating) : 1600, false, speeds ?? openingPreferences.get().explorerSpeeds?.join(","));
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not load practical move frequencies" });
     }

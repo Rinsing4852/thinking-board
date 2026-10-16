@@ -45,18 +45,18 @@ export class OpeningPreparationService {
     const { before } = this.validate(target);
     const preference = this.preferences.get();
     const sample = (options?.useExplorer ?? preference.useExplorer)
-      ? this.explorer.cachedPosition(before.fen(), options?.ratingGroup ?? preference.ratingGroup) : null;
+      ? this.explorer.cachedPosition(before.fen(), options?.ratingGroup ?? preference.ratingGroup, preference.explorerSpeeds?.join(",")) : null;
     return this.build(target, sample);
   }
 
   async assess(target: PreparationTarget, refresh: boolean, analyze: boolean): Promise<OpeningPreparationAssessment> {
     const { before, after } = this.validate(target);
     const preference = this.preferences.get();
-    let sample = preference.useExplorer ? this.explorer.cachedPosition(before.fen(), preference.ratingGroup) : null;
+    let sample = preference.useExplorer ? this.explorer.cachedPosition(before.fen(), preference.ratingGroup, preference.explorerSpeeds?.join(",")) : null;
     let unavailable = false;
     let replies: OpeningPositionAnalysisResponse | null = null;
     await Promise.all([
-      refresh && preference.useExplorer ? this.explorer.position(before.fen(), preference.ratingGroup, true)
+      refresh && preference.useExplorer ? this.explorer.position(before.fen(), preference.ratingGroup, true, preference.explorerSpeeds?.join(","))
         .then(result => { sample = result; }).catch(() => { unavailable = !sample; }) : Promise.resolve(),
       analyze ? this.analysis.analyze(after.fen()).then(result => { replies = result; }).catch(() => undefined) : Promise.resolve(),
     ]);

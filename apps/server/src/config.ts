@@ -16,6 +16,7 @@ export interface AppConfig {
   webDistDir: string;
   stockfishBinary: string;
   stockfishDepth: number;
+  openingAnalysisNodes?: number;
   stockfishMultiPv: number;
   stockfishThreads: number;
   stockfishHashMb: number;
@@ -36,6 +37,7 @@ export function loadConfig(): AppConfig {
     migrationsDir: process.env.MIGRATIONS_DIR ?? path.join(root, "migrations"),
     webDistDir: process.env.WEB_DIST_DIR ?? path.join(root, "apps", "web", "dist"),
     stockfishBinary: process.env.STOCKFISH_BINARY ?? "stockfish",
+    openingAnalysisNodes: integer("OPENING_ANALYSIS_NODES", 200000),
     stockfishDepth: integer("STOCKFISH_DEPTH", 14),
     stockfishMultiPv: integer("STOCKFISH_MULTIPV", 3),
     stockfishThreads: integer("STOCKFISH_THREADS", 1),

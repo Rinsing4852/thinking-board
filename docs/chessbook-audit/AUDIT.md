@@ -9,14 +9,15 @@ This is an independent behavioural specification. Chessbook source code, assets,
 ## What the tracker measures
 
 - **57 feature descriptions**, each with three acceptance criteria and a repeatable comparison task.
-- Current inventory: 24 existing, 11 partial, 15 absent, 2 enhanced, 4 implemented, 1 not_targeted.
-- Acceptance checks: 81 passed, 0 failed, 0 flaky, 42 unknown, 45 unmet, 3 excluded.
-- Priority-weighted verified requirement coverage: **58.6%** (373/636 points). This is a conservative evidence measure, not “58.6% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
-- Like-for-like unit-evidence baseline: 29.1% → 36.5%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
-- Current validation records: 231 unit/integration tests and 126 browser journeys; 0 failures, 0 flaky results, 0 skipped.
+- Current inventory: 24 existing, 10 partial, 15 absent, 1 improved, 2 enhanced, 4 implemented, 1 not_targeted.
+- Acceptance checks: 83 passed, 0 failed, 0 flaky, 40 unknown, 45 unmet, 3 excluded.
+- Priority-weighted verified requirement coverage: **60.2%** (383/636 points). This is a conservative evidence measure, not “60.2% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
+- Like-for-like unit-evidence baseline: 29.1% → 37.3%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
+- Current validation records: 262 unit/integration tests and 130 browser journeys; 0 failures, 0 flaky results, 0 skipped.
 
 ## Implemented from this audit
 
+- CB18 Encounter-based coverage goal: partial → improved.
 - CB20 Find the biggest useful gap: existing → enhanced.
 - CB36 Recommended short sessions: existing → enhanced.
 - CB37 Daily practice goal: absent → implemented.
@@ -362,7 +363,7 @@ Repeatable comparison task: Change speed and see refreshed frequencies without l
 
 ## CB18 — Encounter-based coverage goal
 
-**Coverage · P0 · partial**
+**Coverage · P0 · improved**
 
 Chessbook evidence: Settings offers practical reach thresholds from 1 in 150 through 1 in 800 games. [Chessbook completion documentation](https://wiki.chessbook.com/completion)
 
@@ -371,10 +372,10 @@ Our feature description: Choose a reach-probability target separately from depth
 Acceptance criteria:
 
 - **passed** — Coverage threshold uses opponent path probabilities under an explicit learner policy. Evidence: unit: multiplies successive opponent probabilities rather than pooling sample counts.
-- **unknown** — Change target and inspect newly relevant gaps.
-- **unknown** — Unknown or small samples cannot be counted as meeting the target.
+- **passed** — Change target and inspect newly relevant gaps. Evidence: unit: changes relevant gaps at the exact encounter threshold using unrounded probabilities; browser/chromium: persists preparation goals and allows postponing, skipping and restoring tasks; browser/webkit: persists preparation goals and allows postponing, skipping and restoring tasks.
+- **passed** — Unknown or small samples cannot be counted as meeting the target. Evidence: unit: considers a useful thirteenth repertoire and does not confirm an unknown coverage goal.
 
-Implementation: `apps/server/src/openings/opening-coverage-model.ts`
+Implementation: `apps/server/src/openings/opening-coverage-model.ts`, `apps/server/src/openings/opening-quality-preferences.ts`, `apps/web/src/components/OpeningPlayerContext.tsx`, `apps/web/src/components/OpeningCoveragePanel.tsx`
 
 Repeatable comparison task: Change target and inspect newly relevant gaps. Competitor timing and our user-task timing remain unmeasured.
 

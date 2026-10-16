@@ -1,3 +1,4 @@
+import { explorerSpeeds, qualityPreferences } from "./opening-quality-preferences.js";
 import type { OpeningPlayerPreferences, OpeningRatingPlatform, OpeningPracticePace, OpeningPausePolicy } from "../../../../packages/contracts/src/api.js";
 import type { SqliteDatabase } from "../db/database.js";
 import { now } from "../lib/ids.js";
@@ -35,7 +36,8 @@ export class OpeningPreferencesService {
       WHERE profile_id = ?
     `).get(profileId) as PreferenceRow | undefined;
 
-    return row ? this.response(row, true) : {
+    return row ? { ...this.response(row, true), ...qualityPreferences(this.db, profileId) } : {
+      ...qualityPreferences(this.db, profileId),
       configured: false,
       ratingGroup: 1600,
       platform: "not_sure",
@@ -53,6 +55,8 @@ export class OpeningPreferencesService {
   }
 
   update(input: {
+    coverageGoalGames?: number;
+    explorerSpeeds?: string[];
     ratingGroup: number;
     platform: OpeningRatingPlatform;
     useExplorer: boolean;
@@ -73,6 +77,9 @@ export class OpeningPreferencesService {
 
     const profileId = ensureActiveProfile(this.db);
     const current = this.get();
+    const goal = input.coverageGoalGames ?? current.coverageGoalGames ?? 200;
+    if (!Number.isInteger(goal) || goal < 10 || goal > 10000) throw new Error("Choose a coverage goal between 10 and 10,000 games");
+    const speeds = explorerSpeeds(input.explorerSpeeds ?? current.explorerSpeeds);
     const newMovesPerSession = input.newMovesPerSession ?? current.newMovesPerSession;
     const dailyPracticeGoal = input.dailyPracticeGoal ?? current.dailyPracticeGoal;
     const practiceTimeZone = input.practiceTimeZone ?? current.practiceTimeZone;
@@ -96,6 +103,7 @@ export class OpeningPreferencesService {
     }
     if (typeof boardSounds !== "boolean") throw new Error("Choose whether board sounds are enabled");
     const updatedAt = now();
+    this.db.transaction(() => {
     this.db.prepare(`
       INSERT INTO opening_player_preferences(
         profile_id, rating_group, platform, use_explorer,
@@ -117,8 +125,12 @@ export class OpeningPreferencesService {
       profileId, input.ratingGroup, input.platform, input.useExplorer ? 1 : 0,
       newMovesPerSession, dailyPracticeGoal, practiceTimeZone, practiceDepth, boardSounds ? 1 : 0, practicePace, pauseAfterMove, updatedAt,
     );
+    this.db.prepare(`INSERT INTO opening_quality_preferences(profile_id,goal_games,speeds) VALUES(?,?,?)
+      ON CONFLICT(profile_id) DO UPDATE SET goal_games=excluded.goal_games,speeds=excluded.speeds`).run(profileId,goal,speeds);
+    })();
 
     return {
+      coverageGoalGames: goal, explorerSpeeds: speeds.split(","),
       configured: true,
       ratingGroup: input.ratingGroup,
       platform: input.platform,

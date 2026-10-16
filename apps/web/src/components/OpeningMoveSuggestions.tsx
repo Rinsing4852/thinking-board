@@ -15,6 +15,7 @@ interface OpeningMoveSuggestionsProps {
   learnerColor: Color;
   ratingGroup: number;
   useExplorer: boolean;
+  explorerSpeeds?: string;
   savedMoveUcis?: string[];
   savedMoves?: Array<{ moveUci: string; moveSan: string }>;
   disabled?: boolean;
@@ -22,6 +23,7 @@ interface OpeningMoveSuggestionsProps {
   guidance?: BuildGuidance;
   arrowsShown?: boolean;
   onToggleArrows?: () => void;
+  onFocusMove?: (move: string | null) => void;
   onChooseMove: (moveUci: string, moveSan: string) => void;
 }
 
@@ -40,14 +42,14 @@ export function OpeningMoveSuggestions({
   fen,
   learnerColor,
   ratingGroup,
-  useExplorer,
+  useExplorer, explorerSpeeds = "blitz,rapid,classical",
   savedMoveUcis = [],
   savedMoves = [],
   disabled = false,
   onChooseMove,
-  evidence, guidance, arrowsShown, onToggleArrows,
+  evidence, guidance, arrowsShown, onToggleArrows, onFocusMove,
 }: OpeningMoveSuggestionsProps) {
-  const ownEvidence = useOpeningMoveEvidence(fen, ratingGroup, useExplorer, !evidence, savedMoves.map(move => move.moveUci));
+  const ownEvidence = useOpeningMoveEvidence(fen, ratingGroup, useExplorer, !evidence, savedMoves.map(move => move.moveUci), explorerSpeeds);
   const { analysis, explorer, analysisBusy, explorerBusy, analysisError, explorerError } = evidence ?? ownEvidence;
   const [detailsOpen, setDetailsOpen] = useState(false);
   const ownTurn = fen.split(" ")[1] === (learnerColor === "white" ? "w" : "b");
@@ -116,9 +118,12 @@ export function OpeningMoveSuggestions({
             className={candidate.saved ? "saved" : ""}
             disabled={disabled}
             key={candidate.moveUci}
+            onFocus={() => onFocusMove?.(candidate.moveUci)} onBlur={() => onFocusMove?.(null)}
+            onMouseEnter={() => onFocusMove?.(candidate.moveUci)} onMouseLeave={() => onFocusMove?.(null)}
             onClick={() => onChooseMove(candidate.moveUci, candidate.moveSan)}
           >
             <span>
+              {(guidance?.moves.findIndex(move => move.uci === candidate.moveUci) ?? -1) >= 0 && <b className="opening-arrow-rank" aria-label={`Arrow ${guidance!.moves.findIndex(move => move.uci === candidate.moveUci) + 1}`}>{guidance!.moves.findIndex(move => move.uci === candidate.moveUci) + 1}</b>}
               <strong>{candidate.moveSan}</strong>
               <small>{candidate.description}</small>
               {candidate.saved
@@ -127,7 +132,8 @@ export function OpeningMoveSuggestions({
             </span>
             <span>
               <strong>{frequencyLabel(candidate.practical)}</strong>
-              {candidate.practical && <small>{candidate.practical.frequencyPercent}% · {candidate.practical.games.toLocaleString()} games</small>}
+              {candidate.practical && <small className={explorer?.stale || (explorer?.totalGames ?? 0) < 200 || candidate.practical.games < 5 ? "frequency-uncertain" : ""}>
+                {explorer?.stale ? "Old sample · " : (explorer?.totalGames ?? 0) < 200 || candidate.practical.games < 5 ? "Small sample · " : ""}{candidate.practical.frequencyPercent}% · {candidate.practical.games.toLocaleString()} games</small>}
             </span>
             <span>
               <strong>{learnerScore(candidate.practical, learnerColor)}</strong>

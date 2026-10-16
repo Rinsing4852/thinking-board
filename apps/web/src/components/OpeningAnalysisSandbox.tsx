@@ -17,6 +17,7 @@ interface OpeningAnalysisSandboxProps {
   orientation: Color;
   ratingGroup: number;
   useExplorer: boolean;
+  explorerSpeeds?: string;
   onAddMoves: (moves: SandboxMove[]) => void;
   disabled?: boolean;
 }
@@ -32,7 +33,7 @@ function applyMove(fen: string, moveUci: string): { fen: string; san: string } {
   return { fen: chess.fen(), san: move.san };
 }
 
-export function OpeningAnalysisSandbox({ baseFen, orientation, ratingGroup, useExplorer, onAddMoves, disabled = false }: OpeningAnalysisSandboxProps) {
+export function OpeningAnalysisSandbox({ baseFen, orientation, ratingGroup, useExplorer, explorerSpeeds = "blitz,rapid,classical", onAddMoves, disabled = false }: OpeningAnalysisSandboxProps) {
   const [fen, setFen] = useState(baseFen);
   const [boardOrientation, setBoardOrientation] = useState(orientation);
   const [moves, setMoves] = useState<SandboxMove[]>([]);
@@ -117,7 +118,7 @@ export function OpeningAnalysisSandbox({ baseFen, orientation, ratingGroup, useE
         fen={fen}
         learnerColor={orientation}
         ratingGroup={ratingGroup}
-        useExplorer={useExplorer}
+        useExplorer={useExplorer} explorerSpeeds={explorerSpeeds}
         disabled={disabled}
         onChooseMove={(moveUci, moveSan) => playMove(moveUci, moveSan)}
       />

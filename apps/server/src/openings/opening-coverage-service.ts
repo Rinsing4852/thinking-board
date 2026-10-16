@@ -1,3 +1,5 @@
+import { firstPreparationTask, openingTask, rankedOpeningTasks } from "../../../../packages/contracts/src/opening-tasks.js";
+import { qualityPreferences } from "./opening-quality-preferences.js";
 import { Chess } from "chess.js";
 import type { OpeningCoverageBranch, OpeningCoverageGap, OpeningCoveragePosition, OpeningCoverageResponse,
   OpeningExplorerPositionResponse } from "../../../../packages/contracts/src/api.js";
@@ -51,24 +53,43 @@ export class OpeningCoverageService {
         JOIN opening_lines line ON line.chapter_id = chapter.id AND line.active = 1
         WHERE chapter.repertoire_id = r.id AND chapter.active = 1)
       ORDER BY (SELECT COUNT(*) FROM games game WHERE game.profile_id = ? AND game.player_color = r.learner_color) DESC,
-        CASE WHEN r.id = ? THEN 0 ELSE 1 END, r.name LIMIT 12`)
+        CASE WHEN r.id = ? THEN 0 ELSE 1 END, r.name`)
       .all(profileId, profileId, preferredId ?? "") as Array<{ id: string }>;
     let best: OpeningCoverageResponse | null = null;
     let bestScore = -1;
     for (const repertoire of repertoires) {
       let result;
-      try { result = await this.coverage(repertoire.id, ratingGroup, { local: true }); }
+      try { result = await this.coverage(repertoire.id, ratingGroup, { local: true, skipGameMatching: true }); }
       catch { continue; }
-      const score = Number((result.personal?.replyOccurrences ?? 0) > 0) + Math.max(0, ...result.gaps.filter(gap => !["needs_practice", "unprepared"].includes(gap.status ?? "unknown"))
-        .map(gap => (gap.personalFrequency?.games ?? gap.preparation?.personal.occurrences ?? 0) * 10
-          + (gap.preparation?.personal.responseMistakes ?? 0) * 30
-          + (gap.reachPercent ?? 0)));
+      const gap = firstPreparationTask(result.gaps);
+      const score = gap ? openingTask(gap).priority : -1;
       if (!best || score > bestScore || score === bestScore && result.repertoireId === preferredId) {
         best = result; bestScore = score;
       }
     }
     if (best && !local && this.apiToken) return this.coverage(best.repertoireId, ratingGroup);
     return best;
+  }
+
+  async chooseTask(repertoireId: string, taskId: string, action: "later" | "skip" | "restore"): Promise<{ message: string }> {
+    const profileId = ensureActiveProfile(this.db);
+    if (!["later", "skip", "restore"].includes(action)) throw new Error("Choose postpone, skip or restore");
+    const result = await this.coverage(repertoireId, 1600, { local: true, throughMove: 30 });
+    const task = [...result.gaps, ...(result.taskHistory ?? [])].find(gap => gap.task?.id === taskId);
+    // A shared response can belong to another route. Validate against active
+    // saved graph positions as well, without accepting arbitrary task IDs.
+    const valid = task || this.graph(repertoireId, profileId).some(row => {
+      if (taskId === `practice:${row.id}` && row.role === "learner") return true;
+      if (!["prepare", "idea"].some(kind => taskId.startsWith(`${kind}:${row.from}:`))) return false;
+      const uci = taskId.slice(taskId.lastIndexOf(":") + 1);
+      return new Chess(row.fen).moves({ verbose: true }).some(move => `${move.from}${move.to}${move.promotion ?? ""}` === uci);
+    });
+    if (!valid) throw new Error("This task has changed. Refresh your next steps.");
+    if (action === "restore") this.db.prepare("DELETE FROM opening_task_choices WHERE profile_id = ? AND repertoire_id = ? AND task_id = ?").run(profileId, repertoireId, taskId);
+    else this.db.prepare(`INSERT INTO opening_task_choices(profile_id,repertoire_id,task_id,choice,until_at,updated_at)
+      VALUES(?,?,?,?,?,?) ON CONFLICT(profile_id,repertoire_id,task_id) DO UPDATE SET choice=excluded.choice,until_at=excluded.until_at,updated_at=excluded.updated_at`)
+      .run(profileId, repertoireId, taskId, action, action === "later" ? new Date(Date.now() + 7 * 86400000).toISOString() : null, now());
+    return { message: action === "later" ? "Postponed for seven days." : action === "skip" ? "Skipped from suggestions. Saved moves and memory are unchanged." : "Suggestion restored." };
   }
 
   boundary(repertoireId: string, positionId: string, preparedEnough: boolean): { message: string } {
@@ -88,8 +109,10 @@ export class OpeningCoverageService {
   }
 
   async coverage(repertoireId: string, ratingGroup = 1600,
-    options: { offset?: number; throughMove?: number; lineId?: string; refresh?: boolean; local?: boolean } = {}): Promise<OpeningCoverageResponse> {
+    options: { offset?: number; throughMove?: number; lineId?: string; refresh?: boolean; local?: boolean; skipGameMatching?: boolean } = {}): Promise<OpeningCoverageResponse> {
     const profileId = ensureActiveProfile(this.db);
+    const quality = qualityPreferences(this.db, profileId);
+    const speeds = quality.explorerSpeeds.join(",");
     if (!RATINGS.has(ratingGroup)) throw new Error("Choose a supported Lichess rating group");
     const repertoire = this.db.prepare("SELECT learner_color FROM opening_repertoires WHERE id = ?").get(repertoireId) as { learner_color: string } | undefined;
     if (!repertoire) throw new Error("Opening repertoire is not available");
@@ -128,12 +151,12 @@ export class OpeningCoverageService {
     }
     const positions = [...candidates.values()].sort((a, b) => absolutePly(a.fen) - absolutePly(b.fen) || a.from.localeCompare(b.from));
     const samples = new Map<string, OpeningExplorerPositionResponse | null>();
-    for (const position of positions) samples.set(position.from, this.explorer.cachedPosition(position.fen, ratingGroup));
+    for (const position of positions) samples.set(position.from, this.explorer.cachedPosition(position.fen, ratingGroup, speeds));
     const pending = positions.map((position, index) => ({ position, index })).filter(({ position, index }) => index >= offset
       && !boundaries.has(position.from) && (options.refresh || !samples.get(position.from) || samples.get(position.from)?.stale));
     const batch = this.apiToken && !options.local ? pending.slice(0, SCAN_BATCH) : [];
     await Promise.all(batch.map(async ({ position }) => {
-      try { samples.set(position.from, await this.explorer.position(position.fen, ratingGroup, options.refresh)); }
+      try { samples.set(position.from, await this.explorer.position(position.fen, ratingGroup, options.refresh, speeds)); }
       catch { /* Keep cached evidence; missing/old samples remain visible. */ }
     }));
     const recall = moveRecall(this.db, profileId);
@@ -147,9 +170,9 @@ export class OpeningCoverageService {
     const visitedGamePositions = new Set<string>();
     const gameReplies = this.db.prepare(`WITH recent AS (SELECT id FROM games WHERE profile_id = ? AND player_color = ?
       ORDER BY COALESCE(played_at, created_at) DESC, created_at DESC LIMIT 100)
-      SELECT move.uci, move.san, move.game_id AS gameId, before.fen FROM recent JOIN moves move ON move.game_id = recent.id
+      SELECT move.uci, move.san, move.ply, move.game_id AS gameId, before.fen FROM recent JOIN moves move ON move.game_id = recent.id
       JOIN positions before ON before.id = move.from_position_id WHERE move.mover_color <> ? ORDER BY move.game_id, move.ply`)
-      .all(profileId, repertoire.learner_color, repertoire.learner_color) as Array<{ uci: string; san: string; fen: string; gameId: string }>;
+      .all(profileId, repertoire.learner_color, repertoire.learner_color) as Array<{ uci: string; san: string; fen: string; gameId: string; ply: number }>;
     for (const move of gameReplies) {
       const key = openingPositionKey(move.fen);
       const visit = `${move.gameId}:${key}`;
@@ -204,6 +227,8 @@ export class OpeningCoverageService {
         return { positionId: position.from, fen: position.fen, lineId: position.lineId, lineTitle: position.lineTitle,
           chapterTitle: position.chapterTitle, moveUci: reply.moveUci, moveSan: reply.moveSan,
           games: reply.games, frequencyPercent: reply.frequencyPercent, status,
+          sourceGames: gameReplies.filter(move => move.uci === reply.moveUci && openingPositionKey(move.fen) === openingPositionKey(position.fen))
+            .filter((move, index, all) => all.findIndex(other => other.gameId === move.gameId) === index).slice(0, 3).map(move => ({ id: move.gameId, ply: move.ply })),
           personalFrequency: { games: personalGames, positionGames: personalSample?.total ?? 0,
             percent: personalSample?.total ? Math.round(1000 * personalGames / personalSample.total) / 10 : null }, ...(preparation ? { preparation } : {}),
           responseSan: response?.san ?? null, responseMoveId: response?.id ?? null,
@@ -237,14 +262,14 @@ export class OpeningCoverageService {
     }
     const gaps: OpeningCoverageGap[] = evidence.filter(position => position.inScope && !position.boundary).flatMap(position => position.branches)
       .filter(branch => branch.status !== "prepared");
-    const score = (branch: OpeningCoverageGap) => {
-      if (branch.status === "unprepared") return -1;
-      const personal = branch.preparation?.personal;
-      return (personal?.responseMistakes ?? 0) * 20 + Math.min(10, branch.personalFrequency?.games ?? personal?.occurrences ?? 0) * 3
-        + (branch.reachPercent ?? 0) + (branch.status === "needs_practice" ? (100 - (branch.recallPercent ?? 0)) / 10 : 0)
-        + ({ high: 15, medium: 8, unknown: 0, low: 0 }[branch.preparation?.priority ?? "unknown"]);
-    };
-    gaps.sort((a, b) => score(b) - score(a) || b.frequencyPercent - a.frequencyPercent);
+    const choices = this.db.prepare(`SELECT task_id, choice, until_at FROM opening_task_choices WHERE profile_id = ? AND repertoire_id = ?`)
+      .all(profileId, repertoireId) as Array<{ task_id: string; choice: "later" | "skip"; until_at: string | null }>;
+    for (const gap of gaps) {
+      gap.task = openingTask(gap);
+      const choice = choices.find(choice => choice.task_id === gap.task!.id && (choice.choice === "skip" || choice.until_at! > now()));
+      if (choice) gap.taskChoice = { choice: choice.choice, untilAt: choice.until_at };
+    }
+    const tasks = rankedOpeningTasks(gaps);
     const unscanned = positions.map((position, index) => ({ position, index })).filter(({ position }) =>
       !boundaries.has(position.from) && (!samples.get(position.from) || samples.get(position.from)?.stale));
     const last = batch.at(-1)?.index;
@@ -254,7 +279,7 @@ export class OpeningCoverageService {
     const count = (status: OpeningCoveragePosition["sampleStatus"]) => evidence.filter(position => !position.boundary && position.sampleStatus === status).length;
     const recentGames = this.db.prepare(`SELECT id FROM games WHERE profile_id = ? AND player_color = ?
       ORDER BY COALESCE(played_at, created_at) DESC, created_at DESC LIMIT 100`).pluck().all(profileId, repertoire.learner_color) as string[];
-    for (const gameId of recentGames) this.games?.matchGame(gameId, profileId);
+    if (!options.skipGameMatching) for (const gameId of recentGames) this.games?.matchGame(gameId, profileId);
     const matched = new Map((this.db.prepare(`SELECT status, COUNT(*) AS count FROM game_opening_matches
       WHERE repertoire_id = ? AND profile_id = ? AND matched_plies > 0
         AND game_id IN (SELECT id FROM games WHERE profile_id = ? AND player_color = ?
@@ -265,11 +290,18 @@ export class OpeningCoverageService {
     const replyOccurrences = personalBranches.reduce((sum, branch) => sum + branch.personalFrequency!.games, 0);
     const preparedReplyOccurrences = personalBranches.filter(branch => branch.responseSan !== null)
       .reduce((sum, branch) => sum + branch.personalFrequency!.games, 0);
-    return { repertoireId, ratingGroup, speeds: EXPLORER_SPEEDS.split(","), positionsChecked: batch.length,
+    return { repertoireId, ratingGroup, speeds: quality.explorerSpeeds, positionsChecked: batch.length,
       positionsAvailable: evidence.filter(position => position.sampledGames > 0).length,
       // Compatibility only: local-response sample ratio, not a whole-repertoire forecast.
       coveragePercent: totalGames ? Math.round(1000 * coveredGames / totalGames) / 10 : null, coveredGames, totalGames,
-      gaps, positions: evidence, incomplete: unscanned.length > 0 || count("small_sample") > 0,
+      gaps: [...tasks, ...gaps.filter(gap => gap.status === "unknown" && !gap.taskChoice && !tasks.some(task => task.task?.id === gap.task?.id))], taskHistory: gaps.filter(gap => gap.taskChoice),
+      scope: { personal: `Up to 100 recent ${repertoire.learner_color} games, across saved branches through move ${throughMove}.`,
+        lichess: `Selected line: ${route[0]!.lineTitle}; ${ratingGroup} rating band; ${quality.explorerSpeeds.join(" / ")}; through move ${throughMove}.` },
+      goal: { games: quality.coverageGoalGames, thresholdPercent: 100 / quality.coverageGoalGames,
+        relevantMissing: gaps.filter(gap => !gap.responseMoveId && (model.reach.get(`${gap.positionId}:${gap.moveUci}`) ?? 0) + 1e-12 >= 1 / quality.coverageGoalGames).length,
+        uncertain: evidence.filter(position => position.inScope && !position.boundary && (position.sampleStatus !== "fresh" || position.branches.some(branch => branch.games > 0 && !branch.reliable))).length,
+        met: model.outcomes.unknown <= 1e-12 && !gaps.some(gap => !gap.responseMoveId && (model.reach.get(`${gap.positionId}:${gap.moveUci}`) ?? 0) + 1e-12 >= 1 / quality.coverageGoalGames) },
+      positions: evidence, incomplete: unscanned.length > 0 || count("small_sample") > 0,
       personal: { replyOccurrences, preparedReplyOccurrences,
         preparedPercent: replyOccurrences ? Math.round(1000 * preparedReplyOccurrences / replyOccurrences) / 10 : null,
         gamesChecked: recentGames.length, gamesMatched: [...matched.values()].reduce((sum, count) => sum + count, 0),

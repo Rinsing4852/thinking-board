@@ -12,7 +12,7 @@ export interface OpeningMoveEvidence {
 }
 
 /** One request pair feeds both the board arrows and move-comparison panel. */
-export function useOpeningMoveEvidence(fen: string, rating: number, useExplorer: boolean, enabled = true, savedMoveUcis: string[] = []): OpeningMoveEvidence {
+export function useOpeningMoveEvidence(fen: string, rating: number, useExplorer: boolean, enabled = true, savedMoveUcis: string[] = [], speeds = "blitz,rapid,classical"): OpeningMoveEvidence {
   const [state, setState] = useState<OpeningMoveEvidence>({ analysis: null, explorer: null,
     analysisBusy: false, explorerBusy: false, analysisError: "", explorerError: "" });
   useEffect(() => {
@@ -25,15 +25,15 @@ export function useOpeningMoveEvidence(fen: string, rating: number, useExplorer:
         .then(analysis => { if (!controller.signal.aborted) setState(current => ({ ...current, analysis })); })
         .catch(error => { if (!controller.signal.aborted) setState(current => ({ ...current, analysisError: error instanceof Error ? error.message : "Stockfish analysis failed" })); })
         .finally(() => { if (!controller.signal.aborted) setState(current => ({ ...current, analysisBusy: false })); });
-      if (useExplorer) void get<OpeningExplorerPositionResponse>(`/api/v1/openings/explorer?rating=${rating}&fen=${encodeURIComponent(fen)}`, controller.signal)
+      if (useExplorer) void get<OpeningExplorerPositionResponse>(`/api/v1/openings/explorer?rating=${rating}&speeds=${encodeURIComponent(speeds)}&fen=${encodeURIComponent(fen)}`, controller.signal)
         .then(explorer => { if (!controller.signal.aborted) setState(current => ({ ...current, explorer })); })
         .catch(error => { if (!controller.signal.aborted) setState(current => ({ ...current, explorerError: error instanceof Error ? error.message : "Practical frequencies are unavailable" })); })
         .finally(() => { if (!controller.signal.aborted) setState(current => ({ ...current, explorerBusy: false })); });
     }, 300);
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [fen, rating, useExplorer, enabled]);
+  }, [fen, rating, useExplorer, enabled, speeds]);
   const requestedMoves = [...new Set([
-    ...(useExplorer && state.explorer?.fen === fen && state.explorer.ratingGroup === rating
+    ...(useExplorer && state.explorer?.fen === fen && state.explorer.ratingGroup === rating && state.explorer.speeds.join(",") === speeds
       ? [...state.explorer.replies].sort((a, b) => b.games - a.games).slice(0, 7).map(move => move.moveUci) : []),
     ...savedMoveUcis,
   ])].join(",");
@@ -56,9 +56,9 @@ export function useOpeningMoveEvidence(fen: string, rating: number, useExplorer:
       .catch(error => { if (!controller.signal.aborted) setState(current => ({ ...current, analysisError: error instanceof Error ? error.message : "Move evaluations are unavailable" })); })
       .finally(() => { if (!controller.signal.aborted) setState(current => ({ ...current, analysisBusy: false })); });
     return () => controller.abort();
-  }, [fen, rating, enabled, requestedMoves, analysedFen]);
+  }, [fen, rating, enabled, requestedMoves, analysedFen, speeds]);
   // Never display evidence from the previous position or rating while effects
   // are being cleaned up. Cancellation also rejects late successful responses.
   return { ...state, analysis: state.analysis?.fen === fen ? state.analysis : null,
-    explorer: state.explorer?.fen === fen && state.explorer.ratingGroup === rating && useExplorer ? state.explorer : null };
+    explorer: state.explorer?.fen === fen && state.explorer.ratingGroup === rating && state.explorer.speeds.join(",") === speeds && useExplorer ? state.explorer : null };
 }

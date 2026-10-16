@@ -1,3 +1,4 @@
+import { firstPreparationTask } from "../../../../packages/contracts/src/opening-tasks";
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Chess } from "chess.js";
 import { createRequestId } from "../request-id";
@@ -42,6 +43,7 @@ interface OpeningLineExplorerProps {
   initialCoverage?: OpeningCoverageResponse | null;
   preferredRatingGroup: number;
   useExplorer: boolean;
+  explorerSpeeds?: string;
   startBuilding?: boolean;
   lineProgress: OpeningLineProgress[];
   busy?: boolean;
@@ -58,7 +60,7 @@ export function OpeningLineExplorer({
   startingGap = null,
   initialCoverage = null,
   preferredRatingGroup,
-  useExplorer,
+  useExplorer, explorerSpeeds = "blitz,rapid,classical",
   startBuilding = false,
   lineProgress,
   busy = false,
@@ -169,9 +171,10 @@ export function OpeningLineExplorer({
   const sourceMarks = currentMove?.explanation.boardAnnotations ?? [];
   useEffect(() => setShowSourceMarks(false), [lineId, ply]);
   const displayFen = currentMove?.fenAfter ?? line?.moves[0]?.fenBefore ?? new Chess().fen();
+  const [focusedSuggestion, setFocusedSuggestion] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(true);
   const guideEnabled = editing && !pendingMove && !analysisOpen && Boolean(line) && !line?.archived;
-  const moveEvidence = useOpeningMoveEvidence(displayFen, coverageRating, useExplorer, guideEnabled, savedContinuations(navigation, lineId, ply).map(choice => choice.moveUci));
+  const moveEvidence = useOpeningMoveEvidence(displayFen, coverageRating, useExplorer, guideEnabled, savedContinuations(navigation, lineId, ply).map(choice => choice.moveUci), explorerSpeeds);
   const guidance = useMemo(() => openingBuildGuidance(displayFen, detail.repertoire.learnerColor, coverageRating, useExplorer, moveEvidence), [displayFen, detail.repertoire.learnerColor, coverageRating, useExplorer, moveEvidence]);
   const navigationBlocked = localBusy || busy || selectionBusy || Boolean(pendingMove) || editingExplanation || editingComment;
   const lineDisplayTitle = navigation.branches.get(lineId)?.title ?? line?.title ?? "";
@@ -531,11 +534,8 @@ export function OpeningLineExplorer({
     }
   };
 
-  const worthwhileGap = (result: OpeningCoverageResponse) => result.gaps.find(gap =>
-    gap.status !== "needs_practice" && gap.status !== "unprepared"
-    && (gap.status !== "unknown" || (gap.preparation?.personal.occurrences ?? 0) > 0)
-    && gap.preparation?.decision?.choice !== "unprepared" && gap.preparation?.priority !== "low"
-    && allLines.some(({ line }) => gapPlyForLine(line, gap) !== null));
+  const worthwhileGap = (result: OpeningCoverageResponse) => firstPreparationTask(result.gaps.filter(gap =>
+    allLines.some(({ line }) => gapPlyForLine(line, gap) !== null)));
   const loadCoverage = async (focusNext = false, offset = 0, refresh = false): Promise<void> => {
     if (coverageBusy) return;
     setCoverageBusy(true);
@@ -567,6 +567,16 @@ export function OpeningLineExplorer({
     }
   };
 
+  const chooseTask = async (taskId: string, action: "later" | "skip" | "restore") => {
+    if (coverageBusy || navigationBlocked) return;
+    setCoverageBusy(true);
+    try {
+      const result = await patch<{ message: string }>(`/api/v1/openings/repertoires/${detail.repertoire.id}/coverage/task`, { taskId, action });
+      const updated = await get<OpeningCoverageResponse>(`/api/v1/openings/repertoires/${detail.repertoire.id}/coverage?rating=${coverageRating}&throughMove=${coverageDepth}&lineId=${encodeURIComponent(coverageRoute)}&local=true`);
+      setCoverage(updated); setCoverageNotice({ error: false, message: result.message });
+    } catch (error) { setCoverageNotice({ error: true, message: error instanceof Error ? error.message : "Could not update this suggestion" }); }
+    finally { setCoverageBusy(false); }
+  };
   const setCoverageBoundary = async (positionId: string, preparedEnough: boolean): Promise<void> => {
     if (coverageBusy || navigationBlocked) return;
     const controller = new AbortController(); coverageRequestRef.current?.abort(); coverageRequestRef.current = controller;
@@ -735,14 +745,15 @@ export function OpeningLineExplorer({
               {analysisOpen ? "Return to saved line" : "Try moves without saving"}</button>}
           </div>
           {analysisOpen ? <OpeningAnalysisSandbox baseFen={displayFen} orientation={detail.repertoire.learnerColor}
-            ratingGroup={coverageRating} useExplorer={useExplorer} disabled={navigationBlocked}
+            ratingGroup={coverageRating} useExplorer={useExplorer} explorerSpeeds={explorerSpeeds} disabled={navigationBlocked}
             onAddMoves={moves => void saveAnalysis(moves)} /> : <ChessBoard
             fen={pendingFen}
             animateMoves={false}
             orientation={detail.repertoire.learnerColor}
             interactive={!navigationBlocked && !line.archived}
             allowAnnotations
-            suggestionArrows={guideEnabled && showSuggestions ? guidance.arrows : []}
+            suggestionArrows={guideEnabled && showSuggestions ? guidance.arrows.filter((_, i) => !guidance.moves.some(move => move.uci === focusedSuggestion) || guidance.moves[i]?.uci === focusedSuggestion) : []}
+                suggestionLabels={guideEnabled && showSuggestions ? guidance.moves.map((move, i) => ({ to: move.uci.slice(2,4), rank: i + 1 })).filter((_, i) => !guidance.moves.some(move => move.uci === focusedSuggestion) || guidance.moves[i]?.uci === focusedSuggestion) : []}
             sourceAnnotations={showSourceMarks && !pendingMove ? sourceMarks : []}
             lastMove={pendingMove?.uci ?? currentMove?.moveUci ?? null}
             onMove={previewNewMove}
@@ -792,12 +803,12 @@ export function OpeningLineExplorer({
               fen={displayFen}
               learnerColor={detail.repertoire.learnerColor}
               ratingGroup={coverageRating}
-              useExplorer={useExplorer}
+              useExplorer={useExplorer} explorerSpeeds={explorerSpeeds}
               savedMoveUcis={savedMoveUcis}
               savedMoves={savedSuggestionMoves}
               disabled={navigationBlocked}
               evidence={moveEvidence}
-              guidance={guidance} arrowsShown={showSuggestions} onToggleArrows={() => setShowSuggestions(value => !value)}
+              guidance={guidance} onFocusMove={setFocusedSuggestion} arrowsShown={showSuggestions} onToggleArrows={() => setShowSuggestions(value => !value)}
               onChooseMove={previewNewMove}
             />
             {useExplorer && <button className="secondary" disabled={navigationBlocked || coverageBusy} onClick={() => {
@@ -885,6 +896,7 @@ export function OpeningLineExplorer({
           setCoverageNotice(null);
           setCoverageRating(rating); setCoverageDepth(depth); setCoverageRoute(routeId); }}
         onLoad={(offset, refresh) => void loadCoverage(false, offset, refresh)} onInspect={focusCoverageGap} onPractice={onPractice}
+        onTaskChoice={(id, action) => void chooseTask(id, action)}
         onBoundary={(positionId, value) => void setCoverageBoundary(positionId, value)} /></Suspense>}
 
       {editing && (

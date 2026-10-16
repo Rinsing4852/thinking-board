@@ -5,7 +5,7 @@ import { EXPLORER_CACHE_MS, EXPLORER_SPEEDS, PREPARATION_MIN_SAMPLE } from "./op
 export function practiceReplyFrequency(db: SqliteDatabase, profileId: string, positionKey: string, moveUci: string): number | null {
   const row = db.prepare(`SELECT cache.total_games, cache.moves_json, cache.fetched_at
     FROM opening_player_preferences preference JOIN opening_explorer_cache cache
-      ON cache.rating_group = preference.rating_group AND cache.speeds = ?
+      ON cache.rating_group = preference.rating_group AND cache.speeds = COALESCE((SELECT speeds FROM opening_quality_preferences quality WHERE quality.profile_id = preference.profile_id), ?)
     WHERE preference.profile_id = ? AND preference.use_explorer = 1 AND cache.position_key = ?`)
     .get(EXPLORER_SPEEDS, profileId, positionKey) as { total_games: number; moves_json: string; fetched_at: string } | undefined;
   if (!row || row.total_games < PREPARATION_MIN_SAMPLE || !Number.isFinite(Date.parse(row.fetched_at))

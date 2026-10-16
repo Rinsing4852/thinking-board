@@ -1,3 +1,4 @@
+import { OpeningWorkspaceService } from "./opening-workspace-service.js";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Chess } from "chess.js";
@@ -86,4 +87,86 @@ describe("coverage from personal games", () => {
     expect(result.personal?.replyOccurrences).toBe(6);
     expect(result.positions?.flatMap(position => position.branches).find(branch => branch.moveUci === "e2e4")?.personalFrequency?.games).toBe(2);
   });
+});
+
+describe("preparation task lifecycle and scope", () => {
+  it("postpones, restores and skips a task without changing its saved preparation", async () => {
+    const { coverage, repertoireId, db } = setup();
+    const before = await coverage.coverage(repertoireId, 1600, { local: true, throughMove: 1 });
+    const task = before.gaps.find(gap => gap.moveUci === "d2d4")!;
+    expect(task.task?.reason).toContain("3");
+    const moves = db.prepare("SELECT COUNT(*) FROM opening_moves").pluck().get();
+    await coverage.chooseTask(repertoireId, task.task!.id, "later");
+    let result = await coverage.coverage(repertoireId, 1600, { local: true, throughMove: 1 });
+    expect(result.gaps.some(gap => gap.task?.id === task.task!.id)).toBe(false);
+    expect(result.taskHistory?.[0]?.taskChoice?.choice).toBe("later");
+    await coverage.chooseTask(repertoireId, task.task!.id, "restore");
+    expect((await coverage.coverage(repertoireId,1600,{local:true,throughMove:1})).gaps.some(gap => gap.task?.id === task.task!.id)).toBe(true);
+    await coverage.chooseTask(repertoireId, task.task!.id, "skip");
+    expect((await coverage.coverage(repertoireId,1600,{local:true,throughMove:1})).personal).toEqual(before.personal);
+    expect(db.prepare("SELECT COUNT(*) FROM opening_moves").pluck().get()).toBe(moves);
+  });
+  it("resolves a missing-response task after saving an answer without claiming memory mastery", async () => {
+    const {coverage,repertoireId,db}=setup();
+    const before=await coverage.coverage(repertoireId,1600,{local:true,throughMove:1});
+    const missing=before.gaps.find(gap=>gap.moveUci==="d2d4")!;
+    const workspace=new OpeningWorkspaceService(db);
+    workspace.addSequence(repertoireId,workspace.repertoire(repertoireId).chapters[0]!.lines[0]!.id,0,["d2d4","g7g6"],"answer-d4");
+    const after=await coverage.coverage(repertoireId,1600,{local:true,throughMove:1});
+    expect(after.gaps.some(gap=>gap.task?.id===missing.task?.id)).toBe(false);
+    expect(after.gaps.find(gap=>gap.moveUci==="d2d4")?.status).toBe("needs_practice");
+    expect(after.personal?.preparedPercent).toBe(100);
+    expect(after.goal?.met).toBe(false);
+  });
+  it("considers a useful thirteenth repertoire and does not confirm an unknown coverage goal", async () => {
+    const { coverage, repertoireId, db } = setup();
+    db.prepare("UPDATE opening_repertoires SET name = 'ZZ relevant' WHERE id = ?").run(repertoireId);
+    const importer = new OpeningPgnImportService(db,new OpeningContentService(db));
+    for(let i=0;i<13;i++) importer.import({pgn:`[Event "AA ${i}"]\n\n1. e4 (1. d4 d5 2. c4 e6 3. Nc3 Nf6) g6 2. d4 Bg7 *`,learnerColor:"black",ownershipConfirmed:true,name:`AA ${i}`});
+    expect(db.prepare("SELECT COUNT(*) FROM opening_repertoires").pluck().get()).toBe(14);
+    const result = await coverage.recommended(1600,true);
+    expect(result?.repertoireId).toBe(repertoireId);
+    expect(result?.goal?.met).toBe(false);
+    expect(result?.goal?.uncertain).toBeGreaterThan(0);
+    expect(result?.gaps.find(gap => gap.moveUci === "d2d4")?.sourceGames).toHaveLength(3);
+  });
+  it("uses selected Lichess speeds and encounter goal without pooling the personal denominator", async () => {
+    const { coverage, repertoireId, db, profileId } = setup();
+    db.prepare("INSERT INTO opening_quality_preferences(profile_id,goal_games,speeds) VALUES(?,100,'rapid')").run(profileId);
+    const result = await coverage.coverage(repertoireId,1600,{local:true,throughMove:1});
+    expect(result.speeds).toEqual(["rapid"]);
+    expect(result.goal?.games).toBe(100);
+    expect(result.personal?.replyOccurrences).toBe(5);
+    expect(result.scope?.lichess).toContain("rapid");
+  });
+  it("changes relevant gaps at the exact encounter threshold using unrounded probabilities", async () => {
+    const { coverage, repertoireId, db, profileId } = setup();
+    const fen = new Chess().fen();
+    db.prepare(`INSERT INTO opening_explorer_cache(position_key,fen,rating_group,speeds,total_games,moves_json,fetched_at)
+      VALUES(?,?,1600,'blitz,rapid,classical',10000,?,?)`).run(fen.split(" ").slice(0,4).join(" "),fen,JSON.stringify([
+        {uci:"e2e4",san:"e4",white:9920,draws:0,black:0},
+        {uci:"d2d4",san:"d4",white:50,draws:0,black:0},
+        {uci:"c2c4",san:"c4",white:30,draws:0,black:0},
+      ]),new Date().toISOString());
+    db.prepare("INSERT INTO opening_quality_preferences(profile_id,goal_games,speeds) VALUES(?,100,'blitz,rapid,classical')").run(profileId);
+    expect((await coverage.coverage(repertoireId,1600,{local:true,throughMove:1})).goal?.relevantMissing).toBe(0);
+    db.prepare("UPDATE opening_quality_preferences SET goal_games=200 WHERE profile_id=?").run(profileId);
+    expect((await coverage.coverage(repertoireId,1600,{local:true,throughMove:1})).goal?.relevantMissing).toBe(1);
+    db.prepare("UPDATE opening_quality_preferences SET goal_games=500 WHERE profile_id=?").run(profileId);
+    expect((await coverage.coverage(repertoireId,1600,{local:true,throughMove:1})).goal?.relevantMissing).toBe(2);
+  });
+  it("expires postponement and keeps choices private to the active learner", async () => {
+    const {coverage,repertoireId,db,profileId}=setup();
+    const task=(await coverage.coverage(repertoireId,1600,{local:true})).gaps.find(gap=>gap.moveUci==="d2d4")!;
+    await coverage.chooseTask(repertoireId,task.task!.id,"later");
+    db.prepare("UPDATE opening_task_choices SET until_at='2000-01-01T00:00:00.000Z'").run();
+    expect((await coverage.coverage(repertoireId,1600,{local:true})).gaps.some(gap=>gap.task?.id===task.task!.id)).toBe(true);
+    await coverage.chooseTask(repertoireId,task.task!.id,"skip");
+    db.prepare("INSERT INTO player_profiles(id,display_name,created_at) VALUES('separate','Separate','2026-10-15')").run();
+    setActiveProfile(db,"separate");
+    expect((await coverage.coverage(repertoireId,1600,{local:true})).taskHistory).toHaveLength(0);
+    setActiveProfile(db,profileId);
+    expect((await coverage.coverage(repertoireId,1600,{local:true})).taskHistory).toHaveLength(1);
+  });
+
 });

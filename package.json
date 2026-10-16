@@ -22,7 +22,8 @@
     "backup": "node scripts/backup.mjs",
     "restore": "node scripts/restore.mjs",
     "audit:features": "node scripts/feature-audit.mjs",
-    "audit:features:verify": "node scripts/feature-audit.mjs --verify"
+    "audit:features:verify": "node scripts/feature-audit.mjs --verify",
+    "benchmark:openings": "node scripts/benchmark-opening-quality.mjs"
   },
   "dependencies": {
     "@fastify/static": "^10.1.3",

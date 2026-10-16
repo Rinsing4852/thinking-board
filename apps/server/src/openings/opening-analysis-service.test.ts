@@ -1,4 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import path from "node:path";
+import { Database } from "../db/database.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Chess } from "chess.js";
 import { loadConfig } from "../config.js";
 import { UciEngine, type EngineLine } from "../analysis/uci-engine.js";
@@ -6,6 +8,7 @@ import { OpeningAnalysisService } from "./opening-analysis-service.js";
 const engineLine = (uci: string, san: string, cp: number, rank = 1): EngineLine => ({
   rank, depth: 12, moveUci: uci, moveSan: san, pvUci: [uci], pvSan: [san], centipawnsWhite: cp, mateInWhite: null,
 });
+beforeEach(() => { vi.spyOn(UciEngine.prototype,"initialize").mockResolvedValue(); });
 afterEach(() => vi.restoreAllMocks());
 describe("opening move evaluations", () => {
   it("evaluates popular moves outside the engine top three without replacing the overall score", async () => {
@@ -23,6 +26,18 @@ describe("opening move evaluations", () => {
     await service.analyze(game.fen(), ["e7e6"]);
     expect(analyze).toHaveBeenCalledTimes(2);
   });
+  it("reuses compatible results after restart and invalidates a changed search budget", async () => {
+    const database = new Database(":memory:",path.resolve("migrations"));
+    try {
+      const analyze=vi.spyOn(UciEngine.prototype,"analyze").mockResolvedValue({depth:12,lines:[engineLine("e2e4","e4",25)]});
+      const config=loadConfig();const fen=new Chess().fen();
+      const first=await new OpeningAnalysisService(config,database.connection).analyze(fen);
+      const second=await new OpeningAnalysisService(config,database.connection).analyze(fen);
+      expect(second).toEqual(first);expect(analyze).toHaveBeenCalledTimes(1);
+      await new OpeningAnalysisService({...config,openingAnalysisNodes:400000},database.connection).analyze(fen);
+      expect(analyze).toHaveBeenCalledTimes(2);
+    } finally {database.close();}
+  });
   it("rejects malformed, excessive and illegal move requests before using the engine", async () => {
     const analyze = vi.spyOn(UciEngine.prototype, "analyze");
     const service = new OpeningAnalysisService(loadConfig());
@@ -30,5 +45,25 @@ describe("opening move evaluations", () => {
     await expect(service.analyze(new Chess().fen(), Array(13).fill("e2e4"))).rejects.toThrow("12");
     await expect(service.analyze(new Chess().fen(), null as unknown as string[])).rejects.toThrow("legal moves");
     expect(analyze).not.toHaveBeenCalled();
+  });
+});
+
+describe("analysis request coordination", () => {
+  it("coalesces matching work and drops abandoned queued positions", async () => {
+    let finish!: (value: { depth: number; lines: EngineLine[] }) => void;
+    const analyze = vi.spyOn(UciEngine.prototype,"analyze").mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    const service = new OpeningAnalysisService(loadConfig());
+    const fen = new Chess().fen();
+    const first = service.analyze(fen);
+    expect(service.analyze(fen)).toBe(first);
+    await vi.waitFor(() => expect(analyze).toHaveBeenCalledTimes(1));
+    const other = new Chess(); other.move("e4");
+    const abort = new AbortController();
+    const queued = service.analyze(other.fen(),[],abort.signal);
+    const rejected = expect(queued).rejects.toThrow("cancelled");
+    abort.abort(); finish({ depth: 12, lines: [engineLine("e2e4","e4",25)] });
+    await first; await rejected;
+    expect(analyze).toHaveBeenCalledTimes(1);
+    expect(analyze.mock.calls[0]?.[4]).toBe(200000);
   });
 });

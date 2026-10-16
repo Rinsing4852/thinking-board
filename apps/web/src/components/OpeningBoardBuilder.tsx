@@ -15,6 +15,7 @@ import type { BuiltMove } from "../opening-draft";
 interface OpeningBoardBuilderProps {
   ratingGroup: number;
   useExplorer: boolean;
+  explorerSpeeds?: string;
   onCancel: () => void;
   onSaved: (repertoireId: string) => void | Promise<void>;
 }
@@ -34,7 +35,7 @@ function pgnFor(name: string, moves: BuiltMove[]): string {
   return `[Event "${escapedName}"]\n[Repertoire "${escapedName}"]\n[Result "*"]\n\n${tokens.join(" ")} *`;
 }
 
-export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSaved }: OpeningBoardBuilderProps) {
+export function OpeningBoardBuilder({ ratingGroup, useExplorer, explorerSpeeds = "blitz,rapid,classical", onCancel, onSaved }: OpeningBoardBuilderProps) {
   const { draft, setDraft, recovered, storageError, discard } = useOpeningDraft();
   const { name, learnerColor, moves } = draft;
   const setName = (value: string) => setDraft(current => ({ ...current, name: value }));
@@ -48,8 +49,9 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
   const [error, setError] = useState("");
   const draftLocked = submitting || savedId.current !== null;
   const fen = moves.at(-1)?.fenAfter ?? START_FEN;
+  const [focusedSuggestion, setFocusedSuggestion] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(true);
-  const moveEvidence = useOpeningMoveEvidence(fen, ratingGroup, useExplorer, building && !analysisOpen);
+  const moveEvidence = useOpeningMoveEvidence(fen, ratingGroup, useExplorer, building && !analysisOpen, [], explorerSpeeds);
   const guidance = useMemo(() => openingBuildGuidance(fen, learnerColor, ratingGroup, useExplorer, moveEvidence), [fen, learnerColor, ratingGroup, useExplorer, moveEvidence]);
   const turn = fen.split(" ")[1] === "b" ? "black" : "white";
   const isLearnerTurn = turn === learnerColor;
@@ -185,7 +187,7 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
                 baseFen={fen}
                 orientation={learnerColor}
                 ratingGroup={ratingGroup}
-                useExplorer={useExplorer}
+                useExplorer={useExplorer} explorerSpeeds={explorerSpeeds}
                 onAddMoves={addExploredMoves}
                 disabled={draftLocked}
               /> : <ChessBoard
@@ -194,7 +196,8 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
                 interactive={!draftLocked}
                 lastMove={lastMove?.moveUci ?? null}
                 onMove={addMove}
-                suggestionArrows={!analysisOpen && showSuggestions ? guidance.arrows : []}
+                suggestionArrows={!analysisOpen && showSuggestions ? guidance.arrows.filter((_, i) => !guidance.moves.some(move => move.uci === focusedSuggestion) || guidance.moves[i]?.uci === focusedSuggestion) : []}
+                suggestionLabels={!analysisOpen && showSuggestions ? guidance.moves.map((move, i) => ({ to: move.uci.slice(2,4), rank: i + 1 })).filter((_, i) => !guidance.moves.some(move => move.uci === focusedSuggestion) || guidance.moves[i]?.uci === focusedSuggestion) : []}
                 ariaLabel="Repertoire board"
               />}
               <div className="opening-builder-moves" aria-label="Moves in this line">
@@ -217,10 +220,10 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, onCancel, onSave
                     fen={fen}
                     learnerColor={learnerColor}
                     ratingGroup={ratingGroup}
-                    useExplorer={useExplorer}
+                    useExplorer={useExplorer} explorerSpeeds={explorerSpeeds}
                     disabled={draftLocked}
                     evidence={moveEvidence}
-              guidance={guidance} arrowsShown={showSuggestions} onToggleArrows={() => setShowSuggestions(value => !value)}
+              guidance={guidance} onFocusMove={setFocusedSuggestion} arrowsShown={showSuggestions} onToggleArrows={() => setShowSuggestions(value => !value)}
                     onChooseMove={addMove}
                   />
                 </>

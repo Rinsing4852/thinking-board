@@ -638,6 +638,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
         <OpeningBoardBuilder
           ratingGroup={playerPreferences?.ratingGroup ?? 1600}
           useExplorer={playerPreferences?.useExplorer ?? false}
+          explorerSpeeds={(playerPreferences?.explorerSpeeds ?? ["blitz","rapid","classical"]).join(",")}
           onCancel={() => setShowBuilder(false)}
           onSaved={finishBoardBuild}
         />
@@ -658,11 +659,14 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
           initialCoverage={coverageSpotlight?.repertoireId === workspaceDetail.repertoire.id ? coverageSpotlight : null}
           preferredRatingGroup={playerPreferences?.ratingGroup ?? 1600}
           useExplorer={playerPreferences?.useExplorer ?? false}
+          explorerSpeeds={(playerPreferences?.explorerSpeeds ?? ["blitz","rapid","classical"]).join(",")}
           lineProgress={openingProgress?.lines ?? []}
           busy={submitting}
           onBack={() => {
             setWorkspaceDetail(null); setWorkspaceLineId(null); setWorkspaceGap(null);
             window.history.replaceState(null, "", "#openings");
+            clearCoverageSpotlight();
+            refreshOpeningInsights(catalog ?? [], playerPreferences);
           }}
           onPractice={(lineId, moveId) => void startLinePractice(workspaceDetail.repertoire.id, lineId, moveId)}
           onDetailChanged={updated => {

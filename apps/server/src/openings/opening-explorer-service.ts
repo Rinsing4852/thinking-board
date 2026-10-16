@@ -1,3 +1,4 @@
+import { explorerSpeeds } from "./opening-quality-preferences.js";
 import { Chess } from "chess.js";
 
 import type { OpeningExplorerPositionResponse } from "../../../../packages/contracts/src/api.js";
@@ -30,6 +31,7 @@ interface CacheRow {
   moves_json: string;
   opening_json: string | null;
   fetched_at: string;
+  speeds: string;
 }
 
 const RATINGS = new Set([0, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500]);
@@ -43,14 +45,15 @@ export class OpeningExplorerService {
     private readonly fetcher: FetchLike = fetch,
   ) {}
 
-  cachedPosition(fen: string, ratingGroup: number): OpeningExplorerPositionResponse | null {
-    const row = this.db.prepare(`SELECT fen, total_games, moves_json, opening_json, fetched_at
+  cachedPosition(fen: string, ratingGroup: number, speeds = SPEEDS): OpeningExplorerPositionResponse | null {
+    const row = this.db.prepare(`SELECT fen, total_games, moves_json, opening_json, fetched_at, speeds
       FROM opening_explorer_cache WHERE position_key = ? AND rating_group = ? AND speeds = ?`)
-      .get(openingPositionKey(fen), ratingGroup, SPEEDS) as CacheRow | undefined;
+      .get(openingPositionKey(fen), ratingGroup, explorerSpeeds(speeds)) as CacheRow | undefined;
     try { return row ? this.fromCache(row, ratingGroup, true) : null; } catch { return null; }
   }
 
-  async position(fenValue: string, ratingGroup = 1600, refresh = false): Promise<OpeningExplorerPositionResponse> {
+  async position(fenValue: string, ratingGroup = 1600, refresh = false, requestedSpeeds = SPEEDS): Promise<OpeningExplorerPositionResponse> {
+    const speeds = explorerSpeeds(requestedSpeeds);
     if (!RATINGS.has(ratingGroup)) throw new Error("Choose a supported Lichess rating group");
     let chess: Chess;
     try {
@@ -61,10 +64,10 @@ export class OpeningExplorerService {
     const fen = chess.fen();
     const key = openingPositionKey(fen);
     const cached = this.db.prepare(`
-      SELECT fen, total_games, moves_json, opening_json, fetched_at
+      SELECT fen, total_games, moves_json, opening_json, fetched_at, speeds
       FROM opening_explorer_cache
       WHERE position_key = ? AND rating_group = ? AND speeds = ?
-    `).get(key, ratingGroup, SPEEDS) as CacheRow | undefined;
+    `).get(key, ratingGroup, speeds) as CacheRow | undefined;
     if (!refresh && cached && Date.now() - Date.parse(cached.fetched_at) < CACHE_MS) {
       try { return this.fromCache(cached, ratingGroup, true); } catch { /* Refresh a damaged cache entry. */ }
     }
@@ -73,7 +76,7 @@ export class OpeningExplorerService {
       const url = new URL("https://explorer.lichess.org/lichess");
       url.searchParams.set("variant", "standard");
       url.searchParams.set("fen", fen);
-      url.searchParams.set("speeds", SPEEDS);
+      url.searchParams.set("speeds", speeds);
       url.searchParams.set("ratings", String(ratingGroup));
       // Include rare legal replies too; absence still means unknown, never 0%.
       url.searchParams.set("moves", String(chess.moves().length));
@@ -119,8 +122,8 @@ export class OpeningExplorerService {
           fen = excluded.fen, total_games = excluded.total_games,
           moves_json = excluded.moves_json, opening_json = excluded.opening_json,
           fetched_at = excluded.fetched_at
-      `).run(key, fen, ratingGroup, SPEEDS, total, JSON.stringify(payload.moves), opening ? JSON.stringify(opening) : null, now());
-      return { ...this.toResponse(fen, ratingGroup, total, payload.moves, opening, false), fetchedAt: now(), stale: false };
+      `).run(key, fen, ratingGroup, speeds, total, JSON.stringify(payload.moves), opening ? JSON.stringify(opening) : null, now());
+      return { ...this.toResponse(fen, ratingGroup, total, payload.moves, opening, false, speeds), fetchedAt: now(), stale: false };
     } catch (error) {
       if (cached) {
         try { return this.fromCache(cached, ratingGroup, true); } catch { /* Do not present a damaged sample. */ }
@@ -137,6 +140,7 @@ export class OpeningExplorerService {
       JSON.parse(row.moves_json) as ExplorerMove[],
       row.opening_json ? JSON.parse(row.opening_json) as { eco: string; name: string } : null,
       cached,
+      row.speeds,
     ), fetchedAt: row.fetched_at, stale: !Number.isFinite(Date.parse(row.fetched_at)) || Date.now() - Date.parse(row.fetched_at) >= CACHE_MS };
   }
 
@@ -147,11 +151,12 @@ export class OpeningExplorerService {
     moves: ExplorerMove[],
     opening: { eco: string; name: string } | null,
     cached: boolean,
+    speeds = SPEEDS,
   ): OpeningExplorerPositionResponse {
     return {
       fen,
       ratingGroup,
-      speeds: SPEEDS.split(","),
+      speeds: speeds.split(","),
       totalGames,
       opening,
       replies: moves.map((move) => {

@@ -213,6 +213,10 @@ export interface OpeningMetadataMutationResponse {
 }
 
 export interface OpeningCoverageGap {
+  task?: { id: string; kind: string; priority: number; reason: string };
+  taskChoice?: { choice: "later" | "skip"; untilAt: string | null };
+  sourceGames?: Array<{ id: string; ply: number }>;
+
   positionId: string;
   fen: string;
   chapterTitle: string;
@@ -312,6 +316,9 @@ export interface OpeningCoverageResponse {
     gamesChecked: number; gamesMatched: number; playerDeviations: number;
     opponentDeviations: number; repertoireEnded: number; stayedIn: number;
   };
+  goal?: { games: number; thresholdPercent: number; relevantMissing: number; uncertain: number; met: boolean };
+  scope?: { personal: string; lichess: string };
+  taskHistory?: OpeningCoverageGap[];
   model?: {
     throughMove: number; routeLineId: string; routeTitle: string;
     preparedPercent: number; missingPercent: number; ideaPercent: number;
@@ -333,6 +340,8 @@ export interface OpeningAnalysisLine {
 }
 
 export interface OpeningPositionAnalysisResponse {
+  engineName?: string;
+  nodes?: number;
   fen: string;
   depth: number;
   lines: OpeningAnalysisLine[];
@@ -365,6 +374,8 @@ export type OpeningPracticePace = "normal" | "relaxed";
 export type OpeningPausePolicy = "never" | "mistakes" | "notes" | "always";
 
 export interface OpeningPlayerPreferences {
+  coverageGoalGames?: number;
+  explorerSpeeds?: string[];
   configured: boolean;
   ratingGroup: number;
   platform: OpeningRatingPlatform;

@@ -31,6 +31,7 @@ interface ChessBoardProps {
   allowAnnotations?: boolean;
   sourceAnnotations?: OpeningBoardAnnotation[];
   suggestionArrows?: OpeningBoardAnnotation[];
+  suggestionLabels?: Array<{ to: string; rank: number }>;
   onMove?: (uci: string, san: string) => void;
   onSquareSelect?: (square: string) => void;
   ariaLabel?: string;
@@ -234,6 +235,10 @@ export function ChessBoard(props: ChessBoardProps) {
             {file === (orientation === "white" ? 7 : 0) && <span className="rank-label" aria-hidden="true">{square[1]}</span>}
             {rank === (orientation === "white" ? 0 : 7) && <span className="file-label" aria-hidden="true">{square[0]}</span>}
           </button>;
+        })}
+        {props.suggestionLabels?.map(mark => {
+          const file = mark.to.charCodeAt(0) - 97, rank = Number(mark.to[1]);
+          return <span key={`${mark.to}-${mark.rank}`} className="board-arrow-number" aria-hidden="true" style={{ left: `${(orientation === "white" ? file : 7 - file) * 12.5 + 9}%`, top: `${(orientation === "white" ? 8 - rank : rank - 1) * 12.5 + .5}%` }}>{mark.rank}</span>;
         })}
       </div>, boardElement)}
     {promotion && <div ref={picker} className="promotion-picker" role="dialog" aria-modal="true" aria-label="Choose promotion piece"
