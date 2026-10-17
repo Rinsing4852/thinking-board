@@ -36,6 +36,7 @@ import { useOpeningBranchDraft } from "../use-opening-branch-draft";
 
 const OpeningRepertoireGoalPanel = lazy(() => import("./OpeningRepertoireGoalPanel").then(module => ({ default: module.OpeningRepertoireGoalPanel })));
 const OpeningCoveragePanel = lazy(() => import("./OpeningCoveragePanel").then(module => ({ default: module.OpeningCoveragePanel })));
+const OpeningModelGameStudy = lazy(() => import("./OpeningModelGameStudy").then(module => ({ default: module.OpeningModelGameStudy })));
 
 interface OpeningLineExplorerProps {
   detail: OpeningRepertoireDetailResponse;
@@ -91,6 +92,7 @@ export function OpeningLineExplorer({
       ?? allLines.find(({ line: candidate }) => gapPlyForLine(candidate, startingGap) !== null)
     : undefined;
   const savedLocation = parseOpeningLocation(window.location.hash);
+  const [studyOpen,setStudyOpen]=useState(savedLocation?.repertoireId===detail.repertoire.id&&savedLocation.study===true);
   const savedLineId = savedLocation?.repertoireId === detail.repertoire.id ? savedLocation.lineId : null;
   const initial = gapInitial ?? allLines.find(({ line }) => line.id === (startingLineId ?? savedLineId)) ?? allLines[0];
   const initialPly = startBuilding && initial ? initial.line.moves.length : initial && startingGap ? gapPlyForLine(initial.line, startingGap) ?? 0
@@ -99,9 +101,9 @@ export function OpeningLineExplorer({
   const [lineLibraryOpen, setLineLibraryOpen] = useState(false);
   const [ply, setPly] = useState(initialPly);
   useEffect(() => {
-    const hash = openingLocationHash({ repertoireId: detail.repertoire.id, lineId, ply });
+    const hash = openingLocationHash({ repertoireId: detail.repertoire.id, lineId, ply, study:studyOpen });
     if (window.location.hash !== hash) window.history.replaceState(null, "", hash);
-  }, [detail.repertoire.id, lineId, ply]);
+  }, [detail.repertoire.id, lineId, ply, studyOpen]);
   const [editing, setEditing] = useState(startBuilding || Boolean(startingGap));
   const [autoSave, setAutoSave] = useState(true);
   const mutationLock = useRef(false);
@@ -639,6 +641,11 @@ export function OpeningLineExplorer({
     );
   }
 
+  if(studyOpen) return <Suspense fallback={<p role="status">Loading game study…</p>}><OpeningModelGameStudy
+    key={`${line.id}:${ply}`} repertoireId={detail.repertoire.id} lineId={line.id} savedPly={ply} onBack={()=>{
+      setStudyOpen(false);requestAnimationFrame(()=>boardRef.current?.focus());
+    }}/></Suspense>;
+
   return (
     <div className="opening-workspace board-first-workspace" onKeyDown={event => {
       if (!event.altKey || navigationBlocked || (event.target as HTMLElement).closest("input, textarea, select, [contenteditable]")) return;
@@ -653,6 +660,7 @@ export function OpeningLineExplorer({
         </div>
         <div className="opening-workspace-actions">
           <button className="secondary" disabled={navigationBlocked} onClick={openCoverageTools}>Find repertoire gaps</button>
+          {!editing&&<button className="secondary" disabled={navigationBlocked||line.archived} onClick={()=>setStudyOpen(true)}>Study a game from here</button>}
           {detail.repertoire.editable && (
             <button disabled={navigationBlocked} className={editing ? "active" : "secondary"} onClick={() => { setEditing((value) => !value); setPendingMove(null); }}>
               {editing ? "Finish editing" : "Edit lines"}

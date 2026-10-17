@@ -16,6 +16,8 @@ import { LichessSyncService } from "./imports/lichess-sync-service.js";
 import { JobWorker } from "./jobs/job-worker.js";
 import { id, now } from "./lib/ids.js";
 import { OpeningContentService } from "./openings/opening-content-service.js";
+import { OpeningStudyService } from "./openings/opening-study-service.js";
+import { registerOpeningStudyRoutes } from "./openings/opening-study-routes.js";
 import { OpeningGameService } from "./openings/opening-game-service.js";
 import { OpeningPgnImportService } from "./openings/opening-pgn-import.js";
 import { OpeningLichessImportService } from "./openings/opening-lichess-import.js";
@@ -81,6 +83,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   const v1Training = new V1TrainingService(database.connection);
   const attempts = new AttemptLifecycle(database.connection);
   const openingContent = new OpeningContentService(database.connection);
+  registerOpeningStudyRoutes(app, new OpeningStudyService(database.connection));
   const openingImports = new OpeningPgnImportService(database.connection, openingContent);
   const openingLichessImports = new OpeningLichessImportService(openingImports, config.lichessApiToken);
   registerOpeningUpdateRoutes(app, new OpeningUpdateService(database.connection, openingLichessImports));

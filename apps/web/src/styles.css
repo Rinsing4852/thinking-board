@@ -324,6 +324,17 @@ button.opening-home-action.primary-route { border-color: rgba(201,243,107,.4); b
 .practice-board-header { display: flex; justify-content: space-between; gap: .5rem; padding: .5rem .65rem; color: var(--ink-soft); font-size: .8rem; }
 .opening-mobile-status, .opening-mobile-detail { display: none; }
 .opening-recall-order { margin: .5rem 0; color: var(--ink-soft); font-size: .82rem; line-height: 1.4; }
+.opening-model-study { display: grid; gap: 1rem; }
+.opening-study-layout { display: grid; grid-template-columns: minmax(280px, 560px) minmax(260px, 1fr); gap: 1rem; align-items: start; }
+.opening-study-board, .opening-study-choices { min-width: 0; }
+.opening-study-board h3 { overflow-wrap: anywhere; }
+.opening-study-candidate { display: grid; gap: .5rem; border-top: 1px solid var(--line); padding: 1rem 0; overflow-wrap: anywhere; }
+.opening-study-candidate p { margin: 0; }
+.opening-study-note { border-left: 3px solid var(--lime); padding: .5rem .75rem; overflow-wrap: anywhere; }
+.opening-study-import { display: grid; gap: .75rem; }
+.opening-study-import label { display: grid; gap: .5rem; margin: .75rem 0; }
+.opening-study-import textarea { width: 100%; background: #101512; color: inherit; padding: .75rem; border: 1px solid var(--line); border-radius: 8px; }
+@media(max-width: 850px) { .opening-study-layout { grid-template-columns: minmax(0, 1fr); } }
 .opening-review .board-column { min-width: 0; }
 .opening-review .opening-complete { align-self: start; }
 .opening-review .opening-question-card { min-height: 260px; }

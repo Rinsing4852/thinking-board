@@ -999,6 +999,24 @@ export interface TrainingSessionResponse {
   currentItem?: { itemId: string; mode: string; ordinal: number } | null;
 }
 
+/** Imported example games and replay state, independent of scheduled recall. */
+export interface OpeningStudyMove {
+  ply: number; moveNumber: number; moverColor: Color; san: string; uci: string; fenAfter: string; comment: string | null;
+}
+export interface OpeningStudyGame {
+  id: string; white: string; black: string; whiteRating: string | null; blackRating: string | null;
+  date: string | null; result: string; source: string; event: string | null;
+  matchPly: number; transposition: boolean; continuationMoves: number; annotationCount: number; reason: string;
+}
+export interface OpeningStudyReplay {
+  game: OpeningStudyGame; initialFen: string; moves: OpeningStudyMove[]; currentPly: number;
+}
+export interface OpeningStudyResponse {
+  repertoireId: string; lineId: string; savedPly: number; fen: string; learnerColor: Color;
+  libraryGames: number; matches: OpeningStudyGame[]; totalMatches: number;
+  replay: OpeningStudyReplay | null;
+}
+
 /** Whole-repertoire encounter goal under explicit saved-line policies. */
 export interface OpeningRepertoireGoal {
   repertoireId: string; games: number; ratingGroup: number; speeds: string[]; maxPlies: number;

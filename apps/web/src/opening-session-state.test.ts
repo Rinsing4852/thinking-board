@@ -16,6 +16,8 @@ describe("opening session transitions", () => {
   it("round-trips repertoire/line/move links and normalises malformed cursor values", () => {
     const location = { repertoireId: "notes-1", lineId: "chapter/line", ply: 7 };
     expect(parseOpeningLocation(openingLocationHash(location))).toEqual(location);
+    expect(parseOpeningLocation(openingLocationHash({...location,study:true}))).toEqual({...location,study:true});
+    expect(openingLocationHash({...location,study:false})).not.toContain("study=");
     expect(parseOpeningLocation("#games")).toBeNull();
     expect(parseOpeningLocation("#openings?repertoire=notes&ply=-4")?.ply).toBe(0);
     expect(parseOpeningLocation("#openings?repertoire=notes&ply=NaN")?.ply).toBe(0);

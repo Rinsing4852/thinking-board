@@ -50,4 +50,7 @@ choice beside the recommended practice action, with unchanged urgency rules.
 The [three-step polish pass](./POLISH_PASS.md) records the Linux Safari layout
 diagnosis, clearer coverage/recall language and reset/recovery checks. The
 [contextual model-game specification](./CONTEXTUAL_MODEL_GAMES.md) describes the
-next proposed feature; model-game learning remains unimplemented in the tracker.
+next feature. Its [first milestone](./MODEL_GAME_STUDY_DELIVERY.md) adds a separate
+imported-game library, exact-position selection, supplied notes, replay and resume;
+model-game learning is partial in the tracker, with remote sources and guessing
+still outstanding.

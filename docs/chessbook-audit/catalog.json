@@ -2218,7 +2218,7 @@
       "category": "Study",
       "priority": "P1",
       "baselineState": "absent",
-      "currentState": "absent",
+      "currentState": "partial",
       "sourceIds": [
         "UI"
       ],
@@ -2228,26 +2228,79 @@
         {
           "id": "CB40.1",
           "requirement": "Source, players, ratings, date and legal full game are retained.",
-          "evidence": []
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "matches exact positions and transpositions for both colours without relying on opening names"
+            },
+            {
+              "kind": "unit",
+              "title": "imports atomically, deduplicates by legal mainline and rejects malformed or unfinished games"
+            },
+            {
+              "kind": "unit",
+              "title": "labels Black-to-move custom games correctly including earlier local imports"
+            }
+          ]
         },
         {
           "id": "CB40.2",
           "requirement": "Play through a model game or guess the continuation without changing repertoire recall.",
-          "evidence": []
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "isolates profiles, invalidates changed saved positions, and leaves practice and played games untouched"
+            },
+            {
+              "kind": "unit",
+              "title": "rejects an old browser position even when the same game matches its replacement"
+            },
+            {
+              "kind": "browser",
+              "title": "uses the supplied move numbers and side in custom-start study games",
+              "projects": ["chromium", "webkit"]
+            },
+            {
+              "kind": "browser",
+              "title": "studies an exact matching game and a transposition, resumes on reload and preserves opening recall",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
         },
         {
           "id": "CB40.3",
           "requirement": "Missing games and unavailable providers show explicit empty and retry states.",
-          "evidence": []
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "explains missing study games, rejects broken imports and recovers a failed study request",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            },
+            {
+              "kind": "manual",
+              "title": "External model-game provider failure recovery (not yet implemented)"
+            }
+          ]
         }
       ],
-      "implementationPaths": [],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-study-service.ts",
+        "apps/web/src/components/OpeningModelGameStudy.tsx",
+        "migrations/037_opening_model_games.sql"
+      ],
       "benchmark": {
         "task": "Play through a model game or guess the continuation without changing repertoire recall.",
         "chessbookMeasuredResult": null,
         "ourMeasuredLatencyMs": null,
         "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
-      }
+      },
+      "limits": "First milestone: user-imported complete PGNs, exact-position selection, supplied annotations, replay and per-position resume. No external source adapter, guessing, generated plans, study history or measured learning benefit. At most three matches shown; 1,000-game library, 100 games per import."
     },
     {
       "id": "CB41",

@@ -16,11 +16,11 @@ remain separate from the verified requirement counts below.
 ## What the tracker measures
 
 - **57 feature descriptions**, each with three acceptance criteria and a repeatable comparison task.
-- Current inventory: 22 existing, 10 partial, 14 absent, 5 implemented, 1 improved, 4 enhanced, 1 not_targeted.
-- Acceptance checks: 84 passed, 0 failed, 0 flaky, 42 unknown, 42 unmet, 3 excluded.
-- Priority-weighted verified requirement coverage: **60.7%** (386/636 points). This is a conservative evidence measure, not “60.7% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
-- Like-for-like unit-evidence baseline: 26.7% → 36.9%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
-- Current validation records: 294 unit/integration tests and 144 browser journeys; 0 failures, 0 flaky results, 0 skipped.
+- Current inventory: 22 existing, 11 partial, 13 absent, 5 implemented, 1 improved, 4 enhanced, 1 not_targeted.
+- Acceptance checks: 86 passed, 0 failed, 0 flaky, 43 unknown, 39 unmet, 3 excluded.
+- Priority-weighted verified requirement coverage: **61.6%** (392/636 points). This is a conservative evidence measure, not “61.6% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
+- Like-for-like unit-evidence baseline: 26.7% → 37.4%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
+- Current validation records: 301 unit/integration tests and 150 browser journeys; 0 failures, 0 flaky results, 0 skipped.
 
 ## Implemented from this audit
 
@@ -33,6 +33,7 @@ remain separate from the verified requirement counts below.
 - CB37 Daily practice goal: absent → implemented.
 - CB38 Practice streak: absent → implemented.
 - CB39 Daily activity and recall history: absent → implemented.
+- CB40 Model-game learning: absent → partial.
 - CB57 Turn-aware move arrows while building: absent → implemented.
 
 Daily effort counts scheduled encounters once, excludes lapse repeats, and shows independent recall separately. Local calendar days use a validated player time zone. A streak records consecutive days with completed practice, not consecutive days meeting the goal. The compact display shows seven days; the activity endpoint retains a 28-day view. Recommended sessions use up to ten remaining goal positions; deliberate line practice remains available after the goal is reached.
@@ -52,7 +53,6 @@ To update: edit `catalog.json`, map exact tests to individual criteria, and run 
 - CB25 Repertoire soundness assessment (P1).
 - CB27 Autofill repertoire gaps (P1).
 - CB29 Undo generated repertoire moves (P1).
-- CB40 Model-game learning (P1).
 - CB43 Chess.com game connection (P1).
 - CB44 Played games contribute recall evidence (P1).
 
@@ -768,7 +768,7 @@ Repeatable comparison task: A seven-day practice history remains visible after r
 
 ## CB40 — Model-game learning
 
-**Study · P1 · absent**
+**Study · P1 · partial**
 
 Chessbook evidence: Guest model game matches saved opening moves and supports next move, hint, random and history. [Chessbook guest app — direct UI audit](https://chessbook.com/)
 
@@ -776,11 +776,11 @@ Our feature description: Find a relevant legitimately sourced model game for a s
 
 Acceptance criteria:
 
-- **unmet** — Source, players, ratings, date and legal full game are retained.
-- **unmet** — Play through a model game or guess the continuation without changing repertoire recall.
-- **unmet** — Missing games and unavailable providers show explicit empty and retry states.
+- **passed** — Source, players, ratings, date and legal full game are retained. Evidence: unit: matches exact positions and transpositions for both colours without relying on opening names; unit: imports atomically, deduplicates by legal mainline and rejects malformed or unfinished games; unit: labels Black-to-move custom games correctly including earlier local imports.
+- **passed** — Play through a model game or guess the continuation without changing repertoire recall. Evidence: unit: isolates profiles, invalidates changed saved positions, and leaves practice and played games untouched; unit: rejects an old browser position even when the same game matches its replacement; browser/chromium: uses the supplied move numbers and side in custom-start study games; browser/webkit: uses the supplied move numbers and side in custom-start study games; browser/chromium: studies an exact matching game and a transposition, resumes on reload and preserves opening recall; browser/webkit: studies an exact matching game and a transposition, resumes on reload and preserves opening recall.
+- **unknown** — Missing games and unavailable providers show explicit empty and retry states. Evidence: browser/chromium: explains missing study games, rejects broken imports and recovers a failed study request; browser/webkit: explains missing study games, rejects broken imports and recovers a failed study request.
 
-Implementation: No implementation identified.
+Implementation: `apps/server/src/openings/opening-study-service.ts`, `apps/web/src/components/OpeningModelGameStudy.tsx`, `migrations/037_opening_model_games.sql`
 
 Repeatable comparison task: Play through a model game or guess the continuation without changing repertoire recall. Competitor timing and our user-task timing remain unmeasured.
 

@@ -1,6 +1,9 @@
 # Contextual model-game study: proposed next increment
 
-Status: specification only. CB40 remains absent in the feature tracker. This
+Status: the first milestone is implemented: imported-game matching, transparent
+selection, supplied annotations, replay and resume. See
+[delivery and limits](./MODEL_GAME_STUDY_DELIVERY.md). CB40 is partial; guessing,
+external sources and richer plan explanations remain proposals. This
 builds on the observed workflow in RECONSTRUCTION.md; it does not claim recovery
 of Chessbook's ranking, explanations or private implementation.
 
