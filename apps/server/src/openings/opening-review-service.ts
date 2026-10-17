@@ -1,3 +1,4 @@
+import { unseenOpeningResponses } from "./opening-first-exposure.js";
 import { Chess } from "chess.js";
 import { OpeningActivityService } from "./opening-activity-service.js";
 
@@ -69,6 +70,7 @@ interface ActiveQueueRow {
   move_shown: number;
   focus_move_id: string | null;
   introduction_pending: number;
+  introduction_completed_at: string | null;
 }
 
 interface EventRow {
@@ -202,6 +204,14 @@ export class OpeningReviewService {
     `).get(profileId, repertoireId);
     if (!repertoire) throw new Error("Opening repertoire is not available");
     this.ensureItems(profileId, repertoireId);
+
+    if (teachNew) {
+      const responses = unseenOpeningResponses(this.db, profileId, repertoireId, Math.min(sessionSize, resolvedNewLimit));
+      if (!responses.length) throw new Error("There are no new enabled responses to learn");
+      return this.createSession(profileId, repertoireId, responses.map(response => ({
+        id: response.itemId!, expectedMoveId: response.moveId,
+      })), "new", null, null, true);
+    }
 
     const due = this.db.prepare(`
       SELECT ori.id FROM opening_review_items ori
@@ -689,7 +699,7 @@ export class OpeningReviewService {
     const queue = this.db.prepare(`
       SELECT s.id AS session_id, s.repertoire_id, r.name AS repertoire_name, r.learner_color,
              q.id AS queue_id, q.review_item_id, q.sequence, q.presentation_kind, q.started_at,
-             q.source_line_id, q.expected_move_id, q.piece_hint, q.move_shown, q.idea_hint, s.focus_move_id, q.introduction_pending
+             q.source_line_id, q.expected_move_id, q.piece_hint, q.move_shown, q.idea_hint, s.focus_move_id, q.introduction_pending, q.introduction_completed_at
       FROM opening_review_sessions s
       JOIN opening_repertoires r ON r.id = s.repertoire_id
       JOIN opening_review_queue q ON q.session_id = s.id AND q.status = 'active'
@@ -747,7 +757,7 @@ export class OpeningReviewService {
     const played = applyLegalMove(item.from_fen, moveUci);
     const correct = this.isAcceptedMove(queue, item, moveUci);
     // An additional-response round accepts any response not recalled yet.
-    const additionalResponse = queue.expected_move_id && !queue.source_line_id && queue.presentation_kind === "scheduled";
+    const additionalResponse = queue.expected_move_id && !queue.source_line_id && !queue.introduction_completed_at && queue.presentation_kind === "scheduled";
     const recalledId = correct && additionalResponse ? this.db.prepare(`SELECT id FROM opening_moves
       WHERE repertoire_id = ? AND from_position_id = ? AND move_uci = ?`)
       .pluck().get(item.repertoire_id, item.position_id, moveUci) as string : null;
@@ -775,34 +785,36 @@ export class OpeningReviewService {
       const recalledMove = correct ? this.db.prepare(`
         SELECT id FROM opening_moves WHERE repertoire_id = ? AND from_position_id = ? AND move_uci = ?
       `).get(item.repertoire_id, item.position_id, moveUci) as { id: string } : { id: item.target_move_id };
-      this.saveMoveRecall(item.profile_id, recalledMove.id, independentRecall, answeredAt, responseMs);
-      // An exact branch answer also supplies evidence for the broader question:
-      // can the learner recall any saved move in this position?
-      const positionItem = queue.expected_move_id ? this.item(queue.review_item_id) : item;
-      const positionSchedule = queue.expected_move_id
-        ? scheduleOpeningReview(positionItem, independentRecall, answeredAt, responseMs) : scheduled;
-      this.db.prepare(`
-        UPDATE opening_review_items SET
-          scheduler_version = ?, state = ?, due_at = ?, stability = ?, difficulty = ?,
-          scheduled_days = ?, learning_steps = ?, repetitions = ?, lapses = ?,
-          last_reviewed_at = ?, last_result = ?, average_response_ms = ?, updated_at = ?
-        WHERE id = ?
-      `).run(
-        OPENING_SCHEDULER_VERSION,
-        positionSchedule.card.state,
-        positionSchedule.card.dueAt,
-        positionSchedule.card.stability,
-        positionSchedule.card.difficulty,
-        positionSchedule.card.scheduledDays,
-        positionSchedule.card.learningSteps,
-        positionSchedule.card.repetitions,
-        positionSchedule.card.lapses,
-        positionSchedule.card.lastReviewedAt,
-        positionSchedule.result,
-        averageResponse(positionItem.average_response_ms, positionItem.repetitions, responseMs),
-        answeredAt,
-        item.id,
-      );
+      if (queue.presentation_kind === "scheduled") {
+        this.saveMoveRecall(item.profile_id, recalledMove.id, independentRecall, answeredAt, responseMs);
+        // An exact branch answer also supplies evidence for the broader question:
+        // can the learner recall any saved move in this position?
+        const positionItem = queue.expected_move_id ? this.item(queue.review_item_id) : item;
+        const positionSchedule = queue.expected_move_id
+          ? scheduleOpeningReview(positionItem, independentRecall, answeredAt, responseMs) : scheduled;
+        this.db.prepare(`
+          UPDATE opening_review_items SET
+            scheduler_version = ?, state = ?, due_at = ?, stability = ?, difficulty = ?,
+            scheduled_days = ?, learning_steps = ?, repetitions = ?, lapses = ?,
+            last_reviewed_at = ?, last_result = ?, average_response_ms = ?, updated_at = ?
+          WHERE id = ?
+        `).run(
+          OPENING_SCHEDULER_VERSION,
+          positionSchedule.card.state,
+          positionSchedule.card.dueAt,
+          positionSchedule.card.stability,
+          positionSchedule.card.difficulty,
+          positionSchedule.card.scheduledDays,
+          positionSchedule.card.learningSteps,
+          positionSchedule.card.repetitions,
+          positionSchedule.card.lapses,
+          positionSchedule.card.lastReviewedAt,
+          positionSchedule.result,
+          averageResponse(positionItem.average_response_ms, positionItem.repetitions, responseMs),
+          answeredAt,
+          item.id,
+        );
+      }
       this.db.prepare(`
         UPDATE opening_review_queue SET answered_at = ? WHERE id = ?
       `).run(answeredAt, queue.queue_id);
@@ -814,7 +826,8 @@ export class OpeningReviewService {
       `).run(
         id(), item.id, sessionId, queue.queue_id, moveUci, played.san,
         correct ? 1 : 0, effectiveAssisted ? 1 : 0, revealed ? 1 : 0, scheduled.rating, responseMs, item.state,
-        scheduled.card.state, scheduled.card.dueAt, answeredAt,
+        queue.presentation_kind === "lapse_repeat" ? item.state : scheduled.card.state,
+        queue.presentation_kind === "lapse_repeat" ? item.due_at : scheduled.card.dueAt, answeredAt,
       );
       const interveningPositions = Number(this.db.prepare(`
         SELECT COUNT(*) FROM opening_review_queue WHERE session_id = ? AND status = 'pending'
@@ -1010,7 +1023,7 @@ export class OpeningReviewService {
     const row = this.db.prepare(`
       SELECT s.id AS session_id, s.repertoire_id, r.name AS repertoire_name, r.learner_color,
              q.id AS queue_id, q.review_item_id, q.sequence, q.presentation_kind, q.started_at,
-             q.source_line_id, q.expected_move_id, q.piece_hint, q.move_shown, q.idea_hint, s.focus_move_id, q.introduction_pending
+             q.source_line_id, q.expected_move_id, q.piece_hint, q.move_shown, q.idea_hint, s.focus_move_id, q.introduction_pending, q.introduction_completed_at
       FROM opening_review_sessions s
       JOIN opening_repertoires r ON r.id = s.repertoire_id
       JOIN opening_review_queue q ON q.session_id = s.id AND q.status = 'active'
@@ -1070,6 +1083,7 @@ export class OpeningReviewService {
   }
 
   private isAcceptedMove(queue: ActiveQueueRow, item: ReviewItemRow, moveUci: string): boolean {
+    if (queue.expected_move_id && (queue.introduction_pending || queue.introduction_completed_at)) return moveUci === item.move_uci;
     if (queue.expected_move_id && !queue.source_line_id && queue.presentation_kind === "scheduled") {
       return this.remainingResponses(queue, item).some(move => move.moveUci === moveUci);
     }
@@ -1147,7 +1161,7 @@ export class OpeningReviewService {
       previous_san: string | null;
       previous_fen: string | null;
     } | undefined;
-    const additionalResponse = Boolean(queue.expected_move_id && !queue.source_line_id && queue.presentation_kind === "scheduled");
+    const additionalResponse = Boolean(queue.expected_move_id && !queue.source_line_id && !queue.introduction_pending && !queue.introduction_completed_at && queue.presentation_kind === "scheduled");
     // Alternatives are the same question, not another opponent move to replay.
     const hasOpponentContext = !additionalResponse && context?.previous_role === "opponent";
     const movesBefore = context ? this.db.prepare(`
@@ -1190,7 +1204,7 @@ export class OpeningReviewService {
       boardAnnotations: JSON.parse(item.board_annotations_json),
       ...this.contextExplanation(item, context?.line_id, context?.target_ply),
     };
-    const acceptedMoves = queue.expected_move_id && !queue.source_line_id && queue.presentation_kind === "scheduled"
+    const acceptedMoves = queue.expected_move_id && !queue.source_line_id && !queue.introduction_pending && !queue.introduction_completed_at && queue.presentation_kind === "scheduled"
       ? this.remainingResponses(queue, item) : queue.expected_move_id
       ? [{ moveUci: item.move_uci, moveSan: item.move_san }]
       : this.acceptedMoves(item);
@@ -1219,7 +1233,7 @@ export class OpeningReviewService {
         : null,
       movesBefore,
       moveNumber: Number.parseInt(item.from_fen.split(" ")[5] ?? "1", 10),
-      prompt: queue.expected_move_id && !queue.source_line_id && queue.presentation_kind === "scheduled"
+      prompt: queue.introduction_completed_at ? "Recall the move you learned for this position." : queue.expected_move_id && !queue.source_line_id && queue.presentation_kind === "scheduled"
         ? "You have another saved response here. Play it on the board."
         : acceptedMoves.length > 1 ? "Play one of your saved responses for this position." : "Recall your repertoire move for this position.",
       acceptedMoves,
@@ -1250,11 +1264,15 @@ export class OpeningReviewService {
       outcome,
       recallSpeed: outcome === "remembered" ? slowRecall ? "slow" : "normal" : null,
       assisted: event.assisted === 1,
+      extraPractice: queue.presentation_kind === "lapse_repeat",
       revealed: event.revealed === 1,
       playedMove: { moveUci: event.played_move_uci, moveSan: event.played_move_san },
       repertoireMove: { moveId: item.target_move_id, moveUci: item.move_uci, moveSan: item.move_san },
       fenAfterMove: event.correct === 1 ? applyLegalMove(item.from_fen, event.played_move_uci).fen : item.to_fen,
-      message: outcome === "learning"
+      message: queue.presentation_kind === "lapse_repeat"
+        ? outcome === "remembered" ? "You recalled it on this extra practice attempt. Your original review result and next review date are unchanged."
+          : "This is extra practice. Your original review result and next review date are unchanged."
+        : outcome === "learning"
         ? event.revealed === 1
           ? "You chose to reveal the repertoire move. Study why it works; this position will return later for an unassisted recall."
           : "You found the saved move after a retry or help. It will return later so you can recall it without help."

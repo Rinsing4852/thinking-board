@@ -19,9 +19,11 @@ their existing defaults. Learn-first is an explicit option for new positions,
 not a new explanation panel during ordinary recall. Missing imported reasons
 remain missing; the teaching stage does not invent chess explanations.
 
-The batch teaches the selected target response for each new position. If that
-position has additional saved alternatives, the existing recall flow can ask for
-them afterwards; this increment does not demonstrate every alternative first.
+The follow-up review selects unseen saved responses individually, including
+alternatives at an already-reviewed position. The batch limit counts responses.
+Each selected response is taught before its specific hidden-answer test; deferred
+alternatives stay available in the next learn-first batch. Paused/archived
+branches are excluded and shared line membership does not duplicate a response.
 
 ## Persistence and scoring
 
@@ -52,11 +54,15 @@ controls at recall, and confirms the first recall is scored independently.
 Desktop and phone screenshots were inspected for the visible move, arrow and
 saved explanation.
 
+The [follow-up review](./RECENT_FEATURE_REVIEW.md) also corrects extra-practice
+retries: later attempts preserve memory cards, activity credit and next due dates.
+They remain recorded as practice attempts with explicit feedback.
+
 This completes an opt-in first-exposure flow. Still unmeasured: matched task
 times against Chessbook, comprehension, longer-term unaided retention and whether
 this should become the default. Global teaching history, adaptive teaching
-interleaving, endpoint leniency, sound-alternative evaluation and changes to the
-existing same-session retry scheduler remain separate work.
+interleaving, endpoint leniency and sound-alternative evaluation remain separate
+work. The initial verification checkpoint below predates the follow-up review.
 
 Final verification on unchanged product/test/catalogue source passed 284
 unit/integration tests, 136 browser journeys, six tracker tests, typechecking
@@ -64,5 +70,6 @@ and the production build. Browser results had zero skips, failures or flaky
 retries. The tracker records 84 passed requirements, 42 unknown and 42 unmet,
 with zero failed requirements; stronger evidence for an already-passing
 requirement does not increase these counts or establish competitor parity.
-This increment is local and uncommitted. The preceding coverage increment was
+At that checkpoint, the increment was local and uncommitted. It was subsequently
+committed and pushed as `3270021` before the follow-up review. The preceding coverage increment was
 committed and pushed as `e1da6af` before this work began.

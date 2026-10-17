@@ -4,9 +4,9 @@ import {get} from "../api";
 
 interface Props {
   repertoireId:string; graphKey:string; rating:number; speeds:string; useExplorer:boolean; disabled:boolean;
-  onInspect:(gap:OpeningCoverageGap)=>void;
+  onInspect:(gap:OpeningCoverageGap)=>void; onPersonal:()=>void;
 }
-export function OpeningRepertoireGoalPanel({repertoireId,graphKey,rating,speeds,useExplorer,disabled,onInspect}:Props) {
+export function OpeningRepertoireGoalPanel({repertoireId,graphKey,rating,speeds,useExplorer,disabled,onInspect,onPersonal}:Props) {
   const [data,setData]=useState<OpeningRepertoireGoal|null>(null);
   const [showAll,setShowAll]=useState(false);
   const [limit,setLimit]=useState("30"), [busy,setBusy]=useState(false), [error,setError]=useState("");
@@ -52,12 +52,13 @@ export function OpeningRepertoireGoalPanel({repertoireId,graphKey,rating,speeds,
         {omitted>0&&<p>{omitted} {omitted===1?"plan includes":"plans include"} a reply you deliberately left unprepared. That choice is not counted as a saved answer.</p>}
         {!data.plansAvailable&&<p>Add a saved line before checking a preparation goal.</p>}
       </section>
-      {data.gaps.length>0&&<><h4>Answers still missing</h4><div className="opening-coverage-tasks">
+      {!useExplorer&&unknown>0&&<button className="secondary" disabled={busy||disabled} onClick={onPersonal}>Check this line against my games</button>}
+      {data.gaps.length>0&&<><p aria-label="Suggested next step">Start with the first missing answer below: it has the highest estimated reach in this check.</p><h4>Answers still missing</h4><div className="opening-coverage-tasks">
         {data.gaps.slice(0,showAll?data.gaps.length:3).map(gap=><article key={`${gap.positionId}:${gap.moveUci}`}>
           <strong>{gap.status==="idea_only"?"Finish your answer to":"Prepare a response to"} {gap.moveSan}</strong>
           <p>{gap.chapterTitle} · {gap.lineTitle}</p>
-          <small>Estimated reach: {Number((gap.reachPercent??0).toFixed(2))}% in at least one saved plan · {gap.games.toLocaleString()} sampled replies at this position.</small>
-          <div className="answer-actions"><button className="secondary" disabled={busy||disabled} onClick={()=>onInspect(gap)}>Inspect position</button></div>
+          <small>Estimated reach: {Number((gap.reachPercent??0).toFixed(2))}% in at least one saved plan · {gap.games.toLocaleString()} sampled games included this reply.</small>
+          <div className="answer-actions"><button className="secondary" disabled={busy||disabled} onClick={()=>onInspect(gap)}>Prepare this answer</button></div>
         </article>)}
       </div>{data.gaps.length>3&&<button className="text-button" onClick={()=>setShowAll(value=>!value)}>{showAll?"Show just three answers":`Show all ${data.gaps.length} missing answers`}</button>}</>}
       {useExplorer&&data.scan.remaining>0&&<button disabled={busy||disabled||!valid} onClick={()=>void load(data.scan.nextOffset??0,data.scan.mode==="refresh")}>Continue repertoire scan · {data.scan.remaining} positions left</button>}

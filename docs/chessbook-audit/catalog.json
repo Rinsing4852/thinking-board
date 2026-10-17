@@ -1580,7 +1580,7 @@
       "category": "Practice",
       "priority": "P0",
       "baselineState": "existing",
-      "currentState": "existing",
+      "currentState": "enhanced",
       "sourceIds": [
         "SRS"
       ],
@@ -1599,7 +1599,7 @@
         },
         {
           "id": "CB30.2",
-          "requirement": "Retry a mistaken move without relabelling the first attempt as successful.",
+          "requirement": "A later same-session retry keeps the first review outcome, memory cards, activity credit and next review date unchanged.",
           "evidence": [
             {
               "kind": "browser",
@@ -1608,6 +1608,14 @@
                 "chromium",
                 "webkit"
               ]
+            },
+            {
+              "kind": "unit",
+              "title": "keeps the scheduled review and activity unchanged after an extra retry (correct=true)"
+            },
+            {
+              "kind": "unit",
+              "title": "keeps the scheduled review and activity unchanged after an extra retry (correct=false)"
             }
           ]
         },
@@ -1779,7 +1787,7 @@
         "UI"
       ],
       "chessbookObservation": "First guest practice shows a reminder arrow and Skip first practice.",
-      "desiredBehavior": "Offer an explicit learn-first batch: show each new move and its saved explanation, require execution, persist the stage, then return to hidden-answer recall. Demonstrations earn no review or activity credit. Retain idea, piece and answer help during recall and preserve that assistance across reload.",
+      "desiredBehavior": "Offer an explicit learn-first batch: show each new move and its saved explanation, require execution, persist the stage, then return to hidden-answer recall. Demonstrations earn no review or activity credit. Retain idea, piece and answer help during recall and preserve that assistance across reload. Select unseen responses individually, including alternatives at an already-reviewed position; bound the batch and test each taught response explicitly.",
       "acceptanceChecks": [
         {
           "id": "CB34.1",
@@ -1796,6 +1804,14 @@
             {
               "kind": "unit",
               "title": "keeps recalled help separate from the earlier demonstration after reload"
+            },
+            {
+              "kind": "unit",
+              "title": "teaches bounded exact alternatives and keeps untaught responses available after the position is reviewed"
+            },
+            {
+              "kind": "unit",
+              "title": "deduplicates shared responses and excludes paused and archived alternatives from teaching"
             }
           ]
         },
@@ -1814,6 +1830,14 @@
             {
               "kind": "browser",
               "title": "teaches three new moves before hidden recall and resumes the saved learning stage",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            },
+            {
+              "kind": "browser",
+              "title": "teaches both saved alternatives and asks for the taught response without claiming a chess blunder",
               "projects": [
                 "chromium",
                 "webkit"
@@ -1848,7 +1872,8 @@
         "apps/web/src/components/OpeningReview.tsx",
         "apps/server/src/openings/opening-review-service.ts",
         "apps/server/src/openings/opening-review-routes.ts",
-        "migrations/036_opening_first_exposure.sql"
+        "migrations/036_opening_first_exposure.sql",
+        "apps/server/src/openings/opening-first-exposure.ts"
       ],
       "benchmark": {
         "task": "Use an idea hint without exposing the answer and retain help after reload.",

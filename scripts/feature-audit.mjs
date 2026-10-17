@@ -173,5 +173,5 @@ function render(){const q=$('search').value.toLowerCase();const selected=r.featu
 for(const id of ['search','category','state','priority'])$(id).addEventListener('input',render);$('download').addEventListener('click',()=>{const a=document.createElement('a');const url=URL.createObjectURL(new Blob([JSON.stringify(r,null,2)],{type:'application/json'}));a.href=url;a.download='opening-feature-quality.json';a.click();URL.revokeObjectURL(url)});render();
 </script></html>`;
 fs.writeFileSync(path.join(root, "tracker.html"), html);
-console.log(`Feature audit: ${result.counts.passed} verified, ${result.counts.failed} failed, ${result.counts.unknown} unknown, ${result.counts.unmet} unmet. ${stale ? "STALE evidence." : "Current evidence."}`);
+console.log(`Feature audit: ${result.counts.passed} verified, ${result.counts.failed} failed, ${result.counts.unknown} unknown, ${result.counts.unmet} unmet. ${stale ? "STALE evidence." : validationFailed ? "VALIDATION FAILED — inspect the full test results." : "Current evidence."}`);
 if (process.argv.includes("--verify") && validationFailed) process.exitCode = 1;

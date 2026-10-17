@@ -16,17 +16,18 @@ remain separate from the verified requirement counts below.
 ## What the tracker measures
 
 - **57 feature descriptions**, each with three acceptance criteria and a repeatable comparison task.
-- Current inventory: 23 existing, 10 partial, 14 absent, 5 implemented, 1 improved, 3 enhanced, 1 not_targeted.
+- Current inventory: 22 existing, 10 partial, 14 absent, 5 implemented, 1 improved, 4 enhanced, 1 not_targeted.
 - Acceptance checks: 84 passed, 0 failed, 0 flaky, 42 unknown, 42 unmet, 3 excluded.
 - Priority-weighted verified requirement coverage: **60.7%** (386/636 points). This is a conservative evidence measure, not “60.7% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
 - Like-for-like unit-evidence baseline: 26.7% → 36.9%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
-- Current validation records: 284 unit/integration tests and 136 browser journeys; 0 failures, 0 flaky results, 0 skipped.
+- Current validation records: 288 unit/integration tests and 138 browser journeys; 0 failures, 0 flaky results, 0 skipped.
 
 ## Implemented from this audit
 
 - CB17 Time-control selection for samples: absent → implemented.
 - CB18 Encounter-based coverage goal: partial → improved.
 - CB20 Find the biggest useful gap: existing → enhanced.
+- CB30 FSRS spaced repetition: existing → enhanced.
 - CB34 Hints and first exposure: existing → enhanced.
 - CB36 Recommended short sessions: existing → enhanced.
 - CB37 Daily practice goal: absent → implemented.
@@ -587,7 +588,7 @@ Repeatable comparison task: Undo a draft batch and confirm authored branches rem
 
 ## CB30 — FSRS spaced repetition
 
-**Practice · P0 · existing**
+**Practice · P0 · enhanced**
 
 Chessbook evidence: Official docs identify FSRS and shared move review histories. [Chessbook spaced repetition documentation](https://wiki.chessbook.com/spaced-repetition)
 
@@ -596,7 +597,7 @@ Our feature description: Schedule per-position and explicit-response recall, dis
 Acceptance criteria:
 
 - **passed** — First success schedules a later review and failure schedules relearning. Evidence: unit: schedules a first successful recall for the next day.
-- **passed** — Retry a mistaken move without relabelling the first attempt as successful. Evidence: browser/chromium: persists relaxed practice and pauses only after the saved move is found; browser/webkit: persists relaxed practice and pauses only after the saved move is found.
+- **passed** — A later same-session retry keeps the first review outcome, memory cards, activity credit and next review date unchanged. Evidence: browser/chromium: persists relaxed practice and pauses only after the saved move is found; browser/webkit: persists relaxed practice and pauses only after the saved move is found; unit: keeps the scheduled review and activity unchanged after an extra retry (correct=true); unit: keeps the scheduled review and activity unchanged after an extra retry (correct=false).
 - **passed** — Historical progress remains after source edits and process restart. Evidence: unit: merges nested variations, extends a source line and preserves cards, notes, names and archives.
 
 Implementation: `apps/server/src/openings/opening-review-scheduler.ts`
@@ -663,15 +664,15 @@ Repeatable comparison task: Play a sound alternative and see separate chess-qual
 
 Chessbook evidence: First guest practice shows a reminder arrow and Skip first practice. [Chessbook guest app — direct UI audit](https://chessbook.com/)
 
-Our feature description: Offer an explicit learn-first batch: show each new move and its saved explanation, require execution, persist the stage, then return to hidden-answer recall. Demonstrations earn no review or activity credit. Retain idea, piece and answer help during recall and preserve that assistance across reload.
+Our feature description: Offer an explicit learn-first batch: show each new move and its saved explanation, require execution, persist the stage, then return to hidden-answer recall. Demonstrations earn no review or activity credit. Retain idea, piece and answer help during recall and preserve that assistance across reload. Select unseen responses individually, including alternatives at an already-reviewed position; bound the batch and test each taught response explicitly.
 
 Acceptance criteria:
 
-- **passed** — Idea help persists and assisted moves do not count as independent recall. Evidence: unit: persists practice preferences and idea help without claiming an independent recall; unit: persists three demonstrations before recall without earning review or activity credit; unit: keeps recalled help separate from the earlier demonstration after reload.
-- **passed** — Use an idea hint without exposing the answer and retain help after reload. Evidence: browser/chromium: uses optional idea hints without revealing a square, and keeps that assistance after reload; browser/webkit: uses optional idea hints without revealing a square, and keeps that assistance after reload; browser/chromium: teaches three new moves before hidden recall and resumes the saved learning stage; browser/webkit: teaches three new moves before hidden recall and resumes the saved learning stage.
+- **passed** — Idea help persists and assisted moves do not count as independent recall. Evidence: unit: persists practice preferences and idea help without claiming an independent recall; unit: persists three demonstrations before recall without earning review or activity credit; unit: keeps recalled help separate from the earlier demonstration after reload; unit: teaches bounded exact alternatives and keeps untaught responses available after the position is reviewed; unit: deduplicates shared responses and excludes paused and archived alternatives from teaching.
+- **passed** — Use an idea hint without exposing the answer and retain help after reload. Evidence: browser/chromium: uses optional idea hints without revealing a square, and keeps that assistance after reload; browser/webkit: uses optional idea hints without revealing a square, and keeps that assistance after reload; browser/chromium: teaches three new moves before hidden recall and resumes the saved learning stage; browser/webkit: teaches three new moves before hidden recall and resumes the saved learning stage; browser/chromium: teaches both saved alternatives and asks for the taught response without claiming a chess blunder; browser/webkit: teaches both saved alternatives and asks for the taught response without claiming a chess blunder.
 - **passed** — Demonstrations require the shown move; wrong attempts and alternate endpoints cannot earn recall credit or skip ahead. Evidence: unit: teaches new opening decisions without counting assisted moves as remembered; unit: rejects wrong demonstrations and recall/help bypasses without mutating memory; unit: retries an acknowledged demonstration without advancing a second move; unit: isolates exposure stages by player and rejects replaced sessions.
 
-Implementation: `apps/web/src/components/OpeningReview.tsx`, `apps/server/src/openings/opening-review-service.ts`, `apps/server/src/openings/opening-review-routes.ts`, `migrations/036_opening_first_exposure.sql`
+Implementation: `apps/web/src/components/OpeningReview.tsx`, `apps/server/src/openings/opening-review-service.ts`, `apps/server/src/openings/opening-review-routes.ts`, `migrations/036_opening_first_exposure.sql`, `apps/server/src/openings/opening-first-exposure.ts`
 
 Repeatable comparison task: Use an idea hint without exposing the answer and retain help after reload. Competitor timing and our user-task timing remain unmeasured.
 

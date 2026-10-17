@@ -13,7 +13,7 @@ view remains available for scoped estimates and gaps observed in your games.
 The whole-repertoire result uses Lichess rating-band and time-control samples;
 personal game observations are not mixed into that population estimate.
 
-The result lists missing answers with **Inspect position**. Inspection opens the
+The result lists missing answers with **Prepare this answer**. Inspection opens the
 existing board workflow without changing saved content. Save an answer through
 the normal editor, then recheck. Goal success describes saved preparation within
 chosen stopping points; it does not measure recall or guarantee a game result.
@@ -76,7 +76,10 @@ unit/integration tests, 134 browser journeys, six tracker tests, typechecking
 and the production build. Browser results had zero skips, failures or flaky
 retries. The refreshed tracker has 84 passed requirements, 42 unknown and 42
 unmet, with no failed requirements; these counts do not measure competitor
-parity. Changes are local and uncommitted; hosted publication has not run.
+parity. At that checkpoint, changes were local and uncommitted; hosted
+publication had not run. It subsequently succeeded for
+`e1da6af`. See the [follow-up review](./RECENT_FEATURE_REVIEW.md) for clearer
+missing-answer labels and access to personal-game evidence when common data is off.
 
 Still unmeasured: matched Chessbook task times, human comprehension, live sample
 representativeness and later unaided learning. The first-exposure learning loop,

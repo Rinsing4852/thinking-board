@@ -1,3 +1,4 @@
+import { unseenOpeningResponses } from "./opening-first-exposure.js";
 import type {
   OpeningCatalogResponse,
   OpeningLineProgress,
@@ -90,6 +91,10 @@ export class OpeningContentService {
     `).all(timestamp, profileId) as Array<Record<string, unknown>>)
       .map((row) => [String(row.repertoire_id), row]));
 
+    const newResponses = new Map<string,number>();
+    for (const response of unseenOpeningResponses(this.db,profileId))
+      newResponses.set(response.repertoireId,(newResponses.get(response.repertoireId) ?? 0)+1);
+
     return {
       repertoires: rows.map((row) => {
         const repertoireId = String(row.id);
@@ -118,6 +123,7 @@ export class OpeningContentService {
           archived: archivedIds.has(repertoireId),
           activeLineCount: Number(lineCounts?.active_count ?? 0),
           archivedLineCount: Number(lineCounts?.archived_count ?? 0),
+          newResponseCount: newResponses.get(repertoireId) ?? 0,
           review: {
             total: decisionCount,
             due: Number(review?.due_count ?? 0),

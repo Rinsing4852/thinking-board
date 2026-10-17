@@ -1,6 +1,39 @@
 import { expect, test } from "@playwright/test";
 test.use({ baseURL: "http://127.0.0.1:8192" });
 
+test("teaches both saved alternatives and asks for the taught response without claiming a chess blunder",async({page},testInfo)=>{
+  const name=`Taught alternatives ${testInfo.project.name} ${testInfo.retry} ${testInfo.repeatEachIndex}`;
+  const imported=await page.request.post("/api/v1/openings/imports/pgn",{data:{
+    pgn:`[Event "${name}"]\n\n1. e4 {King pawn plan.} (1. d4 {Queen pawn plan.}) *`,name,learnerColor:"white",ownershipConfirmed:true,
+  }});
+  expect(imported.ok()).toBeTruthy();const id=(await imported.json()).repertoireIds[0];
+  const start=await page.request.post(`/api/v1/openings/repertoires/${id}/reviews/start`,{data:{mode:"new",teachNew:true}});
+  expect(start.ok()).toBeTruthy();expect((await start.json()).totalPositions).toBe(2);
+  await page.goto("/#openings");
+  const board=page.getByRole("grid",{name:"Chess position"});
+  await expect(page.getByText("Learning 1 of 2",{exact:true})).toBeVisible();
+  await board.getByRole("gridcell",{name:"e2 white pawn"}).click();await board.getByRole("gridcell",{name:"e4 empty"}).click();
+  await expect(page.getByText("Learning 2 of 2",{exact:true})).toBeVisible();
+  await expect(page.getByRole("region",{name:"Learn this move"})).toContainText("Queen pawn plan");
+  await page.screenshot({path:testInfo.outputPath("learned-alternatives.png"),fullPage:true});
+  await board.getByRole("gridcell",{name:"d2 white pawn"}).click();await board.getByRole("gridcell",{name:"d4 empty"}).click();
+  await expect(page.getByText("Step 1 of 2",{exact:true})).toBeVisible();
+  await expect(page.locator(".cg-shapes line")).toHaveCount(0);
+  await board.getByRole("gridcell",{name:"d2 white pawn"}).click();await board.getByRole("gridcell",{name:"d4 empty"}).click();
+  await expect(page.getByRole("status").filter({hasText:/d4 is not one of the responses requested here/})).toBeVisible();
+  await page.screenshot({path:testInfo.outputPath("different-response.png"),fullPage:true});
+  await expect(board).toHaveClass(/interactive/);
+  const answer=page.waitForResponse(response=>/\/reviews\/[^/]+\/move$/.test(response.url())&&response.request().method()==="POST");
+  await board.getByRole("gridcell",{name:"e2 white pawn"}).click();await board.getByRole("gridcell",{name:"e4 empty"}).click();
+  expect(await (await answer).json()).toMatchObject({outcome:"learning",assisted:true});
+  await expect(page.getByText("Step 2 of 2",{exact:true})).toBeVisible();
+  await expect(board).toHaveClass(/interactive/);
+  await board.getByRole("gridcell",{name:"d2 white pawn"}).click();await board.getByRole("gridcell",{name:"d4 empty"}).click();
+  await expect(page.getByText("Practice complete",{exact:true})).toBeVisible();
+  const catalog=await (await page.request.get("/api/v1/openings/catalog")).json();
+  expect(catalog.repertoires.find((r:{id:string})=>r.id===id).newResponseCount).toBe(0);
+});
+
 test("teaches three new moves before hidden recall and resumes the saved learning stage", async ({page},testInfo)=>{
   const name=`Learn first ${testInfo.project.name} ${testInfo.retry}`;
   const imported=await page.request.post("/api/v1/openings/imports/pgn",{data:{
@@ -475,7 +508,7 @@ test("returns to the same practice position without revealing the answer or expl
   const board = await startPractice(page);
   await board.getByRole("gridcell", { name: "d2 white pawn" }).click();
   await board.getByRole("gridcell", { name: "d4 empty" }).click();
-  await expect(page.getByText(/^Try again(?:, or ask for a hint\.)?$/).filter({ visible: true })).toBeVisible();
+  await expect(page.getByRole("status").filter({hasText:/d4 is not the move in this branch/})).toBeVisible();
   await expect(page.getByText("Step 1 of 3")).toBeVisible();
   await expect(board.getByRole("gridcell", { name: "e2 white pawn" })).not.toHaveClass(/answer-highlight/);
   await expect(page.getByText("Claim central space and free the bishop.", { exact: true })).toBeHidden();
@@ -1524,9 +1557,13 @@ test("checks the whole repertoire without treating unknown data or a checking li
   await panel.getByRole("button",{name:"Check whole repertoire",exact:true}).click();
   await expect(panel.getByLabel("Repertoire preparation result")).toContainText("Preparation goal not confirmed yet");
   await expect(panel).toContainText("more reliable frequency data");
+  await panel.getByRole("button",{name:"Check this line against my games",exact:true}).click();
+  await expect(page.getByRole("group",{name:"Coverage scope"}).getByRole("button",{name:"One line",exact:true})).toHaveAttribute("aria-pressed","true");
+  await expect(page.getByRole("region",{name:"Repertoire coverage and gaps",exact:true})).toContainText("What happened in your games");
+  await page.getByRole("group",{name:"Coverage scope"}).getByRole("button",{name:"Whole repertoire",exact:true}).click();
   const limited={...real,plans:real.plans.map((plan:typeof real.plans[number])=>({...plan,outcomes:{...plan.outcomes,unknown:0,depth:100}}))};
   await page.route("**/coverage/repertoire?*",route=>route.fulfill({json:limited}));
-  await panel.getByRole("button",{name:"Recheck whole repertoire",exact:true}).click();
+  await panel.getByRole("button",{name:"Check whole repertoire",exact:true}).click();
   await expect(panel).toContainText("unchecked continuations");
   await expect(panel.getByRole("heading",{name:"Goal reached for all saved plans",exact:true})).toHaveCount(0);
   await page.unroute("**/coverage/repertoire?*");
@@ -1535,8 +1572,10 @@ test("checks the whole repertoire without treating unknown data or a checking li
   await page.route("**/coverage/repertoire?*",route=>route.fulfill({json:missing}));
   await panel.getByRole("button",{name:"Recheck whole repertoire",exact:true}).click();
   await expect(panel).toContainText("Prepare a response to d4");
+  await expect(panel.getByLabel("Suggested next step")).toContainText("highest estimated reach");
+  await expect(panel).toContainText("5,000 sampled games included this reply");
   await page.screenshot({path:testInfo.outputPath("whole-repertoire-goal.png"),fullPage:true});
-  await panel.getByRole("button",{name:"Inspect position",exact:true}).click();
+  await panel.getByRole("button",{name:"Prepare this answer",exact:true}).click();
   await expect(page.getByRole("gridcell",{name:"d4 white pawn",exact:true})).toBeVisible();
   const after=await (await page.request.get(`/api/v1/openings/repertoires/${id}`)).json();
   expect(after.chapters).toEqual(before.chapters);

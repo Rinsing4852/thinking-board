@@ -898,7 +898,7 @@ export function OpeningLineExplorer({
         </div>
         <Suspense fallback={<p role="status">Loading preparation tools…</p>}>
         {coverageMode==="repertoire" ? <OpeningRepertoireGoalPanel repertoireId={detail.repertoire.id} graphKey={graphKey}
-          rating={preferredRatingGroup} speeds={explorerSpeeds} useExplorer={useExplorer} disabled={navigationBlocked} onInspect={focusCoverageGap} /> : <OpeningCoveragePanel coverage={coverage} busy={coverageBusy} disabled={navigationBlocked} useExplorer={useExplorer} notice={coverageNotice}
+          rating={preferredRatingGroup} speeds={explorerSpeeds} useExplorer={useExplorer} disabled={navigationBlocked} onInspect={focusCoverageGap} onPersonal={()=>{setCoverageMode("line");void loadCoverage();}} /> : <OpeningCoveragePanel coverage={coverage} busy={coverageBusy} disabled={navigationBlocked} useExplorer={useExplorer} notice={coverageNotice}
         rating={coverageRating} throughMove={coverageDepth} routeId={coverageRoute}
         lines={allLines.filter(({ line }) => !line.archived).map(({ chapter, line }) => ({ id: line.id, title: `${chapter.title} · ${line.title}` }))}
         onScope={(rating, depth, routeId) => { coverageRequestRef.current?.abort(); setCoverageBusy(false); setCoverage(null);

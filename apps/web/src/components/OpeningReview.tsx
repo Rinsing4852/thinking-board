@@ -231,7 +231,7 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
       setAssisted(true);
       setMoveNotice(exercise.lineRun
         ? `${san} is not the move in this branch. It may be playable or belong to another line. Try again, or ask for a hint.`
-        : `${san} is not one of your saved moves here. This does not mean it is a bad chess move. Try again, or ask for a hint.`);
+        : `${san} is not one of the responses requested here. This does not mean it is a bad chess move. Try again, or ask for a hint.`);
       setHintSquares([]);
       setHintShown(false);
       setIdeaShown(false);
@@ -403,8 +403,8 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
           </div>
           <p className="opening-mobile-status" role="status">{complete ? "Session finished. Your recall summary is below." : explanationOpen ? "Practice paused while you read."
             : observing ? "Watch your opponent’s reply." : feedback ? `${feedback.repertoireMove.moveSan} — ${feedback.assisted ? "found with help; we’ll revisit it" : "remembered"}${preferencePaused ? ". Paused." : ". Continuing…"}`
-            : moveReset.busy ? "Not saved here. The piece will return; then try again."
-            : moveNotice && !rejectedMove ? moveNotice : rejectedMove ? "Try again, or ask for a hint."
+            : moveReset.busy ? "Different response. The piece will return; then try again."
+            : moveNotice ? moveNotice : rejectedMove ? "Try again, or ask for a hint."
             : submitting ? "Checking and saving your move…" : teaching ? `Learn ${exercise.introduction.repertoireMove.moveSan}. Play the shown move.` : exercise.prompt}</p>
           <ChessBoard
             fen={explanationOpen && lastAnswered ? lastAnswered.fenAfterMove : moveReset.fen ?? displayFen}
@@ -473,7 +473,7 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
 
           {feedback && (
             <div className={`feedback ${feedback.outcome === "remembered" ? "excellent" : feedback.outcome === "learning" ? "partial" : "incorrect"}`} role="status">
-              <span className="feedback-label">{feedback.outcome === "remembered"
+              <span className="feedback-label">{feedback.extraPractice ? "Extra practice · original review kept" : feedback.outcome === "remembered"
                 ? feedback.recallSpeed === "slow" ? "Remembered — building fluency" : "Remembered"
                 : feedback.outcome === "learning" ? "Learning" : "Review again"}</span>
               <h3>{feedback.repertoireMove.moveSan}</h3>

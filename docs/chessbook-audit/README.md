@@ -41,4 +41,6 @@ REA itself was not installed or run. The first implementation increment is
 [whole-repertoire encounter coverage](./WHOLE_REPERTOIRE.md), including its
 explicit limits and evidence. The next increment adds an opt-in
 [learn-first, then recall flow](./FIRST_EXPOSURE.md). Contextual model-game
-study and the remaining learning refinements remain plans.
+study and the remaining learning refinements remain plans. The
+[review of both increments](./RECENT_FEATURE_REVIEW.md) records fresh competitor
+observations, corrections to alternatives/retries and the next quality measurements.

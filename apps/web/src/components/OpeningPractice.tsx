@@ -806,7 +806,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
                       ? `${repertoire.review.due} due`
                       : repertoire.review.new > 0
                         ? `${repertoire.review.new} new`
-                        : "Ready to review"}</span>
+                        : (repertoire.newResponseCount ?? 0) > 0 ? `${repertoire.newResponseCount} new saved answers` : "Ready to review"}</span>
                   </summary>
                   <div className="opening-card-body">
                     <div className="opening-card-topline">
@@ -839,7 +839,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
                           Practise {Math.min(playerPreferences?.newMovesPerSession ?? 5, repertoire.review.new)} new instead
                         </button>
                       )}
-                      {repertoire.review.new > 0 && <button className="secondary" disabled={submitting}
+                      {(repertoire.newResponseCount ?? repertoire.review.new) > 0 && <button className="secondary" disabled={submitting}
                         onClick={() => void startReview(repertoire.id, "new", true)}>
                         Learn new moves first
                       </button>}

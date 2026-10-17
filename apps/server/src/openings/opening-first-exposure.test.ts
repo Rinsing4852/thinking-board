@@ -18,6 +18,65 @@ function setup(color:"white"|"black"="white") {
   return {db,repertoireId,reviews:new OpeningReviewService(db)};
 }
 describe("learn first, then recall",()=>{
+  it("teaches bounded exact alternatives and keeps untaught responses available after the position is reviewed",()=>{
+    const {db,reviews}=setup();
+    const content=new OpeningContentService(db);
+    const repertoireId=new OpeningPgnImportService(db,content).import({
+      pgn:"1. e4 (1. d4) *",learnerColor:"white",ownershipConfirmed:true,
+    }).repertoireIds[0]!;
+    expect(content.catalog().repertoires.find(r=>r.id===repertoireId)?.newResponseCount).toBe(2);
+    const first=reviews.start(repertoireId,"new",1,1,true);
+    expect(first.totalPositions).toBe(1);
+    const target=first.introduction.repertoireMove.moveUci;
+    const other=target==="e2e4"?"d2d4":"e2e4";
+    const recall=reviews.introduce(first.sessionId,first.queueEntryId,target);
+    expect(recall.acceptedMoves.map(m=>m.moveUci)).toEqual([target]);
+    reviews.answer(first.sessionId,target,false,false,first.queueEntryId);
+    expect(reviews.continue(first.sessionId,first.queueEntryId).kind).toBe("complete");
+    const summary=content.catalog().repertoires.find(r=>r.id===repertoireId)!;
+    expect(summary.review.new).toBe(0);expect(summary.newResponseCount).toBe(1);
+    const second=reviews.start(repertoireId,"new",1,1,true);
+    expect(second).toMatchObject({phase:"introduction",totalPositions:1,introduction:{repertoireMove:{moveUci:other}}});
+    const secondRecall=reviews.introduce(second.sessionId,second.queueEntryId,other);
+    expect(secondRecall.acceptedMoves.map(m=>m.moveUci)).toEqual([other]);
+  });
+  it("deduplicates shared responses and excludes paused and archived alternatives from teaching",()=>{
+    const {db,reviews}=setup();const content=new OpeningContentService(db);
+    const repertoireId=new OpeningPgnImportService(db,content).import({
+      pgn:"1. e4 (1. d4 d5) (1. c4 e5) e5 (1... c5) *",learnerColor:"white",ownershipConfirmed:true,
+    }).repertoireIds[0]!;
+    const profile=ensureActiveProfile(db);
+    const lineFor=(uci:string)=>String(db.prepare(`SELECT membership.line_id FROM opening_line_moves membership
+      JOIN opening_moves move ON move.id=membership.move_id WHERE move.repertoire_id=? AND move.move_uci=? LIMIT 1`).pluck().get(repertoireId,uci));
+    db.prepare("INSERT INTO opening_line_practice_preferences(profile_id,line_id,enabled,updated_at) VALUES(?,?,0,'2026-10-17')").run(profile,lineFor("d2d4"));
+    db.prepare("INSERT INTO opening_line_preferences(profile_id,line_id,archived_at,updated_at) VALUES(?,?,'2026-10-17','2026-10-17')").run(profile,lineFor("c2c4"));
+    expect(content.catalog().repertoires.find(r=>r.id===repertoireId)?.newResponseCount).toBe(1);
+    expect(reviews.start(repertoireId,"new",10,10,true)).toMatchObject({totalPositions:1,introduction:{repertoireMove:{moveUci:"e2e4"}}});
+  });
+  it.each([true,false])("keeps the scheduled review and activity unchanged after an extra retry (correct=%s)",correct=>{
+    const {db,repertoireId,reviews}=setup();
+    let current=reviews.start(repertoireId,"new",3,3);
+    const first=current;
+    reviews.answer(current.sessionId,current.introduction.repertoireMove.moveUci,true,false,current.queueEntryId);
+    for(let index=0;index<2;index++) {
+      const next=reviews.continue(current.sessionId,current.queueEntryId);
+      if(next.kind!=="exercise") throw new Error("Expected an intervening position");current=next;
+      reviews.answer(current.sessionId,current.introduction.repertoireMove.moveUci,false,false,current.queueEntryId);
+    }
+    const next=reviews.continue(current.sessionId,current.queueEntryId);
+    if(next.kind!=="exercise") throw new Error("Expected an extra retry");
+    expect(next.presentationKind).toBe("lapse_repeat");
+    const beforeItems=db.prepare("SELECT * FROM opening_review_items ORDER BY id").all();
+    const beforeCards=db.prepare("SELECT * FROM opening_move_review_cards ORDER BY move_id").all();
+    const beforeActivity=new OpeningActivityService(db).get();
+    const result=reviews.answer(next.sessionId,correct?first.introduction.repertoireMove.moveUci:"d2d4",false,false,next.queueEntryId);
+    expect(result.extraPractice).toBe(true);expect(result.message).toContain("unchanged");
+    expect(db.prepare("SELECT * FROM opening_review_items ORDER BY id").all()).toEqual(beforeItems);
+    expect(db.prepare("SELECT * FROM opening_move_review_cards ORDER BY move_id").all()).toEqual(beforeCards);
+    expect(new OpeningActivityService(db).get()).toEqual(beforeActivity);
+    const completed=reviews.continue(next.sessionId,next.queueEntryId);
+    expect(completed).toMatchObject({kind:"complete",firstTryRemembered:2,repeatAttempts:1});
+  });
   it("persists three demonstrations before recall without earning review or activity credit",()=>{
     const {db,repertoireId,reviews}=setup();
     let exercise=reviews.start(repertoireId,"new",3,3,true);

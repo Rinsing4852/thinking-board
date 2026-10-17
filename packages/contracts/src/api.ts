@@ -34,6 +34,7 @@ export interface OpeningRepertoireSummary {
   activeLineCount: number;
   archivedLineCount: number;
   review: OpeningReviewCounts;
+  newResponseCount?: number;
 }
 
 export interface OpeningReviewCounts {
@@ -709,6 +710,7 @@ export interface OpeningReviewFeedback {
   outcome: "remembered" | "learning" | "again";
   recallSpeed: "normal" | "slow" | null;
   assisted: boolean;
+  extraPractice?: boolean;
   revealed: boolean;
   playedMove: { moveUci: string; moveSan: string };
   repertoireMove: { moveId: string; moveUci: string; moveSan: string };

@@ -392,7 +392,7 @@ test.describe.serial("stable V1 browser journey", () => {
       await expect(board).toHaveClass(/interactive/);
       await board.getByRole("gridcell", { name: decision.from }).click();
       await board.getByRole("gridcell", { name: decision.to }).click();
-      await expect(openings.getByText("Remembered", { exact: true })).toBeVisible();
+      await expect(openings.getByText(index === 4 ? "Extra practice · original review kept" : "Remembered", { exact: true })).toBeVisible();
     }
 
     await expect(openings.getByText("Practice complete", { exact: true })).toBeVisible({ timeout: 5_000 });
@@ -405,7 +405,8 @@ test.describe.serial("stable V1 browser journey", () => {
     await expect(page.locator(".site-header")).not.toHaveClass(/practice-hidden/);
     await expect(starter.getByLabel("5 of 29 positions practised")).toBeVisible();
     await starter.locator("summary").click();
-    await expect(starter.getByText("5 reviewed", { exact: false })).toBeVisible();
+    await expect(starter.getByText("4 reviewed", { exact: false })).toBeVisible();
+    await expect(starter.getByText("1 learning", { exact: false })).toBeVisible();
   });
 
   test("starts an opening lesson, explains the move, and restores the next decision", async ({ page }) => {

@@ -1982,7 +1982,8 @@ describe("vertical slice", () => {
     expect(connection.prepare("SELECT COUNT(*) FROM opening_review_items").pluck().get()).toBe(29);
     expect(connection.prepare("SELECT COUNT(*) FROM opening_review_events").pluck().get()).toBe(6);
     expect(connection.prepare("SELECT SUM(assisted) FROM opening_review_events").pluck().get()).toBe(1);
-    expect(connection.prepare("SELECT state FROM opening_review_items WHERE move_id IN (SELECT id FROM opening_moves WHERE move_uci = 'e2e4')").pluck().get()).toBe(2);
+    // The successful extra retry must preserve the first assisted review schedule.
+    expect(connection.prepare("SELECT state FROM opening_review_items WHERE move_id IN (SELECT id FROM opening_moves WHERE move_uci = 'e2e4')").pluck().get()).toBe(1);
     connection.close();
   });
 
