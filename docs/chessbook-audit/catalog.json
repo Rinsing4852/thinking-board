@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "auditDate": "2026-10-14",
+  "auditDate": "2026-10-17",
   "baselineCommit": "25d5efe79f89977d8df7faa48df839230f338b71",
-  "scope": "Full publicly accessible feature audit; openings and practice prioritised. Account/paid/destructive workflows remain unverified.",
+  "scope": "57-feature public inventory originally observed 14 October; core build, practice, coverage, autofill setup and model-game observations refreshed 17 October. Account/paid/destructive workflows and matched human outcomes remain unverified.",
   "sources": [
     {
       "id": "UI",
@@ -83,6 +83,14 @@
       "observedAt": "2026-10-14",
       "method": "Own product requirement",
       "limits": "Not asserted to be a Chessbook feature."
+    },
+    {
+      "id": "REA_METHOD",
+      "url": "https://github.com/morluto/rea/blob/main/docs/browser-observation.md",
+      "title": "REA browser observation and evidence methodology",
+      "observedAt": "2026-10-17",
+      "method": "Official repository guidance read; method adapted using available browser inspection",
+      "limits": "REA MCP/CLI was not run. No claim of client-bundle, network-body, server-source or trained-model recovery."
     }
   ],
   "features": [
@@ -929,7 +937,7 @@
       "category": "Coverage",
       "priority": "P1",
       "baselineState": "absent",
-      "currentState": "absent",
+      "currentState": "implemented",
       "sourceIds": [
         "UI"
       ],
@@ -939,7 +947,12 @@
         {
           "id": "CB17.1",
           "requirement": "Blitz and rapid requests use different cache keys.",
-          "evidence": []
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "keeps blitz and rapid samples separate across fetches and cache reads"
+            }
+          ]
         },
         {
           "id": "CB17.2",
@@ -952,7 +965,12 @@
           "evidence": []
         }
       ],
-      "implementationPaths": [],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-quality-preferences.ts",
+        "apps/server/src/openings/opening-explorer-service.ts",
+        "apps/web/src/use-opening-move-evidence.ts",
+        "apps/web/src/components/OpeningPlayerContext.tsx"
+      ],
       "benchmark": {
         "task": "Change speed and see refreshed frequencies without losing the current board.",
         "chessbookMeasuredResult": null,
@@ -971,7 +989,7 @@
         "COMPLETION"
       ],
       "chessbookObservation": "Settings offers practical reach thresholds from 1 in 150 through 1 in 800 games.",
-      "desiredBehavior": "Choose a reach-probability target separately from depth; show which likely positions still require a response and how study burden changes.",
+      "desiredBehavior": "Choose a reach-probability target separately from depth. Check distinct saved-line policies across the repertoire, combining transpositions before applying the threshold. Show missing answers, uncertain evidence and unfinished work honestly; retain the selected-line view for scoped and personal-game diagnostics.",
       "acceptanceChecks": [
         {
           "id": "CB18.1",
@@ -980,6 +998,14 @@
             {
               "kind": "unit",
               "title": "multiplies successive opponent probabilities rather than pooling sample counts"
+            },
+            {
+              "kind": "unit",
+              "title": "checks both Black first-move responses together and keeps White alternatives separate"
+            },
+            {
+              "kind": "unit",
+              "title": "combines variable-length transpositions before deciding a reply is rare"
             }
           ]
         },
@@ -998,16 +1024,44 @@
                 "chromium",
                 "webkit"
               ]
+            },
+            {
+              "kind": "unit",
+              "title": "uses the encounter threshold without letting a skipped task count as preparation"
             }
           ]
         },
         {
           "id": "CB18.3",
-          "requirement": "Unknown or small samples cannot be counted as meeting the target.",
+          "requirement": "Unknown samples, checking limits, repeated positions and unassessed plans cannot confirm whole-repertoire completion.",
           "evidence": [
             {
               "kind": "unit",
               "title": "considers a useful thirteenth repertoire and does not confirm an unknown coverage goal"
+            },
+            {
+              "kind": "unit",
+              "title": "never turns a safety cap or missing/stale/mismatched samples into completion"
+            },
+            {
+              "kind": "unit",
+              "title": "does not turn unassessed plans into a whole-repertoire success"
+            },
+            {
+              "kind": "browser",
+              "title": "checks the whole repertoire without treating unknown data or a checking limit as completion",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            },
+            {
+              "kind": "browser",
+              "title": "discards an obsolete whole-repertoire success after the safety limit changes",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
             }
           ]
         }
@@ -1016,7 +1070,10 @@
         "apps/server/src/openings/opening-coverage-model.ts",
         "apps/server/src/openings/opening-quality-preferences.ts",
         "apps/web/src/components/OpeningPlayerContext.tsx",
-        "apps/web/src/components/OpeningCoveragePanel.tsx"
+        "apps/web/src/components/OpeningCoveragePanel.tsx",
+        "apps/server/src/openings/opening-repertoire-goal.ts",
+        "apps/server/src/openings/opening-coverage-service.ts",
+        "apps/web/src/components/OpeningRepertoireGoalPanel.tsx"
       ],
       "benchmark": {
         "task": "Change target and inspect newly relevant gaps.",

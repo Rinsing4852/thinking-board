@@ -991,3 +991,13 @@ export interface TrainingSessionResponse {
   completedCount?: number;
   currentItem?: { itemId: string; mode: string; ordinal: number } | null;
 }
+
+/** Whole-repertoire encounter goal under explicit saved-line policies. */
+export interface OpeningRepertoireGoal {
+  repertoireId: string; games: number; ratingGroup: number; speeds: string[]; maxPlies: number;
+  plansAvailable: number; plansOmitted: number; conditionalStarts: number; met: boolean;
+  plans: Array<{ id: string; title: string; conditional: boolean; conflict: boolean; met: boolean; relevantMissing: number;
+    outcomes: Record<"terminal"|"stopped"|"rare"|"missing"|"idea"|"omitted"|"unknown"|"depth"|"cycle"|"work", number> }>;
+  gaps: OpeningCoverageGap[]; policy: string;
+  scan: {checked: number; remaining: number; nextOffset: number|null; available: number; failed: number; mode: "missing"|"refresh"};
+}

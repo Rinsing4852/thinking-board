@@ -1,3 +1,4 @@
+import { repertoireGoal } from "./opening-repertoire-goal.js";
 import { firstPreparationTask, openingTask, rankedOpeningTasks } from "../../../../packages/contracts/src/opening-tasks.js";
 import { qualityPreferences } from "./opening-quality-preferences.js";
 import { Chess } from "chess.js";
@@ -106,6 +107,64 @@ export class OpeningCoverageService {
       WHERE profile_id = ? AND repertoire_id = ? AND position_id = ?`).run(profileId, repertoireId, positionId);
     return { message: preparedEnough ? "Preparation stops here. Saved moves and practice are unchanged."
       : "This position is included in coverage again." };
+  }
+
+  async wholeRepertoire(repertoireId: string, ratingGroup = 1600,
+    options: {local?: boolean; offset?: number; refresh?: boolean; maxPlies?: number} = {}) {
+    const profileId=ensureActiveProfile(this.db), quality=qualityPreferences(this.db,profileId);
+    if(!RATINGS.has(ratingGroup)) throw new Error("Choose a supported Lichess rating group");
+    const offset=options.offset??0, maxPlies=options.maxPlies??60;
+    if(!Number.isInteger(offset)||offset<0||!Number.isInteger(maxPlies)||maxPlies<2||maxPlies>120) throw new Error("Choose a checking limit from 2 to 120 plies and a valid scan offset");
+    const repertoire=this.db.prepare("SELECT learner_color FROM opening_repertoires WHERE id=?").get(repertoireId) as {learner_color:"white"|"black"}|undefined;
+    if(!repertoire) throw new Error("Opening repertoire is not available");
+    if(this.db.prepare("SELECT 1 FROM opening_repertoire_preferences WHERE repertoire_id=? AND profile_id=? AND archived_at IS NOT NULL").get(repertoireId,profileId)) throw new Error("Restore this repertoire before checking coverage");
+    const rows=this.graph(repertoireId,profileId);
+    const boundaries=new Set(this.db.prepare("SELECT position_id FROM opening_coverage_boundaries WHERE repertoire_id=? AND profile_id=?").pluck().all(repertoireId,profileId) as string[]);
+    const positions=new Map<string,string>();
+    for(const row of rows) {
+      if(row.role==="opponent") positions.set(row.from,row.fen);
+      else positions.set(row.to,row.afterFen);
+    }
+    const roots=new Map<string,typeof rows[number]>();
+    for(const row of rows) if(!roots.has(row.lineId)||row.ply<roots.get(row.lineId)!.ply) roots.set(row.lineId,row);
+    const outgoing=new Map<string,typeof rows>();
+    for(const row of rows) outgoing.set(row.from,[...(outgoing.get(row.from)??[]),row]);
+    const reachable=new Map<string,number>(), queue=[...roots.values()].map(row=>({id:row.from,depth:0}));
+    for(let index=0;index<queue.length;index++) {
+      const current=queue[index]!;if(reachable.has(current.id)) continue;
+      reachable.set(current.id,current.depth);
+      if(boundaries.has(current.id)||current.depth>=maxPlies) continue;
+      for(const edge of outgoing.get(current.id)??[]) queue.push({id:edge.to,depth:current.depth+1});
+    }
+    const ordered=[...positions].filter(([id,fen])=>{
+      if(!reachable.has(id)||reachable.get(id)!>=maxPlies||boundaries.has(id)) return false;
+      const board=new Chess(fen);return !board.isCheckmate()&&!board.isStalemate()&&!board.isInsufficientMaterial();
+    }).sort(([a],[b])=>(reachable.get(a)!-reachable.get(b)!)||a.localeCompare(b));
+    const samples=new Map(ordered.map(([id,fen])=>[id,this.explorer.cachedPosition(fen,ratingGroup,quality.explorerSpeeds.join(","))]));
+    const pending=ordered.map(([id,fen],index)=>({id,fen,index})).filter(position=>!boundaries.has(position.id)
+      && (options.refresh || !samples.get(position.id) || samples.get(position.id)?.stale));
+    // One explicit click schedules at most two remote requests, regardless of plan count.
+    const batch=this.apiToken&&!options.local?pending.filter(position=>position.index>=offset).slice(0,SCAN_BATCH):[];
+    let failed=0;
+    await Promise.all(batch.map(async position=>{
+      try {
+        const sample=await this.explorer.position(position.fen,ratingGroup,options.refresh,quality.explorerSpeeds.join(","));
+        samples.set(position.id,sample);if(sample.stale) failed++;
+      } catch {failed++; /* A failed batch remains unknown and available for explicit retry. */ }
+    }));
+    const decisions=new Map<string,"idea"|"unprepared"|"line">();
+    const keys=new Map(ordered.map(([id,fen])=>[openingPositionKey(fen),id]));
+    for(const choice of this.db.prepare("SELECT position_key,opponent_move_uci,choice FROM opening_preparation_decisions WHERE repertoire_id=? AND profile_id=?").all(repertoireId,profileId) as Array<{position_key:string;opponent_move_uci:string;choice:"idea"|"unprepared"|"line"}>) {
+      const id=keys.get(choice.position_key);if(id) decisions.set(`${id}:${choice.opponent_move_uci}`,choice.choice);
+    }
+    const result=repertoireGoal({repertoireId,rows,learnerColor:repertoire.learner_color,games:quality.coverageGoalGames,maxPlies,
+      samples,boundaries,decisions,ratingGroup,speeds:quality.explorerSpeeds});
+    const last=batch.at(-1)?.index??(offset-1);
+    const remaining=options.refresh ? pending.filter(position=>position.index>last)
+      : pending.filter(position=>!samples.get(position.id)||samples.get(position.id)?.stale);
+    result.scan={checked:batch.length,remaining:remaining.length,nextOffset:remaining.find(position=>position.index>last)?.index??remaining[0]?.index??null,
+      available:ordered.filter(([id])=>samples.has(id)&&samples.get(id)!==null).length,failed,mode:options.refresh?"refresh":"missing"};
+    return result;
   }
 
   async coverage(repertoireId: string, ratingGroup = 1600,

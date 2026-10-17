@@ -86,7 +86,7 @@ export function OpeningCoveragePanel({ coverage, busy, disabled, useExplorer, no
         <details><summary>Which games does this use?</summary><p>Up to 100 recent imported games for this side, at positions already in your repertoire and within the selected move limit. Each position counts once per game. This does not mean the same percentage of entire games is prepared.</p></details>
       </section>}
       {coverage.goal && <section className="opening-personal-coverage" aria-label="Preparation goal">
-        <h4>Your preparation goal</h4>
+        <h4>Goal for this line</h4>
         <p>Prepare positions expected at least once in {coverage.goal.games} games along this line.</p>
         <p>{coverage.goal.met ? "Goal reached for the checked line and move limit." : coverage.goal.relevantMissing > 0 ? `${coverage.goal.relevantMissing} relevant replies still need an answer.` : "More reliable samples are needed before this goal can be confirmed."}</p>
         {coverage.goal.uncertain > 0 && <small>{coverage.goal.uncertain} positions have uncertain frequency data.</small>}

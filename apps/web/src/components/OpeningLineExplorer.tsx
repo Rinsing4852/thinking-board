@@ -34,6 +34,7 @@ import { OpeningExplanation } from "./OpeningExplanation";
 import { OpeningAnalysisSandbox, type SandboxMove } from "./OpeningAnalysisSandbox";
 import { useOpeningBranchDraft } from "../use-opening-branch-draft";
 
+const OpeningRepertoireGoalPanel = lazy(() => import("./OpeningRepertoireGoalPanel").then(module => ({ default: module.OpeningRepertoireGoalPanel })));
 const OpeningCoveragePanel = lazy(() => import("./OpeningCoveragePanel").then(module => ({ default: module.OpeningCoveragePanel })));
 
 interface OpeningLineExplorerProps {
@@ -122,6 +123,7 @@ export function OpeningLineExplorer({
   const [status, setStatus] = useState("");
   const [localBusy, setLocalBusy] = useState(false);
   const [selectionBusy, setSelectionBusy] = useState(false);
+  const [coverageMode, setCoverageMode] = useState<"line"|"repertoire">("line");
   const [coverage, setCoverage] = useState<OpeningCoverageResponse | null>(initialCoverage);
   const [coverageRating, setCoverageRating] = useState(preferredRatingGroup);
   const [coverageDepth, setCoverageDepth] = useState(initialCoverage?.model?.throughMove ?? 10);
@@ -889,7 +891,14 @@ export function OpeningLineExplorer({
       </div>
       <details className="panel opening-workspace-tools" ref={toolsRef} open={toolsOpen} onToggle={event => setToolsOpen(event.currentTarget.open)}>
       <summary>Coverage and repertoire settings</summary>
-      {toolsOpen && <Suspense fallback={<p role="status">Loading preparation tools…</p>}><OpeningCoveragePanel coverage={coverage} busy={coverageBusy} disabled={navigationBlocked} useExplorer={useExplorer} notice={coverageNotice}
+      {toolsOpen && <>
+        <div className="answer-actions opening-coverage-scope" role="group" aria-label="Coverage scope">
+          <button className="secondary" aria-pressed={coverageMode==="line"} onClick={()=>setCoverageMode("line")}>One line</button>
+          <button className="secondary" aria-pressed={coverageMode==="repertoire"} onClick={()=>setCoverageMode("repertoire")}>Whole repertoire</button>
+        </div>
+        <Suspense fallback={<p role="status">Loading preparation tools…</p>}>
+        {coverageMode==="repertoire" ? <OpeningRepertoireGoalPanel repertoireId={detail.repertoire.id} graphKey={graphKey}
+          rating={preferredRatingGroup} speeds={explorerSpeeds} useExplorer={useExplorer} disabled={navigationBlocked} onInspect={focusCoverageGap} /> : <OpeningCoveragePanel coverage={coverage} busy={coverageBusy} disabled={navigationBlocked} useExplorer={useExplorer} notice={coverageNotice}
         rating={coverageRating} throughMove={coverageDepth} routeId={coverageRoute}
         lines={allLines.filter(({ line }) => !line.archived).map(({ chapter, line }) => ({ id: line.id, title: `${chapter.title} · ${line.title}` }))}
         onScope={(rating, depth, routeId) => { coverageRequestRef.current?.abort(); setCoverageBusy(false); setCoverage(null);
@@ -897,7 +906,7 @@ export function OpeningLineExplorer({
           setCoverageRating(rating); setCoverageDepth(depth); setCoverageRoute(routeId); }}
         onLoad={(offset, refresh) => void loadCoverage(false, offset, refresh)} onInspect={focusCoverageGap} onPractice={onPractice}
         onTaskChoice={(id, action) => void chooseTask(id, action)}
-        onBoundary={(positionId, value) => void setCoverageBoundary(positionId, value)} /></Suspense>}
+        onBoundary={(positionId, value) => void setCoverageBoundary(positionId, value)} />}</Suspense></>}
 
       {editing && (
         <div className="opening-edit-guide">

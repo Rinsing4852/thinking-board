@@ -1069,3 +1069,5 @@ footer { border-top: 1px solid var(--line); padding: 2rem 4vw; color: #69756d; d
 .frequency-uncertain { color: var(--orange) !important; }
 .opening-source-game { display: block; margin: .4rem 0; color: var(--lime); font-size: .8rem; }
 .opening-task-reason { border-left: 2px solid var(--lime); padding-left: .6rem; }
+
+.opening-coverage-scope button[aria-pressed="true"] { border-color: var(--lime); color: var(--lime); box-shadow: inset 0 0 0 1px var(--lime); }

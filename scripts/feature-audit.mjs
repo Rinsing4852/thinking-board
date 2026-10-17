@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { spawnSync, execFileSync } from "node:child_process";
-import { assessCatalog, unitRecords, browserRecords } from "./feature-audit-model.mjs";
+import { assessCatalog, unitRecords, browserRecords, auditedSourcePath } from "./feature-audit-model.mjs";
 
 const root = path.resolve("docs/chessbook-audit");
 const current = path.join(root, "reports/current");
@@ -11,7 +11,7 @@ const catalog = JSON.parse(fs.readFileSync(path.join(root, "catalog.json"), "utf
 const read = filename => fs.existsSync(filename) ? JSON.parse(fs.readFileSync(filename, "utf8")) : null;
 function fingerprint() {
   const files = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], { encoding: "utf8" }).trim().split("\n")
-    .filter(file => /^(apps\/|packages\/|migrations\/|scripts\/feature-audit|docs\/chessbook-audit\/catalog.json)/.test(file)).sort();
+    .filter(auditedSourcePath).sort();
   const hash = crypto.createHash("sha256");
   for (const file of files) if (fs.existsSync(file)) hash.update(file).update(fs.readFileSync(file));
   return hash.digest("hex");
@@ -108,6 +108,13 @@ ${catalog.scope}
 
 This is an independent behavioural specification. Chessbook source code, assets, trained models and private databases were not accessed. Public UI observations and documentation are not proof of hidden implementation or measured learning outcomes.
 
+## Behaviour and quality review
+
+The [17 October behaviour reconstruction](./RECONSTRUCTION.md) records fresh
+build/practice/model-game observations, independent algorithm specifications,
+nine task-quality gates and delivery priorities. Its user-task measurements
+remain separate from the verified requirement counts below.
+
 ## What the tracker measures
 
 - **${catalog.features.length} feature descriptions**, each with three acceptance criteria and a repeatable comparison task.
@@ -154,7 +161,7 @@ fs.writeFileSync(path.join(root, "AUDIT.md"), md);
 const embedded = JSON.stringify({ report, sources: catalog.sources }).replaceAll("<", "\\u003c");
 const html = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Opening feature quality tracker</title>
 <style>body{margin:0;background:#101712;color:#e7efe8;font:16px/1.5 system-ui}main{max-width:1200px;margin:auto;padding:32px 20px}h1{font-size:32px;margin:0}p{max-width:900px;color:#becbc0}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:24px 0}.card,article{background:#1b261e;border:1px solid #374b3c;border-radius:12px;padding:18px}.card strong{display:block;color:#d0ef8b;font-size:30px}label{display:inline-grid;gap:5px;margin:0 12px 15px 0}input,select{font:inherit;background:#1b261e;border:1px solid #647368;border-radius:6px;padding:10px;color:inherit;max-width:100%}article{margin:12px 0}summary{cursor:pointer;font-weight:650;min-height:44px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}.pill{font-size:13px;color:#bdcebd;border:1px solid #526254;border-radius:20px;padding:2px 9px}.passed{color:#c9ef86}.unknown,.flaky{color:#ffd39c}.failed,.unmet{color:#ffad9b}a{color:#c9ef86}li{margin:10px 0}code{overflow-wrap:anywhere}.banner{background:#624133;padding:16px;border-radius:10px}.small{font-size:14px;color:#bfccbf}button{cursor:pointer;font:inherit;padding:10px 16px;border:0;border-radius:6px;background:#c9ef86;color:#102010}*:focus-visible{outline:3px solid #e8bf72;outline-offset:3px}</style>
-<main><h1>Opening feature quality tracker</h1><p>Chessbook audit · 14 October 2026 · Independent specifications and test evidence. Observed capability and proven quality are separate.</p><div id="warning"></div><div class="cards" id="totals"></div><p id="summary"></p><p class="small">Weighted requirement coverage rewards verified acceptance checks (P0=5, P1=3, P2=1). Unknown checks and missing features earn no credit. This is not a percentage comparison of product quality with Chessbook. Competitor task timing and user-study ratings are unmeasured.</p>
+<main><h1>Opening feature quality tracker</h1><p>Chessbook audit · ${catalog.auditDate} · Independent specifications and test evidence. Observed capability and proven quality are separate.</p><p><a href="RECONSTRUCTION.md">Behaviour reconstruction, nine task-quality gates and next improvements</a></p><div id="warning"></div><div class="cards" id="totals"></div><p id="summary"></p><p class="small">Weighted requirement coverage rewards verified acceptance checks (P0=5, P1=3, P2=1). Unknown checks and missing features earn no credit. This is not a percentage comparison of product quality with Chessbook. Competitor task timing and user-study ratings are unmeasured.</p>
 <label>Find a feature<input id="search" type="search" placeholder="Model games, daily goal…"></label><label>Category<select id="category"><option value="">All categories</option></select></label><label>Implementation<select id="state"><option value="">All states</option></select></label><label>Priority<select id="priority"><option value="">All priorities</option><option>P0</option><option>P1</option><option>P2</option></select></label><button id="download">Download evidence JSON</button><p id="count" aria-live="polite"></p><div id="features"></div><p class="small">Edit the feature catalogue in the repository and rerun npm run audit:features:verify to update this snapshot. Code changes invalidate old current-result credit. This page contains no private game data.</p></main>
 <script type="application/json" id="data">${embedded}</script><script>
 const data=JSON.parse(document.getElementById('data').textContent),r=data.report;const $=id=>document.getElementById(id);function text(tag,value,cls){const e=document.createElement(tag);e.textContent=value;if(cls)e.className=cls;return e}

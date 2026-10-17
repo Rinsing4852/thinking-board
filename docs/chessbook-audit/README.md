@@ -32,3 +32,11 @@ competitor runtime, trained-model quality or user-study results are fabricated.
 The audit covers publicly visible guest features and official documentation.
 Connected accounts, paid workflows, native app runtime, destructive controls
 and autofill execution have explicit access limits in the source ledger.
+
+The [17 October behaviour reconstruction](./RECONSTRUCTION.md) applies REA's
+observation/evidence method to the build, practice, coverage, autofill and
+model-game workflows. It separates observed UI, documented algorithms and
+independent implementation proposals, and provides nine task-quality gates.
+REA itself was not installed or run. The first implementation increment is
+[whole-repertoire encounter coverage](./WHOLE_REPERTOIRE.md), including its
+explicit limits and evidence. The larger learning and model-game features remain plans.

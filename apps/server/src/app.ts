@@ -362,6 +362,15 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     }
   });
 
+  app.get("/api/v1/openings/repertoires/:repertoireId/coverage/repertoire", async (request,reply) => {
+    try {
+      const {repertoireId}=request.params as {repertoireId:string};
+      const {rating,offset,refresh,local,maxPlies}=request.query as {rating?:string;offset?:string;refresh?:string;local?:string;maxPlies?:string};
+      return await openingCoverage.wholeRepertoire(repertoireId,rating?Number(rating):1600,{
+        ...(offset===undefined?{}:{offset:Number(offset)}),...(maxPlies===undefined?{}:{maxPlies:Number(maxPlies)}),refresh:refresh==="true",local:local==="true"});
+    } catch(error) {return reply.code(400).send({error:error instanceof Error?error.message:"Could not check the repertoire"});}
+  });
+
   app.get("/api/v1/openings/repertoires/:repertoireId/coverage", async (request, reply) => {
     try {
       const { repertoireId } = request.params as { repertoireId: string };

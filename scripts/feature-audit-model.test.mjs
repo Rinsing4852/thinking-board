@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assessCheck, assessCatalog, browserRecords } from "./feature-audit-model.mjs";
+import { assessCheck, assessCatalog, browserRecords, auditedSourcePath } from "./feature-audit-model.mjs";
 
 const check = { id: "one", requirement: "Task", evidence: [{ kind: "browser", title: "Task", projects: ["chromium", "webkit"] }] };
 const record = project => ({ kind: "browser", title: "Task", project, status: "passed" });
@@ -26,4 +26,13 @@ test("an empty denominator is unknown and manual checks require evidence", () =>
 test("the browser report does not hide a retry behind its final passing attempt", () => {
   const records = browserRecords({ suites: [{ specs: [{ title: "Task", tests: [{ projectName: "webkit", status: "flaky", expectedStatus: "passed", results: [{ status: "failed" }, { status: "passed" }] }] }] }] });
   assert.equal(records[0].status, "flaky");
+});
+
+test("browser tests and validation configuration invalidate evidence while generated reports do not", () => {
+  for (const file of ["tests/e2e/opening-quality.spec.ts", "tests/fake-stockfish.mjs", "package-lock.json", "package.json", "playwright.config.ts", "vitest.config.ts", "tsconfig.base.json", "scripts/feature-audit.mjs", ".github/workflows/ci.yml", "Dockerfile", "apps/web/src/App.tsx", "docs/chessbook-audit/catalog.json"]) {
+    assert.equal(auditedSourcePath(file), true, file);
+  }
+  for (const file of ["docs/chessbook-audit/quality-report.json", "docs/chessbook-audit/tracker.html", "docs/chessbook-audit/reports/current/browser.json", "test-results/screenshot.png", "data/trainer.sqlite3", ".env"]) {
+    assert.equal(auditedSourcePath(file), false, file);
+  }
 });

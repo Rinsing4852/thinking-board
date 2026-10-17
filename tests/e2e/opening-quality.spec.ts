@@ -933,7 +933,7 @@ test("discards an older coverage request when the selected rating changes", asyn
 });
 
 test("pauses branches without deleting them and distinguishes move recall from full-line runs", async ({ page }, testInfo) => {
-  const name = `Practice selection ${testInfo.project.name}`;
+  const name = `Practice selection ${testInfo.project.name} attempt ${testInfo.retry} repeat ${testInfo.repeatEachIndex}`;
   const id = await openNavigationStudy(page, name, "1. e4 e5 (1... c5 2. Nf3 d6 3. d4) 2. Nf3 Nc6 3. Bc4 *");
   const detail = await (await page.request.get(`/api/v1/openings/repertoires/${id}`)).json();
   const main = detail.chapters[0].lines[0];
@@ -959,7 +959,11 @@ test("pauses branches without deleting them and distinguishes move recall from f
     if (route.request().method() === "PATCH") await route.fulfill({ status: 503, json: { error: "Selection connection interrupted" } });
     else await route.continue();
   });
-  await paused.click();
+  // Exercise the keyboard activation path as well as pointer/bulk controls.
+  // A fulfilled click alone does not prove that the controlled checkbox changed.
+  const rejectedSelection = page.waitForResponse(response => response.url().endsWith("/practice-selection") && response.request().method() === "PATCH");
+  await paused.press("Space");
+  expect((await rejectedSelection).status()).toBe(503);
   await expect(panel.getByRole("alert")).toContainText("Selection connection interrupted");
   await expect(paused).toBeChecked();
   await page.unroute("**/practice-selection");
@@ -1445,4 +1449,70 @@ test("persists preparation goals and allows postponing, skipping and restoring t
   await expect(panel.getByText(/· skipped/)).toBeVisible();
   await panel.getByRole("button",{name:"Restore suggestion",exact:true}).click();
   await page.request.patch("/api/v1/openings/preferences", {data:{ratingGroup:preferences.ratingGroup, platform:preferences.platform, useExplorer:preferences.useExplorer, coverageGoalGames:preferences.coverageGoalGames, explorerSpeeds:preferences.explorerSpeeds}});
+});
+
+test("checks the whole repertoire without treating unknown data or a checking limit as completion", async ({page},testInfo)=>{
+  await page.route("**/api/v1/openings/reviews/active",route=>route.fulfill({json:null}));
+  await page.route("**/api/v1/openings/lessons/active",route=>route.fulfill({json:null}));
+  const name=`Whole repertoire ${testInfo.project.name}`;
+  const imported=await page.request.post("/api/v1/openings/imports/pgn",{data:{pgn:`[Event "${name}"]\n\n1. e4 g6 *`,name,learnerColor:"black",ownershipConfirmed:true}});
+  expect(imported.ok()).toBeTruthy();const id=(await imported.json()).repertoireIds[0];
+  await page.request.patch("/api/v1/openings/preferences",{data:{ratingGroup:1600,platform:"lichess",useExplorer:false}});
+  const real=await (await page.request.get(`/api/v1/openings/repertoires/${id}/coverage/repertoire?local=true`)).json();
+  expect(real.met).toBe(false);expect(real.plans[0].outcomes.unknown).toBeGreaterThan(0);
+  const lineData=await (await page.request.get(`/api/v1/openings/repertoires/${id}/coverage?local=true`)).json();
+  const before=await (await page.request.get(`/api/v1/openings/repertoires/${id}`)).json();
+  await page.goto("/#openings");
+  const card=page.locator("article.opening-card").filter({hasText:name});
+  await card.locator("summary").first().click();await card.getByRole("button",{name:"View all lines",exact:true}).click();
+  await page.getByRole("button",{name:"Find repertoire gaps",exact:true}).click();
+  await page.getByRole("group",{name:"Coverage scope"}).getByRole("button",{name:"Whole repertoire",exact:true}).click();
+  const panel=page.getByRole("region",{name:"Whole repertoire coverage",exact:true});
+  await page.route("**/coverage/repertoire?*",route=>route.fulfill({status:503,json:{error:"Repertoire check interrupted"}}));
+  await panel.getByRole("button",{name:"Check whole repertoire",exact:true}).click();
+  await expect(panel.getByRole("alert")).toContainText("Repertoire check interrupted");
+  await page.unroute("**/coverage/repertoire?*");
+  await panel.getByRole("button",{name:"Check whole repertoire",exact:true}).click();
+  await expect(panel.getByLabel("Repertoire preparation result")).toContainText("Preparation goal not confirmed yet");
+  await expect(panel).toContainText("more reliable frequency data");
+  const limited={...real,plans:real.plans.map((plan:typeof real.plans[number])=>({...plan,outcomes:{...plan.outcomes,unknown:0,depth:100}}))};
+  await page.route("**/coverage/repertoire?*",route=>route.fulfill({json:limited}));
+  await panel.getByRole("button",{name:"Recheck whole repertoire",exact:true}).click();
+  await expect(panel).toContainText("unchecked continuations");
+  await expect(panel.getByRole("heading",{name:"Goal reached for all saved plans",exact:true})).toHaveCount(0);
+  await page.unroute("**/coverage/repertoire?*");
+  const gap={...lineData.gaps[0],moveUci:"d2d4",moveSan:"d4",status:"missing_response",reachPercent:50,games:5000,frequencyPercent:50,responseMoveId:null,responseLineId:null};
+  const missing={...real,gaps:[gap],plans:real.plans.map((plan:typeof real.plans[number])=>({...plan,relevantMissing:1,outcomes:{...plan.outcomes,unknown:0,missing:50,stopped:50}}))};
+  await page.route("**/coverage/repertoire?*",route=>route.fulfill({json:missing}));
+  await panel.getByRole("button",{name:"Recheck whole repertoire",exact:true}).click();
+  await expect(panel).toContainText("Prepare a response to d4");
+  await page.screenshot({path:testInfo.outputPath("whole-repertoire-goal.png"),fullPage:true});
+  await panel.getByRole("button",{name:"Inspect position",exact:true}).click();
+  await expect(page.getByRole("gridcell",{name:"d4 white pawn",exact:true})).toBeVisible();
+  const after=await (await page.request.get(`/api/v1/openings/repertoires/${id}`)).json();
+  expect(after.chapters).toEqual(before.chapters);
+});
+
+test("discards an obsolete whole-repertoire success after the safety limit changes",async({page},testInfo)=>{
+  await page.route("**/api/v1/openings/reviews/active",route=>route.fulfill({json:null}));
+  await page.route("**/api/v1/openings/lessons/active",route=>route.fulfill({json:null}));
+  const id=await openNavigationStudy(page,`Whole scope race ${testInfo.project.name}`,"1. e4 e5 2. Nf3 *");
+  const data=await (await page.request.get(`/api/v1/openings/repertoires/${id}/coverage/repertoire?local=true`)).json();
+  let release!:()=>void,seen!:()=>void,count=0;
+  const gate=new Promise<void>(resolve=>{release=resolve;});const observed=new Promise<void>(resolve=>{seen=resolve;});
+  await page.route("**/coverage/repertoire?*",async route=>{
+    count++;
+    if(count===1){seen();await gate;await route.fulfill({json:{...data,met:true}}).catch(()=>{});}
+    else await route.fulfill({json:data});
+  });
+  await page.getByRole("button",{name:"Find repertoire gaps",exact:true}).click();
+  await page.getByRole("group",{name:"Coverage scope"}).getByRole("button",{name:"Whole repertoire",exact:true}).click();
+  const panel=page.getByRole("region",{name:"Whole repertoire coverage",exact:true});
+  await panel.getByRole("button",{name:"Check whole repertoire",exact:true}).click();await observed;
+  await panel.getByText("Change the checking limit",{exact:true}).click();
+  await panel.getByLabel("Safety limit in full moves",{exact:true}).fill("1");
+  await panel.getByRole("button",{name:"Check whole repertoire",exact:true}).click();
+  await expect(panel).toContainText("more reliable frequency data");release();
+  await expect(panel.getByRole("heading",{name:"Goal reached for all saved plans",exact:true})).toHaveCount(0);
+  await expect(panel.getByLabel("Safety limit in full moves",{exact:true})).toHaveValue("1");
 });

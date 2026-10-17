@@ -1,3 +1,8 @@
+/** Only product, validation and release inputs invalidate acceptance evidence. */
+export function auditedSourcePath(file) {
+  return /^(?:apps\/|packages\/|migrations\/|tests\/|scripts\/|\.github\/workflows\/|(?:package(?:-lock)?\.json|(?:playwright|vitest)\.config\.[cm]?[jt]s|tsconfig(?:\.[^/]+)?\.json|Dockerfile|\.dockerignore)$|docs\/chessbook-audit\/catalog\.json$)/.test(file);
+}
+
 /** Evidence assessment: a code file or marketing claim cannot pass a behaviour check. */
 export function assessCheck(check, records, implementationState) {
   if (implementationState === "not_targeted") return { status: "excluded", evidence: [] };

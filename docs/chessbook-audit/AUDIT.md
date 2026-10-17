@@ -1,22 +1,30 @@
 # Chessbook feature audit and quality tracker
 
-Audit date: 2026-10-14. Baseline: `25d5efe`. Evidence status: **CURRENT**.
+Audit date: 2026-10-17. Baseline: `25d5efe`. Evidence status: **CURRENT**.
 
-Full publicly accessible feature audit; openings and practice prioritised. Account/paid/destructive workflows remain unverified.
+57-feature public inventory originally observed 14 October; core build, practice, coverage, autofill setup and model-game observations refreshed 17 October. Account/paid/destructive workflows and matched human outcomes remain unverified.
 
 This is an independent behavioural specification. Chessbook source code, assets, trained models and private databases were not accessed. Public UI observations and documentation are not proof of hidden implementation or measured learning outcomes.
+
+## Behaviour and quality review
+
+The [17 October behaviour reconstruction](./RECONSTRUCTION.md) records fresh
+build/practice/model-game observations, independent algorithm specifications,
+nine task-quality gates and delivery priorities. Its user-task measurements
+remain separate from the verified requirement counts below.
 
 ## What the tracker measures
 
 - **57 feature descriptions**, each with three acceptance criteria and a repeatable comparison task.
-- Current inventory: 24 existing, 10 partial, 15 absent, 1 improved, 2 enhanced, 4 implemented, 1 not_targeted.
-- Acceptance checks: 83 passed, 0 failed, 0 flaky, 40 unknown, 45 unmet, 3 excluded.
-- Priority-weighted verified requirement coverage: **60.2%** (383/636 points). This is a conservative evidence measure, not “60.2% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
-- Like-for-like unit-evidence baseline: 29.1% → 37.3%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
-- Current validation records: 262 unit/integration tests and 130 browser journeys; 0 failures, 0 flaky results, 0 skipped.
+- Current inventory: 24 existing, 10 partial, 14 absent, 5 implemented, 1 improved, 2 enhanced, 1 not_targeted.
+- Acceptance checks: 84 passed, 0 failed, 0 flaky, 42 unknown, 42 unmet, 3 excluded.
+- Priority-weighted verified requirement coverage: **60.7%** (386/636 points). This is a conservative evidence measure, not “60.7% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
+- Like-for-like unit-evidence baseline: 28.3% → 36.9%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
+- Current validation records: 278 unit/integration tests and 134 browser journeys; 0 failures, 0 flaky results, 0 skipped.
 
 ## Implemented from this audit
 
+- CB17 Time-control selection for samples: absent → implemented.
 - CB18 Encounter-based coverage goal: partial → improved.
 - CB20 Find the biggest useful gap: existing → enhanced.
 - CB36 Recommended short sessions: existing → enhanced.
@@ -37,7 +45,6 @@ To update: edit `catalog.json`, map exact tests to individual criteria, and run 
 
 ## Largest remaining gaps
 
-- CB17 Time-control selection for samples (P1).
 - CB22 Master-game move statistics (P1).
 - CB24 Repertoire effectiveness assessment (P1).
 - CB25 Repertoire soundness assessment (P1).
@@ -345,7 +352,7 @@ Repeatable comparison task: Change level, save, reload and see the same sample b
 
 ## CB17 — Time-control selection for samples
 
-**Coverage · P1 · absent**
+**Coverage · P1 · implemented**
 
 Chessbook evidence: Rating settings exposes Blitz time control. [Chessbook guest app — direct UI audit](https://chessbook.com/)
 
@@ -353,11 +360,11 @@ Our feature description: Select supported speeds and include them in explorer ca
 
 Acceptance criteria:
 
-- **unmet** — Blitz and rapid requests use different cache keys.
-- **unmet** — Change speed and see refreshed frequencies without losing the current board.
-- **unmet** — A late response for the previous speed cannot replace the current sample.
+- **passed** — Blitz and rapid requests use different cache keys. Evidence: unit: keeps blitz and rapid samples separate across fetches and cache reads.
+- **unknown** — Change speed and see refreshed frequencies without losing the current board.
+- **unknown** — A late response for the previous speed cannot replace the current sample.
 
-Implementation: No implementation identified.
+Implementation: `apps/server/src/openings/opening-quality-preferences.ts`, `apps/server/src/openings/opening-explorer-service.ts`, `apps/web/src/use-opening-move-evidence.ts`, `apps/web/src/components/OpeningPlayerContext.tsx`
 
 Repeatable comparison task: Change speed and see refreshed frequencies without losing the current board. Competitor timing and our user-task timing remain unmeasured.
 
@@ -367,15 +374,15 @@ Repeatable comparison task: Change speed and see refreshed frequencies without l
 
 Chessbook evidence: Settings offers practical reach thresholds from 1 in 150 through 1 in 800 games. [Chessbook completion documentation](https://wiki.chessbook.com/completion)
 
-Our feature description: Choose a reach-probability target separately from depth; show which likely positions still require a response and how study burden changes.
+Our feature description: Choose a reach-probability target separately from depth. Check distinct saved-line policies across the repertoire, combining transpositions before applying the threshold. Show missing answers, uncertain evidence and unfinished work honestly; retain the selected-line view for scoped and personal-game diagnostics.
 
 Acceptance criteria:
 
-- **passed** — Coverage threshold uses opponent path probabilities under an explicit learner policy. Evidence: unit: multiplies successive opponent probabilities rather than pooling sample counts.
-- **passed** — Change target and inspect newly relevant gaps. Evidence: unit: changes relevant gaps at the exact encounter threshold using unrounded probabilities; browser/chromium: persists preparation goals and allows postponing, skipping and restoring tasks; browser/webkit: persists preparation goals and allows postponing, skipping and restoring tasks.
-- **passed** — Unknown or small samples cannot be counted as meeting the target. Evidence: unit: considers a useful thirteenth repertoire and does not confirm an unknown coverage goal.
+- **passed** — Coverage threshold uses opponent path probabilities under an explicit learner policy. Evidence: unit: multiplies successive opponent probabilities rather than pooling sample counts; unit: checks both Black first-move responses together and keeps White alternatives separate; unit: combines variable-length transpositions before deciding a reply is rare.
+- **passed** — Change target and inspect newly relevant gaps. Evidence: unit: changes relevant gaps at the exact encounter threshold using unrounded probabilities; browser/chromium: persists preparation goals and allows postponing, skipping and restoring tasks; browser/webkit: persists preparation goals and allows postponing, skipping and restoring tasks; unit: uses the encounter threshold without letting a skipped task count as preparation.
+- **passed** — Unknown samples, checking limits, repeated positions and unassessed plans cannot confirm whole-repertoire completion. Evidence: unit: considers a useful thirteenth repertoire and does not confirm an unknown coverage goal; unit: never turns a safety cap or missing/stale/mismatched samples into completion; unit: does not turn unassessed plans into a whole-repertoire success; browser/chromium: checks the whole repertoire without treating unknown data or a checking limit as completion; browser/webkit: checks the whole repertoire without treating unknown data or a checking limit as completion; browser/chromium: discards an obsolete whole-repertoire success after the safety limit changes; browser/webkit: discards an obsolete whole-repertoire success after the safety limit changes.
 
-Implementation: `apps/server/src/openings/opening-coverage-model.ts`, `apps/server/src/openings/opening-quality-preferences.ts`, `apps/web/src/components/OpeningPlayerContext.tsx`, `apps/web/src/components/OpeningCoveragePanel.tsx`
+Implementation: `apps/server/src/openings/opening-coverage-model.ts`, `apps/server/src/openings/opening-quality-preferences.ts`, `apps/web/src/components/OpeningPlayerContext.tsx`, `apps/web/src/components/OpeningCoveragePanel.tsx`, `apps/server/src/openings/opening-repertoire-goal.ts`, `apps/server/src/openings/opening-coverage-service.ts`, `apps/web/src/components/OpeningRepertoireGoalPanel.tsx`
 
 Repeatable comparison task: Change target and inspect newly relevant gaps. Competitor timing and our user-task timing remain unmeasured.
 
@@ -1093,3 +1100,4 @@ Repeatable comparison task: Build a repertoire move and inspect three likely opp
 - **RECOMMENDED** [Chessbook recommended moves documentation](https://wiki.chessbook.com/recommended-moves); Official documentation read in browser; checked 2026-10-14. Limit: No measured competitor throughput or effectiveness.
 - **EVAL** [Chessbook engine evaluations documentation](https://wiki.chessbook.com/evaluations); Official documentation read in browser; checked 2026-10-14. Limit: Precomputed engine database was not accessed or copied.
 - **EXTENSION** Audit-driven independent improvement; Own product requirement; checked 2026-10-14. Limit: Not asserted to be a Chessbook feature.
+- **REA_METHOD** [REA browser observation and evidence methodology](https://github.com/morluto/rea/blob/main/docs/browser-observation.md); Official repository guidance read; method adapted using available browser inspection; checked 2026-10-17. Limit: REA MCP/CLI was not run. No claim of client-bundle, network-body, server-source or trained-model recovery.
