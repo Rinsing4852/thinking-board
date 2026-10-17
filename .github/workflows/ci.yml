@@ -22,8 +22,8 @@ jobs:
       - run: npm run check
       - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:e2e
-      - name: Save browser failure diagnostics
-        if: failure()
+      - name: Save browser diagnostics including retried failures
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: browser-failure-diagnostics

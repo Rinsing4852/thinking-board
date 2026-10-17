@@ -7,7 +7,7 @@ behaviour or private implementation is claimed by this increment.
 
 ## Checking a large repertoire
 
-The whole-repertoire view now offers **Continue checking saved plans** when a
+The whole-repertoire view now offers **Check next saved plans** when a
 request reaches its policy/work limit. Each request still checks at most 64
 policies and 20,000 node insertions, with a 5,000-node cap per policy. A server
 fixture with more than 64 distinct policies verifies that continuation reaches

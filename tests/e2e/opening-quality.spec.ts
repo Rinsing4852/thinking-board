@@ -25,18 +25,100 @@ test("continues saved-plan batches and refuses changed evidence instead of showi
   await panel.getByRole("button",{name:"Check whole repertoire",exact:true}).click();
   await expect(panel).toContainText("64 of 130 distinct saved plans checked");
   await expect(panel.getByRole("heading",{name:"Goal reached for all saved plans",exact:true})).toHaveCount(0);
-  await panel.getByRole("button",{name:"Continue checking saved plans · 66 left",exact:true}).click();
+  await panel.getByRole("button",{name:"Check next saved plans · 66 left",exact:true}).click();
   await expect(panel).toContainText("128 of 130 distinct saved plans checked");
-  await panel.getByRole("button",{name:"Continue checking saved plans · 2 left",exact:true}).click();
+  await panel.getByRole("button",{name:"Check next saved plans · 2 left",exact:true}).click();
   await expect(panel.getByRole("heading",{name:"Goal reached for all saved plans",exact:true})).toBeVisible();
   await expect(panel).toContainText("130 of 130 distinct saved plans checked");
   await page.screenshot({path:testInfo.outputPath("continued-plans.png"),fullPage:true});
   changed=true;
   await panel.getByRole("button",{name:"Recheck whole repertoire",exact:true}).click();
-  await panel.getByRole("button",{name:"Continue checking saved plans · 66 left",exact:true}).click();
+  await panel.getByRole("button",{name:"Check next saved plans · 66 left",exact:true}).click();
   await expect(panel.getByRole("alert")).toContainText("changed");
   await expect(panel.getByRole("heading",{name:"Goal reached for all saved plans",exact:true})).toHaveCount(0);
   expect(offsets).toEqual([0,64,128,0,64]);
+});
+
+test("resets whole-repertoire results on changes and return, and ignores an obsolete response", async ({page}, testInfo) => {
+  await page.route("**/api/v1/openings/reviews/active", route => route.fulfill({json:null}));
+  await page.route("**/api/v1/openings/lessons/active", route => route.fulfill({json:null}));
+  const id = await openNavigationStudy(page, `Coverage reset ${testInfo.project.name}`, "1. e4 e5 *");
+  const base = await (await page.request.get(`/api/v1/openings/repertoires/${id}/coverage/repertoire?local=true`)).json();
+  let hold = false;
+  let release!: () => void, started!: () => void, finished!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const requested = new Promise<void>(resolve => { started = resolve; });
+  const delivered = new Promise<void>(resolve => { finished = resolve; });
+  await page.route("**/coverage/repertoire?*", async route => {
+    const maxPlies = Number(new URL(route.request().url()).searchParams.get("maxPlies"));
+    const wasHeld = hold; hold = false;
+    if (wasHeld) { started(); await held; }
+    try {
+      await route.fulfill({json:{...base, maxPlies, plansAvailable:1, plansOmitted:0, met:true, gaps:[], conditionalStarts:0,
+        plans:[{...base.plans[0], met:true, conditional:false, conflict:false, relevantMissing:0,
+          outcomes:{terminal:0,stopped:100,rare:0,missing:0,idea:0,omitted:0,unknown:0,depth:0,cycle:0,work:0}}],
+        planScan:{offset:0,nextOffset:null,snapshot:`fixture-${maxPlies}`}}});
+    } finally { if (wasHeld) finished(); }
+  });
+  const tools = page.locator("details.opening-workspace-tools");
+  const whole = () => page.getByRole("group", {name:"Coverage scope"}).getByRole("button", {name:"Whole repertoire",exact:true}).click();
+  const panel = page.getByRole("region", {name:"Whole repertoire coverage",exact:true});
+  const result = panel.getByRole("heading", {name:"Goal reached for all saved plans",exact:true});
+  const check = () => panel.getByRole("button", {name:"Check whole repertoire",exact:true}).click();
+  await page.getByRole("button", {name:"Find repertoire gaps",exact:true}).click();
+  await whole(); await check(); await expect(result).toBeVisible();
+  await expect(panel).toContainText("playing 1.e4 and playing 1.d4 are separate plans");
+  await expect(panel).toContainText("Checks reset when you leave this view or change settings");
+  await panel.getByText("Change the checking limit", {exact:true}).click();
+  const limit = panel.getByLabel("Maximum moves to check from each starting position", {exact:true});
+  await limit.fill("10"); await expect(result).toHaveCount(0);
+  hold = true;
+  await check(); await requested;
+  await limit.fill("12"); await expect(panel.getByRole("button", {name:"Check whole repertoire",exact:true})).toBeEnabled();
+  release(); await delivered;
+  await expect(result).toHaveCount(0);
+  await check(); await expect(result).toBeVisible();
+  await panel.getByText("Saved plans and checking details", {exact:true}).click();
+  await page.screenshot({path:testInfo.outputPath("coverage-clear-goal-and-reset.png"),fullPage:true});
+  await page.getByRole("group", {name:"Coverage scope"}).getByRole("button", {name:"One line",exact:true}).click();
+  await whole(); await expect(result).toHaveCount(0);
+  await check(); await expect(result).toBeVisible();
+  await tools.locator(":scope > summary").click();
+  await tools.locator(":scope > summary").click();
+  await expect(result).toHaveCount(0);
+  await check(); await expect(result).toBeVisible();
+  await page.reload();
+  await tools.locator(":scope > summary").click(); await whole();
+  await expect(result).toHaveCount(0);
+  await expect(panel.getByRole("button", {name:"Check whole repertoire",exact:true})).toBeEnabled();
+  await check(); await expect(result).toBeVisible();
+  const preferences = await (await page.request.get("/api/v1/openings/preferences")).json();
+  try {
+    await page.getByRole("button", {name:"Back to repertoires",exact:true}).click();
+    const settings = page.locator("details.opening-settings");
+    await settings.locator(":scope > summary").click();
+    const change = settings.getByRole("button", {name:"Change",exact:true});
+    if (await change.isVisible()) await change.click();
+    await settings.getByRole("combobox", {name:"Closest playing level",exact:true}).selectOption("2000");
+    await settings.getByRole("combobox", {name:/^Preparation goal/}).selectOption("500");
+    await settings.getByRole("combobox", {name:/^Game data time control/}).selectOption("rapid");
+    await settings.getByRole("button", {name:"Use these settings",exact:true}).click();
+    await expect(settings).not.toHaveAttribute("open", "");
+    await page.unroute("**/coverage/repertoire?*");
+    const card = page.locator("article.opening-card").filter({hasText:`Coverage reset ${testInfo.project.name}`});
+    await card.locator("summary").first().press("Enter");
+    await card.getByRole("button", {name:"View all lines",exact:true}).click();
+    await page.getByRole("button", {name:"Find repertoire gaps",exact:true}).click();
+    await whole(); await expect(result).toHaveCount(0);
+    await check();
+    await expect(panel).toContainText("at least once in 500 games");
+    await expect(panel).toContainText("Lichess 2000 band · rapid");
+    await expect(result).toHaveCount(0);
+  } finally {
+    expect((await page.request.patch("/api/v1/openings/preferences", {data:{ratingGroup:preferences.ratingGroup,
+      platform:preferences.platform, useExplorer:preferences.useExplorer, coverageGoalGames:preferences.coverageGoalGames,
+      explorerSpeeds:preferences.explorerSpeeds}})).ok()).toBeTruthy();
+  }
 });
 
 test("offers learn-first from the home recommendation without changing normal practice",async({page},testInfo)=>{
@@ -89,6 +171,7 @@ test("teaches both saved alternatives and asks for the taught response without c
   await board.getByRole("gridcell",{name:"d2 white pawn"}).click();await board.getByRole("gridcell",{name:"d4 empty"}).click();
   await expect(page.getByText("Step 1 of 2",{exact:true})).toBeVisible();
   await expect(page.getByRole("status").filter({hasText:/Recall saved answer 1 of 2/}).or(page.getByRole("heading",{name:"Recall saved answer 1 of 2 for this position.",exact:true}))).toBeVisible();
+  await expect(page.locator(".opening-recall-order")).toHaveText("You learned 2 answers here. Recall answer 1, using the order shown while learning.");
   await expect(page.locator(".cg-shapes line")).toHaveCount(0);
   await board.getByRole("gridcell",{name:"d2 white pawn"}).click();await board.getByRole("gridcell",{name:"d4 empty"}).click();
   await expect(page.getByRole("status").filter({hasText:/d4 is not one of the responses requested here/})).toBeVisible();
@@ -600,7 +683,21 @@ for (const reducedMotion of [false, true]) {
     await expect(board).toHaveClass(/interactive/);
     await page.clock.runFor(100);
     await expect(board.locator("cg-board piece.white.king")).toBeVisible();
+    // Linux WebKit can expose the new DOM before its focus-mode styles have
+    // reached layout. Assert the intended layout before measuring rejection.
+    await expect(page.locator(".opening-practice-section")).toHaveCSS("padding-top", "16px");
+    await expect.poll(() => page.locator("main").evaluate(element =>
+      Math.abs(element.getBoundingClientRect().width - Math.min(1420, window.innerWidth * .98)))).toBeLessThan(1);
     await page.clock.pauseAt(await page.evaluate(() => Date.now() + 60_000));
+    const layout = () => page.evaluate(() => {
+      const selectors = ["html", "body", "main", ".opening-practice-section", ".opening-review", ".opening-lesson-title", ".opening-trainer-layout", ".board-column", ".practice-board-header", ".opening-mobile-status", ".chessboard"];
+      return {scrollY: window.scrollY, elements: selectors.map(selector => {
+        const element = document.querySelector(selector)!;
+        const rect = element.getBoundingClientRect(), style = getComputedStyle(element);
+        return {selector, top:rect.top, height:rect.height, padding:style.padding, margin:style.margin, font:style.font, position:style.position};
+      })};
+    });
+    const initialLayout = await layout();
     const boardTop = await board.evaluate(element => element.getBoundingClientRect().top + window.scrollY);
     let mistakes = 0;
     let mistakeTime = 0;
@@ -614,6 +711,7 @@ for (const reducedMotion of [false, true]) {
     });
     await board.getByRole("gridcell", { name: "d2 white pawn" }).click();
     await page.clock.runFor(20);
+    const selectedLayout = await layout();
     const saved = page.waitForResponse(response => /\/mistakes$/.test(response.url()));
     await board.getByRole("gridcell", { name: "d4 empty" }).click();
     await page.clock.runFor(20);
@@ -622,6 +720,7 @@ for (const reducedMotion of [false, true]) {
     await expect(board).not.toHaveClass(/interactive/);
     await expect(page.getByRole("button", { name: "Hint: show the piece" })).toBeDisabled();
     await expect(board.getByRole("gridcell", { name: "d4 white pawn" })).toHaveClass(/rejected-move/);
+    await testInfo.attach("board-layout.json", {body: JSON.stringify({initial:initialLayout,selected:selectedLayout,rejected:await layout()},null,2),contentType:"application/json"});
     expect(await board.evaluate(element => element.getBoundingClientRect().top + window.scrollY)).toBeCloseTo(boardTop, 0);
     await board.locator("[data-square='e2']").press("Enter");
     await board.locator("[data-square='e4']").press("Enter");
@@ -1673,9 +1772,9 @@ test("discards an obsolete whole-repertoire success after the safety limit chang
   const panel=page.getByRole("region",{name:"Whole repertoire coverage",exact:true});
   await panel.getByRole("button",{name:"Check whole repertoire",exact:true}).click();await observed;
   await panel.getByText("Change the checking limit",{exact:true}).click();
-  await panel.getByLabel("Safety limit in full moves",{exact:true}).fill("1");
+  await panel.getByLabel("Maximum moves to check from each starting position",{exact:true}).fill("1");
   await panel.getByRole("button",{name:"Check whole repertoire",exact:true}).click();
   await expect(panel).toContainText("more reliable frequency data");release();
   await expect(panel.getByRole("heading",{name:"Goal reached for all saved plans",exact:true})).toHaveCount(0);
-  await expect(panel.getByLabel("Safety limit in full moves",{exact:true})).toHaveValue("1");
+  await expect(panel.getByLabel("Maximum moves to check from each starting position",{exact:true})).toHaveValue("1");
 });

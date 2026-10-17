@@ -419,6 +419,7 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
             onMove={playRecallMove}
           />
           {!teaching && !complete && !observing && !feedback && !explanationOpen && moveNotice && <p className="opening-mobile-detail" role="status">{moveNotice}</p>}
+          {!teaching && !complete && !observing && !feedback && !explanationOpen && exercise.responseSequence && <p className="opening-recall-order">You learned {exercise.responseSequence.total} answers here. Recall answer {exercise.responseSequence.number}, using the order shown while learning.</p>}
           {!teaching && !complete && !observing && !feedback && !explanationOpen && <div className="answer-actions opening-recall-help">
             {exercise.introduction.explanation.ideaHint && <button className="secondary" disabled={submitting || moveReset.busy || ideaShown || hintShown}
               onClick={() => void showHelp("idea")}>{ideaShown ? "Idea hint shown" : "Hint: explain the idea"}</button>}

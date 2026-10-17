@@ -21,7 +21,7 @@ export function OpeningRepertoireGoalPanel({repertoireId,graphKey,rating,speeds,
     if(busy||disabled||!valid) return;
     const controller=new AbortController();request.current?.abort();request.current=controller;
     const previous=continuePlans?data:null;
-    setBusy(true);setError("");if(!continuePlans) setData(null);
+    setBusy(true);setError("");if(!continuePlans) {setData(null);setShowAll(false);}
     try {
       const result=await get<OpeningRepertoireGoal>(`/api/v1/openings/repertoires/${encodeURIComponent(repertoireId)}/coverage/repertoire?rating=${rating}&maxPlies=${Number(limit)*2}&offset=${offset}&refresh=${refresh}&local=${continuePlans||!useExplorer}${continuePlans?`&planOffset=${previous?.planScan.nextOffset??0}&snapshot=${encodeURIComponent(previous?.planScan.snapshot??"")}`:""}`,controller.signal);
       if(!controller.signal.aborted) setData(mergeOpeningGoalPages(previous,result));
@@ -35,7 +35,9 @@ export function OpeningRepertoireGoalPanel({repertoireId,graphKey,rating,speeds,
   const omitted=data?.plans.filter(plan=>plan.outcomes.omitted>1e-9).length??0;
   return <section className="opening-coverage-panel" aria-label="Whole repertoire coverage">
     <h3>Does my whole repertoire meet my goal?</h3>
-    <p>Check every saved plan, including alternative first moves. This checks saved answers, not how well you remember them.</p>
+    <p>Check whether you have saved answers to the replies you are likely to face. Memory is tested separately in practice.</p>
+    <p>A saved plan follows one set of your own move choices. For example, playing 1.e4 and playing 1.d4 are separate plans in the same repertoire. Each plan includes the opponent replies you have saved.</p>
+    <p className="opening-coverage-note">Checks reset when you leave this view or change settings. Your saved moves are kept.</p>
     <button disabled={busy||disabled||!valid} onClick={()=>void load()}>{busy?"Checking repertoire…":data?"Recheck whole repertoire":"Check whole repertoire"}</button>
     {!useExplorer&&<p className="opening-coverage-note">Common-move data is off. This check uses saved Lichess samples only. The one-line check also shows gaps observed in your games.</p>}
     {error&&<p role="alert" className="error">{error} Retry the check when ready; your saved moves are unchanged.</p>}
@@ -43,9 +45,10 @@ export function OpeningRepertoireGoalPanel({repertoireId,graphKey,rating,speeds,
       {data.scan.failed>0&&<p role="status">Some common-move samples could not be refreshed. Try again later; older or missing data stays uncertain.</p>}
       <section className="opening-personal-coverage" aria-label="Repertoire preparation result">
         <h4>{data.met?"Goal reached for all saved plans":"Preparation goal not confirmed yet"}</h4>
-        <p>Prepare positions expected at least once in {data.games} games under each plan.</p>
+        <p>Your goal: save answers for positions expected at least once in {data.games} games when following each plan.</p>
         <p>{data.plans.length} of {data.plansAvailable} distinct saved plans checked · Lichess {data.ratingGroup} band · {data.speeds.join(" / ")}.</p>
-        {data.gaps.length>0&&<p><strong>{data.gaps.length}</strong> relevant {data.gaps.length===1?"position still needs":"positions still need"} an answer.</p>}
+        {data.gaps.length>0&&<p><strong>{data.gaps.length}</strong> missing {data.gaps.length===1?"answer found":"answers found"} in the plans checked so far.</p>}
+        {!data.gaps.length&&!data.met&&data.plansAvailable>0&&<p>No missing answers found so far. The goal stays unconfirmed while plans, continuations or frequency data are still unchecked.</p>}
         {unknown>0&&<p>{unknown} {unknown===1?"plan needs":"plans need"} more reliable frequency data.</p>}
         {limited>0&&<p>{limited} {limited===1?"plan has":"plans have"} unchecked continuations. A checking limit or repeated position is not completion.</p>}
         {data.plansOmitted>0&&<p>{data.plansOmitted} saved plans still need checking. Continue below to include the next batch.</p>}
@@ -59,11 +62,11 @@ export function OpeningRepertoireGoalPanel({repertoireId,graphKey,rating,speeds,
         {data.gaps.slice(0,showAll?data.gaps.length:3).map(gap=><article key={`${gap.positionId}:${gap.moveUci}`}>
           <strong>{gap.status==="idea_only"?"Finish your answer to":"Prepare a response to"} {gap.moveSan}</strong>
           <p>{gap.chapterTitle} · {gap.lineTitle}</p>
-          <small>Estimated reach: {Number((gap.reachPercent??0).toFixed(2))}% in at least one saved plan · {gap.games.toLocaleString()} sampled games included this reply.</small>
+          <small>Estimated chance of reaching this position: {Number((gap.reachPercent??0).toFixed(2))}% when following at least one saved plan · {gap.games.toLocaleString()} sampled games included this reply.</small>
           <div className="answer-actions"><button className="secondary" disabled={busy||disabled} onClick={()=>onInspect(gap)}>Prepare this answer</button></div>
         </article>)}
       </div>{data.gaps.length>3&&<button className="text-button" onClick={()=>setShowAll(value=>!value)}>{showAll?"Show just three answers":`Show all ${data.gaps.length} missing answers`}</button>}</>}
-      {data.planScan.nextOffset!==null&&<button disabled={busy||disabled||!valid} onClick={()=>void load(0,false,true)}>Continue checking saved plans · {data.plansOmitted} left</button>}
+      {data.planScan.nextOffset!==null&&<button disabled={busy||disabled||!valid} onClick={()=>void load(0,false,true)}>Check next saved plans · {data.plansOmitted} left</button>}
       {useExplorer&&data.scan.remaining>0&&<button disabled={busy||disabled||!valid} onClick={()=>void load(data.scan.nextOffset??0,data.scan.mode==="refresh")}>Load more frequency samples · {data.scan.remaining} positions left</button>}
       <details><summary>Saved plans and checking details</summary>
         <p>Saved plans are checked in batches. Changing lines, settings, stopping points or sample evidence requires a fresh check. Continuing the sample scan starts a fresh saved-plan check.</p>
@@ -77,8 +80,8 @@ export function OpeningRepertoireGoalPanel({repertoireId,graphKey,rating,speeds,
       </details>
     </>}
     <details className="opening-coverage-settings"><summary>Change the checking limit</summary>
-      <label>Safety limit in full moves<input type="number" min={1} max={60} value={limit} aria-invalid={!valid} disabled={disabled} onChange={event=>setLimit(event.target.value)}/></label>
-      <p>This is a work limit from each plan's starting position. Reaching it leaves that continuation unchecked.</p>
+      <label>Maximum moves to check from each starting position<input type="number" min={1} max={60} value={limit} aria-invalid={!valid} disabled={disabled} onChange={event=>setLimit(event.target.value)}/></label>
+      <p>One full move means a White move and a Black move. This limits how far the check looks; it does not mark the rest as prepared.</p>
       {!valid&&<p role="alert">Enter a whole number from 1 to 60.</p>}
     </details>
   </section>;

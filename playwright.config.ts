@@ -6,6 +6,7 @@ export default defineConfig({
   workers: 1,
   timeout: 60_000,
   retries: process.env.CI ? 1 : 0,
+  failOnFlakyTests: Boolean(process.env.CI),
   reporter: process.env.CI ? "github" : "list",
   use: {
     baseURL: "http://127.0.0.1:8191",

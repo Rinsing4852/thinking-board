@@ -47,3 +47,7 @@ observations, corrections to alternatives/retries and the next quality measureme
 The [continuation and home-learning increment](./CONTINUATION_AND_HOME_LEARNING.md)
 removes the fixed total-policy checking ceiling and adds an explicit teaching
 choice beside the recommended practice action, with unchanged urgency rules.
+The [three-step polish pass](./POLISH_PASS.md) records the Linux Safari layout
+diagnosis, clearer coverage/recall language and reset/recovery checks. The
+[contextual model-game specification](./CONTEXTUAL_MODEL_GAMES.md) describes the
+next proposed feature; model-game learning remains unimplemented in the tracker.

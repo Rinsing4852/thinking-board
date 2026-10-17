@@ -1,0 +1,318 @@
+{
+  "runtime": "Linux aarch64, Playwright WebKit 1.62.1, reduced motion",
+  "stage": "Before layout-readiness assertion; diagnostic reproduction, not current verification",
+  "measurements": {
+    "initial": {
+      "scrollY": 0,
+      "elements": [
+        {
+          "selector": "html",
+          "top": 0,
+          "height": 813.65625,
+          "padding": "0px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": "body",
+          "top": 0,
+          "height": 813.65625,
+          "padding": "0px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": "main",
+          "top": 0,
+          "height": 813.65625,
+          "padding": "0px",
+          "margin": "0px 11.703125px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".opening-practice-section",
+          "top": 0,
+          "height": 813.65625,
+          "padding": "32px 0px 96px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".opening-review",
+          "top": 32,
+          "height": 685.65625,
+          "padding": "0px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".opening-lesson-title",
+          "top": 32,
+          "height": 83.96875,
+          "padding": "10.4px 12.8px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".opening-trainer-layout",
+          "top": 131.96875,
+          "height": 585.6875,
+          "padding": "0px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".board-column",
+          "top": 131.96875,
+          "height": 585.6875,
+          "padding": "0px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".practice-board-header",
+          "top": 131.96875,
+          "height": 33,
+          "padding": "8px 10.4px",
+          "margin": "0px",
+          "font": "12.8px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".opening-mobile-status",
+          "top": 164.96875,
+          "height": 47.921875,
+          "padding": "5.6px 8px",
+          "margin": "0px 0px 8px",
+          "font": "13.12px / 18.368px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".chessboard",
+          "top": 220.890625,
+          "height": 366.59375,
+          "padding": "0px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "relative"
+        }
+      ]
+    },
+    "selected": {
+      "scrollY": 0,
+      "elements": [
+        {
+          "selector": "html",
+          "top": 0,
+          "height": 733.25,
+          "padding": "0px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": "body",
+          "top": 0,
+          "height": 733.25,
+          "padding": "0px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": "main",
+          "top": 0,
+          "height": 733.25,
+          "padding": "0px",
+          "margin": "0px 3.90625px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".opening-practice-section",
+          "top": 0,
+          "height": 733.25,
+          "padding": "16px 0px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".opening-review",
+          "top": 16,
+          "height": 701.25,
+          "padding": "0px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".opening-lesson-title",
+          "top": 16,
+          "height": 83.96875,
+          "padding": "10.4px 12.8px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".opening-trainer-layout",
+          "top": 115.96875,
+          "height": 601.28125,
+          "padding": "0px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".board-column",
+          "top": 115.96875,
+          "height": 601.28125,
+          "padding": "0px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".practice-board-header",
+          "top": 115.96875,
+          "height": 33,
+          "padding": "8px 10.4px",
+          "margin": "0px",
+          "font": "12.8px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".opening-mobile-status",
+          "top": 148.96875,
+          "height": 47.921875,
+          "padding": "5.6px 8px",
+          "margin": "0px 0px 8px",
+          "font": "13.12px / 18.368px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".chessboard",
+          "top": 204.890625,
+          "height": 382.1875,
+          "padding": "0px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "relative"
+        }
+      ]
+    },
+    "rejected": {
+      "scrollY": 0,
+      "elements": [
+        {
+          "selector": "html",
+          "top": 0,
+          "height": 798.71875,
+          "padding": "0px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": "body",
+          "top": 0,
+          "height": 798.71875,
+          "padding": "0px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": "main",
+          "top": 0,
+          "height": 798.71875,
+          "padding": "0px",
+          "margin": "0px 3.90625px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".opening-practice-section",
+          "top": 0,
+          "height": 798.71875,
+          "padding": "16px 0px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".opening-review",
+          "top": 16,
+          "height": 766.71875,
+          "padding": "0px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".opening-lesson-title",
+          "top": 16,
+          "height": 83.96875,
+          "padding": "10.4px 12.8px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".opening-trainer-layout",
+          "top": 115.96875,
+          "height": 666.75,
+          "padding": "0px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".board-column",
+          "top": 115.96875,
+          "height": 666.75,
+          "padding": "0px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".practice-board-header",
+          "top": 115.96875,
+          "height": 33,
+          "padding": "8px 10.4px",
+          "margin": "0px",
+          "font": "12.8px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".opening-mobile-status",
+          "top": 148.96875,
+          "height": 47.921875,
+          "padding": "5.6px 8px",
+          "margin": "0px 0px 8px",
+          "font": "13.12px / 18.368px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "static"
+        },
+        {
+          "selector": ".chessboard",
+          "top": 204.890625,
+          "height": 382.1875,
+          "padding": "0px",
+          "margin": "0px",
+          "font": "16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+          "position": "relative"
+        }
+      ]
+    }
+  }
+}

@@ -52,7 +52,7 @@ retried; saved moves and review records are unaffected.
 
 The default safety limit is 30 full moves from each plan's root, adjustable
 between 1 and 60. Each request checks at most 64 policies, 5,000 graph nodes per
-policy and 20,000 node insertions. **Continue checking saved plans** now checks the
+policy and 20,000 node insertions. **Check next saved plans** now checks the
 next bounded batch without fetching remote samples. The display combines only
 contiguous batches from the same content/settings/sample snapshot. It cannot
 show whole-repertoire completion until all distinct saved plans are checked.

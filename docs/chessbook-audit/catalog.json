@@ -1082,6 +1082,14 @@
                 "chromium",
                 "webkit"
               ]
+            },
+            {
+              "kind": "browser",
+              "title": "resets whole-repertoire results on changes and return, and ignores an obsolete response",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
             }
           ]
         }
