@@ -403,8 +403,8 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
           </div>
           <p className="opening-mobile-status" role="status">{complete ? "Session finished. Your recall summary is below." : explanationOpen ? "Practice paused while you read."
             : observing ? "Watch your opponent’s reply." : feedback ? `${feedback.repertoireMove.moveSan} — ${feedback.assisted ? "found with help; we’ll revisit it" : "remembered"}${preferencePaused ? ". Paused." : ". Continuing…"}`
-            : moveReset.busy ? "Different response. The piece will return; then try again."
-            : moveNotice ? moveNotice : rejectedMove ? "Try again, or ask for a hint."
+            : moveReset.busy ? "Different response. Returning the piece…"
+            : moveNotice ? teaching ? "Follow the shown move." : rejectedMove ? "Try again, or ask for a hint." : "Help shown. See the note below the board." : rejectedMove ? "Try again, or ask for a hint."
             : submitting ? "Checking and saving your move…" : teaching ? `Learn ${exercise.introduction.repertoireMove.moveSan}. Play the shown move.` : exercise.prompt}</p>
           <ChessBoard
             fen={explanationOpen && lastAnswered ? lastAnswered.fenAfterMove : moveReset.fen ?? displayFen}
@@ -418,6 +418,7 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
             sourceAnnotations={explanationOpen ? lastAnswered?.explanation.boardAnnotations ?? [] : []}
             onMove={playRecallMove}
           />
+          {!teaching && !complete && !observing && !feedback && !explanationOpen && moveNotice && <p className="opening-mobile-detail" role="status">{moveNotice}</p>}
           {!teaching && !complete && !observing && !feedback && !explanationOpen && <div className="answer-actions opening-recall-help">
             {exercise.introduction.explanation.ideaHint && <button className="secondary" disabled={submitting || moveReset.busy || ideaShown || hintShown}
               onClick={() => void showHelp("idea")}>{ideaShown ? "Idea hint shown" : "Hint: explain the idea"}</button>}
@@ -452,6 +453,7 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
           {teaching && !observing && <section aria-label="Learn this move">
             <span className="eyebrow">LEARN FIRST</span>
             <h3>Play {exercise.introduction.repertoireMove.moveSan}</h3>
+            {exercise.responseSequence&&<p>Saved answer {exercise.responseSequence.number} of {exercise.responseSequence.total} for this position. Recall these answers in the same order when this position returns.</p>}
             <p>Follow the arrow and play the move yourself. After this batch, you’ll try again with the answers hidden.</p>
             <OpeningExplanation explanation={exercise.introduction.explanation} />
             <p className="opening-coverage-note">This demonstration does not count as a correct recall or change your memory schedule.</p>

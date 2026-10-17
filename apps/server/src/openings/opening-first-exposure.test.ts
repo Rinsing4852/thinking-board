@@ -18,6 +18,42 @@ function setup(color:"white"|"black"="white") {
   return {db,repertoireId,reviews:new OpeningReviewService(db)};
 }
 describe("learn first, then recall",()=>{
+  it("identifies taught alternatives by order without revealing the recall answer",()=>{
+    const {db,reviews}=setup();const content=new OpeningContentService(db);
+    const id=new OpeningPgnImportService(db,content).import({pgn:"1. e4 (1. d4) (1. c4) *",learnerColor:"white",ownershipConfirmed:true}).repertoireIds[0]!;
+    let exercise=reviews.start(id,"new",3,3,true);
+    for(let number=1;number<=3;number++) {
+      expect(exercise.responseSequence).toEqual({number,total:3});
+      exercise=reviews.introduce(exercise.sessionId,exercise.queueEntryId,exercise.introduction.repertoireMove.moveUci);
+    }
+    for(let number=1;number<=3;number++) {
+      expect(exercise.prompt).toBe(`Recall saved answer ${number} of 3 for this position.`);
+      expect(exercise.prompt).not.toContain(exercise.introduction.repertoireMove.moveSan);
+      reviews.answer(exercise.sessionId,exercise.introduction.repertoireMove.moveUci,number===1,false,exercise.queueEntryId);
+      const next=reviews.continue(exercise.sessionId,exercise.queueEntryId);
+      if(next.kind!=="exercise") throw new Error("Expected the next answer or extra retry");exercise=next;
+    }
+    expect(exercise.presentationKind).toBe("lapse_repeat");
+    expect(exercise.prompt).toBe("Recall saved answer 1 of 3 for this position.");
+  });
+  it("offers recommended teaching within the remaining goal and keeps urgent reviews first",()=>{
+    const {db,repertoireId,reviews}=setup();
+    // Only this private repertoire participates in the recommendation fixture.
+    db.prepare("UPDATE opening_repertoires SET status='preview' WHERE id<>?").run(repertoireId);
+    const profile=ensureActiveProfile(db);
+    db.prepare("INSERT INTO opening_player_preferences(profile_id,rating_group,platform,use_explorer,new_moves_per_session,daily_practice_goal,updated_at) VALUES(?,1600,'lichess',0,5,1,'2026-10-17')").run(profile);
+    const recommended=reviews.recommendation();expect(recommended.counts.total).toBe(1);
+    const taught=reviews.startRecommended(undefined,undefined,true);
+    expect(taught).toMatchObject({phase:"introduction",totalPositions:1});
+    const recall=reviews.introduce(taught.sessionId,taught.queueEntryId,taught.introduction.repertoireMove.moveUci);
+    reviews.answer(recall.sessionId,recall.introduction.repertoireMove.moveUci,true,false,recall.queueEntryId);
+    // Make its first helped review due, and allow practice within the goal again.
+    db.prepare("UPDATE opening_review_items SET due_at='2000-01-01'").run();
+    db.prepare("UPDATE opening_player_preferences SET daily_practice_goal=10 WHERE profile_id=?").run(profile);
+    expect(reviews.recommendation().counts.due).toBeGreaterThan(0);
+    expect(()=>reviews.startRecommended(undefined,undefined,true)).toThrow(/Due reviews or game misses/);
+    expect(reviews.startRecommended().phase).toBe("recall");
+  });
   it("teaches bounded exact alternatives and keeps untaught responses available after the position is reviewed",()=>{
     const {db,reviews}=setup();
     const content=new OpeningContentService(db);

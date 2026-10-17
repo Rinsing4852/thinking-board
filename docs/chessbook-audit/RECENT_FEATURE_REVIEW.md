@@ -105,3 +105,9 @@ Next priorities:
    be offered by the recommended action rather than only the repertoire card.
 4. Add contextual model-game study, then sound-alternative explanations and
    explicit endpoint policy. Neither follows merely from adding this teaching flow.
+
+Follow-up: priorities 2 and 3 now have a bounded implementation in
+[continued coverage and home learning](./CONTINUATION_AND_HOME_LEARNING.md).
+Human outcomes remain unmeasured; the offer is explicit rather than a default
+pacing change. Per-policy incomplete frontiers and reload checkpoints remain
+separate limits.

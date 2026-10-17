@@ -49,7 +49,7 @@ export function evaluateGoalGraph(root: string, nodes: Map<string, Node>, games:
 
 export function repertoireGoal(input: {
   repertoireId:string; rows:GoalRow[]; learnerColor:"white"|"black"; games:number; maxPlies:number;
-  samples:Map<string,OpeningExplorerPositionResponse|null>; boundaries:Set<string>;
+  samples:Map<string,OpeningExplorerPositionResponse|null>; boundaries:Set<string>; planOffset?:number;
   decisions:Map<string,"idea"|"unprepared"|"line">; ratingGroup:number; speeds:string[];
 }): OpeningRepertoireGoal {
   const unique=[...new Map(input.rows.map(row=>[row.id,row])).values()];
@@ -67,6 +67,7 @@ export function repertoireGoal(input: {
   for(const row of input.rows) lines.set(row.lineId,[...(lines.get(row.lineId)??[]),row]);
   const signatures=new Set<string>(), plans:OpeningRepertoireGoal["plans"]=[];
   const gaps=new Map<string,OpeningCoverageGap>();
+  const planOffset=input.planOffset??0;
   let conditionalStarts=0, work=0;
   for(const rows of lines.values()) {
     rows.sort((a,b)=>a.ply-b.ply);const first=rows[0]!;
@@ -78,7 +79,7 @@ export function repertoireGoal(input: {
     const signature=JSON.stringify([first.from,[...policy].map(([id,row])=>[id,row.uci]).sort(),conflict]);
     if(signatures.has(signature)) continue;
     signatures.add(signature);
-    if(plans.length>=GOAL_PLAN_LIMIT || work>=20000) continue;
+    if(signatures.size<=planOffset || plans.length>=GOAL_PLAN_LIMIT || work>=20000) continue;
     const conditional=openingPositionKey(first.fen)!==openingPositionKey(new Chess().fen());
     if(conditional) conditionalStarts++;
     const nodes=new Map<string,Node>();const pending=[first.from];
@@ -135,7 +136,7 @@ export function repertoireGoal(input: {
           missingKinds.set(target,selected);
           const targetNode=nodes.get(target)!;
           targetNode.kind=selected;
-          targetNode.gap??={positionId:id,fen:position.fen,lineId:position.row.lineId,lineTitle:position.row.lineTitle,chapterTitle:position.row.chapterTitle,
+          targetNode.gap??={positionId:id,fen:position.fen,targetPositionKey:key,lineId:position.row.lineId,lineTitle:position.row.lineTitle,chapterTitle:position.row.chapterTitle,
             moveUci:reply.moveUci,moveSan:reply.moveSan,games:reply.games,frequencyPercent:reply.frequencyPercent,status:selected==="idea"?"idea_only":selected==="omitted"?"unprepared":"missing_response"};
           targetNode.gap.status=selected==="idea"?"idea_only":selected==="omitted"?"unprepared":"missing_response";
         }
@@ -160,7 +161,8 @@ export function repertoireGoal(input: {
   }
   return {repertoireId:input.repertoireId,games:input.games,ratingGroup:input.ratingGroup,speeds:input.speeds,maxPlies:input.maxPlies,
     plansAvailable:signatures.size,plans,plansOmitted:Math.max(0,signatures.size-plans.length),conditionalStarts,
-    met:plans.length>0&&plans.every(plan=>plan.met)&&signatures.size===plans.length,
+    met:planOffset===0&&plans.length>0&&plans.every(plan=>plan.met)&&signatures.size===plans.length,
+    planScan:{offset:planOffset,nextOffset:planOffset+plans.length<signatures.size?planOffset+plans.length:null,snapshot:""},
     gaps:[...gaps.values()].sort((a,b)=>(b.reachPercent??0)-(a.reachPercent??0)),
     policy:"Each saved line supplies its own choices; elsewhere the first saved primary response is used. Identical policies are checked once. Alternatives are separate plans, never added as extra probability.",
     scan:{checked:0,remaining:0,nextOffset:null,available:0,failed:0,mode:"missing"}};

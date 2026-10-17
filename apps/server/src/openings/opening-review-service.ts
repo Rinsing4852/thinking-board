@@ -166,7 +166,7 @@ export class OpeningReviewService {
     };
   }
 
-  startRecommended(sessionSize?: number, newLimit?: number): OpeningReviewExercise {
+  startRecommended(sessionSize?: number, newLimit?: number, learnFirst=false): OpeningReviewExercise {
     const profileId = ensureActiveProfile(this.db);
     const resolvedNewLimit = newLimit ?? this.practicePacing(profileId).newMovesPerSession;
     const activity = new OpeningActivityService(this.db).get();
@@ -174,6 +174,11 @@ export class OpeningReviewService {
     const recommendation = this.recommendedSelection(profileId, sessionSize ?? Math.min(10, activity.remaining), resolvedNewLimit);
     if (!recommendation || recommendation.selected.length === 0) {
       throw new Error("No opening positions are enabled for practice. Include a line in Practice selection, or open a line to practise it once.");
+    }
+    if (learnFirst) {
+      if (recommendation.counts.due > 0 || recommendation.counts.gameMisses > 0)
+        throw new Error("Due reviews or game misses are ready. Refresh your recommendations before choosing new moves.");
+      return this.start(recommendation.repertoire.id,"new",sessionSize ?? Math.min(10,activity.remaining),resolvedNewLimit,true);
     }
     return this.createSession(
       profileId,
@@ -1204,6 +1209,15 @@ export class OpeningReviewService {
       boardAnnotations: JSON.parse(item.board_annotations_json),
       ...this.contextExplanation(item, context?.line_id, context?.target_ply),
     };
+    const taughtReference = queue.expected_move_id ? this.db.prepare(`SELECT sequence FROM opening_review_queue
+      WHERE session_id = ? AND review_item_id = ? AND expected_move_id = ?
+        AND (introduction_pending = 1 OR introduction_completed_at IS NOT NULL) ORDER BY sequence LIMIT 1
+    `).get(queue.session_id,queue.review_item_id,queue.expected_move_id) as {sequence:number}|undefined : undefined;
+    const taughtOrder = taughtReference ? this.db.prepare(`
+      SELECT COUNT(*) AS total, SUM(CASE WHEN sequence <= ? THEN 1 ELSE 0 END) AS number
+      FROM opening_review_queue WHERE session_id = ? AND review_item_id = ?
+        AND (introduction_pending = 1 OR introduction_completed_at IS NOT NULL)
+    `).get(taughtReference.sequence,queue.session_id,queue.review_item_id) as {number:number;total:number} : null;
     const acceptedMoves = queue.expected_move_id && !queue.source_line_id && !queue.introduction_pending && !queue.introduction_completed_at && queue.presentation_kind === "scheduled"
       ? this.remainingResponses(queue, item) : queue.expected_move_id
       ? [{ moveUci: item.move_uci, moveSan: item.move_san }]
@@ -1223,6 +1237,7 @@ export class OpeningReviewService {
         total: Number(this.db.prepare("SELECT COUNT(*) FROM opening_review_queue WHERE session_id = ? AND (introduction_pending = 1 OR introduction_completed_at IS NOT NULL)").pluck().get(queue.session_id)),
       } } : {}),
       learningStage,
+      ...(taughtOrder&&taughtOrder.total>1?{responseSequence:taughtOrder}:{}),
       practiceReason,
       lineRun: !queue.focus_move_id && queue.source_line_id && context ? { lineId: context.line_id, lineTitle: context.line_title, chapterTitle: context.chapter_title } : null,
       ...(context ? { sourceContext: { lineId: context.line_id, ply: context.target_ply } } : {}),
@@ -1233,7 +1248,8 @@ export class OpeningReviewService {
         : null,
       movesBefore,
       moveNumber: Number.parseInt(item.from_fen.split(" ")[5] ?? "1", 10),
-      prompt: queue.introduction_completed_at ? "Recall the move you learned for this position." : queue.expected_move_id && !queue.source_line_id && queue.presentation_kind === "scheduled"
+      prompt: taughtOrder&&taughtOrder.total>1 ? `Recall saved answer ${taughtOrder.number} of ${taughtOrder.total} for this position.`
+        : queue.introduction_completed_at ? "Recall the move you learned for this position." : queue.expected_move_id && !queue.source_line_id && queue.presentation_kind === "scheduled"
         ? "You have another saved response here. Play it on the board."
         : acceptedMoves.length > 1 ? "Play one of your saved responses for this position." : "Recall your repertoire move for this position.",
       acceptedMoves,

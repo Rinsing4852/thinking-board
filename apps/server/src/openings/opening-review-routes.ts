@@ -28,7 +28,10 @@ export function registerOpeningReviewRoutes(
     try {
       const profileId = ensureActiveProfile(db);
       openingGames.inbox(profileId);
-      return openingReviews.startRecommended();
+      const body=request.body as {learnFirst?:unknown}|undefined;
+      if(body!==undefined&&(body===null||typeof body!=="object"||Array.isArray(body))) throw new Error("Practice options must be an object");
+      if(body?.learnFirst!==undefined&&typeof body.learnFirst!=="boolean") throw new Error("Learn first must be true or false");
+      return openingReviews.startRecommended(undefined,undefined,body?.learnFirst===true);
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not start recommended opening practice" });
     }

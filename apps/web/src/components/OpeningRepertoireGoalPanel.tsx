@@ -1,6 +1,7 @@
 import {useEffect,useRef,useState} from "react";
 import type {OpeningCoverageGap,OpeningRepertoireGoal} from "../../../../packages/contracts/src/api";
 import {get} from "../api";
+import {mergeOpeningGoalPages} from "../opening-goal-pages";
 
 interface Props {
   repertoireId:string; graphKey:string; rating:number; speeds:string; useExplorer:boolean; disabled:boolean;
@@ -16,15 +17,16 @@ export function OpeningRepertoireGoalPanel({repertoireId,graphKey,rating,speeds,
     request.current?.abort();setData(null);setBusy(false);setError("");setShowAll(false);
     return ()=>request.current?.abort();
   },[repertoireId,graphKey,rating,speeds,useExplorer,limit]);
-  const load=async(offset=0,refresh=false)=>{
+  const load=async(offset=0,refresh=false,continuePlans=false)=>{
     if(busy||disabled||!valid) return;
     const controller=new AbortController();request.current?.abort();request.current=controller;
-    setBusy(true);setError("");setData(null);
+    const previous=continuePlans?data:null;
+    setBusy(true);setError("");if(!continuePlans) setData(null);
     try {
-      const result=await get<OpeningRepertoireGoal>(`/api/v1/openings/repertoires/${encodeURIComponent(repertoireId)}/coverage/repertoire?rating=${rating}&maxPlies=${Number(limit)*2}&offset=${offset}&refresh=${refresh}&local=${!useExplorer}`,controller.signal);
-      if(!controller.signal.aborted) setData(result);
+      const result=await get<OpeningRepertoireGoal>(`/api/v1/openings/repertoires/${encodeURIComponent(repertoireId)}/coverage/repertoire?rating=${rating}&maxPlies=${Number(limit)*2}&offset=${offset}&refresh=${refresh}&local=${continuePlans||!useExplorer}${continuePlans?`&planOffset=${previous?.planScan.nextOffset??0}&snapshot=${encodeURIComponent(previous?.planScan.snapshot??"")}`:""}`,controller.signal);
+      if(!controller.signal.aborted) setData(mergeOpeningGoalPages(previous,result));
     } catch(problem) {
-      if(!controller.signal.aborted) setError(problem instanceof Error?problem.message:"Could not check the repertoire. Your saved moves are unchanged.");
+      if(!controller.signal.aborted) {setData(null);setError(problem instanceof Error?problem.message:"Could not check the repertoire. Your saved moves are unchanged.");}
     } finally {if(!controller.signal.aborted) setBusy(false);}
   };
   const unknown=data?.plans.filter(plan=>plan.outcomes.unknown>1e-9).length??0;
@@ -46,7 +48,7 @@ export function OpeningRepertoireGoalPanel({repertoireId,graphKey,rating,speeds,
         {data.gaps.length>0&&<p><strong>{data.gaps.length}</strong> relevant {data.gaps.length===1?"position still needs":"positions still need"} an answer.</p>}
         {unknown>0&&<p>{unknown} {unknown===1?"plan needs":"plans need"} more reliable frequency data.</p>}
         {limited>0&&<p>{limited} {limited===1?"plan has":"plans have"} unchecked continuations. A checking limit or repeated position is not completion.</p>}
-        {data.plansOmitted>0&&<p>{data.plansOmitted} additional plans exceed this check's work budget and remain unchecked.</p>}
+        {data.plansOmitted>0&&<p>{data.plansOmitted} saved plans still need checking. Continue below to include the next batch.</p>}
         {data.conditionalStarts>0&&<p>{data.conditionalStarts} {data.conditionalStarts===1?"plan starts":"plans start"} from a custom position. Its chance of being reached from the initial board is unknown.</p>}
         {stopped>0&&<p>{stopped} {stopped===1?"plan uses":"plans use"} a preparation stopping point you chose. The result includes those stopping points.</p>}
         {omitted>0&&<p>{omitted} {omitted===1?"plan includes":"plans include"} a reply you deliberately left unprepared. That choice is not counted as a saved answer.</p>}
@@ -61,8 +63,10 @@ export function OpeningRepertoireGoalPanel({repertoireId,graphKey,rating,speeds,
           <div className="answer-actions"><button className="secondary" disabled={busy||disabled} onClick={()=>onInspect(gap)}>Prepare this answer</button></div>
         </article>)}
       </div>{data.gaps.length>3&&<button className="text-button" onClick={()=>setShowAll(value=>!value)}>{showAll?"Show just three answers":`Show all ${data.gaps.length} missing answers`}</button>}</>}
-      {useExplorer&&data.scan.remaining>0&&<button disabled={busy||disabled||!valid} onClick={()=>void load(data.scan.nextOffset??0,data.scan.mode==="refresh")}>Continue repertoire scan · {data.scan.remaining} positions left</button>}
+      {data.planScan.nextOffset!==null&&<button disabled={busy||disabled||!valid} onClick={()=>void load(0,false,true)}>Continue checking saved plans · {data.plansOmitted} left</button>}
+      {useExplorer&&data.scan.remaining>0&&<button disabled={busy||disabled||!valid} onClick={()=>void load(data.scan.nextOffset??0,data.scan.mode==="refresh")}>Load more frequency samples · {data.scan.remaining} positions left</button>}
       <details><summary>Saved plans and checking details</summary>
+        <p>Saved plans are checked in batches. Changing lines, settings, stopping points or sample evidence requires a fresh check. Continuing the sample scan starts a fresh saved-plan check.</p>
         <p>{data.policy}</p>
         <p>Replies use conditional Lichess samples. Uncertain samples are not treated as rare. A higher encounter goal includes rarer positions. Change that goal and the game population in Opening settings.</p>
         {data.plans.map(plan=><article className="opening-personal-coverage" key={plan.id}>

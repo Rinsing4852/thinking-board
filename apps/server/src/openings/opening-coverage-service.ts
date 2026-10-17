@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { repertoireGoal } from "./opening-repertoire-goal.js";
 import { firstPreparationTask, openingTask, rankedOpeningTasks } from "../../../../packages/contracts/src/opening-tasks.js";
 import { qualityPreferences } from "./opening-quality-preferences.js";
@@ -110,10 +111,12 @@ export class OpeningCoverageService {
   }
 
   async wholeRepertoire(repertoireId: string, ratingGroup = 1600,
-    options: {local?: boolean; offset?: number; refresh?: boolean; maxPlies?: number} = {}) {
+    options: {local?: boolean; offset?: number; refresh?: boolean; maxPlies?: number; planOffset?:number; snapshot?:string} = {}) {
     const profileId=ensureActiveProfile(this.db), quality=qualityPreferences(this.db,profileId);
     if(!RATINGS.has(ratingGroup)) throw new Error("Choose a supported Lichess rating group");
-    const offset=options.offset??0, maxPlies=options.maxPlies??60;
+    const offset=options.offset??0, maxPlies=options.maxPlies??60, planOffset=options.planOffset??0;
+    if(!Number.isSafeInteger(planOffset)||planOffset<0) throw new Error("Choose a valid saved-plan continuation");
+    if(planOffset>0&&(!options.snapshot||!options.local||options.refresh||offset!==0)) throw new Error("Continue saved plans using the unchanged local check");
     if(!Number.isInteger(offset)||offset<0||!Number.isInteger(maxPlies)||maxPlies<2||maxPlies>120) throw new Error("Choose a checking limit from 2 to 120 plies and a valid scan offset");
     const repertoire=this.db.prepare("SELECT learner_color FROM opening_repertoires WHERE id=?").get(repertoireId) as {learner_color:"white"|"black"}|undefined;
     if(!repertoire) throw new Error("Opening repertoire is not available");
@@ -157,8 +160,14 @@ export class OpeningCoverageService {
     for(const choice of this.db.prepare("SELECT position_key,opponent_move_uci,choice FROM opening_preparation_decisions WHERE repertoire_id=? AND profile_id=?").all(repertoireId,profileId) as Array<{position_key:string;opponent_move_uci:string;choice:"idea"|"unprepared"|"line"}>) {
       const id=keys.get(choice.position_key);if(id) decisions.set(`${id}:${choice.opponent_move_uci}`,choice.choice);
     }
-    const result=repertoireGoal({repertoireId,rows,learnerColor:repertoire.learner_color,games:quality.coverageGoalGames,maxPlies,
+    const snapshot=createHash("sha256").update(JSON.stringify({model:"saved-policy-v2",profileId,repertoireId,learnerColor:repertoire.learner_color,rows,boundaries:[...boundaries].sort(),
+      decisions:[...decisions].sort(),samples:[...samples].map(([id,sample])=>[id,sample?{fen:sample.fen,totalGames:sample.totalGames,
+        replies:sample.replies,stale:Boolean(sample.stale)}:null]),ratingGroup,speeds:quality.explorerSpeeds,games:quality.coverageGoalGames,maxPlies})).digest("hex");
+    if(planOffset>0&&options.snapshot!==snapshot) throw new Error("The repertoire, settings or samples changed. Recheck from the start before continuing saved plans.");
+    const result=repertoireGoal({repertoireId,rows,learnerColor:repertoire.learner_color,games:quality.coverageGoalGames,maxPlies,planOffset,
       samples,boundaries,decisions,ratingGroup,speeds:quality.explorerSpeeds});
+    if(planOffset>0&&planOffset>=result.plansAvailable) throw new Error("That saved-plan continuation is no longer available. Recheck from the start.");
+    result.planScan.snapshot=snapshot;
     const last=batch.at(-1)?.index??(offset-1);
     const remaining=options.refresh ? pending.filter(position=>position.index>last)
       : pending.filter(position=>!samples.get(position.id)||samples.get(position.id)?.stale);

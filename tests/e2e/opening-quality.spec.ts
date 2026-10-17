@@ -1,6 +1,76 @@
 import { expect, test } from "@playwright/test";
 test.use({ baseURL: "http://127.0.0.1:8192" });
 
+test("continues saved-plan batches and refuses changed evidence instead of showing stale completion",async({page},testInfo)=>{
+  await page.route("**/api/v1/openings/reviews/active",route=>route.fulfill({json:null}));
+  await page.route("**/api/v1/openings/lessons/active",route=>route.fulfill({json:null}));
+  const id=await openNavigationStudy(page,`Continued plans ${testInfo.project.name} ${testInfo.retry}`,"1. e4 e5 *");
+  const base=await (await page.request.get(`/api/v1/openings/repertoires/${id}/coverage/repertoire?local=true`)).json();
+  let changed=false;
+  const offsets:number[]=[];
+  await page.route("**/coverage/repertoire?*",async route=>{
+    const query=new URL(route.request().url()).searchParams,offset=Number(query.get("planOffset")??0);
+    if(offset>0) {expect(query.get("local")).toBe("true");expect(query.get("snapshot")).toBe(base.planScan.snapshot);}
+    offsets.push(offset);
+    if(changed&&offset>0) {await route.fulfill({status:400,json:{error:"The repertoire, settings or samples changed. Recheck from the start before continuing saved plans."}});return;}
+    const count=Math.min(64,130-offset);
+    await route.fulfill({json:{...base,plansAvailable:130,plansOmitted:130-count,met:false,gaps:[],conditionalStarts:0,
+      plans:Array.from({length:count},(_,index)=>({...base.plans[0],id:`plan-${offset+index}`,title:`Saved plan ${offset+index+1}`,met:true,
+        outcomes:{terminal:0,stopped:100,rare:0,missing:0,idea:0,omitted:0,unknown:0,depth:0,cycle:0,work:0}})),
+      planScan:{offset,nextOffset:offset+count<130?offset+count:null,snapshot:base.planScan.snapshot}}});
+  });
+  await page.getByRole("button",{name:"Find repertoire gaps",exact:true}).click();
+  await page.getByRole("group",{name:"Coverage scope"}).getByRole("button",{name:"Whole repertoire",exact:true}).click();
+  const panel=page.getByRole("region",{name:"Whole repertoire coverage",exact:true});
+  await panel.getByRole("button",{name:"Check whole repertoire",exact:true}).click();
+  await expect(panel).toContainText("64 of 130 distinct saved plans checked");
+  await expect(panel.getByRole("heading",{name:"Goal reached for all saved plans",exact:true})).toHaveCount(0);
+  await panel.getByRole("button",{name:"Continue checking saved plans · 66 left",exact:true}).click();
+  await expect(panel).toContainText("128 of 130 distinct saved plans checked");
+  await panel.getByRole("button",{name:"Continue checking saved plans · 2 left",exact:true}).click();
+  await expect(panel.getByRole("heading",{name:"Goal reached for all saved plans",exact:true})).toBeVisible();
+  await expect(panel).toContainText("130 of 130 distinct saved plans checked");
+  await page.screenshot({path:testInfo.outputPath("continued-plans.png"),fullPage:true});
+  changed=true;
+  await panel.getByRole("button",{name:"Recheck whole repertoire",exact:true}).click();
+  await panel.getByRole("button",{name:"Continue checking saved plans · 66 left",exact:true}).click();
+  await expect(panel.getByRole("alert")).toContainText("changed");
+  await expect(panel.getByRole("heading",{name:"Goal reached for all saved plans",exact:true})).toHaveCount(0);
+  expect(offsets).toEqual([0,64,128,0,64]);
+});
+
+test("offers learn-first from the home recommendation without changing normal practice",async({page},testInfo)=>{
+  await page.route("**/api/v1/openings/reviews/active",route=>route.fulfill({json:null}));
+  await page.route("**/api/v1/openings/lessons/active",route=>route.fulfill({json:null}));
+  const name=`Recommended teaching ${testInfo.project.name} ${testInfo.retry}`;
+  const imported=await page.request.post("/api/v1/openings/imports/pgn",{data:{pgn:`[Event "${name}"]\n\n1. e4 {Take space.} (1. d4) *`,name,learnerColor:"white",ownershipConfirmed:true}});
+  expect(imported.ok()).toBeTruthy();const id=(await imported.json()).repertoireIds[0];
+  const real=await (await page.request.get("/api/v1/openings/catalog")).json();
+  const repertoire=real.repertoires.find((r:{id:string})=>r.id===id);
+  await page.route("**/api/v1/openings/catalog",route=>route.fulfill({json:{repertoires:[repertoire]}}));
+  const recommended={available:true,repertoire:{id,name,learnerColor:"white"},counts:{gameMisses:0,due:0,new:1,early:0,total:1},message:"New saved answers are available."};
+  await page.route("**/api/v1/openings/reviews/recommended",route=>route.fulfill({json:recommended}));
+  await page.route("**/api/v1/openings/reviews/recommended/start",async route=>{
+    expect(route.request().postDataJSON()).toEqual({learnFirst:true});
+    const response=await page.request.post(`/api/v1/openings/repertoires/${id}/reviews/start`,{data:{mode:"new",teachNew:true}});
+    expect(response.ok()).toBeTruthy();await route.fulfill({json:await response.json()});
+  });
+  await page.goto("/#openings");
+  const primary=page.locator(".opening-home-primary");
+  await expect(primary.getByRole("button",{name:"Start 1-position practice",exact:true})).toBeVisible();
+  await expect(primary).toContainText("then recall them with the answers hidden");
+  await page.screenshot({path:testInfo.outputPath("recommended-teaching.png"),fullPage:true});
+  recommended.counts={gameMisses:0,due:1,new:0,early:0,total:1};
+  await page.reload();
+  await expect(primary.getByRole("button",{name:"Start 1-position practice",exact:true})).toBeVisible();
+  await expect(primary.getByRole("button",{name:"Learn new moves first",exact:true})).toHaveCount(0);
+  recommended.counts={gameMisses:0,due:0,new:1,early:0,total:1};
+  await page.reload();
+  await primary.getByRole("button",{name:"Learn new moves first",exact:true}).click();
+  await expect(page.getByText("Learning 1 of 2",{exact:true})).toBeVisible();
+  await expect(page.getByRole("region",{name:"Learn this move"})).toContainText("Play e4");
+});
+
 test("teaches both saved alternatives and asks for the taught response without claiming a chess blunder",async({page},testInfo)=>{
   const name=`Taught alternatives ${testInfo.project.name} ${testInfo.retry} ${testInfo.repeatEachIndex}`;
   const imported=await page.request.post("/api/v1/openings/imports/pgn",{data:{
@@ -18,6 +88,7 @@ test("teaches both saved alternatives and asks for the taught response without c
   await page.screenshot({path:testInfo.outputPath("learned-alternatives.png"),fullPage:true});
   await board.getByRole("gridcell",{name:"d2 white pawn"}).click();await board.getByRole("gridcell",{name:"d4 empty"}).click();
   await expect(page.getByText("Step 1 of 2",{exact:true})).toBeVisible();
+  await expect(page.getByRole("status").filter({hasText:/Recall saved answer 1 of 2/}).or(page.getByRole("heading",{name:"Recall saved answer 1 of 2 for this position.",exact:true}))).toBeVisible();
   await expect(page.locator(".cg-shapes line")).toHaveCount(0);
   await board.getByRole("gridcell",{name:"d2 white pawn"}).click();await board.getByRole("gridcell",{name:"d4 empty"}).click();
   await expect(page.getByRole("status").filter({hasText:/d4 is not one of the responses requested here/})).toBeVisible();
@@ -580,6 +651,7 @@ for (const reducedMotion of [false, true]) {
     await expect(board).toHaveClass(/interactive/);
     await expect(page.getByRole("button", { name: "Hint: show the piece" })).toBeEnabled();
     expect(mistakes).toBe(1);
+    expect(await board.evaluate(element => element.getBoundingClientRect().top + window.scrollY)).toBeCloseTo(boardTop, 0);
     await board.getByRole("gridcell", { name: "e2 white pawn" }).click();
     await page.clock.runFor(20);
     await board.getByRole("gridcell", { name: "e4 empty" }).click();

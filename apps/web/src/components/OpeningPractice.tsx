@@ -398,13 +398,13 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
     }
   };
 
-  const startRecommendedReview = async (): Promise<void> => {
+  const startRecommendedReview = async (learnFirst=false): Promise<void> => {
     if (step && pausedLessonPhase && !window.confirm("Starting memory practice will end the paused guided line. Continue?")) return;
     if (activeReview && reviewPaused && !window.confirm("Starting a new memory session will end the paused session. Continue?")) return;
     if (!beginSubmission()) return;
     setError("");
     try {
-      const review = await post<OpeningReviewActiveState>("/api/v1/openings/reviews/recommended/start");
+      const review = await post<OpeningReviewActiveState>("/api/v1/openings/reviews/recommended/start",{learnFirst});
       setStep(null);
       setPausedLessonPhase(null);
       setActiveReview(review);
@@ -736,6 +736,8 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
               importOpen={showImporter}
               onSettings={() => { setSettingsOpen(true); requestAnimationFrame(() => settingsRef.current?.scrollIntoView({ block: "start" })); }}
               onStartRecommended={() => void startRecommendedReview()}
+              onLearnFirst={() => void startRecommendedReview(true)}
+              learnableResponses={catalog.find(repertoire=>repertoire.id===recommendation?.repertoire?.id)?.newResponseCount ?? 0}
               onStartRun={(repertoireId) => void startTreePractice(repertoireId)}
               onOpenGames={onOpenGames}
               onAnalyzeGame={onAnalyzeGame}

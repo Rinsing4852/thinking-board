@@ -44,3 +44,6 @@ explicit limits and evidence. The next increment adds an opt-in
 study and the remaining learning refinements remain plans. The
 [review of both increments](./RECENT_FEATURE_REVIEW.md) records fresh competitor
 observations, corrections to alternatives/retries and the next quality measurements.
+The [continuation and home-learning increment](./CONTINUATION_AND_HOME_LEARNING.md)
+removes the fixed total-policy checking ceiling and adds an explicit teaching
+choice beside the recommended practice action, with unchanged urgency rules.

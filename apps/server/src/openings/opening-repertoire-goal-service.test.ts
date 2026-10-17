@@ -30,6 +30,17 @@ function setup(pgn:string,color:"white"|"black"="white") {
   return {db,id,service,fetcher,workspace,rows,stop,sample};
 }
 describe("whole repertoire encounter goal",()=>{
+  it("binds continuation to sample content and freshness rather than cache delivery metadata",async()=>{
+    const f=setup("1. e4 e5 2. Nf3 Nc6 3. Bc4 *");
+    const fetched=await f.service.wholeRepertoire(f.id);
+    const cached=await f.service.wholeRepertoire(f.id,1600,{local:true});
+    expect(fetched.planScan.snapshot).toBe(cached.planScan.snapshot);expect(f.fetcher).toHaveBeenCalledTimes(2);
+    f.db.prepare("UPDATE opening_explorer_cache SET fetched_at='2000-01-01'").run();
+    const stale=await f.service.wholeRepertoire(f.id,1600,{local:true});
+    expect(stale.planScan.snapshot).not.toBe(cached.planScan.snapshot);
+    await expect(f.service.wholeRepertoire(f.id,1600,{local:true,planOffset:1,snapshot:cached.planScan.snapshot})).rejects.toThrow(/changed/);
+    expect(f.fetcher).toHaveBeenCalledTimes(2);
+  });
   it("checks both Black first-move responses together and keeps White alternatives separate",async()=>{
     const black=setup("1. e4 (1. d4 g6) g6 *","black");black.stop();
     black.sample(new Chess().fen(),[["e2e4",5000],["d2d4",5000]]);
@@ -130,6 +141,23 @@ describe("whole repertoire encounter goal",()=>{
     const bounded=await many.service.wholeRepertoire(many.id,1600,{local:true});
     expect(bounded.plansAvailable).toBeGreaterThan(64);expect(bounded.plansOmitted).toBeGreaterThan(0);
     expect(bounded.plans.every(plan=>plan.met)).toBe(true);expect(bounded.met).toBe(false);
+    const ids=new Set(bounded.plans.map(plan=>plan.id));
+    let nextOffset=bounded.planScan.nextOffset;
+    while(nextOffset!==null) {
+      const next=await many.service.wholeRepertoire(many.id,1600,{local:true,planOffset:nextOffset,snapshot:bounded.planScan.snapshot});
+      expect(next.planScan.snapshot).toBe(bounded.planScan.snapshot);expect(next.met).toBe(false);
+      expect(next.plans.every(plan=>plan.met)).toBe(true);
+      for(const plan of next.plans) {expect(ids.has(plan.id)).toBe(false);ids.add(plan.id);}
+      nextOffset=next.planScan.nextOffset;
+    }
+    expect(ids.size).toBe(bounded.plansAvailable);
+    await expect(many.service.wholeRepertoire(many.id,1600,{local:true,planOffset:64,snapshot:"different"})).rejects.toThrow(/changed/);
+    many.db.prepare("UPDATE opening_quality_preferences SET goal_games=500 WHERE profile_id=?").run(ensureActiveProfile(many.db));
+    // An absent preference row is possible; insert explicitly to ensure a changed goal.
+    many.db.prepare("INSERT OR IGNORE INTO opening_quality_preferences(profile_id,goal_games,speeds) VALUES(?,500,'blitz,rapid,classical')").run(ensureActiveProfile(many.db));
+    await expect(many.service.wholeRepertoire(many.id,1600,{local:true,planOffset:64,snapshot:bounded.planScan.snapshot})).rejects.toThrow(/changed/);
+    await expect(many.service.wholeRepertoire(many.id,1600,{local:true,planOffset:-1})).rejects.toThrow(/valid/);
+    await expect(many.service.wholeRepertoire(many.id,1600,{planOffset:64,snapshot:bounded.planScan.snapshot})).rejects.toThrow(/local/);
   });
 
 });

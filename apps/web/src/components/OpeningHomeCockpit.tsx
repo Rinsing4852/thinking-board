@@ -19,6 +19,8 @@ interface OpeningHomeCockpitProps {
   busy: boolean;
   importOpen: boolean;
   onStartRecommended: () => void;
+  onLearnFirst?: () => void;
+  learnableResponses?: number;
   onStartRun: (repertoireId: string) => void;
   onOpenGames: (() => void) | undefined;
   onAnalyzeGame: (() => void) | undefined;
@@ -45,6 +47,7 @@ export function OpeningHomeCockpit({
   busy,
   importOpen,
   onStartRecommended,
+  onLearnFirst, learnableResponses=0,
   onStartRun,
   onOpenGames,
   onAnalyzeGame,
@@ -58,6 +61,8 @@ export function OpeningHomeCockpit({
   const weakLine = progress?.weakestLines[0] ?? null;
   const repertoire = recommendation?.repertoire ?? null;
   const activity = recommendation?.activity;
+  const offerLearning=Boolean(onLearnFirst&&learnableResponses>0&&recommendation?.available
+    &&recommendation.counts.due===0&&recommendation.counts.gameMisses===0&&(activity?.remaining??1)>0);
   const orientation = gap ? gap.fen.split(" ")[1] === "w" ? "black" : "white" : repertoire?.learnerColor ?? weakLine?.learnerColor ?? "white";
   const masteredPercent = progress && progress.totalLines > 0
     ? Math.round((progress.masteredLines / progress.totalLines) * 100)
@@ -145,9 +150,12 @@ export function OpeningHomeCockpit({
               <button disabled={busy} onClick={onStartRecommended}>
                 {busy ? "Starting…" : `Start ${recommendation.counts.total}-position practice`}
               </button>
-              <button className="secondary" disabled={busy} onClick={() => onStartRun(repertoire.id)}>
+              {offerLearning ? <>
+                <button className="secondary" disabled={busy} onClick={onLearnFirst}>Learn new moves first</button>
+                <small>See up to {Math.min(learnableResponses,preferences?.newMovesPerSession??5,activity?.remaining??10)} new saved answers, then recall them with the answers hidden.</small>
+              </> : <button className="secondary" disabled={busy} onClick={() => onStartRun(repertoire.id)}>
                 Practise a varied line
-              </button>
+              </button>}
             </div>
           </div>
         ) : (

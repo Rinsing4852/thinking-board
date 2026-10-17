@@ -235,6 +235,8 @@ export interface OpeningCoverageGap {
   recallAttempts?: number;
   responseLineId?: string | null;
   responseMoveId?: string | null;
+  /** Canonical destination of an unanswered reply, for transposition deduplication. */
+  targetPositionKey?: string;
 }
 
 export interface OpeningCoverageBranch extends OpeningCoverageGap {
@@ -673,6 +675,7 @@ export interface OpeningReviewExercise {
   presentationKind: "scheduled" | "lapse_repeat";
   phase?: "introduction" | "recall";
   introductionProgress?: { current: number; total: number };
+  responseSequence?: {number: number; total: number};
   learningStage: "new" | "learning" | "review";
   practiceReason: { kind: OpeningReviewReasonKind; label: string };
   lineRun: { lineId: string; lineTitle: string; chapterTitle?: string } | null;
@@ -1003,5 +1006,6 @@ export interface OpeningRepertoireGoal {
   plans: Array<{ id: string; title: string; conditional: boolean; conflict: boolean; met: boolean; relevantMissing: number;
     outcomes: Record<"terminal"|"stopped"|"rare"|"missing"|"idea"|"omitted"|"unknown"|"depth"|"cycle"|"work", number> }>;
   gaps: OpeningCoverageGap[]; policy: string;
+  planScan: {offset: number; nextOffset: number|null; snapshot: string};
   scan: {checked: number; remaining: number; nextOffset: number|null; available: number; failed: number; mode: "missing"|"refresh"};
 }

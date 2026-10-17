@@ -7,6 +7,11 @@ Chessbook's unseen scheduling rules or establish equivalent learning outcomes.
 
 ## Using it
 
+The [home-learning follow-up](./CONTINUATION_AND_HOME_LEARNING.md) also offers
+this choice beside recommended practice when new answers are available and
+urgent reviews do not take priority. Alternatives now have explicit answer
+numbers during teaching and recall, including later extra retries.
+
 Expand a repertoire card with new moves and choose **Learn new moves first**.
 The batch uses your existing new-moves limit. Each position shows a green arrow,
 the saved move and its existing explanation. Play that move yourself to advance.

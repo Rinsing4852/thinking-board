@@ -45,17 +45,24 @@ chosen stopping points; it does not measure recall or guarantee a game result.
 
 ## Limits and recovery
 
-One explicit request fetches at most two remote samples. **Continue repertoire
-scan** resumes the remaining sample work. With common-move data off, the check
+One explicit sample request fetches at most two remote samples. **Load more
+frequency samples** continues that work. With common-move data off, the check
 uses cached samples only. Failed or stale samples remain uncertain and can be
 retried; saved moves and review records are unaffected.
 
 The default safety limit is 30 full moves from each plan's root, adjustable
-between 1 and 60. Traversal checks at most 64 policies, 5,000 graph nodes per
-policy and 20,000 node insertions across the request. Extra policies are reported
-as unchecked and block success. There is no continuation for the local policy
-budget yet; remote sample continuation does not remove that limit. Merged paths
-use the longest reached depth, conservatively leaving some frontiers incomplete.
+between 1 and 60. Each request checks at most 64 policies, 5,000 graph nodes per
+policy and 20,000 node insertions. **Continue checking saved plans** now checks the
+next bounded batch without fetching remote samples. The display combines only
+contiguous batches from the same content/settings/sample snapshot. It cannot
+show whole-repertoire completion until all distinct saved plans are checked.
+Changing the evidence requires a fresh check. Shared missing positions combine
+by canonical destination across batches rather than being counted twice.
+
+This progress lasts while the view is open; leaving or reloading starts a fresh
+check. The single-policy node limit, cycles and depth limit still leave that
+plan explicitly incomplete; continuation across policies does not resolve those
+frontiers. Merged paths conservatively use the longest reached depth.
 
 ## Evidence and remaining comparison work
 
