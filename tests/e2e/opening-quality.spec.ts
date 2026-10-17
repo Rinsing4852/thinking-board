@@ -861,7 +861,10 @@ async function openNavigationStudy(page: import("@playwright/test").Page, name: 
   const pause = page.getByRole("button", { name: "Pause", exact: true });
   await expect(pause.or(card.locator("summary").first())).toBeVisible();
   if (await pause.isVisible()) await pause.click();
-  await card.locator("summary").first().click();
+  // Optional home insights can reflow the catalogue during a pointer click.
+  // Use the native keyboard control for setup; pointer expansion has its own journey.
+  await card.locator("summary").first().press("Enter");
+  await expect(card.locator("details.opening-card-details")).toHaveAttribute("open", "");
   await card.getByRole("button", { name: "View all lines", exact: true }).click();
   await expect(page.getByRole("heading", { name, level: 2, exact: true })).toBeVisible();
   const notes = page.getByRole("button", { name: "Notes and move ideas", exact: true });

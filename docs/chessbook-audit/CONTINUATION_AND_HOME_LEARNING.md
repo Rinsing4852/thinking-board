@@ -105,5 +105,15 @@ post-return check. The tracker still records 84 passed requirements, 42 unknown
 and 42 unmet; those counts are not a Chessbook quality percentage. A fresh hosted
 publication is required to validate the Linux WebKit release path.
 
+Hosted follow-up: `bc9ebbd` passed the mobile rejection geometry journeys but
+publication was blocked by the WebKit frequency-filter journey (run
+`39025106789`). Its trace shows late optional home insights reflowing the
+catalogue during the setup pointer click; the target card stayed closed, before
+any frequency assertion ran. The shared study helper now uses the native Enter
+control and asserts the card's open state. Dedicated pointer-expansion journeys
+remain unchanged, as do all frequency and practice-selection assertions. Three
+consecutive local WebKit runs passed. This addresses test setup timing; it does
+not establish that late home summaries never cause a visible layout shift.
+
 Next: matched clarity/retention measurements, persistent checking checkpoints if
 needed, then contextual model-game study and optional sound-alternative evidence.
