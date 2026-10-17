@@ -49,12 +49,13 @@ export function registerOpeningReviewRoutes(
   app.post("/api/v1/openings/repertoires/:repertoireId/reviews/start", async (request, reply) => {
     try {
       const { repertoireId } = request.params as { repertoireId: string };
-      const body = (request.body ?? {}) as { mode?: unknown };
+      const body = (request.body ?? {}) as { mode?: unknown; teachNew?: unknown };
       const mode = body.mode ?? "auto";
       if (mode !== "auto" && mode !== "due" && mode !== "new" && mode !== "early") {
         throw new Error("Review mode must be due, new, or early");
       }
-      return openingReviews.start(repertoireId, mode);
+      if (body.teachNew !== undefined && typeof body.teachNew !== "boolean") throw new Error("Learn first must be true or false");
+      return openingReviews.start(repertoireId, mode, undefined, undefined, body.teachNew === true);
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not start opening review" });
     }
@@ -84,6 +85,20 @@ export function registerOpeningReviewRoutes(
       return openingReviews.startMove(repertoireId, moveId);
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not practise this saved response" });
+    }
+  });
+
+  app.post("/api/v1/openings/reviews/:sessionId/introduce", { schema: { body: {
+    type: "object", required: ["moveUci", "queueEntryId"], additionalProperties: false,
+    properties: { moveUci: { type: "string", pattern: "^[a-h][1-8][a-h][1-8][qrbn]?$" },
+      queueEntryId: { type: "string", minLength: 1, maxLength: 128 } },
+  } } }, async (request, reply) => {
+    try {
+      const {sessionId} = request.params as {sessionId: string};
+      const {moveUci, queueEntryId} = request.body as {moveUci: string; queueEntryId: string};
+      return openingReviews.introduce(sessionId, queueEntryId, moveUci);
+    } catch (error) {
+      return reply.code(400).send({error: error instanceof Error ? error.message : "Could not save the learning step"});
     }
   });
 

@@ -1,6 +1,55 @@
 import { expect, test } from "@playwright/test";
 test.use({ baseURL: "http://127.0.0.1:8192" });
 
+test("teaches three new moves before hidden recall and resumes the saved learning stage", async ({page},testInfo)=>{
+  const name=`Learn first ${testInfo.project.name} ${testInfo.retry}`;
+  const imported=await page.request.post("/api/v1/openings/imports/pgn",{data:{
+    pgn:`[Event "${name}"]\n\n1. e4 {Claim central space and free the bishop.} e5 2. Nf3 {Develop the knight.} Nc6 3. Bc4 {Aim at the centre.} *`,
+    name,learnerColor:"white",ownershipConfirmed:true,
+  }});
+  expect(imported.ok()).toBeTruthy();const id=(await imported.json()).repertoireIds[0];
+  const before=await (await page.request.get("/api/v1/openings/activity")).json();
+  await page.goto("/#openings");
+  const pause=page.getByRole("button",{name:"Pause",exact:true});if(await pause.isVisible()) await pause.click();
+  const card=page.locator("article.opening-card").filter({hasText:name});
+  await card.locator("summary").first().click();
+  page.on("dialog",dialog=>dialog.accept());
+  await card.getByRole("button",{name:"Learn new moves first",exact:true}).click();
+  const board=page.getByRole("grid",{name:"Chess position"});
+  await expect(page.getByText("Learning 1 of 3",{exact:true})).toBeVisible();
+  await expect(page.getByRole("region",{name:"Learn this move"})).toContainText("Claim central space");
+  await expect(page.locator(".cg-shapes line[stroke='#15781B']")).toHaveCount(1);
+  await page.screenshot({path:testInfo.outputPath("learn-first.png"),fullPage:true});
+  const introduce="**/api/v1/openings/reviews/*/introduce";
+  let fail=true;
+  await page.route(introduce,async route=>{if(fail){fail=false;await route.fulfill({status:503,json:{error:"Learning save unavailable"}});}else await route.continue();});
+  await board.getByRole("gridcell",{name:"e2 white pawn"}).click();await board.getByRole("gridcell",{name:"e4 empty"}).click();
+  await expect(page.getByRole("alert")).toContainText("Learning save unavailable");
+  await expect(page.getByText("Learning 1 of 3",{exact:true})).toBeVisible();
+  await board.getByRole("gridcell",{name:"e2 white pawn"}).click();await board.getByRole("gridcell",{name:"e4 empty"}).click();
+  await expect(page.getByText("Learning 2 of 3",{exact:true})).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("Learning 2 of 3",{exact:true})).toBeVisible();
+  await expect(board).toHaveClass(/interactive/);
+  await board.getByRole("gridcell",{name:"g1 white knight"}).click();await board.getByRole("gridcell",{name:"f3 empty"}).click();
+  await expect(page.getByText("Learning 3 of 3",{exact:true})).toBeVisible();
+  await expect(board).toHaveClass(/interactive/);
+  await board.getByRole("gridcell",{name:"f1 white bishop"}).click();await board.getByRole("gridcell",{name:"c4 empty"}).click();
+  await expect(page.getByText("Step 1 of 3",{exact:true})).toBeVisible();
+  await expect(page.getByRole("region",{name:"Learn this move"})).toHaveCount(0);
+  await expect(page.locator(".cg-shapes line")).toHaveCount(0);
+  await expect(page.getByRole("button",{name:"Show move",exact:true})).toBeVisible();
+  const active=await (await page.request.get("/api/v1/openings/reviews/active")).json();
+  expect(active).toMatchObject({phase:"recall",assistance:{pieceHint:false,moveShown:false,ideaHint:false}});
+  const activity=await (await page.request.get("/api/v1/openings/activity")).json();
+  expect(activity.completedToday).toBe(before.completedToday);expect(activity.independentToday).toBe(before.independentToday);
+  const saved=page.waitForResponse(r=>r.url().endsWith(`/reviews/${active.sessionId}/move`)&&r.request().method()==="POST");
+  await board.getByRole("gridcell",{name:"e2 white pawn"}).click();await board.getByRole("gridcell",{name:"e4 empty"}).click();
+  expect(await (await saved).json()).toMatchObject({outcome:"remembered",assisted:false});
+  const detail=await (await page.request.get(`/api/v1/openings/repertoires/${id}`)).json();
+  expect(detail.chapters[0].lines[0].moves).toHaveLength(5);
+});
+
 async function startPractice(page: import("@playwright/test").Page,
   pgn = '[Event "Quality practice"]\n[Result "*"]\n\n1. e4 {Claim central space and free the bishop. [%csl Ge4] [%cal Bf1c4]} e5 2. Nf3 {Develop the knight and attack the central pawn.} Nc6 3. Bc4 *') {
   const imported = await page.request.post("/api/v1/openings/imports/pgn", { data: {

@@ -110,8 +110,10 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
     ? [initialHint.square, initialExercise.introduction.repertoireMove.moveUci.slice(2, 4)]
     : initialExercise.assistance.pieceHint ? [initialHint.square] : []);
   const [rejectedMove, setRejectedMove] = useState<string | null>(null);
+  const teaching = exercise.phase === "introduction";
+  const stageKey = `${exercise.queueEntryId}:${exercise.phase ?? "recall"}`;
   const timings = practiceTimings(practicePace);
-  const moveReset = usePracticeMoveReset(exercise.queueEntryId, !observing && !feedback && !complete && !explanationOpen && !evidenceOpen,
+  const moveReset = usePracticeMoveReset(stageKey, !observing && !feedback && !complete && !explanationOpen && !evidenceOpen,
     timings.rejectHold, timings.rejectReturn);
   const [preferenceResumed, setPreferenceResumed] = useState<string | null>(null);
   const flow = useOpeningReviewFlow();
@@ -128,7 +130,7 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
   const lineName = exercise.lineRun ? [exercise.lineRun.chapterTitle, exercise.lineRun.lineTitle].filter(Boolean).join(" · ") : "";
   const preferencePaused = Boolean(feedback && preferenceResumed !== exercise.queueEntryId && pauseForFeedback(pauseAfterMove,
     feedback.assisted || feedback.outcome === "again", Boolean(feedback.explanation.personalComment) || hasOpeningReason(feedback.explanation.summary)));
-  const recallClock = useRecallClock(exercise.queueEntryId, !observing && !feedback && !complete && !flow.paused && visible && !submitting && !moveReset.busy);
+  const recallClock = useRecallClock(stageKey, !teaching && !observing && !feedback && !complete && !flow.paused && visible && !submitting && !moveReset.busy);
 
   const showExercise = (next: OpeningReviewExercise): void => {
     setExercise(next);
@@ -210,6 +212,19 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
 
   const playRecallMove = (uci: string, san: string): void => {
     if (submitting || feedback || observing || explanationOpen || complete || moveReset.busy) return;
+    if (teaching) {
+      if (uci !== exercise.introduction.repertoireMove.moveUci) {
+        setMoveNotice(`Play ${exercise.introduction.repertoireMove.moveSan} along the arrow. This is a demonstration, not a scored attempt.`);
+        moveReset.reject(exercise.fenToMove, uci);
+        return;
+      }
+      if (!flow.begin()) return;
+      void post<OpeningReviewExercise>(`/api/v1/openings/reviews/${exercise.sessionId}/introduce`,
+        {queueEntryId: exercise.queueEntryId, moveUci: uci})
+        .then(next => { showExercise(next); flow.finish(); })
+        .catch(failure => { setDisplayFen(exercise.fenToMove); flow.fail(failure instanceof Error ? failure.message : "Could not save the learning step. Play the move again to retry."); });
+      return;
+    }
     const accepted = exercise.acceptedMoves.some((move) => move.moveUci === uci);
     if (!accepted) {
       if (boardSounds) signalBoardResult(false);
@@ -368,11 +383,11 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
         </div>
         <div className="opening-progress">
           <div className="opening-progress-topline">
-            <span>Step {exercise.positionNumber} of {exercise.totalPositions}</span>
+            <span>{teaching ? `Learning ${exercise.introductionProgress?.current} of ${exercise.introductionProgress?.total}` : `Step ${exercise.positionNumber} of ${exercise.totalPositions}`}</span>
             {!complete && <button className="text-button" disabled={editingLineComment} onClick={onPause}>Pause</button>}
           </div>
-            <progress aria-label={`Opening practice progress: step ${exercise.positionNumber} of ${exercise.totalPositions}`} value={complete ? exercise.totalPositions : exercise.positionNumber - 1} max={exercise.totalPositions} />
-          <small>{exercise.presentationKind === "lapse_repeat"
+            <progress aria-label={teaching ? `Learning progress: move ${exercise.introductionProgress?.current} of ${exercise.introductionProgress?.total}` : `Opening practice progress: step ${exercise.positionNumber} of ${exercise.totalPositions}`} value={teaching ? (exercise.introductionProgress?.current ?? 1) - 1 : complete ? exercise.totalPositions : exercise.positionNumber - 1} max={exercise.totalPositions} />
+          <small>{teaching ? "Learn first, then recall" : exercise.presentationKind === "lapse_repeat"
             ? "Unassisted retry"
             : exercise.lineRun
               ? `Line run · ${lineName}`
@@ -390,7 +405,7 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
             : observing ? "Watch your opponent’s reply." : feedback ? `${feedback.repertoireMove.moveSan} — ${feedback.assisted ? "found with help; we’ll revisit it" : "remembered"}${preferencePaused ? ". Paused." : ". Continuing…"}`
             : moveReset.busy ? "Not saved here. The piece will return; then try again."
             : moveNotice && !rejectedMove ? moveNotice : rejectedMove ? "Try again, or ask for a hint."
-            : submitting ? "Checking and saving your move…" : exercise.prompt}</p>
+            : submitting ? "Checking and saving your move…" : teaching ? `Learn ${exercise.introduction.repertoireMove.moveSan}. Play the shown move.` : exercise.prompt}</p>
           <ChessBoard
             fen={explanationOpen && lastAnswered ? lastAnswered.fenAfterMove : moveReset.fen ?? displayFen}
             orientation={exercise.learnerColor}
@@ -399,10 +414,11 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
             lastMove={explanationOpen && lastAnswered ? lastAnswered.repertoireMove.moveUci : lastMove}
             highlightedSquares={explanationOpen ? [] : hintSquares}
             rejectedMove={explanationOpen ? null : rejectedMove}
+            suggestionArrows={teaching && !observing ? [{color:"green",from:exercise.introduction.repertoireMove.moveUci.slice(0,2),to:exercise.introduction.repertoireMove.moveUci.slice(2,4)}] : []}
             sourceAnnotations={explanationOpen ? lastAnswered?.explanation.boardAnnotations ?? [] : []}
             onMove={playRecallMove}
           />
-          {!complete && !observing && !feedback && !explanationOpen && <div className="answer-actions opening-recall-help">
+          {!teaching && !complete && !observing && !feedback && !explanationOpen && <div className="answer-actions opening-recall-help">
             {exercise.introduction.explanation.ideaHint && <button className="secondary" disabled={submitting || moveReset.busy || ideaShown || hintShown}
               onClick={() => void showHelp("idea")}>{ideaShown ? "Idea hint shown" : "Hint: explain the idea"}</button>}
             <button className="secondary" disabled={submitting || moveReset.busy || hintShown} onClick={() => void showHelp("piece")}>
@@ -415,15 +431,15 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
           {feedback && !complete && !preferencePaused && <button className="text-button" onClick={() => flow.pause("manual", !flow.manualPause)}>
             {flow.manualPause ? "Resume automatic practice" : "Keep this open"}
           </button>}
-          {lineExplanationAction}
-          {evidenceAction}
+          {!teaching && lineExplanationAction}
+          {!teaching && evidenceAction}
           <div className="opening-line-context below-board" aria-label="Moves leading to this position">
             <span>Position reached after</span>
             <strong>{formatOpeningLineContext((explanationOpen || complete) && lastAnswered ? [...lastAnswered.exercise.movesBefore, lastAnswered.repertoireMove.moveSan] : exercise.movesBefore)}</strong>
           </div>
         </div>
 
-        {completePanel || <div className={`panel question-card opening-question-card ${!explanationOpen && !evidenceOpen && !preferencePaused && !flow.manualPause && !error ? "mobile-quiet" : ""}`} aria-live="polite">
+        {completePanel || <div className={`panel question-card opening-question-card ${!teaching && !explanationOpen && !evidenceOpen && !preferencePaused && !flow.manualPause && !error ? "mobile-quiet" : ""}`} aria-live="polite">
           <span className="step-number">OPENING</span>
           {!explanationOpen && observing && exercise.opponentMove && (
             <>
@@ -433,7 +449,15 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
             </>
           )}
 
-          {!explanationOpen && !observing && !feedback && (
+          {teaching && !observing && <section aria-label="Learn this move">
+            <span className="eyebrow">LEARN FIRST</span>
+            <h3>Play {exercise.introduction.repertoireMove.moveSan}</h3>
+            <p>Follow the arrow and play the move yourself. After this batch, you’ll try again with the answers hidden.</p>
+            <OpeningExplanation explanation={exercise.introduction.explanation} />
+            <p className="opening-coverage-note">This demonstration does not count as a correct recall or change your memory schedule.</p>
+            {moveNotice && <p role="status">{moveNotice}</p>}
+          </section>}
+          {!teaching && !explanationOpen && !observing && !feedback && (
             <>
               <span className="eyebrow">{!fullLinePractice && exercise.learningStage === "new" ? "LEARN" : "YOUR MOVE"}</span>
               <h3>{exercise.prompt}</h3>

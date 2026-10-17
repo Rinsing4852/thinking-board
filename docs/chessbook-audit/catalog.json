@@ -1774,12 +1774,12 @@
       "category": "Practice",
       "priority": "P0",
       "baselineState": "existing",
-      "currentState": "existing",
+      "currentState": "enhanced",
       "sourceIds": [
         "UI"
       ],
       "chessbookObservation": "First guest practice shows a reminder arrow and Skip first practice.",
-      "desiredBehavior": "Teach unseen moves, offer optional idea, piece and answer help, and retain assistance across reload without claiming unaided recall.",
+      "desiredBehavior": "Offer an explicit learn-first batch: show each new move and its saved explanation, require execution, persist the stage, then return to hidden-answer recall. Demonstrations earn no review or activity credit. Retain idea, piece and answer help during recall and preserve that assistance across reload.",
       "acceptanceChecks": [
         {
           "id": "CB34.1",
@@ -1788,6 +1788,14 @@
             {
               "kind": "unit",
               "title": "persists practice preferences and idea help without claiming an independent recall"
+            },
+            {
+              "kind": "unit",
+              "title": "persists three demonstrations before recall without earning review or activity credit"
+            },
+            {
+              "kind": "unit",
+              "title": "keeps recalled help separate from the earlier demonstration after reload"
             }
           ]
         },
@@ -1802,22 +1810,45 @@
                 "chromium",
                 "webkit"
               ]
+            },
+            {
+              "kind": "browser",
+              "title": "teaches three new moves before hidden recall and resumes the saved learning stage",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
             }
           ]
         },
         {
           "id": "CB34.3",
-          "requirement": "Shown answers still require the learner to execute a move.",
+          "requirement": "Demonstrations require the shown move; wrong attempts and alternate endpoints cannot earn recall credit or skip ahead.",
           "evidence": [
             {
               "kind": "unit",
               "title": "teaches new opening decisions without counting assisted moves as remembered"
+            },
+            {
+              "kind": "unit",
+              "title": "rejects wrong demonstrations and recall/help bypasses without mutating memory"
+            },
+            {
+              "kind": "unit",
+              "title": "retries an acknowledged demonstration without advancing a second move"
+            },
+            {
+              "kind": "unit",
+              "title": "isolates exposure stages by player and rejects replaced sessions"
             }
           ]
         }
       ],
       "implementationPaths": [
-        "apps/web/src/components/OpeningReview.tsx"
+        "apps/web/src/components/OpeningReview.tsx",
+        "apps/server/src/openings/opening-review-service.ts",
+        "apps/server/src/openings/opening-review-routes.ts",
+        "migrations/036_opening_first_exposure.sql"
       ],
       "benchmark": {
         "task": "Use an idea hint without exposing the answer and retain help after reload.",

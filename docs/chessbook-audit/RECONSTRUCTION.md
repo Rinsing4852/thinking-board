@@ -285,3 +285,10 @@ and bounded sample continuation. See [delivery behaviour and limits](./WHOLE_REP
 The preceding verification counts describe the review checkpoint; the generated
 tracker records the newer implementation run. Human comparison gates remain
 unmeasured. In particular, there is no overall Chessbook quality/parity claim.
+
+The next implementation increment adds [opt-in first exposure](./FIRST_EXPOSURE.md):
+persisted demonstrations, required move execution and then hidden-answer recall.
+This closes the automatic sequence gap for that explicit new-moves option;
+ordinary practice defaults and the existing retry scheduler remain unchanged.
+Q2 now has automated stage/reload/scoring evidence for our three-move scenario;
+human timings, comprehension and durable learning outcomes remain unmeasured.

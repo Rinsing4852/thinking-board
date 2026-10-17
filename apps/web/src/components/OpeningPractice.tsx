@@ -376,7 +376,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
     }
   };
 
-  const startReview = async (repertoireId: string, mode: ReviewMode): Promise<void> => {
+  const startReview = async (repertoireId: string, mode: ReviewMode, teachNew = false): Promise<void> => {
     if (step && pausedLessonPhase && !window.confirm("Starting memory practice will end the paused guided line. Continue?")) return;
     if (activeReview && reviewPaused && !window.confirm("Starting a new memory session will end the paused session. Continue?")) return;
     if (!beginSubmission()) return;
@@ -384,7 +384,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
     try {
       const review = await post<OpeningReviewActiveState>(
         `/api/v1/openings/repertoires/${repertoireId}/reviews/start`,
-        { mode },
+        { mode, teachNew },
       );
       setStep(null);
       setPausedLessonPhase(null);
@@ -839,6 +839,10 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
                           Practise {Math.min(playerPreferences?.newMovesPerSession ?? 5, repertoire.review.new)} new instead
                         </button>
                       )}
+                      {repertoire.review.new > 0 && <button className="secondary" disabled={submitting}
+                        onClick={() => void startReview(repertoire.id, "new", true)}>
+                        Learn new moves first
+                      </button>}
                       <button className="secondary" disabled={submitting || repertoire.review.total === 0} onClick={() => void startLesson(repertoire.id)}>
                         Learn the ideas (guided)
                       </button>

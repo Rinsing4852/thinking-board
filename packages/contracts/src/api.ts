@@ -670,6 +670,8 @@ export interface OpeningReviewExercise {
   positionNumber: number;
   totalPositions: number;
   presentationKind: "scheduled" | "lapse_repeat";
+  phase?: "introduction" | "recall";
+  introductionProgress?: { current: number; total: number };
   learningStage: "new" | "learning" | "review";
   practiceReason: { kind: OpeningReviewReasonKind; label: string };
   lineRun: { lineId: string; lineTitle: string; chapterTitle?: string } | null;

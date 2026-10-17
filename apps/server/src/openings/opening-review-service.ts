@@ -68,6 +68,7 @@ interface ActiveQueueRow {
   idea_hint: number;
   move_shown: number;
   focus_move_id: string | null;
+  introduction_pending: number;
 }
 
 interface EventRow {
@@ -186,9 +187,11 @@ export class OpeningReviewService {
     mode: OpeningReviewStartMode = "auto",
     sessionSize = 10,
     newLimit?: number,
+    teachNew = false,
   ): OpeningReviewExercise {
     const profileId = ensureActiveProfile(this.db);
     const resolvedNewLimit = newLimit ?? this.practicePacing(profileId).newMovesPerSession;
+    if (teachNew && mode !== "new") throw new Error("Choose new moves for the learn-first session");
     const timestamp = now();
     const repertoire = this.db.prepare(`
       SELECT repertoire.id
@@ -279,7 +282,7 @@ export class OpeningReviewService {
     }
     if (selected.length === 0) throw new Error("No positions are enabled for this review. Include a line in Practice selection, or practise a saved line once.");
 
-    return this.createSession(profileId, repertoireId, selected, pool, null);
+    return this.createSession(profileId, repertoireId, selected, pool, null, null, teachNew);
   }
 
   startLine(repertoireId: string, lineId: string, maxDecisions?: number): OpeningReviewExercise {
@@ -641,6 +644,7 @@ export class OpeningReviewService {
     pool: "due" | "new" | "mixed" | "early",
     focusGameId: string | null,
     focusMoveId: string | null = null,
+    teachNew = false,
   ): OpeningReviewExercise {
     const timestamp = now();
 
@@ -664,14 +668,15 @@ export class OpeningReviewService {
         this.db.prepare(`
           INSERT INTO opening_review_queue(
             id, session_id, review_item_id, sequence, presentation_kind, status, started_at,
-            source_line_id, expected_move_id
-          ) VALUES (?, ?, ?, ?, 'scheduled', ?, ?, ?, ?)
+            source_line_id, expected_move_id, introduction_pending
+          ) VALUES (?, ?, ?, ?, 'scheduled', ?, ?, ?, ?, ?)
         `).run(
           id(), sessionId, item.id, sequence,
           sequence === 0 ? "active" : "pending",
           sequence === 0 ? timestamp : null,
           item.sourceLineId ?? null,
           item.expectedMoveId ?? null,
+          teachNew ? 1 : 0,
         );
       });
     })();
@@ -684,7 +689,7 @@ export class OpeningReviewService {
     const queue = this.db.prepare(`
       SELECT s.id AS session_id, s.repertoire_id, r.name AS repertoire_name, r.learner_color,
              q.id AS queue_id, q.review_item_id, q.sequence, q.presentation_kind, q.started_at,
-             q.source_line_id, q.expected_move_id, q.piece_hint, q.move_shown, q.idea_hint, s.focus_move_id
+             q.source_line_id, q.expected_move_id, q.piece_hint, q.move_shown, q.idea_hint, s.focus_move_id, q.introduction_pending
       FROM opening_review_sessions s
       JOIN opening_repertoires r ON r.id = s.repertoire_id
       JOIN opening_review_queue q ON q.session_id = s.id AND q.status = 'active'
@@ -707,9 +712,32 @@ export class OpeningReviewService {
     return event ? this.feedback(resumedQueue, event) : this.exercise(resumedQueue);
   }
 
+  introduce(sessionId: string, queueEntryId: string, moveUci: string): OpeningReviewExercise {
+    const queue = this.activeQueue(sessionId);
+    const prior = this.db.prepare(`SELECT introduction_completed_at FROM opening_review_queue
+      WHERE id = ? AND session_id = ?`).get(queueEntryId, sessionId) as { introduction_completed_at: string | null } | undefined;
+    if (prior?.introduction_completed_at) {
+      if (this.event(queue.queue_id)) throw new Error("Practice has advanced to recall feedback. Reload to continue.");
+      return this.exercise(queue);
+    }
+    if (queue.queue_id !== queueEntryId || !queue.introduction_pending) throw new Error("This learning position has changed. Reload to continue.");
+    const item = this.item(queue.review_item_id, queue.expected_move_id);
+    applyLegalMove(item.from_fen, moveUci);
+    if (moveUci !== item.move_uci) throw new Error(`For this demonstration, play ${item.move_san}. This is not a scored attempt.`);
+    this.db.transaction(() => {
+      this.db.prepare(`UPDATE opening_review_queue SET introduction_pending = 0, introduction_completed_at = ?, status = 'pending'
+        WHERE id = ?`).run(now(), queue.queue_id);
+      const next = this.db.prepare(`SELECT id FROM opening_review_queue WHERE session_id = ? AND status = 'pending'
+        ORDER BY introduction_pending DESC, sequence LIMIT 1`).get(sessionId) as { id: string };
+      this.db.prepare("UPDATE opening_review_queue SET status = 'active', started_at = ? WHERE id = ?").run(now(), next.id);
+    })();
+    return this.exercise(this.activeQueue(sessionId));
+  }
+
   answer(sessionId: string, moveUci: string, assisted = false, revealed = false, queueEntryId?: string, activeResponseMs?: number): OpeningReviewFeedback {
     const queue = this.activeQueue(sessionId);
     if (queueEntryId && queue.queue_id !== queueEntryId) throw new Error("This position has changed. Reload the current practice position.");
+    if (queue.introduction_pending) throw new Error("Play the demonstrated move before starting recall");
     const existing = this.event(queue.queue_id);
     if (existing) {
       if (existing.played_move_uci === moveUci) return this.feedback(queue, existing);
@@ -819,6 +847,7 @@ export class OpeningReviewService {
   recordMistake(sessionId: string, moveUci: string, queueEntryId?: string, activeResponseMs?: number): OpeningReviewMistakeResponse {
     const queue = this.activeQueue(sessionId);
     if (queueEntryId && queue.queue_id !== queueEntryId) throw new Error("This position has changed. Reload the current practice position.");
+    if (queue.introduction_pending) throw new Error("This is a demonstration, not a recall test");
     if (this.event(queue.queue_id)) throw new Error("This opening position has already been answered");
     const item = this.item(queue.review_item_id, queue.expected_move_id);
     const played = applyLegalMove(item.from_fen, moveUci);
@@ -849,6 +878,7 @@ export class OpeningReviewService {
 
   help(sessionId: string, kind: "idea" | "piece" | "move", queueEntryId: string): OpeningReviewExercise {
     const queue = this.activeQueue(sessionId);
+    if (queue.introduction_pending) throw new Error("The demonstrated move is already shown");
     if (queue.queue_id !== queueEntryId || this.event(queue.queue_id)) throw new Error("This position has already changed");
     if (kind === "idea" && !this.item(queue.review_item_id, queue.expected_move_id).idea_hint) {
       throw new Error("No idea hint has been written for this move. Ask for the piece instead.");
@@ -980,7 +1010,7 @@ export class OpeningReviewService {
     const row = this.db.prepare(`
       SELECT s.id AS session_id, s.repertoire_id, r.name AS repertoire_name, r.learner_color,
              q.id AS queue_id, q.review_item_id, q.sequence, q.presentation_kind, q.started_at,
-             q.source_line_id, q.expected_move_id, q.piece_hint, q.move_shown, q.idea_hint, s.focus_move_id
+             q.source_line_id, q.expected_move_id, q.piece_hint, q.move_shown, q.idea_hint, s.focus_move_id, q.introduction_pending
       FROM opening_review_sessions s
       JOIN opening_repertoires r ON r.id = s.repertoire_id
       JOIN opening_review_queue q ON q.session_id = s.id AND q.status = 'active'
@@ -1173,6 +1203,11 @@ export class OpeningReviewService {
       positionNumber: completed + 1,
       totalPositions: total,
       presentationKind: queue.presentation_kind,
+      phase: queue.introduction_pending ? "introduction" : "recall",
+      ...(queue.introduction_pending ? { introductionProgress: {
+        current: Number(this.db.prepare("SELECT COUNT(*) FROM opening_review_queue WHERE session_id = ? AND introduction_completed_at IS NOT NULL").pluck().get(queue.session_id)) + 1,
+        total: Number(this.db.prepare("SELECT COUNT(*) FROM opening_review_queue WHERE session_id = ? AND (introduction_pending = 1 OR introduction_completed_at IS NOT NULL)").pluck().get(queue.session_id)),
+      } } : {}),
       learningStage,
       practiceReason,
       lineRun: !queue.focus_move_id && queue.source_line_id && context ? { lineId: context.line_id, lineTitle: context.line_title, chapterTitle: context.chapter_title } : null,
