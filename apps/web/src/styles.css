@@ -615,7 +615,7 @@ button.opening-line-buttons, .opening-line-buttons button { background: #101512;
 .trainer-hub .training-section { padding: 1.25rem 0 2rem; }
 .trainer-hub .training-copy { margin-bottom: 1rem; }
 .trainer-hub .training-copy > .eyebrow { grid-column: 1 / -1; }
-.trainer-hub .trainer-layout { align-items: start; grid-template-columns: clamp(340px, calc(100dvh - 290px), 620px) minmax(300px, 1fr); }
+.trainer-hub .trainer-layout { align-items: start; grid-template-columns: minmax(0, min(clamp(340px, calc(100dvh - 290px), 620px), calc(100% - 300px - 2rem))) minmax(300px, 1fr); }
 .trainer-hub .board-column { position: sticky; top: 84px; }
 .training-copy { display: grid; grid-template-columns: 1fr 1fr; align-items: end; margin-bottom: 2rem; }
 .training-copy p { color: var(--ink-soft); line-height: 1.7; max-width: 500px; justify-self: end; }

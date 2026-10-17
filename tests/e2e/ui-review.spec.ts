@@ -42,7 +42,10 @@ test("keeps the library usable when statistics fail and retries summaries indepe
   await expect(page.getByRole("button", { name: "Build on the board", exact: true })).toBeEnabled();
   await expect(page.getByRole("alert")).toContainText("Opening statistics could not be refreshed");
   fail = false;
-  await page.getByRole("button", { name: "Retry opening summaries", exact: true }).click();
+  // Late optional suggestions can reflow the page during a pointer click.
+  const retried = page.waitForResponse(response => response.url().endsWith("/api/v1/openings/progress") && response.ok());
+  await page.getByRole("button", { name: "Retry opening summaries", exact: true }).press("Enter");
+  await retried;
   await expect(page.getByRole("alert")).toBeHidden();
   await expect(page.locator("article.opening-card").first()).toBeVisible();
 });
@@ -102,6 +105,13 @@ test("keeps navigation history, keyboard access and first-run actions clear", as
 
 test("keeps home screens and saved-line workspaces within intermediate tablet widths", async ({ page }, testInfo) => {
   await page.route("**/api/v1/openings/lessons/active", route => route.fulfill({ json: null }));
+  // Always render the training board. Previously this depended on whether an
+  // earlier game's asynchronous analysis had produced a drill by this point.
+  const fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+  await page.route("**/api/v1/training/next", route=>route.fulfill({json:{
+    kind:"exercise",itemId:"tablet-layout",attemptId:null,mode:"blunder_check",fenBefore:fen,fenAfterCandidate:fen,
+    candidateMoveUci:"e2e4",candidateMoveSan:"e4",playerColor:"white",moveNumber:1,prompt:"Inspect this position.",
+  }}));
   const imported = await page.request.post("/api/v1/openings/imports/pgn", { data: {
     pgn: '[Event "Tablet layout"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bc4 *',
     learnerColor: "white", name: `My complete practical repertoire with a distinguishing long title ${testInfo.project.name}`, ownershipConfirmed: true,
@@ -114,6 +124,7 @@ test("keeps home screens and saved-line workspaces within intermediate tablet wi
     await page.setViewportSize({ width, height: 768 });
     for (const view of ["today", "openings", "games", "progress"]) {
       await page.goto(`/#${view}`);
+      if(view==="today") await expect(page.getByRole("grid",{name:"Chess position",exact:true})).toBeVisible();
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     }
     await page.goto(`/#openings?repertoire=${encodeURIComponent(id)}&line=${encodeURIComponent(line.id)}&ply=0`);

@@ -69,6 +69,24 @@ increment and its quality gates. CB40 remains absent until it is implemented and
 verified. The first milestone is transparent exact-position matching, replay and
 resume; guessing and richer plan explanations follow.
 
+## Hosted release follow-up
+
+Commit `34e28d8` was pushed, but its hosted run `39037653934` blocked publication
+under the new no-flaky-tests rule. Three other checks passed only on retry:
+final-line deletion setup, independent statistics retry, and tablet layout.
+The retained retry trace sent no second progress request after its pointer
+click, supporting a missed click while optional home content reflowed. The
+deletion setup also left its card closed before reaching any deletion assertion.
+Both setup interactions now use native keyboard activation; statistics recovery
+also explicitly waits for a successful new request. Pointer journeys remain.
+
+The tablet screenshot shows a real overflow at 821px when a thinking-drill board
+is present. The height-based board width plus its 300px neighbouring panel and
+gap exceeded the available page width. Its width is now additionally bounded by
+the available container width. The tablet test always supplies a valid drill
+board instead of depending on an earlier analysis job finishing. Existing
+overflow and square-board assertions remain strict.
+
 ## Verification evidence
 
 - Final macOS verification on unchanged product/test/catalogue source passed

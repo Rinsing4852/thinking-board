@@ -1290,7 +1290,8 @@ test("deletes the final line and clears a confirmed library without losing games
   const card = page.locator("article.opening-card").filter({ hasText: name });
   await expect(pause.or(card.locator("summary").first())).toBeVisible();
   if (await pause.isVisible()) await pause.click();
-  await card.locator("summary").first().click();
+  await card.locator("summary").first().press("Enter");
+  await expect(card.locator("details.opening-card-details")).toHaveAttribute("open", "");
   await card.getByRole("button", { name: "View all lines", exact: true }).click();
   await page.getByText("Coverage and repertoire settings", { exact: true }).click();
   await page.locator("details.opening-management > summary").click();
