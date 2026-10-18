@@ -1013,6 +1013,7 @@ export interface OpeningStudyReplay {
 }
 export interface OpeningStudyResponse {
   repertoireId: string; lineId: string; savedPly: number; fen: string; learnerColor: Color;
+  searchRating: number | null;
   libraryGames: number; matches: OpeningStudyGame[]; totalMatches: number;
   replay: OpeningStudyReplay | null;
 }
@@ -1026,4 +1027,15 @@ export interface OpeningRepertoireGoal {
   gaps: OpeningCoverageGap[]; policy: string;
   planScan: {offset: number; nextOffset: number|null; snapshot: string};
   scan: {checked: number; remaining: number; nextOffset: number|null; available: number; failed: number; mode: "missing"|"refresh"};
+}
+
+/** Verified Lichess examples from a bounded provider sample, not an exhaustive search. */
+export interface OpeningStudyDiscoveryGame {
+  id: string; sourceUrl: string; white: string; black: string;
+  whiteRating: number | null; blackRating: number | null; learnerRating: number;
+  date: string | null; result: string; transposition: boolean; reason: string;
+}
+export interface OpeningStudyDiscoveryResponse {
+  games: OpeningStudyDiscoveryGame[]; rating: number; learnerColor: Color;
+  message: string; partial: boolean;
 }

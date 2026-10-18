@@ -2258,7 +2258,10 @@
             {
               "kind": "browser",
               "title": "uses the supplied move numbers and side in custom-start study games",
-              "projects": ["chromium", "webkit"]
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
             },
             {
               "kind": "browser",
@@ -2283,8 +2286,38 @@
               ]
             },
             {
-              "kind": "manual",
-              "title": "External model-game provider failure recovery (not yet implemented)"
+              "kind": "unit",
+              "title": "reports missing samples, provider failures and partial downloads without discarding saved study"
+            },
+            {
+              "kind": "browser",
+              "title": "finds stronger-player games automatically, retries the provider and replays a matching continuation",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB40.4",
+          "requirement": "Automatically find legal exact-position continuations with a known higher rating for the learner-side player, and disclose the sample limits.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "verifies both colours and exact transpositions, ranks direct routes, and starts a replay without changing recall"
+            },
+            {
+              "kind": "unit",
+              "title": "checks the player on the learner side rather than the opponent, and rejects unknown, unfinished and mismatched games"
+            },
+            {
+              "kind": "browser",
+              "title": "finds stronger-player games automatically, retries the provider and replays a matching continuation",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
             }
           ]
         }
@@ -2292,7 +2325,9 @@
       "implementationPaths": [
         "apps/server/src/openings/opening-study-service.ts",
         "apps/web/src/components/OpeningModelGameStudy.tsx",
-        "migrations/037_opening_model_games.sql"
+        "migrations/037_opening_model_games.sql",
+        "apps/server/src/openings/opening-study-discovery.ts",
+        "migrations/038_opening_study_discovery.sql"
       ],
       "benchmark": {
         "task": "Play through a model game or guess the continuation without changing repertoire recall.",
@@ -2300,7 +2335,7 @@
         "ourMeasuredLatencyMs": null,
         "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
       },
-      "limits": "First milestone: user-imported complete PGNs, exact-position selection, supplied annotations, replay and per-position resume. No external source adapter, guessing, generated plans, study history or measured learning benefit. At most three matches shown; 1,000-game library, 100 games per import."
+      "limits": "Automatic Lichess rapid/classical sample search using an explicit Lichess rating; verifies exact positions, legal finished games and the higher learner-side rating. Up to eight provider references checked and three offered. Requires a server Lichess token. Manual PGN import remains available. No exhaustive search, guessing, generated plans, complete study history or measured learning benefit."
     },
     {
       "id": "CB41",
@@ -2308,7 +2343,7 @@
       "category": "Study",
       "priority": "P2",
       "baselineState": "absent",
-      "currentState": "absent",
+      "currentState": "partial",
       "sourceIds": [
         "UI"
       ],
@@ -2328,16 +2363,28 @@
         {
           "id": "CB41.3",
           "requirement": "An empty filtered pool does not substitute an unrelated game.",
-          "evidence": []
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "checks the player on the learner side rather than the opponent, and rejects unknown, unfinished and mismatched games"
+            },
+            {
+              "kind": "unit",
+              "title": "reports missing samples, provider failures and partial downloads without discarding saved study"
+            }
+          ]
         }
       ],
-      "implementationPaths": [],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-study-discovery.ts"
+      ],
       "benchmark": {
         "task": "Switch sources while preserving a saved study session.",
         "chessbookMeasuredResult": null,
         "ourMeasuredLatencyMs": null,
         "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
-      }
+      },
+      "limits": "One online source: authenticated Lichess rapid/classical samples. No master-game adapter or source switching. Rating comparisons are Lichess-only; sampled matches are not an exhaustive database search."
     },
     {
       "id": "CB42",

@@ -9,6 +9,7 @@ import type { OpeningStudyGame, OpeningStudyMove, OpeningStudyResponse } from ".
 
 type Metadata = Pick<OpeningStudyGame,"white"|"black"|"whiteRating"|"blackRating"|"date"|"result"|"event">;
 type GameRow = {id:string;source_label:string;metadata_json:string;moves_json:string;initial_fen:string};
+const studyFingerprint=(fingerprint:string,onlineSource?:string)=>onlineSource?`online:${onlineSource}:${fingerprint}`:fingerprint;
 const key = (fen:string) => openingPositionKey(new Chess(fen).fen());
 function readMoves(row:Pick<GameRow,"moves_json"|"initial_fen">):OpeningStudyMove[] {
   const fields=row.initial_fen.split(" "), start=Number(fields[5]), black=fields[1]==="b"?1:0;
@@ -21,7 +22,7 @@ function readMoves(row:Pick<GameRow,"moves_json"|"initial_fen">):OpeningStudyMov
 export class OpeningStudyService {
   constructor(private readonly db:SqliteDatabase) {}
 
-  import(pgn:string,source:string) {
+  import(pgn:string,source:string,onlineSource?:string) {
     if (!pgn.trim() || Buffer.byteLength(pgn,"utf8")>2_000_000) throw new Error("Paste up to 2 MB of complete game PGNs.");
     if (!source.trim() || source.length>200) throw new Error("Give these games a source label of up to 200 characters.");
     const parsed=parsePgnText(pgn);
@@ -31,12 +32,12 @@ export class OpeningStudyService {
     if(parsed.games.some(game=>game.moves.length>1000)) throw new Error("A study game must contain at most 1,000 half-moves.");
     const profile=ensureActiveProfile(this.db);
     const total=(this.db.prepare("SELECT COUNT(*) AS count FROM opening_study_games WHERE profile_id=?").get(profile) as {count:number}).count;
-    const fresh=parsed.games.filter(game=>!this.db.prepare("SELECT 1 FROM opening_study_games WHERE profile_id=? AND fingerprint=?").get(profile,game.fingerprint));
-    if(total+new Set(fresh.map(game=>game.fingerprint)).size>1000) throw new Error("The study library holds up to 1,000 games. Remove a study game before importing more.");
+    const fresh=parsed.games.filter(game=>!this.db.prepare("SELECT 1 FROM opening_study_games WHERE profile_id=? AND fingerprint=?").get(profile,studyFingerprint(game.fingerprint,onlineSource)));
+    if(total+new Set(fresh.map(game=>studyFingerprint(game.fingerprint,onlineSource))).size>1000) throw new Error("The study library holds up to 1,000 games. Remove a study game before importing more.");
     let added=0,duplicates=0;
     this.db.transaction(()=>{
       for(const game of parsed.games) {
-        if(this.db.prepare("SELECT 1 FROM opening_study_games WHERE profile_id=? AND fingerprint=?").get(profile,game.fingerprint)) {duplicates++;continue;}
+        if(this.db.prepare("SELECT 1 FROM opening_study_games WHERE profile_id=? AND fingerprint=?").get(profile,studyFingerprint(game.fingerprint,onlineSource))) {duplicates++;continue;}
         const chess=new Chess();chess.loadPgn(game.originalPgn,{strict:false});
         const comments=new Map(chess.getComments().map(comment=>[comment.fen,comment.comment]));
         const moves:OpeningStudyMove[]=game.moves.map(move=>({ply:move.ply,moveNumber:move.moveNumber,moverColor:move.moverColor,san:move.san,uci:move.uci,fenAfter:move.fenAfter,comment:comments.get(move.fenAfter)??null}));
@@ -44,7 +45,7 @@ export class OpeningStudyService {
           date:game.playedAt,result:game.result,event:game.headers.Event??null};
         const gameId=id();
         this.db.prepare(`INSERT INTO opening_study_games(id,profile_id,fingerprint,source_label,pgn,metadata_json,moves_json,initial_fen,created_at)
-          VALUES(?,?,?,?,?,?,?,?,?)`).run(gameId,profile,game.fingerprint,source.trim(),game.originalPgn,JSON.stringify(metadata),JSON.stringify(moves),game.initialFen,now());
+          VALUES(?,?,?,?,?,?,?,?,?)`).run(gameId,profile,studyFingerprint(game.fingerprint,onlineSource),source.trim(),game.originalPgn,JSON.stringify(metadata),JSON.stringify(moves),game.initialFen,now());
         const insert=this.db.prepare("INSERT INTO opening_study_positions(game_id,position_key,ply) VALUES(?,?,?)");
         insert.run(gameId,key(game.initialFen),0);
         for(const move of moves) insert.run(gameId,key(move.fenAfter),move.ply);
@@ -54,7 +55,7 @@ export class OpeningStudyService {
     return {added,duplicates,message:`${added} study games added; ${duplicates} duplicates kept unchanged.`};
   }
 
-  private target(repertoireId:string,lineId:string,savedPly:number) {
+  target(repertoireId:string,lineId:string,savedPly:number) {
     const detail=new OpeningWorkspaceService(this.db).repertoire(repertoireId);
     if(detail.repertoire.archived) throw new Error("Restore this repertoire before studying it.");
     const line=detail.chapters.flatMap(chapter=>chapter.lines).find(line=>line.id===lineId);
@@ -64,7 +65,7 @@ export class OpeningStudyService {
     return {line,fen,positionKey:key(fen),learnerColor:detail.repertoire.learnerColor};
   }
 
-  list(repertoireId:string,lineId:string,savedPly:number):OpeningStudyResponse {
+  list(repertoireId:string,lineId:string,savedPly:number,preferredId?:string):OpeningStudyResponse {
     const profile=ensureActiveProfile(this.db), target=this.target(repertoireId,lineId,savedPly);
     const rows=this.db.prepare(`SELECT g.id,g.source_label,g.metadata_json,g.moves_json,g.initial_fen,p.ply AS match_ply FROM opening_study_games g
       JOIN opening_study_positions p ON p.game_id=g.id WHERE g.profile_id=? AND p.position_key=? ORDER BY g.id,p.ply`)
@@ -97,14 +98,33 @@ export class OpeningStudyService {
     const valid=resumed&&progress&&resumed.game.matchPly===progress.match_ply&&progress.current_ply>=0&&progress.current_ply<=resumed.moves.length;
     const displayed=ranked.slice(0,3);
     if(valid&&!displayed.includes(resumed)) displayed.splice(2,1,resumed);
+    const preferred=preferredId?candidates.get(preferredId):undefined;
+    if(preferred&&!displayed.includes(preferred)) displayed.splice(2,1,preferred);
+    const rating=this.db.prepare("SELECT lichess_rating FROM opening_study_preferences WHERE profile_id=?").get(profile) as {lichess_rating:number}|undefined;
     return {repertoireId,lineId,savedPly,fen:target.fen,learnerColor:target.learnerColor,
+      searchRating:rating?.lichess_rating??null,
       libraryGames:(this.db.prepare("SELECT COUNT(*) AS count FROM opening_study_games WHERE profile_id=?").get(profile) as {count:number}).count,
       matches:displayed.map(item=>item.game),totalMatches:ranked.length,
       replay:valid?{game:resumed.game,initialFen:resumed.row.initial_fen,moves:resumed.moves,currentPly:progress.current_ply}:null};
   }
 
   save(repertoireId:string,lineId:string,savedPly:number,gameId:string,expectedFen:string,currentPly?:number):OpeningStudyResponse {
-    const profile=ensureActiveProfile(this.db), state=this.list(repertoireId,lineId,savedPly);
+    return this.saveSelected(repertoireId,lineId,savedPly,gameId,expectedFen,currentPly);
+  }
+
+  startDiscovered(repertoireId:string,lineId:string,savedPly:number,expectedFen:string,pgn:string,source:string) {
+    return this.db.transaction(()=>{
+      if(key(this.target(repertoireId,lineId,savedPly).fen)!==key(expectedFen)) throw new Error("This saved repertoire position changed. Reload study before continuing.");
+      const parsed=parsePgnText(pgn).games[0];
+      if(!parsed) throw new Error("The example game could not be read. Search again.");
+      this.import(pgn,source,source);
+      const row=this.db.prepare("SELECT id FROM opening_study_games WHERE profile_id=? AND fingerprint=?").get(ensureActiveProfile(this.db),studyFingerprint(parsed.fingerprint,source)) as {id:string};
+      return this.saveSelected(repertoireId,lineId,savedPly,row.id,expectedFen,undefined,true);
+    })();
+  }
+
+  private saveSelected(repertoireId:string,lineId:string,savedPly:number,gameId:string,expectedFen:string,currentPly?:number,discovered=false):OpeningStudyResponse {
+    const profile=ensureActiveProfile(this.db), state=this.list(repertoireId,lineId,savedPly,discovered?gameId:undefined);
     if(key(state.fen)!==key(expectedFen)) throw new Error("This saved repertoire position changed. Reload study before continuing.");
     const game=state.matches.find(game=>game.id===gameId);
     if(!game) throw new Error("Choose one of the matching study games.");

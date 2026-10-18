@@ -16,6 +16,23 @@ process.env.DB_PATH = path.join(dataDir, "trainer.sqlite3");
 process.env.RUN_ANALYSIS_WORKER = "true";
 process.env.STOCKFISH_BINARY = path.resolve("tests/fake-stockfish.mjs");
 
+// Deterministic provider responses for real discovery routes in browser tests.
+// This file is test-only: production fetch and configuration have no test hooks.
+const originalFetch=globalThis.fetch;
+globalThis.fetch=async(input,options)=>{
+  const url=new URL(String(input));
+  if(url.hostname==="explorer.lichess.org"&&url.pathname==="/lichess"&&url.searchParams.get("topGames")==="4") {
+    return new Response(JSON.stringify({topGames:[{id:"study001"},{id:"study002"},{id:"weak0001"}],recentGames:[]}),{headers:{"Content-Type":"application/json"}});
+  }
+  if(url.hostname==="lichess.org"&&url.pathname.startsWith("/game/export/")) {
+    const id=url.pathname.split("/").at(-1);
+    const moves=id==="study002"?"1. d4 Nf6 2. c4 e6 3. Nf3 d5 4. Nc3 Be7 5. Bg5 O-O 6. e3 h6":"1. d4 d5 2. Nf3 Nf6 3. c4 e6 4. Nc3 Be7 5. Bg5 O-O 6. e3 h6";
+    const rating=id==="weak0001"?1400:id==="study002"?1800:1900;
+    return new Response(`[Event "Online model example ${id}"]\n[White "Online White ${id}"]\n[Black "Online Black ${id}"]\n[WhiteElo "${rating}"]\n[BlackElo "${rating}"]\n[Result "1/2-1/2"]\n\n${moves} 1/2-1/2`,{headers:{"Content-Type":"application/x-chess-pgn"}});
+  }
+  return originalFetch(input,options);
+};
+
 // Legacy built-ins are test fixtures, not production bootstrap data.
 const { Database } = await import("../dist/apps/server/src/db/database.js");
 const { OpeningContentService } = await import("../dist/apps/server/src/openings/opening-content-service.js");

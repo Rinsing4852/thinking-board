@@ -1,5 +1,8 @@
 # Contextual model-game study: first milestone
 
+This records the original imported-PGN milestone. Automatic Lichess discovery
+has since been added; see [the current increment and limits](./AUTOMATIC_MODEL_GAMES.md).
+
 From a saved line in browse mode, select a position and choose **Study a game from
 here**. Paste complete PGNs into the separate study library, with a source label.
 The screen offers up to three matching games and explains each match. Selecting

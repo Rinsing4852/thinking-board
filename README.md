@@ -312,6 +312,25 @@ scrape Chessable or grant rights to third-party material: only import lines and
 notes you own or have permission to use. For books, enter the moves you want to
 learn and write the explanations in your own words.
 
+## Study a stronger player’s continuation
+
+From a saved opening position, choose **Study a game from here** (available in
+Browse and Build), enter **Your Lichess rating**, and choose **Find games**.
+The app checks Lichess rapid/classical game samples for the same position,
+including transpositions, and requires the player on your repertoire’s side to
+have a known rating above yours. Choose **Replay from this position** to save
+that example and follow its continuation. Your rating is remembered; later study
+visits search automatically unless resuming a saved replay. No PGN import is
+needed for this flow. The server needs `LICHESS_API_TOKEN`, as for coverage.
+
+This is a limited sample, not every matching game: up to eight provider references
+are checked and three verified examples offered. The selected player's rating is
+compared on the Lichess scale only. Empty results suggest choosing an earlier
+position; connection failures offer retry and preserve saved replays. Replay does
+not alter your repertoire, recall schedule, played-game history or coverage.
+Manual study PGN import is also available. See the
+[implementation and limits](docs/chessbook-audit/AUTOMATIC_MODEL_GAMES.md).
+
 ## Run with Docker Compose
 
 The published image supports both `linux/amd64` and `linux/arm64`. Create an

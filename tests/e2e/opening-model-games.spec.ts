@@ -107,7 +107,7 @@ test("studies an exact matching game and a transposition, resumes on reload and 
 test("explains missing study games, rejects broken imports and recovers a failed study request",async({page},testInfo)=>{
   const {repertoireId,lineId}=await openStudy(page,`Study recovery ${testInfo.project.name}`,"1. e4 e5 2. Nf3 Nc6 3. Bb5 *","white");
   const study=page.getByRole("region",{name:"Model-game study",exact:true});
-  await expect(study.getByText(/Your study library is empty|No game reaches this position/)).toBeVisible();
+  await expect(study.getByText(/Your study library is empty|No saved game reaches this position/)).toBeVisible();
   if(!await study.getByRole("textbox",{name:"Study-game source",exact:true}).isVisible()) await study.getByText("Import study games",{exact:true}).click();
   await study.getByRole("textbox",{name:"Study-game source",exact:true}).fill("Recovery example");
   await study.getByRole("textbox",{name:"Complete game PGN",exact:true}).fill("1. illegal *");
@@ -135,7 +135,53 @@ test("explains missing study games, rejects broken imports and recovers a failed
   await study.getByRole("combobox",{name:"Study game to remove",exact:true}).selectOption(state.replay.game.id);
   page.once("dialog",dialog=>dialog.accept());
   await study.getByRole("button",{name:"Remove study game",exact:true}).click();
-  await expect(study.getByText(/No game reaches this position/)).toBeVisible();
+  await expect(study.getByText(/No saved game reaches this position/)).toBeVisible();
   await expect(study.getByRole("region",{name:"Matching study games",exact:true})).toBeFocused();
   expect((await (await page.request.get(endpoint)).json()).replay).toBeNull();
+});
+
+
+test("finds stronger-player games automatically, retries the provider and replays a matching continuation",async({page},testInfo)=>{
+  const {repertoireId}=await openStudy(page,`Automatic study ${testInfo.project.name}`,"1. d4 d5 2. Nf3 Nf6 3. c4 e6 *");
+  const study=page.getByRole("region",{name:"Model-game study",exact:true});
+  const rating=study.getByRole("spinbutton",{name:"Your Lichess rating",exact:true});
+  // Let an automatic remembered-rating search finish before changing criteria.
+  await expect(rating).toBeEnabled();
+  await rating.fill("1600");
+  const before=await(await page.request.get(`/api/v1/openings/repertoires/${repertoireId}`)).json();
+  let unavailable=true;
+  await page.route("**/study/discover",route=>unavailable?route.fulfill({status:503,json:{error:"Lichess temporarily unavailable"}}):route.continue());
+  await study.getByRole("button",{name:"Find games",exact:true}).click();
+  await expect(study.getByRole("alert")).toContainText("Lichess temporarily unavailable");
+  unavailable=false;
+  await study.getByRole("button",{name:"Find games",exact:true}).click();
+  const results=study.getByRole("region",{name:"Stronger-player search results",exact:true});
+  await expect(results.locator(".opening-study-discovered")).toHaveCount(2);
+  await expect(results).toContainText("300 above your 1600 rating");
+  await expect(results).toContainText("different move order");
+  await expect(results).not.toContainText("weak0001");
+  await expect(results.getByRole("link",{name:"View original on Lichess"}).first()).toHaveAttribute("href","https://lichess.org/study001");
+  await page.screenshot({path:testInfo.outputPath("automatic-model-games.png"),fullPage:true});
+  await results.getByRole("button",{name:"Replay from this position",exact:true}).first().click();
+  await expect(study.getByRole("region",{name:"Study board and replay",exact:true})).toBeFocused();
+  await expect(study.getByText(/Matching position from your repertoire · Replay step 6 of 12/)).toBeVisible();
+  await study.getByRole("button",{name:"Next move",exact:true}).click();
+  await expect(study.getByText("Last played: 4.Nc3",{exact:true})).toBeVisible();
+  await page.reload();
+  await expect(study.getByText(/Replay step 7 of 12/)).toBeVisible();
+  await expect(page.getByRole("grid")).toHaveCount(1);
+  expect(await(await page.request.get(`/api/v1/openings/repertoires/${repertoireId}`)).json()).toEqual(before);
+  await study.getByRole("button",{name:"Back to saved position",exact:true}).click();
+  await expect(page).toHaveURL(/ply=6/);
+  // Clear saved replay by removing the discovered example, then ensure the next
+  // study visit searches with the remembered rating without a manual import.
+  const library=await(await page.request.get("/api/v1/openings/study-games")).json();
+  for(const game of library.games.filter((game:{source:string})=>game.source==="https://lichess.org/study001")) await page.request.delete(`/api/v1/openings/study-games/${game.id}`);
+  await studyVisitAgain();
+  async function studyVisitAgain(){
+    await page.getByRole("button",{name:"Study a game from here",exact:true}).click();
+    await expect(results.locator(".opening-study-discovered")).toHaveCount(2);
+    await expect(rating).toHaveValue("1600");
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+  }
 });

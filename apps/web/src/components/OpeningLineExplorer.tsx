@@ -660,7 +660,7 @@ export function OpeningLineExplorer({
         </div>
         <div className="opening-workspace-actions">
           <button className="secondary" disabled={navigationBlocked} onClick={openCoverageTools}>Find repertoire gaps</button>
-          {!editing&&<button className="secondary" disabled={navigationBlocked||line.archived} onClick={()=>setStudyOpen(true)}>Study a game from here</button>}
+          <button className="secondary" disabled={navigationBlocked||line.archived} onClick={()=>setStudyOpen(true)}>Study a game from here</button>
           {detail.repertoire.editable && (
             <button disabled={navigationBlocked} className={editing ? "active" : "secondary"} onClick={() => { setEditing((value) => !value); setPendingMove(null); }}>
               {editing ? "Finish editing" : "Edit lines"}
