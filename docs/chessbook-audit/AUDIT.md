@@ -17,10 +17,10 @@ remain separate from the verified requirement counts below.
 
 - **57 feature descriptions**, each with three acceptance criteria and a repeatable comparison task.
 - Current inventory: 22 existing, 12 partial, 12 absent, 5 implemented, 1 improved, 4 enhanced, 1 not_targeted.
-- Acceptance checks: 89 passed, 0 failed, 0 flaky, 44 unknown, 36 unmet, 3 excluded.
-- Priority-weighted verified requirement coverage: **62.4%** (399/639 points). This is a conservative evidence measure, not “62.4% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
-- Like-for-like unit-evidence baseline: 26.6% → 37.4%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
-- Current validation records: 308 unit/integration tests and 152 browser journeys; 0 failures, 0 flaky results, 0 skipped.
+- Acceptance checks: 92 passed, 0 failed, 0 flaky, 44 unknown, 36 unmet, 3 excluded.
+- Priority-weighted verified requirement coverage: **63.3%** (414/654 points). This is a conservative evidence measure, not “63.3% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
+- Like-for-like unit-evidence baseline: 26% → 38.1%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
+- Current validation records: 316 unit/integration tests and 156 browser journeys; 0 failures, 0 flaky results, 0 skipped.
 
 ## Implemented from this audit
 
@@ -871,8 +871,11 @@ Acceptance criteria:
 - **passed** — A game deviation maps to its exact repertoire review position. Evidence: unit: connects a game deviation to its exact repertoire review position.
 - **passed** — A pasted-game miss links to the source game after the answer. Evidence: browser/chromium: links a pasted-game miss to its source game only after the answer; browser/webkit: links a pasted-game miss to its source game only after the answer.
 - **passed** — An opponent leaving the repertoire is not called the player’s mistake. Evidence: unit: does not blame the player when the opponent leaves the repertoire first.
+- **passed** — Keep a full saved replay and hidden recall decisions with each played game; resume and recover saves without losing feedback. Evidence: unit: saves a full replay with hidden answers and local retries without changing scheduled recall or coverage data; browser/chromium: keeps a replay and hidden recall with each game without changing normal practice; browser/webkit: keeps a replay and hidden recall with each game without changing normal practice; browser/chromium: recovers an uncertain replay save and preserves feedback until explicitly refreshed; browser/webkit: recovers an uncertain replay save and preserves feedback until explicitly refreshed.
+- **passed** — Accept prepared alternatives and suitable stored engine moves; keep local retries separate from deliberate scheduled recall. Evidence: unit: accepts saved alternatives, retains feedback after repertoire changes, and rejects stale tabs; unit: uses the player's side when accepting multiple engine candidates and treats unlisted moves as unverified; unit: keeps mate scores distinct from pawn scores and records reveals as helped local practice.
+- **passed** — Explicit later practice reuses an appropriate existing exercise without adding duplicate cards or awarding recall credit. Evidence: unit: schedules an existing repertoire position without recording recall and prevents scheduling changed feedback; unit: uses the player's side when accepting multiple engine candidates and treats unlisted moves as unverified.
 
-Implementation: `apps/server/src/openings/opening-game-service.ts`
+Implementation: `apps/server/src/openings/opening-game-service.ts`, `apps/server/src/games/game-replay-service.ts`, `apps/web/src/components/GameReplay.tsx`, `migrations/039_game_review_replay.sql`
 
 Repeatable comparison task: A pasted-game miss links to the source game after the answer. Competitor timing and our user-task timing remain unmeasured.
 

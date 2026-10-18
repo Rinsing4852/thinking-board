@@ -1,3 +1,4 @@
+import { GameReplayService } from "./games/game-replay-service.js";
 import { openingQualityMetrics } from "./openings/opening-quality-metrics.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -100,6 +101,18 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   const openingPreparation = new OpeningPreparationService(database.connection, openingPreferences, openingExplorer,
     openingAnalysis, config.acceptableToleranceCp);
   const openingGames = new OpeningGameService(database.connection, openingPreparation);
+  const gameReplay=new GameReplayService(database.connection,openingGames,openingReviews,config.acceptableToleranceCp);
+  app.get("/api/v1/games/:gameId/replay",async(request,reply)=>{
+    try {return gameReplay.get((request.params as {gameId:string}).gameId);}
+    catch(error) {return reply.code(400).send({error:error instanceof Error?error.message:"Could not load saved game review."});}
+  });
+  app.post("/api/v1/games/:gameId/replay",{schema:{body:{type:"object",additionalProperties:false,
+    required:["snapshotId","version","action"],properties:{snapshotId:{type:"string",minLength:1,maxLength:100},version:{type:"integer",minimum:0},
+      action:{enum:["next","previous","jump","retry","answer","reveal","refresh","schedule","skip"]},ply:{type:"integer",minimum:0,maximum:10000},
+      checkpointId:{type:"string",minLength:1,maxLength:200},moveUci:{type:"string",pattern:"^[a-h][1-8][a-h][1-8][qrbn]?$"}}}}},async(request,reply)=>{
+    try {return gameReplay.act((request.params as {gameId:string}).gameId,request.body as import("../../../packages/contracts/src/api.js").GameReplayAction);}
+    catch(error) {return reply.code(400).send({error:error instanceof Error?error.message:"Could not save game review."});}
+  });
   const openingCoverage = new OpeningCoverageService(database.connection, config.lichessApiToken, openingExplorer, openingPreparation, openingGames);
   registerOpeningPreparationRoutes(app, database.connection, openingGames, openingPreparation);
   const analysis = new AnalysisService(database.connection, config);
@@ -699,7 +712,10 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   app.get("/api/v1/games", async () => ({
     games: database.connection.prepare(`
       SELECT id, white_name AS white, black_name AS black, player_color AS playerColor,
-             result, played_at AS playedAt, analyzed_at AS analyzedAt
+             result, played_at AS playedAt, analyzed_at AS analyzedAt,
+             EXISTS(SELECT 1 FROM game_review_replays r WHERE r.game_id=games.id) AS hasSavedReview,
+             (SELECT json_array_length(s.content_json,'$.points') FROM game_review_replays r
+               JOIN game_review_snapshots s ON s.id=r.snapshot_id WHERE r.game_id=games.id) AS reviewDecisions
       FROM games WHERE profile_id = ? ORDER BY created_at DESC
     `).all(activeProfileId(database.connection)),
   }));

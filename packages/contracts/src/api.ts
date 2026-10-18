@@ -1039,3 +1039,24 @@ export interface OpeningStudyDiscoveryResponse {
   games: OpeningStudyDiscoveryGame[]; rating: number; learnerColor: Color;
   message: string; partial: boolean;
 }
+
+export interface GameReplayMove {
+  ply:number; moveNumber:number; moverColor:Color; uci:string; san:string; fenBefore:string; fenAfter:string;
+}
+export interface GameReplayCheckpoint {
+  id:string; ply:number; kind:"opening"|"engine"|"opponent"|"gap";
+  label:string; question:string; canRecall:boolean; canSchedule:boolean;
+  attempts:number; recalled:boolean;
+}
+export interface GameReplayResponse {
+  gameId:string; snapshotId:string; savedAt:string; version:number; playerColor:Color;
+  initialFen:string; moves:GameReplayMove[]; checkpoints:GameReplayCheckpoint[];
+  currentPly:number; activeCheckpointId:string|null; phase:"replay"|"question"|"feedback";
+  displayFen:string; displayMove:string|null; updatesAvailable:boolean; analysisPending:boolean;
+  feedback:null|{message:string; outcome:string; answers:Array<{uci:string;san:string}>; explanation:string};
+}
+export interface GameReplayAction {
+  snapshotId:string; version:number;
+  action:"next"|"previous"|"jump"|"retry"|"answer"|"reveal"|"refresh"|"schedule"|"skip";
+  ply?:number; checkpointId?:string; moveUci?:string;
+}

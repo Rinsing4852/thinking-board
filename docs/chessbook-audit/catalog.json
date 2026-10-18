@@ -2550,17 +2550,79 @@
               "title": "does not blame the player when the opponent leaves the repertoire first"
             }
           ]
+        },
+        {
+          "id": "CB45.4",
+          "requirement": "Keep a full saved replay and hidden recall decisions with each played game; resume and recover saves without losing feedback.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "saves a full replay with hidden answers and local retries without changing scheduled recall or coverage data"
+            },
+            {
+              "kind": "browser",
+              "title": "keeps a replay and hidden recall with each game without changing normal practice",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            },
+            {
+              "kind": "browser",
+              "title": "recovers an uncertain replay save and preserves feedback until explicitly refreshed",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB45.5",
+          "requirement": "Accept prepared alternatives and suitable stored engine moves; keep local retries separate from deliberate scheduled recall.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "accepts saved alternatives, retains feedback after repertoire changes, and rejects stale tabs"
+            },
+            {
+              "kind": "unit",
+              "title": "uses the player's side when accepting multiple engine candidates and treats unlisted moves as unverified"
+            },
+            {
+              "kind": "unit",
+              "title": "keeps mate scores distinct from pawn scores and records reveals as helped local practice"
+            }
+          ]
+        },
+        {
+          "id": "CB45.6",
+          "requirement": "Explicit later practice reuses an appropriate existing exercise without adding duplicate cards or awarding recall credit.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "schedules an existing repertoire position without recording recall and prevents scheduling changed feedback"
+            },
+            {
+              "kind": "unit",
+              "title": "uses the player's side when accepting multiple engine candidates and treats unlisted moves as unverified"
+            }
+          ]
         }
       ],
       "implementationPaths": [
-        "apps/server/src/openings/opening-game-service.ts"
+        "apps/server/src/openings/opening-game-service.ts",
+        "apps/server/src/games/game-replay-service.ts",
+        "apps/web/src/components/GameReplay.tsx",
+        "migrations/039_game_review_replay.sql"
       ],
       "benchmark": {
         "task": "A pasted-game miss links to the source game after the answer.",
         "chessbookMeasuredResult": null,
         "ourMeasuredLatencyMs": null,
         "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
-      }
+      },
+      "limits": "Saved per-game feedback/replay and local recall. Engine answers use stored legal lines within the configured tolerance; unlisted moves are unverified. Later practice reuses repertoire or existing candidate exercises; positions without a suitable candidate exercise remain retryable in the game. Older snapshots remain in storage; no version-history selector or measured learning benefit."
     },
     {
       "id": "CB46",

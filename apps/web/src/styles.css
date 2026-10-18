@@ -1091,3 +1091,18 @@ footer { border-top: 1px solid var(--line); padding: 2rem 4vw; color: #69756d; d
 .opening-task-reason { border-left: 2px solid var(--lime); padding-left: .6rem; }
 
 .opening-coverage-scope button[aria-pressed="true"] { border-color: var(--lime); color: var(--lime); box-shadow: inset 0 0 0 1px var(--lime); }
+
+.game-replay-heading { display:flex; justify-content:space-between; gap:1rem; align-items:start; }
+.game-replay-heading h3 { margin:.4rem 0; }
+.game-replay-layout { display:grid; grid-template-columns:minmax(240px,540px) minmax(240px,1fr); gap:1.5rem; align-items:start; margin-top:1rem; }
+.game-replay-layout > * { min-width:0; }
+.game-replay-position { display:grid; gap:.5rem; }
+.game-replay-markers { margin-top:1rem; }
+.game-replay-markers button { display:block; width:100%; text-align:left; margin:.5rem 0; }
+.game-replay-feedback { border-left:3px solid var(--lime); padding:.75rem; margin:.75rem 0; }
+.game-replay-update { padding:.75rem; border:1px solid var(--line); border-radius:8px; margin-top:1rem; }
+.game-review-details { padding:1rem; border:1px solid var(--line); border-radius:12px; }
+@media(max-width:850px) { .game-replay-layout { grid-template-columns:minmax(0,1fr); } .game-replay-heading { flex-direction:column; } }
+
+.game-replay-layout > [aria-label="Game replay board and controls"] { scroll-margin-top:88px; }
+@media(max-width:850px) { .game-replay-layout > [aria-label="Game replay board and controls"] { scroll-margin-top:120px; } }

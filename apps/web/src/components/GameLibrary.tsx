@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 interface Game {
-  id: string; white: string; black: string; result: string; playerColor: string; playedAt: string | null;
+  id: string; white: string; black: string; result: string; playerColor: string; playedAt: string | null; hasSavedReview?:boolean|number; reviewDecisions?:number|null;
 }
 
 /** Bound the rendered list, not the saved library; search still covers every game. */
@@ -26,6 +26,7 @@ export function GameLibrary({ games, selectedId, onChoose }: {
         aria-pressed={selectedId === game.id} onClick={() => onChoose(game.id)}>
         <strong>{game.white} – {game.black}</strong>
         <small>{game.result} · you played {game.playerColor}{game.playedAt ? ` · ${new Date(game.playedAt).toLocaleDateString()}` : ""}</small>
+        {Boolean(game.hasSavedReview)&&<small>Saved review · {game.reviewDecisions??0} marked decisions</small>}
       </button>)}
     </div>
     {matches.length === 0 && <p role="status">No games match this search. <button className="text-button" onClick={() => setQuery("")}>Clear game search</button></p>}

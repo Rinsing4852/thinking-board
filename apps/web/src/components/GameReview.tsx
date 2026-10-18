@@ -8,11 +8,10 @@ import type {
   OpeningSurprisePreparationResponse,
 } from "../../../../packages/contracts/src/api";
 import { get, patch, post } from "../api";
-import { ChessBoard } from "./ChessBoard";
 import { OpeningGameInbox } from "./OpeningGameInbox";
 import { OpeningPreparationAdvice } from "./OpeningPreparationAdvice";
-import { applyUciMove } from "../opening-board";
 import { OpeningExplanation } from "./OpeningExplanation";
+import { GameReplay } from "./GameReplay";
 import { GameLibrary } from "./GameLibrary";
 
 interface Concept {
@@ -141,28 +140,9 @@ function OpeningConnectionCard({
   onPractice: () => void;
   preparationGroup?: GameOpeningInboxGroup | undefined;
 }) {
-  const [boardView, setBoardView] = useState<"decision" | "played" | "repertoire">("decision");
-  useEffect(() => setBoardView("decision"), [opening.matchId]);
   const covered = opening.matchedPlayerMoves === 1
     ? "1 of your moves matched"
     : `${opening.matchedPlayerMoves} of your moves matched`;
-  const departure = opening.departure;
-  const canShowRepertoire = opening.status === "player_deviation" && Boolean(opening.expectedMove);
-  const boardFen = !departure || boardView === "decision"
-    ? departure?.fenBefore
-    : boardView === "played"
-      ? departure.fenAfter
-      : opening.expectedMove
-        ? applyUciMove(departure.fenBefore, opening.expectedMove.moveUci)
-        : departure.fenBefore;
-  const displayedMove = boardView === "played"
-    ? departure?.moveUci ?? null
-    : boardView === "repertoire"
-      ? opening.expectedMove?.moveUci ?? null
-      : null;
-  const decisionHighlights = boardView === "decision" && opening.expectedMove
-    ? [opening.expectedMove.moveUci.slice(0, 2), opening.expectedMove.moveUci.slice(2, 4)]
-    : [];
   return (
     <article className={`panel game-opening-card ${opening.status}`}>
       <div className="game-opening-heading">
@@ -173,31 +153,7 @@ function OpeningConnectionCard({
         <span className="game-opening-coverage-badge">{covered}</span>
       </div>
 
-      <div className={`game-opening-review-layout${departure ? " has-board" : ""}`}>
-        {departure && boardFen && (
-          <div className="game-opening-decision-board">
-            <ChessBoard
-              fen={boardFen}
-              orientation={opening.repertoire.learnerColor}
-              lastMove={displayedMove}
-              highlightedSquares={decisionHighlights}
-              ariaLabel="Opening difference position"
-            />
-            <div className="opening-board-views" aria-label="Compare opening moves">
-              <button className={boardView === "decision" ? "active" : "secondary"} aria-pressed={boardView === "decision"} onClick={() => setBoardView("decision")}>Decision</button>
-              <button className={boardView === "played" ? "active" : "secondary"} aria-pressed={boardView === "played"} onClick={() => setBoardView("played")}>Game: {departure.moveSan}</button>
-              {canShowRepertoire && opening.expectedMove && (
-                <button className={boardView === "repertoire" ? "active" : "secondary"} aria-pressed={boardView === "repertoire"} onClick={() => setBoardView("repertoire")}>Repertoire: {opening.expectedMove.moveSan}</button>
-              )}
-            </div>
-            <small>{boardView === "decision"
-              ? "The position before the first difference. The prepared move is highlighted."
-              : boardView === "played"
-                ? `What happened after ${departure.moveSan}.`
-                : `How the position changes after ${opening.expectedMove?.moveSan}.`}</small>
-          </div>
-        )}
-
+      <div className="game-opening-review-layout">
         <div className="game-opening-review-copy">
           {opening.status === "player_deviation" && opening.departure && opening.expectedMove && (
             <>
@@ -400,6 +356,10 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
       {loadingGameId && <p role="status">Loading the selected game…</p>}
       {review && (
         <div className="mistake-list">
+          <GameReplay key={review.game.id} gameId={review.game.id} onRefreshed={()=>void loadReview(review.game.id,false)} />
+          {!review.game.analyzedAt && <div className="panel review-analysis-note"><strong>Opening comparison ready</strong><p>The local engine analysis is still pending. Opening comparison does not need Stockfish.</p></div>}
+          <details className="game-review-details"><summary>Current review notes and practice options</summary>
+          <p className="opening-coverage-note">These notes use the current repertoire and analysis. The replay above preserves its saved feedback until you refresh it.</p>
           {review.opening && (
             <OpeningConnectionCard
               opening={review.opening}
@@ -408,7 +368,7 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
               preparationGroup={inbox?.groups.find(group => group.occurrences.some(occurrence => occurrence.game.id === review.game.id))}
             />
           )}
-          {!review.game.analyzedAt && <div className="panel review-analysis-note"><strong>Opening comparison ready</strong><p>The local engine analysis is still pending. Opening comparison does not need Stockfish.</p></div>}
+
           {review.game.analyzedAt && review.mistakes.length === 0 && <div className="panel review-analysis-note"><strong>No major engine mistakes found</strong><p>This game can still teach you about repertoire recall and where your prepared material ends.</p></div>}
           {review.mistakes.length > 0 && <h3 className="review-subheading">Important middlegame and tactical mistakes</h3>}
           {review.mistakes.slice(0, showAll ? review.mistakes.length : 4).map((mistake) => (
@@ -425,6 +385,7 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
               {showAll ? "Show the most important four" : `Show all ${review.mistakes.length} mistakes`}
             </button>
           )}
+          </details>
         </div>
       )}
     </section>

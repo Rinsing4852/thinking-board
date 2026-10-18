@@ -312,6 +312,24 @@ scrape Chessable or grant rights to third-party material: only import lines and
 notes you own or have permission to use. For books, enter the moves you want to
 learn and write the explanations in your own words.
 
+## Replay and recall in your own games
+
+Open **My games** and select a game under **Inspect a complete game**. Its saved
+review lets you play through the whole game on one board, pausing at repertoire
+differences and analysed mistakes. Try a move before showing the answer, or
+continue without trying. Accepted saved alternatives are allowed. Engine recall
+uses legal stored candidates within the configured tolerance; other moves remain
+unverified rather than being labelled automatically wrong.
+
+Replay resumes after reload. Feedback is preserved if the repertoire or analysis
+changes; choose **Refresh saved feedback** to use the newer material. Local
+retries and revealed answers do not change due dates, normal recall results,
+practice totals or coverage. **Practise later** makes the appropriate existing
+repertoire/candidate exercise available without adding a duplicate or a recall
+result. Some engine positions have no separate candidate exercise and can be
+retried within the game. Current detailed notes remain below the replay in a
+collapsed section. See [delivery and boundaries](docs/chessbook-audit/GAME_REPLAY_RECALL.md).
+
 ## Study a stronger player’s continuation
 
 From a saved opening position, choose **Study a game from here** (available in

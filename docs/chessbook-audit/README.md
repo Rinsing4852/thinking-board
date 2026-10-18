@@ -5,7 +5,7 @@ feature descriptions, acceptance criteria, sources and implementation gaps.
 `catalog.json` is the editable specification; `quality-report.json` is the
 generated evidence snapshot.
 
-Each feature has three acceptance criteria. A check earns credit only when its
+Each feature has explicit acceptance criteria. A check earns credit only when its
 exact mapped test passes. Browser criteria must pass on both Chromium and WebKit.
 Failures, skipped checks, flaky retries, unmeasured human tasks and missing
 features remain distinct. Priority weights are P0=5, P1=3 and P2=1. Commercial
@@ -41,7 +41,7 @@ REA itself was not installed or run. The first implementation increment is
 [whole-repertoire encounter coverage](./WHOLE_REPERTOIRE.md), including its
 explicit limits and evidence. The next increment adds an opt-in
 [learn-first, then recall flow](./FIRST_EXPOSURE.md). Contextual model-game
-study and the remaining learning refinements remain plans. The
+study has since shipped in the milestones below; further learning refinements remain plans. The
 [review of both increments](./RECENT_FEATURE_REVIEW.md) records fresh competitor
 observations, corrections to alternatives/retries and the next quality measurements.
 The [continuation and home-learning increment](./CONTINUATION_AND_HOME_LEARNING.md)
@@ -50,7 +50,7 @@ choice beside the recommended practice action, with unchanged urgency rules.
 The [three-step polish pass](./POLISH_PASS.md) records the Linux Safari layout
 diagnosis, clearer coverage/recall language and reset/recovery checks. The
 [contextual model-game specification](./CONTEXTUAL_MODEL_GAMES.md) describes the
-next feature. Its [first milestone](./MODEL_GAME_STUDY_DELIVERY.md) adds a separate
+feature's intended scope. Its [first milestone](./MODEL_GAME_STUDY_DELIVERY.md) adds a separate
 imported-game library, exact-position selection, supplied notes, replay and resume;
 model-game learning is partial in the tracker, with guessing
 still outstanding.
@@ -58,3 +58,8 @@ still outstanding.
 [Automatic stronger-player examples](./AUTOMATIC_MODEL_GAMES.md) add authenticated
 Lichess position search, learner-side rating checks and direct replay. The
 provider sample is bounded; master-source switching and guessing remain absent.
+
+[Saved game replay and recall](./GAME_REPLAY_RECALL.md) keeps feedback and local
+practice inside each played game. The [next-feature readiness review](./NEXT_FEATURE_READINESS.md)
+records its verified release gate, remaining usability uncertainty and the next
+recommended learning improvement.

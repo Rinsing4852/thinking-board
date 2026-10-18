@@ -912,7 +912,7 @@ test("keeps a preparation idea without a line, then shows it after recall when a
   const note = "Complete development and use the centre; no long line needed.";
   await advice.getByLabel("Idea to remember", { exact: true }).fill(note);
   await advice.getByRole("button", { name: "Save idea without a line", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("Idea kept. No new line or memory reviews were added.");
+  await expect(page.getByRole("status").filter({hasText:"Idea kept. No new line or memory reviews were added."})).toBeVisible();
   expect((await (await page.request.get(`/api/v1/openings/repertoires/${repertoireId}`)).json()).chapters[0].lines).toHaveLength(before);
   await page.reload();
   await page.getByRole("button", { name: /Show all/ }).click();

@@ -443,6 +443,23 @@ export class OpeningReviewService {
     return this.startPosition(repertoireId, positionId, null, moveId);
   }
 
+  schedulePosition(repertoireId:string,positionId:string):void {
+    const profileId=ensureActiveProfile(this.db);
+    const available=this.db.prepare(`SELECT 1 FROM opening_moves m
+      JOIN opening_line_moves lm ON lm.move_id=m.id
+      JOIN opening_lines l ON l.id=lm.line_id AND l.active=1
+      JOIN opening_chapters c ON c.id=l.chapter_id AND c.active=1
+      LEFT JOIN opening_line_preferences lp ON lp.line_id=l.id AND lp.profile_id=?
+      LEFT JOIN opening_repertoire_preferences rp ON rp.repertoire_id=m.repertoire_id AND rp.profile_id=?
+      WHERE m.repertoire_id=? AND m.from_position_id=? AND m.role='learner' AND m.active=1
+        AND lp.archived_at IS NULL AND rp.archived_at IS NULL LIMIT 1`).get(profileId,profileId,repertoireId,positionId);
+    if(!available)throw new Error("This repertoire position is archived or no longer available.");
+    this.ensureItems(profileId,repertoireId,true);
+    this.db.prepare(`UPDATE opening_review_items SET due_at=MIN(due_at,?),updated_at=?
+      WHERE profile_id=? AND repertoire_id=? AND position_id=? AND knowledge_dimension='move'`)
+      .run(now(),now(),profileId,repertoireId,positionId);
+  }
+
   startPosition(repertoireId: string, positionId: string, gameId: string | null, moveId?: string): OpeningReviewExercise {
     const profileId = ensureActiveProfile(this.db);
     this.ensureItems(profileId, repertoireId, true);
