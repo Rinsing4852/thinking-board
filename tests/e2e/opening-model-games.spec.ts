@@ -2,6 +2,16 @@ import {expect,test,type Page} from "@playwright/test";
 import {Chess} from "chess.js";
 test.use({baseURL:"http://127.0.0.1:8192"});
 
+// Projects share this disposable server. Extra matching examples must not
+// displace the earlier ranking fixtures when the phone project starts.
+test.afterEach(async({page},testInfo)=>{
+  if(!/^(finds stronger-player study|guesses Black's moves)/.test(testInfo.title))return;
+  const library=await(await page.request.get("/api/v1/openings/study-games")).json();
+  for(const entry of library.games.filter((entry:{source:string})=>["Home guessing fixture","Black guessing fixture"].includes(entry.source))) {
+    expect((await page.request.delete(`/api/v1/openings/study-games/${entry.id}`)).ok()).toBeTruthy();
+  }
+});
+
 async function openStudy(page:Page,name:string,pgn:string,color="black") {
   await page.route("**/api/v1/openings/reviews/active",route=>route.fulfill({json:null}));
   await page.route("**/api/v1/openings/lessons/active",route=>route.fulfill({json:null}));
@@ -184,4 +194,84 @@ test("finds stronger-player games automatically, retries the provider and replay
     await expect(rating).toHaveValue("1600");
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
   }
+});
+
+test("finds stronger-player study from home and guesses with hidden answers, hints and saved recovery",async({page},testInfo)=>{
+  await page.route("**/api/v1/openings/reviews/active",route=>route.fulfill({json:null}));
+  await page.route("**/api/v1/openings/lessons/active",route=>route.fulfill({json:null}));
+  const imported=await page.request.post("/api/v1/openings/imports/pgn",{data:{pgn:"1. d4 d5 2. Nf3 Nf6 3. c4 e6 *",name:`Home guess ${testInfo.project.name}`,learnerColor:"white",ownershipConfirmed:true}});
+  const repertoireId=(await imported.json()).repertoireIds[0];
+  const oldLibrary=await(await page.request.get("/api/v1/openings/study-games")).json();
+  for(const entry of oldLibrary.games.filter((entry:{source:string})=>entry.source==="Home guessing fixture"))await page.request.delete(`/api/v1/openings/study-games/${entry.id}`);
+  await page.request.post("/api/v1/openings/study-games/import",{data:{pgn:game("1. d4 d5 2. Nf3 Nf6 3. c4 e6 4. Nc3 {A note revealed after guessing.} Be7 5. Bf4 O-O",`Home guess ${testInfo.project.name}`),source:"Home guessing fixture"}});
+  const before=await (await page.request.get("/api/v1/openings/activity")).json();
+  await page.goto("/#openings");
+  const routes=page.getByRole("region",{name:"Choose how to learn",exact:true});
+  await expect(routes.getByText("Practise my repertoire",{exact:true})).toBeVisible();
+  await routes.getByRole("button",{name:"Review my played game",exact:true}).click();
+  await expect(page.getByRole("heading",{name:"Import. Analyse. Learn.",exact:true})).toBeVisible();
+  await page.getByRole("button",{name:"Openings",exact:true}).click();
+  await routes.getByLabel("Repertoire for model-game study").selectOption(repertoireId);
+  await routes.screenshot({path:testInfo.outputPath("learning-routes.png")});
+  await routes.getByRole("button",{name:"Study a stronger player’s game",exact:true}).click();
+  const study=page.getByRole("region",{name:"Model-game study",exact:true});
+  await study.locator(".opening-study-candidate").filter({hasText:"Home guessing fixture"}).getByRole("button",{name:"Study this game",exact:true}).click();
+  await study.getByRole("button",{name:"Guess the player’s moves",exact:true}).click();
+  const quiz=study.getByRole("region",{name:"Guess the player's move",exact:true});
+  await expect(quiz.getByText("What did the player play here?",{exact:true})).toBeVisible();
+  await study.screenshot({path:testInfo.outputPath("model-game-question.png")});
+  await expect(study.getByText("A note revealed after guessing.",{exact:true})).toHaveCount(0);
+  const board=quiz.getByRole("grid",{name:"Guess-the-move board",exact:true});
+  await board.getByRole("gridcell",{name:"e2 white pawn",exact:true}).click();await board.getByRole("gridcell",{name:"e3 empty",exact:true}).click();
+  await expect(quiz.getByText("A different legal move",{exact:true})).toBeVisible();
+  await expect(quiz).toContainText("The player played Nc3");
+  await expect(quiz.getByText("A note revealed after guessing.",{exact:true})).toBeVisible();
+  await quiz.getByRole("button",{name:"Try this position again",exact:true}).click();
+  await expect(quiz.getByText("A note revealed after guessing.",{exact:true})).toHaveCount(0);
+  await quiz.getByRole("button",{name:"Hint: show the piece",exact:true}).click();
+  await expect(quiz).toContainText("knight on b1");
+  await page.reload();await expect(quiz).toContainText("knight on b1");
+  await board.getByRole("gridcell",{name:"b1 white knight",exact:true}).click();await board.getByRole("gridcell",{name:"c3 empty",exact:true}).click();
+  await expect(quiz.getByText("You matched the played move",{exact:true})).toBeVisible();
+  await expect(quiz).toContainText("1 first attempts · 0 matched without help");
+  await quiz.getByRole("button",{name:"Continue guessing",exact:true}).click();
+  await expect(quiz).toContainText("Position after replay step 8 of 10");
+  // Save reaches the server, but its acknowledgement is lost.
+  await page.route("**/study/guess",async route=>{const response=await route.fetch();expect(response.ok()).toBeTruthy();await route.fulfill({status:503,json:{error:"Acknowledgement lost"}});});
+  await quiz.getByRole("button",{name:"Show played move",exact:true}).click();
+  await expect(study.getByRole("alert")).toContainText("The save could not be confirmed");
+  await expect(quiz.getByRole("button",{name:"Show played move",exact:true})).toBeDisabled();
+  await page.unroute("**/study/guess");await study.getByRole("button",{name:"Reload study",exact:true}).click();
+  await expect(quiz.getByText("Played move shown",{exact:true})).toBeVisible();
+  await quiz.getByRole("button",{name:"Continue guessing",exact:true}).click();await expect(quiz.getByText("Study complete",{exact:true})).toBeVisible();
+  expect(await (await page.request.get("/api/v1/openings/activity")).json()).toEqual(before);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+  await page.screenshot({path:testInfo.outputPath("model-game-guessing.png"),fullPage:true});
+});
+
+test("guesses Black's moves and automatically follows White's continuation",async({page},testInfo)=>{
+  const {repertoireId,lineId}=await openStudy(page,`Black guessing ${testInfo.project.name}`,"1. d4 d5 2. Nf3 Nf6 3. c4 e6 *","black");
+  const oldLibrary=await(await page.request.get("/api/v1/openings/study-games")).json();
+  for(const entry of oldLibrary.games.filter((entry:{source:string})=>entry.source==="Black guessing fixture"))await page.request.delete(`/api/v1/openings/study-games/${entry.id}`);
+  const imported=await page.request.post("/api/v1/openings/study-games/import",{data:{pgn:game("1. d4 d5 2. Nf3 Nf6 3. c4 e6 4. Nc3 Be7 5. Bg5 h6","Black quiz"),source:"Black guessing fixture"}});expect(imported.ok()).toBeTruthy();
+  await page.reload();
+  const study=page.getByRole("region",{name:"Model-game study",exact:true});
+  await study.locator(".opening-study-candidate").filter({hasText:"Black guessing fixture"}).getByRole("button",{name:"Study this game",exact:true}).click();
+  await study.getByRole("button",{name:"Guess the player’s moves",exact:true}).click();
+  const quiz=study.getByRole("region",{name:"Guess the player's move",exact:true});
+  await expect(quiz).toContainText("Position after replay step 7 of 10");
+  const board=quiz.getByRole("grid",{name:"Guess-the-move board",exact:true});
+  await expect(board.getByRole("gridcell",{name:"c3 white knight",exact:true})).toBeVisible();
+  await board.getByRole("gridcell",{name:"f8 black bishop",exact:true}).click();await board.getByRole("gridcell",{name:"e7 empty",exact:true}).click();
+  await expect(quiz.getByText("You matched the played move",{exact:true})).toBeVisible();
+  await quiz.getByRole("button",{name:"Continue guessing",exact:true}).click();
+  await expect(quiz).toContainText("Position after replay step 9 of 10");
+  await expect(board.getByRole("gridcell",{name:"g5 white bishop",exact:true})).toBeVisible();
+  await quiz.getByRole("button",{name:"Show played move",exact:true}).click();await quiz.getByRole("button",{name:"Continue guessing",exact:true}).click();
+  await expect(quiz.getByText("Study complete",{exact:true})).toBeVisible();
+  const progress=(await(await page.request.get(`/api/v1/openings/repertoires/${repertoireId}/lines/${lineId}/study?ply=6`)).json()).quiz.progress;
+  expect(progress).toEqual({attempted:2,matchedUnaided:1,helped:1});
+  await quiz.getByRole("button",{name:"Study this game again",exact:true}).click();
+  await expect(quiz).toContainText("Position after replay step 7 of 10");
+  await expect(quiz).toContainText("2 first attempts · 1 matched without help · 1 helped");
 });

@@ -189,7 +189,7 @@ test("teaches both saved alternatives and asks for the taught response without c
 });
 
 test("teaches three new moves before hidden recall and resumes the saved learning stage", async ({page},testInfo)=>{
-  const name=`Learn first ${testInfo.project.name} ${testInfo.retry}`;
+  const name=`Learn first ${testInfo.project.name} ${testInfo.retry} ${testInfo.repeatEachIndex}`;
   const imported=await page.request.post("/api/v1/openings/imports/pgn",{data:{
     pgn:`[Event "${name}"]\n\n1. e4 {Claim central space and free the bishop.} e5 2. Nf3 {Develop the knight.} Nc6 3. Bc4 {Aim at the centre.} *`,
     name,learnerColor:"white",ownershipConfirmed:true,
@@ -199,7 +199,11 @@ test("teaches three new moves before hidden recall and resumes the saved learnin
   await page.goto("/#openings");
   const pause=page.getByRole("button",{name:"Pause",exact:true});if(await pause.isVisible()) await pause.click();
   const card=page.locator("article.opening-card").filter({hasText:name});
-  await card.locator("summary").first().click();
+  // This journey tests teaching persistence. Use native keyboard disclosure
+  // setup while optional home summaries finish; pointer setup can miss during
+  // the already-documented Safari home reflow. Other journeys retain touch.
+  await card.locator("summary").first().press("Enter");
+  await expect(card.locator("details.opening-card-details")).toHaveAttribute("open", "");
   page.on("dialog",dialog=>dialog.accept());
   await card.getByRole("button",{name:"Learn new moves first",exact:true}).click();
   const board=page.getByRole("grid",{name:"Chess position"});
@@ -1778,4 +1782,23 @@ test("discards an obsolete whole-repertoire success after the safety limit chang
   await expect(panel).toContainText("more reliable frequency data");release();
   await expect(panel.getByRole("heading",{name:"Goal reached for all saved plans",exact:true})).toHaveCount(0);
   await expect(panel.getByLabel("Maximum moves to check from each starting position",{exact:true})).toHaveValue("1");
+});
+
+test("separates playable chess quality from recall and recovers unavailable analysis",async({page},testInfo)=>{
+  const board=await startPractice(page,`[Event "Move quality ${testInfo.project.name}"]\n\n1. e4 {Quality recall fixture.} e5 2. Nf3 *`);
+  await board.getByRole("gridcell",{name:"d2 white pawn",exact:true}).click();await board.getByRole("gridcell",{name:"d4 empty",exact:true}).click();
+  const quality=page.getByRole("region",{name:"Chess quality versus recall",exact:true});
+  await quality.getByRole("button",{name:"Check this move’s chess quality",exact:true}).click();
+  await expect(quality).toContainText("Chess quality: playable");
+  await expect(quality).toContainText("does not earn repertoire recall credit");
+  await page.reload();await expect(quality).toContainText("Recall: different");
+  await page.route("**/reviews/*/quality",route=>route.fulfill({status:503,json:{error:"Analysis unavailable. Your recall result is unchanged."}}));
+  await quality.getByRole("button",{name:"Check this move’s chess quality",exact:true}).click();
+  await expect(quality).toContainText("Chess quality: unverified");
+  await page.unroute("**/reviews/*/quality");
+  await quality.getByRole("button",{name:"Check chess quality again",exact:true}).click();await expect(quality).toContainText("Chess quality: playable");
+  await page.screenshot({path:testInfo.outputPath("recall-versus-quality.png"),fullPage:true});
+  const saved=page.waitForResponse(response=>/\/reviews\/[^/]+\/move$/.test(response.url())&&response.request().method()==="POST");
+  await board.getByRole("gridcell",{name:"e2 white pawn",exact:true}).click();await board.getByRole("gridcell",{name:"e4 empty",exact:true}).click();
+  expect(await(await saved).json()).toMatchObject({outcome:"learning",assisted:true});
 });

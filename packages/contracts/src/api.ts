@@ -331,6 +331,7 @@ export interface OpeningCoverageResponse {
 }
 
 export interface OpeningAnalysisLine {
+  depth?: number;
   rank: number;
   moveUci: string;
   moveSan: string;
@@ -340,6 +341,13 @@ export interface OpeningAnalysisLine {
     value: number;
     perspective: "side_to_move";
   };
+}
+
+export interface OpeningMoveQuality {
+  verdict: "playable" | "weaker" | "uncertain";
+  message: string;
+  lossCp?: number;
+  depth?: number;
 }
 
 export interface OpeningPositionAnalysisResponse {
@@ -665,6 +673,7 @@ export interface OpeningReviewRecommendation {
 }
 
 export interface OpeningReviewExercise {
+  lastDifferentMove?: {moveUci:string;moveSan:string};
   kind: "exercise";
   sessionId: string;
   queueEntryId: string;
@@ -1009,13 +1018,14 @@ export interface OpeningStudyGame {
   matchPly: number; transposition: boolean; continuationMoves: number; annotationCount: number; reason: string;
 }
 export interface OpeningStudyReplay {
-  game: OpeningStudyGame; initialFen: string; moves: OpeningStudyMove[]; currentPly: number;
+  game: OpeningStudyGame; initialFen: string; moves: OpeningStudyMove[]; currentPly: number; version: number;
 }
 export interface OpeningStudyResponse {
   repertoireId: string; lineId: string; savedPly: number; fen: string; learnerColor: Color;
   searchRating: number | null;
   libraryGames: number; matches: OpeningStudyGame[]; totalMatches: number;
   replay: OpeningStudyReplay | null;
+  quiz?: OpeningStudyQuiz | null;
 }
 
 /** Whole-repertoire encounter goal under explicit saved-line policies. */
@@ -1059,4 +1069,17 @@ export interface GameReplayAction {
   snapshotId:string; version:number;
   action:"next"|"previous"|"jump"|"retry"|"answer"|"reveal"|"refresh"|"schedule"|"skip";
   ply?:number; checkpointId?:string; moveUci?:string;
+}
+
+export interface OpeningStudyQuiz {
+  version: number; game: OpeningStudyGame; currentPly: number; totalPlies: number;
+  fen: string; complete: boolean; hint: string | null;
+  feedback: { playedSan: string | null; historicalSan: string; historicalUci: string;
+    matches: boolean; revealed: boolean; comment: string | null } | null;
+  progress: { attempted: number; matchedUnaided: number; helped: number };
+}
+export interface OpeningStudyQuizAction {
+  savedPly: number; gameId: string; expectedFen: string; version: number;
+  action: "start" | "hint" | "answer" | "reveal" | "continue" | "retry" | "restart" | "exit";
+  moveUci?: string;
 }

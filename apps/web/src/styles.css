@@ -1106,3 +1106,12 @@ footer { border-top: 1px solid var(--line); padding: 2rem 4vw; color: #69756d; d
 
 .game-replay-layout > [aria-label="Game replay board and controls"] { scroll-margin-top:88px; }
 @media(max-width:850px) { .game-replay-layout > [aria-label="Game replay board and controls"] { scroll-margin-top:120px; } }
+
+.opening-learning-routes { border-block: 1px solid var(--border, #354039); padding-block: 1rem; margin-block: 1rem; }
+.opening-learning-routes > div { margin-block: 1rem; }
+.opening-learning-routes label { display: grid; gap: .4rem; margin-bottom: .7rem; }
+.opening-quality-feedback { padding: .8rem; margin-block: .7rem; border: 1px solid var(--border, #354039); border-radius: .6rem; }
+.opening-quality-feedback p { margin-block: .5rem; }
+.opening-quality-feedback small { display: block; margin-bottom: .5rem; }
+
+.opening-study-guessing .opening-study-layout { grid-template-columns: minmax(0, 680px); justify-content: center; }

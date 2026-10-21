@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { parseInfoLine, UciEngine } from "./uci-engine.js";
 import path from "node:path";
@@ -41,5 +41,27 @@ describe("UCI process failures", () => {
     const engine = new UciEngine("/definitely/missing/stockfish", 1, 16);
     await expect(engine.initialize()).rejects.toThrow(/Stockfish|ENOENT/);
     await engine.close();
+  });
+});
+
+describe("reliable score bounds",()=>{
+  it("does not treat a score bound or an unsupported score as exact",()=>{
+    expect(parseInfoLine("info depth 14 score cp 20 lowerbound pv e2e4")).toBeNull();
+    expect(parseInfoLine("info depth 14 score cp 20 upperbound pv e2e4")).toBeNull();
+    expect(parseInfoLine("info depth 14 score unknown 20 pv e2e4")).toBeNull();
+  });
+});
+
+
+describe("engine recovery after failed searches",()=>{
+  it("discards the failed process before accepting another position",async()=>{
+    const engine=new UciEngine(path.resolve("tests/fake-stockfish.mjs"),1,16);
+    const close=vi.spyOn(engine,"close");
+    const fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    try {
+      await expect(engine.analyze(fen,10,1,["invalid"])).rejects.toThrow(/Invalid UCI/);
+      expect(close).toHaveBeenCalledTimes(1);
+      expect((await engine.analyze(fen,10,1,["e2e4"])).lines[0]?.moveUci).toBe("e2e4");
+    } finally {await engine.close();}
   });
 });

@@ -52,12 +52,15 @@ diagnosis, clearer coverage/recall language and reset/recovery checks. The
 [contextual model-game specification](./CONTEXTUAL_MODEL_GAMES.md) describes the
 feature's intended scope. Its [first milestone](./MODEL_GAME_STUDY_DELIVERY.md) adds a separate
 imported-game library, exact-position selection, supplied notes, replay and resume;
-model-game learning is partial in the tracker, with guessing
-still outstanding.
+model-game learning remains partial in the tracker.
 
 [Automatic stronger-player examples](./AUTOMATIC_MODEL_GAMES.md) add authenticated
 Lichess position search, learner-side rating checks and direct replay. The
-provider sample is bounded; master-source switching and guessing remain absent.
+provider sample is bounded; master-source switching remains absent.
+
+[Learning routes, move quality and guessing](./LEARNING_ROUTES_AND_GUESSING.md)
+adds direct home entry, optional post-guess engine feedback separate from recall,
+and historical-move guessing with saved hints, first attempts and local retries.
 
 [Saved game replay and recall](./GAME_REPLAY_RECALL.md) keeps feedback and local
 practice inside each played game. The [next-feature readiness review](./NEXT_FEATURE_READINESS.md)

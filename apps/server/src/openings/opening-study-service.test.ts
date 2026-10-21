@@ -125,3 +125,75 @@ describe("contextual model-game study",()=>{
     expect(replay.moves[0]?.comment).toBeNull();expect(replay.moves[4]?.comment).toBe("This is the second visit.");
   });
 });
+
+describe("model-game guessing",()=>{
+  function prepare(color:"white"|"black"="white") {
+    const ctx=setup(color);
+    ctx.study.import(game("1. d4 d5 2. Nf3 Nf6 3. c4 e6 4. Nc3 {A hidden supplied note.} Be7 5. Bg5 O-O"),"Guess fixture");
+    let state=ctx.study.list(ctx.repertoireId,ctx.lineId,6);
+    const gameId=state.matches[0]!.id;
+    state=ctx.study.save(ctx.repertoireId,ctx.lineId,6,gameId,state.fen);
+    const action=(action:import("../../../../packages/contracts/src/api.js").OpeningStudyQuizAction["action"],moveUci?:string,version?:number)=>{
+      state=ctx.study.quiz(ctx.repertoireId,ctx.lineId,{savedPly:6,gameId,expectedFen:state.fen,
+        version:version??state.quiz?.version??state.replay!.version,action,...(moveUci?{moveUci}:{})});
+      return state;
+    };
+    return {...ctx,gameId,action,state:()=>state};
+  }
+  it.each(["white","black"] as const)("asks only the %s side and hides future moves and annotations until a guess",color=>{
+    const ctx=prepare(color),state=ctx.action("start");
+    expect(state.replay).toBeNull();expect(state.quiz?.feedback).toBeNull();expect(state.quiz?.hint).toBeNull();
+    expect(state.quiz?.fen.split(" ")[1]).toBe(color==="white"?"w":"b");
+    expect(JSON.stringify(state)).not.toContain("A hidden supplied note.");
+    expect(JSON.stringify(state.quiz)).not.toContain("historicalUci");
+    const answer=ctx.action("answer",color==="white"?"b1c3":"f8e7");
+    expect(answer.quiz?.feedback).toMatchObject({matches:true,revealed:false});
+    expect(answer.quiz?.progress).toEqual({attempted:1,matchedUnaided:1,helped:0});
+    const next=ctx.action("continue");
+    expect(next.quiz?.currentPly).toBe(color==="white"?8:9);
+    expect(next.quiz?.fen.split(" ")[1]).toBe(color==="white"?"w":"b");
+  });
+  it("labels different guesses as ungraded and keeps first attempts across hints, retries, exit and resume",()=>{
+    const ctx=prepare();ctx.action("start");
+    expect(ctx.action("answer","e2e3").quiz?.feedback).toMatchObject({matches:false,playedSan:"e3",historicalSan:"Nc3",comment:"A hidden supplied note."});
+    ctx.action("retry");expect(ctx.state().quiz?.feedback).toBeNull();
+    expect(ctx.action("hint").quiz?.hint).toContain("knight on b1");
+    expect(ctx.action("answer","b1c3").quiz?.progress).toEqual({attempted:1,matchedUnaided:0,helped:0});
+    ctx.action("exit");expect(ctx.state().replay).not.toBeNull();
+    ctx.action("start");expect(ctx.state().quiz?.feedback?.matches).toBe(true);
+    expect(ctx.state().quiz?.progress.attempted).toBe(1);
+    expect(ctx.study.list(ctx.repertoireId,ctx.lineId,6)).toEqual(ctx.state());
+  });
+  it("saves helped first attempts and completion without touching memory, practice or the repertoire",()=>{
+    const ctx=prepare();const reviews=new OpeningReviewService(ctx.db);reviews.start(ctx.repertoireId,"new",2,2);
+    const tables=["opening_review_events","opening_review_items","opening_review_queue","opening_repertoires","opening_moves","training_attempts"];
+    const before=tables.map(table=>ctx.db.prepare(`SELECT * FROM ${table}`).all());
+    ctx.action("start");ctx.action("hint");ctx.action("reveal");ctx.action("continue");
+    expect(ctx.action("answer","c1g5").quiz?.progress).toEqual({attempted:2,matchedUnaided:1,helped:1});
+    const complete=ctx.action("continue");expect(complete.quiz?.complete).toBe(true);expect(complete.quiz?.currentPly).toBe(10);
+    expect(tables.map(table=>ctx.db.prepare(`SELECT * FROM ${table}`).all())).toEqual(before);
+    expect(()=>ctx.action("answer","a2a3")).toThrow(/complete/);
+    ctx.action("exit");ctx.action("start");expect(ctx.state().quiz?.complete).toBe(true);
+    ctx.action("restart");expect(ctx.state().quiz?.currentPly).toBe(6);
+    ctx.action("answer","b1c3");expect(ctx.state().quiz?.progress).toEqual({attempted:2,matchedUnaided:1,helped:1});
+  });
+  it("rejects stale tabs, duplicate answers and illegal guesses without changing saved state",()=>{
+    const ctx=prepare();const old=ctx.state().replay!.version;ctx.action("start");
+    const before=ctx.study.list(ctx.repertoireId,ctx.lineId,6);
+    expect(()=>ctx.action("answer","e7e5")).toThrow();
+    expect(()=>ctx.action("reveal",undefined,old)).toThrow(/another tab/);
+    expect(ctx.study.list(ctx.repertoireId,ctx.lineId,6)).toEqual(before);
+    const answered=ctx.action("answer","b1c3");
+    expect(()=>ctx.action("answer","b1c3")).toThrow(/already been answered/);
+    expect(ctx.study.list(ctx.repertoireId,ctx.lineId,6)).toEqual(answered);
+    expect(()=>ctx.study.save(ctx.repertoireId,ctx.lineId,6,ctx.gameId,ctx.state().fen,8)).toThrow(/Return to replay/);
+  });
+  it("isolates profiles and removes guess history with its source game",()=>{
+    const ctx=prepare();const profile=ensureActiveProfile(ctx.db);ctx.action("start");ctx.action("reveal");
+    ctx.db.prepare("INSERT INTO player_profiles(id,display_name,created_at) VALUES('guess-other','Other',datetime('now'))").run();
+    setActiveProfile(ctx.db,"guess-other");expect(()=>ctx.action("continue")).toThrow();
+    setActiveProfile(ctx.db,profile);expect(ctx.study.list(ctx.repertoireId,ctx.lineId,6).quiz?.feedback?.revealed).toBe(true);
+    ctx.study.remove(ctx.gameId);expect(ctx.db.prepare("SELECT * FROM opening_study_guess_history").all()).toEqual([]);
+    expect(ctx.study.list(ctx.repertoireId,ctx.lineId,6).quiz).toBeNull();
+  });
+});

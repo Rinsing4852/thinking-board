@@ -558,7 +558,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     }
   });
 
-  registerOpeningReviewRoutes(app, database.connection, openingReviews, openingGames);
+  registerOpeningReviewRoutes(app, database.connection, openingReviews, openingGames, openingAnalysis);
 
   app.post("/api/v1/imports/pgn/preview", async (request, reply) => {
     try {

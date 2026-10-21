@@ -1,3 +1,4 @@
+import type { OpeningAnalysisService } from "./opening-analysis-service.js";
 import type { FastifyInstance } from "fastify";
 import type { SqliteDatabase } from "../db/database.js";
 import { ensureActiveProfile } from "../training/profile.js";
@@ -15,6 +16,7 @@ export function registerOpeningReviewRoutes(
   db: SqliteDatabase,
   openingReviews: OpeningReviewService,
   openingGames: OpeningGameService,
+  openingAnalysis: OpeningAnalysisService,
 ): void {
   app.get("/api/v1/openings/reviews/active", async () => openingReviews.active());
 
@@ -156,6 +158,18 @@ export function registerOpeningReviewRoutes(
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not record opening mistake" });
     }
+  });
+
+  app.post("/api/v1/openings/reviews/:sessionId/quality", {schema:{body:{type:"object",additionalProperties:false,
+    required:["queueEntryId","moveUci"],properties:{queueEntryId:{type:"string",minLength:1,maxLength:128},moveUci:{type:"string",pattern:"^[a-h][1-8][a-h][1-8][qrbn]?$"}}}}}, async(request,reply)=>{
+    try {
+      const {sessionId}=request.params as {sessionId:string};
+      const {queueEntryId,moveUci}=request.body as {queueEntryId:string;moveUci:string};
+      const fen=openingReviews.qualityTarget(sessionId,queueEntryId,moveUci);
+      const result=await openingAnalysis.assessMove(fen,moveUci);
+      openingReviews.qualityTarget(sessionId,queueEntryId,moveUci);
+      return result;
+    } catch(error) {return reply.code(400).send({error:error instanceof Error?error.message:"Could not check chess quality"});}
   });
 
   app.post("/api/v1/openings/reviews/:sessionId/continue", async (request, reply) => {

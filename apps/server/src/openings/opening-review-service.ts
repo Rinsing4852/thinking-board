@@ -905,6 +905,14 @@ export class OpeningReviewService {
     return { moveUci, moveSan: played.san, attemptNumber };
   }
 
+  qualityTarget(sessionId:string,queueEntryId:string,moveUci:string):string {
+    const queue=this.activeQueue(sessionId);
+    if(queue.queue_id!==queueEntryId || queue.introduction_pending || this.event(queue.queue_id)) throw new Error("This practice position changed. Reload before checking the move.");
+    if(!this.db.prepare("SELECT 1 FROM opening_review_mistakes WHERE queue_entry_id=? AND played_move_uci=?").get(queueEntryId,moveUci))
+      throw new Error("Try this move in the recall question before checking its chess quality.");
+    return this.item(queue.review_item_id,queue.expected_move_id).from_fen;
+  }
+
   reveal(sessionId: string): OpeningReviewFeedback {
     const queue = this.activeQueue(sessionId);
     const item = this.item(queue.review_item_id, queue.expected_move_id);
@@ -1241,6 +1249,11 @@ export class OpeningReviewService {
       : this.acceptedMoves(item);
     return {
       kind: "exercise",
+      ...(()=>{
+        const last=this.db.prepare(`SELECT played_move_uci AS moveUci,played_move_san AS moveSan
+          FROM opening_review_mistakes WHERE queue_entry_id=? ORDER BY rowid DESC LIMIT 1`).get(queue.queue_id) as {moveUci:string;moveSan:string}|undefined;
+        return last?{lastDifferentMove:last}:{};
+      })(),
       sessionId: queue.session_id,
       queueEntryId: queue.queue_id,
       repertoire: { id: queue.repertoire_id, name: queue.repertoire_name },

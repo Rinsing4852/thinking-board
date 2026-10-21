@@ -349,6 +349,27 @@ not alter your repertoire, recall schedule, played-game history or coverage.
 Manual study PGN import is also available. See the
 [implementation and limits](docs/chessbook-audit/AUTOMATIC_MODEL_GAMES.md).
 
+## Choose how to learn
+
+**Openings → Choose how to learn** separates repertoire practice, review of your
+own played games, and stronger-player game study. Choose a repertoire and
+**Study a stronger player’s game** to go straight to matching game search.
+The routes remain available while a practice session is paused.
+
+During opening recall, after a different legal move, choose **Check this move’s
+chess quality**. The optional local engine check reports playable, weaker or
+unverified independently of remembering your saved response. It does not undo
+the original recall result. Unavailable or shallow analysis remains unverified.
+
+In a model-game replay, choose **Guess the player’s moves**. Play for your
+repertoire colour; the opponent's moves are followed automatically. Answers and
+supplied notes stay hidden until you guess or show the move. A different legal
+guess is ungraded, since the historical move is not necessarily the strongest.
+Piece hints, reveals, first attempts and progress are saved. Local retries and
+**Study this game again** keep the first results and never award normal repertoire
+practice credit. Return to replay to choose another example. A save that cannot
+be confirmed requires **Reload study** before more answers are accepted.
+
 ## Run with Docker Compose
 
 The published image supports both `linux/amd64` and `linux/arm64`. Create an

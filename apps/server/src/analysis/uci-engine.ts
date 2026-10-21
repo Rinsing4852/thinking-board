@@ -45,7 +45,7 @@ export function parseInfoLine(line: string): ParsedInfo | null {
   if (!Number.isFinite(depth) || !Number.isFinite(rank) || scoreIndex < 0 || pvIndex < 0) return null;
   const kind = parts[scoreIndex + 1];
   const value = Number(parts[scoreIndex + 2]);
-  if (!Number.isFinite(value)) return null;
+  if (!Number.isFinite(value) || !["cp","mate"].includes(kind ?? "") || parts.includes("lowerbound") || parts.includes("upperbound")) return null;
   const pv = parts.slice(pvIndex + 1);
   if (pv.length === 0) return null;
   return {
@@ -131,6 +131,10 @@ export class UciEngine {
       this.send("isready");
       await this.waitFor((line) => line === "readyok", 10_000);
 
+      const restrictedMoves = searchMoves.map((move) => {
+        parseUciMove(move);
+        return move;
+      });
       const completion = new Promise<void>((resolve, reject) => {
         const timer = setTimeout(() => {
           this.listeners.delete(listener);
@@ -160,10 +164,6 @@ export class UciEngine {
         this.failureListeners.add(onFailure);
       });
       this.send(`position fen ${fen}`);
-      const restrictedMoves = searchMoves.map((move) => {
-        parseUciMove(move);
-        return move;
-      });
       this.send(`go ${nodes ? `nodes ${nodes}` : `depth ${depth}`}${restrictedMoves.length ? ` searchmoves ${restrictedMoves.join(" ")}` : ""}`);
       await completion;
 
@@ -190,6 +190,10 @@ export class UciEngine {
         .filter((line) => line.moveUci);
       if (lines.length === 0) throw new Error("Stockfish returned no principal variation");
       return { depth: Math.max(...lines.map((line) => line.depth)), lines };
+    } catch(error) {
+      // Discard a timed-out search so its later output cannot answer a new one.
+      await this.close();
+      throw error;
     } finally {
       this.analyzing = false;
     }

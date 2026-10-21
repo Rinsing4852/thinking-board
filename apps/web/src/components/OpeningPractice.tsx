@@ -33,6 +33,7 @@ import { OpeningLineExplorer } from "./OpeningLineExplorer";
 import { OpeningReview } from "./OpeningReview";
 import { OpeningLearningComment } from "./OpeningLearningComment";
 import { OpeningPlayerContext } from "./OpeningPlayerContext";
+import { OpeningLearningRoutes } from "./OpeningLearningRoutes";
 import { OpeningHomeCockpit } from "./OpeningHomeCockpit";
 import { OpeningSourceUpdate } from "./OpeningSourceUpdate";
 import { OpeningLibraryManager } from "./OpeningLibraryManager";
@@ -45,12 +46,13 @@ type ReviewMode = "due" | "new" | "early";
 interface OpeningPracticeProps {
   refreshToken: number;
   onOpenGames?: () => void;
+  onReviewPlayedGame?: () => void;
   onAnalyzeGame?: () => void;
   onOpenGame?: (gameId: string) => void;
   onFocusChange?: (focused: boolean) => void;
 }
 
-export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOpenGame, onFocusChange }: OpeningPracticeProps) {
+export function OpeningPractice({ refreshToken, onOpenGames, onReviewPlayedGame, onAnalyzeGame, onOpenGame, onFocusChange }: OpeningPracticeProps) {
   const [catalog, setCatalog] = useState<OpeningRepertoireSummary[]>([]);
   const [step, setStep] = useState<OpeningLessonStep | null>(null);
   const [complete, setComplete] = useState<OpeningLessonComplete | null>(null);
@@ -266,11 +268,19 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
     repertoireId: string,
     lineId: string | null = null,
     gap: OpeningCoverageGap | null = null,
+    study = false,
   ): Promise<void> => {
     if (!beginSubmission(false)) return;
     setError("");
     try {
       const detail = await get<OpeningRepertoireDetailResponse>(`/api/v1/openings/repertoires/${repertoireId}`);
+      if(study) {
+        const line=detail.chapters.flatMap(chapter=>chapter.lines).find(line=>!line.archived&&line.moves.length>0);
+        if(!line)throw new Error("Save an active opening line before finding a model game.");
+        lineId=line.id;
+        const params=new URLSearchParams({repertoire:repertoireId,line:lineId,ply:String(line.moves.length),study:"1"});
+        window.history.replaceState(null,"",`#openings?${params}`);
+      }
       setWorkspaceDetail(detail);
       setWorkspaceBuilding(false);
       setWorkspaceLineId(lineId);
@@ -692,6 +702,8 @@ export function OpeningPractice({ refreshToken, onOpenGames, onAnalyzeGame, onOp
 
       {!loading && (!activeReview || reviewPaused) && phase === "catalog" && !showBuilder && !workspaceDetail && (
         <>
+          <OpeningLearningRoutes repertoires={activeCatalog.map(item=>({id:item.id,name:item.name}))}
+            busy={submitting} onStudyGame={id=>void openWorkspace(id,null,null,true)} onReviewPlayedGame={onReviewPlayedGame}/>
           {activeReview && reviewPaused && (
             <div className="panel opening-resume-card">
               <div>

@@ -19,6 +19,16 @@ export function registerOpeningStudyRoutes(app:FastifyInstance,study:OpeningStud
     const body=request.body as {savedPly:number;gameId:string;expectedFen:string;currentPly?:number};
     return study.save(repertoireId,lineId,body.savedPly,body.gameId,body.expectedFen,body.currentPly);
   },reply));
+  app.post(`${base}/guess`,{schema:{body:{type:"object",additionalProperties:false,
+    required:["savedPly","gameId","expectedFen","version","action"],properties:{
+      savedPly:{type:"integer",minimum:0,maximum:10000},gameId:{type:"string",minLength:1,maxLength:200},
+      expectedFen:{type:"string",minLength:1,maxLength:200},version:{type:"integer",minimum:0},
+      action:{type:"string",enum:["start","hint","answer","reveal","continue","retry","restart","exit"]},
+      moveUci:{type:"string",pattern:"^[a-h][1-8][a-h][1-8][qrbn]?$"},
+    }}}},async(request,reply)=>handle(()=>{
+      const {repertoireId,lineId}=request.params as {repertoireId:string;lineId:string};
+      return study.quiz(repertoireId,lineId,request.body as import("../../../../packages/contracts/src/api.js").OpeningStudyQuizAction);
+    },reply));
   const targetSchema={savedPly:{type:"integer",minimum:0,maximum:10000},expectedFen:{type:"string",minLength:1,maxLength:200}};
   for(const start of [false,true]) {
     const properties=start?{...targetSchema,exampleId:{type:"string",minLength:1,maxLength:100}}

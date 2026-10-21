@@ -5,11 +5,13 @@ import { parsePgnText } from "../chess/pgn.js";
 import { ensureActiveProfile } from "../training/profile.js";
 import { openingPositionKey } from "./opening-content.js";
 import { OpeningWorkspaceService } from "./opening-workspace-service.js";
-import type { OpeningStudyGame, OpeningStudyMove, OpeningStudyResponse } from "../../../../packages/contracts/src/api.js";
+import type { OpeningStudyGame, OpeningStudyMove, OpeningStudyResponse, OpeningStudyQuiz, OpeningStudyQuizAction } from "../../../../packages/contracts/src/api.js";
 
 type Metadata = Pick<OpeningStudyGame,"white"|"black"|"whiteRating"|"blackRating"|"date"|"result"|"event">;
 type GameRow = {id:string;source_label:string;metadata_json:string;moves_json:string;initial_fen:string};
 const studyFingerprint=(fingerprint:string,onlineSource?:string)=>onlineSource?`online:${onlineSource}:${fingerprint}`:fingerprint;
+type QuizState={currentPly:number;hint:boolean;feedback:OpeningStudyQuiz["feedback"];
+  attempts:Array<{ply:number;matches:boolean;helped:boolean}>; helpedPlies:number[]};
 const key = (fen:string) => openingPositionKey(new Chess(fen).fen());
 function readMoves(row:Pick<GameRow,"moves_json"|"initial_fen">):OpeningStudyMove[] {
   const fields=row.initial_fen.split(" "), start=Number(fields[5]), black=fields[1]==="b"?1:0;
@@ -91,9 +93,9 @@ export class OpeningStudyService {
       if(!old||score>old.score) candidates.set(row.id,{game,row,moves,score});
     }
     const ranked=[...candidates.values()].sort((a,b)=>b.score-a.score||a.game.id.localeCompare(b.game.id));
-    const progress=this.db.prepare(`SELECT game_id,match_ply,current_ply FROM opening_study_progress WHERE
+    const progress=this.db.prepare(`SELECT game_id,match_ply,current_ply,quiz_json,version FROM opening_study_progress WHERE
       profile_id=? AND repertoire_id=? AND line_id=? AND saved_ply=? AND position_key=?`)
-      .get(profile,repertoireId,lineId,savedPly,target.positionKey) as {game_id:string;match_ply:number;current_ply:number}|undefined;
+      .get(profile,repertoireId,lineId,savedPly,target.positionKey) as {game_id:string;match_ply:number;current_ply:number;quiz_json:string|null;version:number}|undefined;
     const resumed=progress?candidates.get(progress.game_id):undefined;
     const valid=resumed&&progress&&resumed.game.matchPly===progress.match_ply&&progress.current_ply>=0&&progress.current_ply<=resumed.moves.length;
     const displayed=ranked.slice(0,3);
@@ -105,7 +107,8 @@ export class OpeningStudyService {
       searchRating:rating?.lichess_rating??null,
       libraryGames:(this.db.prepare("SELECT COUNT(*) AS count FROM opening_study_games WHERE profile_id=?").get(profile) as {count:number}).count,
       matches:displayed.map(item=>item.game),totalMatches:ranked.length,
-      replay:valid?{game:resumed.game,initialFen:resumed.row.initial_fen,moves:resumed.moves,currentPly:progress.current_ply}:null};
+      quiz:valid&&progress.quiz_json?this.quizView(JSON.parse(progress.quiz_json),progress.version,resumed.game,resumed.row.initial_fen,resumed.moves):null,
+      replay:valid&&!progress.quiz_json?{game:resumed.game,initialFen:resumed.row.initial_fen,moves:resumed.moves,currentPly:progress.current_ply,version:progress.version}:null};
   }
 
   save(repertoireId:string,lineId:string,savedPly:number,gameId:string,expectedFen:string,currentPly?:number):OpeningStudyResponse {
@@ -126,6 +129,9 @@ export class OpeningStudyService {
   private saveSelected(repertoireId:string,lineId:string,savedPly:number,gameId:string,expectedFen:string,currentPly?:number,discovered=false):OpeningStudyResponse {
     const profile=ensureActiveProfile(this.db), state=this.list(repertoireId,lineId,savedPly,discovered?gameId:undefined);
     if(key(state.fen)!==key(expectedFen)) throw new Error("This saved repertoire position changed. Reload study before continuing.");
+    const activeQuiz=this.db.prepare(`SELECT quiz_json FROM opening_study_progress WHERE profile_id=? AND repertoire_id=? AND line_id=? AND saved_ply=?`)
+      .get(profile,repertoireId,lineId,savedPly) as {quiz_json:string|null}|undefined;
+    if(activeQuiz?.quiz_json) throw new Error("Return to replay before choosing another game or replay step.");
     const game=state.matches.find(game=>game.id===gameId);
     if(!game) throw new Error("Choose one of the matching study games.");
     const row=this.db.prepare("SELECT moves_json FROM opening_study_games WHERE id=? AND profile_id=?").get(gameId,profile) as {moves_json:string};
@@ -134,9 +140,103 @@ export class OpeningStudyService {
     if(!Number.isSafeInteger(ply)||ply<0||ply>moves.length) throw new Error("Choose a position inside this study game.");
     this.db.prepare(`INSERT INTO opening_study_progress(profile_id,repertoire_id,line_id,saved_ply,position_key,game_id,match_ply,current_ply,updated_at)
       VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(profile_id,repertoire_id,line_id,saved_ply) DO UPDATE SET
-      position_key=excluded.position_key,game_id=excluded.game_id,match_ply=excluded.match_ply,current_ply=excluded.current_ply,updated_at=excluded.updated_at`)
+      position_key=excluded.position_key,game_id=excluded.game_id,match_ply=excluded.match_ply,current_ply=excluded.current_ply,updated_at=excluded.updated_at,quiz_json=NULL,version=opening_study_progress.version+1`)
       .run(profile,repertoireId,lineId,savedPly,key(state.fen),gameId,game.matchPly,ply,now());
     return this.list(repertoireId,lineId,savedPly);
+  }
+
+  quiz(repertoireId:string,lineId:string,input:OpeningStudyQuizAction):OpeningStudyResponse {
+    return this.db.transaction(()=>{
+      const profile=ensureActiveProfile(this.db),state=this.list(repertoireId,lineId,input.savedPly);
+      if(key(state.fen)!==key(input.expectedFen)) throw new Error("This saved repertoire position changed. Reload study.");
+      const progress=this.db.prepare(`SELECT * FROM opening_study_progress WHERE profile_id=? AND repertoire_id=? AND line_id=? AND saved_ply=?`)
+        .get(profile,repertoireId,lineId,input.savedPly) as {game_id:string;version:number;quiz_json:string|null;current_ply:number;match_ply:number}|undefined;
+      if(!progress || progress.game_id!==input.gameId || progress.version!==input.version) throw new Error("Study changed in another tab. Reload study before continuing.");
+      const row=this.db.prepare("SELECT * FROM opening_study_games WHERE id=? AND profile_id=?").get(input.gameId,profile) as GameRow|undefined;
+      if(!row) throw new Error("This study game is no longer available.");
+      const moves=readMoves(row),game=state.matches.find(game=>game.id===input.gameId);
+      if(!game) throw new Error("This game no longer matches. Reload study.");
+      const nextDecision=(ply:number)=>{
+        while(ply<moves.length && moves[ply]!.moverColor!==state.learnerColor) ply++;
+        return ply;
+      };
+      const remember=(quiz:QuizState)=>this.db.prepare(`INSERT INTO opening_study_guess_history
+        (profile_id,repertoire_id,line_id,saved_ply,position_key,game_id,state_json) VALUES(?,?,?,?,?,?,?)
+        ON CONFLICT(profile_id,repertoire_id,line_id,saved_ply,position_key,game_id) DO UPDATE SET state_json=excluded.state_json`)
+        .run(profile,repertoireId,lineId,input.savedPly,key(state.fen),input.gameId,JSON.stringify(quiz));
+      let quiz:QuizState;
+      if(input.action==="start") {
+        if(progress.quiz_json) throw new Error("Guessing has already started. Reload study to resume.");
+        const prior=this.db.prepare(`SELECT state_json FROM opening_study_guess_history WHERE
+          profile_id=? AND repertoire_id=? AND line_id=? AND saved_ply=? AND position_key=? AND game_id=?`)
+          .get(profile,repertoireId,lineId,input.savedPly,key(state.fen),input.gameId) as {state_json:string}|undefined;
+        quiz=prior?JSON.parse(prior.state_json):{currentPly:nextDecision(Math.max(progress.current_ply,progress.match_ply)),hint:false,feedback:null,attempts:[],helpedPlies:[]};
+      } else {
+        if(!progress.quiz_json) throw new Error("Start guessing before answering.");
+        quiz=JSON.parse(progress.quiz_json) as QuizState;
+        const move=moves[quiz.currentPly];
+        if(input.action==="exit") {
+          remember(quiz);
+          this.db.prepare(`UPDATE opening_study_progress SET quiz_json=NULL,current_ply=?,version=version+1,updated_at=?
+            WHERE profile_id=? AND repertoire_id=? AND line_id=? AND saved_ply=?`)
+            .run(quiz.currentPly,now(),profile,repertoireId,lineId,input.savedPly);
+          return this.list(repertoireId,lineId,input.savedPly);
+        }
+        if(input.action==="restart") {
+          if(move)throw new Error("Finish this study before starting it again.");
+          quiz.currentPly=nextDecision(progress.match_ply);quiz.feedback=null;quiz.hint=false;
+          for(const attempt of quiz.attempts)if(!quiz.helpedPlies.includes(attempt.ply))quiz.helpedPlies.push(attempt.ply);
+          remember(quiz);
+          this.db.prepare(`UPDATE opening_study_progress SET quiz_json=?,current_ply=?,version=version+1,updated_at=?
+            WHERE profile_id=? AND repertoire_id=? AND line_id=? AND saved_ply=?`)
+            .run(JSON.stringify(quiz),quiz.currentPly,now(),profile,repertoireId,lineId,input.savedPly);
+          return this.list(repertoireId,lineId,input.savedPly);
+        }
+        if(!move) throw new Error("This study is complete. Return to replay to choose another game.");
+        if(input.action==="continue") {
+          if(!quiz.feedback) throw new Error("Try a move or show the played move before continuing.");
+          quiz.currentPly=nextDecision(quiz.currentPly+1);quiz.feedback=null;quiz.hint=false;
+        } else if(input.action==="retry") {
+          if(!quiz.feedback) throw new Error("Answer before retrying.");
+          quiz.feedback=null;quiz.hint=false;
+          if(!quiz.helpedPlies.includes(quiz.currentPly)) quiz.helpedPlies.push(quiz.currentPly);
+        } else {
+          if(quiz.feedback) throw new Error("This question has already been answered. Continue or try again.");
+          if(input.action==="hint") {
+            quiz.hint=true;
+            if(!quiz.helpedPlies.includes(quiz.currentPly))quiz.helpedPlies.push(quiz.currentPly);
+          } else {
+            let playedSan:string|null=null;
+            if(input.action==="answer") {
+              if(!input.moveUci || !/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(input.moveUci)) throw new Error("Play a legal move.");
+              const board=new Chess(quiz.currentPly?moves[quiz.currentPly-1]!.fenAfter:row.initial_fen);
+              playedSan=board.move({from:input.moveUci.slice(0,2),to:input.moveUci.slice(2,4),...(input.moveUci.length===5?{promotion:input.moveUci.slice(4)}:{})}).san;
+            } else if(input.action!=="reveal") throw new Error("Choose a study action.");
+            const matches=input.moveUci===move.uci && input.action==="answer",revealed=input.action==="reveal";
+            const helped=quiz.helpedPlies.includes(quiz.currentPly)||revealed;
+            if(!quiz.attempts.some(attempt=>attempt.ply===quiz.currentPly))quiz.attempts.push({ply:quiz.currentPly,matches,helped});
+            if(!quiz.helpedPlies.includes(quiz.currentPly))quiz.helpedPlies.push(quiz.currentPly);
+            quiz.feedback={playedSan,historicalSan:move.san,historicalUci:move.uci,matches,revealed,comment:move.comment};
+          }
+        }
+      }
+      remember(quiz);
+      this.db.prepare(`UPDATE opening_study_progress SET quiz_json=?,current_ply=?,version=version+1,updated_at=?
+        WHERE profile_id=? AND repertoire_id=? AND line_id=? AND saved_ply=?`)
+        .run(JSON.stringify(quiz),quiz.currentPly,now(),profile,repertoireId,lineId,input.savedPly);
+      return this.list(repertoireId,lineId,input.savedPly);
+    })();
+  }
+
+  private quizView(quiz:QuizState,version:number,game:OpeningStudyGame,initialFen:string,moves:OpeningStudyMove[]):OpeningStudyQuiz {
+    const fen=quiz.currentPly?moves[quiz.currentPly-1]!.fenAfter:initialFen;
+    const move=moves[quiz.currentPly],board=new Chess(fen);
+    const piece=move?board.get(move.uci.slice(0,2) as import("chess.js").Square):null;
+    const names:Record<string,string>={p:"pawn",n:"knight",b:"bishop",r:"rook",q:"queen",k:"king"};
+    return {version,game,currentPly:quiz.currentPly,totalPlies:moves.length,fen,complete:!move,
+      hint:quiz.hint&&move?`The player moved the ${names[piece?.type??""]??"piece"} on ${move.uci.slice(0,2)}.`:null,
+      feedback:quiz.feedback,progress:{attempted:quiz.attempts.length,
+        matchedUnaided:quiz.attempts.filter(a=>a.matches&&!a.helped).length,helped:quiz.attempts.filter(a=>a.helped).length}};
   }
 
   remove(gameId:string) {

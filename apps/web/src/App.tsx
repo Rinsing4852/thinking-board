@@ -182,6 +182,7 @@ export function App() {
         {view === "openings" && <OpeningPractice
           refreshToken={refreshToken}
           onOpenGames={() => openGamesAt("opening-inbox")}
+          onReviewPlayedGame={() => navigate("games")}
           onAnalyzeGame={() => openGamesAt("import")}
           onOpenGame={gameId => {
             setView("games"); window.history.pushState(null, "", `#games?game=${encodeURIComponent(gameId)}`);

@@ -1,5 +1,10 @@
 # Readiness to move on — 18 October 2026
 
+Follow-up: the three recommendations below are implemented in the
+[learning routes, move quality and guessing delivery](./LEARNING_ROUTES_AND_GUESSING.md).
+This review records the decision before that increment; its original verification
+counts below describe the preceding release.
+
 The saved own-game review is ready to release and move beyond. Its six tracked
 acceptance criteria pass. The complete unchanged-source run passed 316 unit and
 integration tests, 156 browser tests, six tracker checks, typechecking and the

@@ -1,7 +1,7 @@
 import type { SqliteDatabase } from "../db/database.js";
 import { Chess } from "chess.js";
 
-import type { OpeningPositionAnalysisResponse } from "../../../../packages/contracts/src/api.js";
+import type { OpeningPositionAnalysisResponse, OpeningMoveQuality } from "../../../../packages/contracts/src/api.js";
 import type { AppConfig } from "../config.js";
 import { UciEngine } from "../analysis/uci-engine.js";
 
@@ -47,6 +47,33 @@ export class OpeningAnalysisService {
     return operation;
   }
 
+  async assessMove(fen: string, moveUci: string): Promise<OpeningMoveQuality> {
+    const uncertain: OpeningMoveQuality = {verdict:"uncertain", message:"Chess quality is unverified. The engine could not provide sufficiently reliable analysis. Your recall result is unchanged."};
+    try {
+      const board = new Chess(fen);
+      board.move({from:moveUci.slice(0,2),to:moveUci.slice(2,4),...(moveUci.length===5?{promotion:moveUci.slice(4)}:{})});
+      const result = await this.analyze(fen, [moveUci]);
+      const best=result.lines[0], played=result.lines.find(line=>line.moveUci===moveUci);
+      if (!best || !played || !Number.isFinite(best.score.value) || !Number.isFinite(played.score.value)) return uncertain;
+      const depth=Math.min(best.depth??0,played.depth??0);
+      if(depth<10) return uncertain;
+      // Both scores are for the original mover, including restricted searches.
+      if(best.score.kind==="mate" || played.score.kind==="mate") {
+        const bestWin=best.score.kind==="mate"&&best.score.value>0;
+        const playedWin=played.score.kind==="mate"&&played.score.value>0;
+        if(bestWin&&playedWin) return {verdict:"playable",depth,message:"The engine finds a forced mate after your move. This still differs from the requested saved response."};
+        if(bestWin&&!playedWin || played.score.kind==="mate"&&played.score.value<0&&!(best.score.kind==="mate"&&best.score.value<0))
+          return {verdict:"weaker",depth,message:"The engine finds a worse mating outcome after this move. This assessment is separate from repertoire recall."};
+        return uncertain;
+      }
+      const lossCp=Math.max(0,Math.round(best.score.value-played.score.value));
+      const playable=lossCp<=this.config.acceptableToleranceCp;
+      return {verdict:playable?"playable":"weaker",lossCp,depth,message:playable
+        ? "The engine regards this as playable within the assessment tolerance. It is not the saved response requested here, so it does not earn repertoire recall credit."
+        : `The engine estimates this move gives up ${(lossCp/100).toFixed(2)} pawns compared with its leading move. Chess quality and repertoire recall are assessed separately.`};
+    } catch { return uncertain; }
+  }
+
   cached(fen: string): OpeningPositionAnalysisResponse | null {
     return this.cache.get(`${new Chess(fen).fen()}|`) ?? null;
   }
@@ -60,7 +87,7 @@ export class OpeningAnalysisService {
     await this.engine.initialize();
     const nodes = this.config.openingAnalysisNodes ?? 200000;
     if (!Number.isSafeInteger(nodes) || nodes < 1000 || nodes > 5000000) throw new Error("Choose an opening analysis budget from 1,000 to 5,000,000 nodes");
-    const prefix = `opening-v2|${this.engine.name}|${this.config.stockfishBinary}|${nodes}|1|${Math.min(64, this.config.stockfishHashMb)}|`;
+    const prefix = `opening-v3|${this.engine.name}|${this.config.stockfishBinary}|${nodes}|1|${Math.min(64, this.config.stockfishHashMb)}|`;
     const read = (key: string): OpeningPositionAnalysisResponse | undefined => {
       const memory = this.cache.get(key); if (memory) return memory;
       const row = this.db?.prepare("SELECT response_json FROM opening_eval_cache WHERE cache_key = ?").get(prefix + key) as { response_json: string } | undefined;
@@ -86,9 +113,9 @@ export class OpeningAnalysisService {
     const sideFactor = chess.turn() === "w" ? 1 : -1;
     const response: OpeningPositionAnalysisResponse = {
       fen, engineName: this.engine.name, nodes,
-      depth: base?.depth ?? result!.depth,
+      depth: base?.depth ?? Math.min(...result!.lines.map(line => line.depth)),
       lines: base?.lines.slice(0, 3) ?? result!.lines.slice(0, 3).map((line) => ({
-        rank: line.rank,
+        rank: line.rank, depth: line.depth,
         moveUci: line.moveUci,
         moveSan: line.moveSan,
         pvSan: line.pvSan,
@@ -108,7 +135,7 @@ export class OpeningAnalysisService {
       if (!evaluated) {
         const restricted = await this.engine.analyze(fen, depth, 1, [move], nodes);
         const line = restricted.lines.find(line => line.moveUci === move);
-        evaluated = { fen, depth: restricted.depth, lines: line ? [{ rank: 100,
+        evaluated = { fen, depth: restricted.depth, lines: line ? [{ rank: 100, depth: line.depth,
           moveUci: line.moveUci, moveSan: line.moveSan, pvSan: line.pvSan,
           score: line.mateInWhite !== null
             ? { kind: "mate", value: line.mateInWhite * sideFactor, perspective: "side_to_move" }

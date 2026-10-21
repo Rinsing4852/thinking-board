@@ -16,11 +16,11 @@ remain separate from the verified requirement counts below.
 ## What the tracker measures
 
 - **57 feature descriptions**, each with three acceptance criteria and a repeatable comparison task.
-- Current inventory: 22 existing, 12 partial, 12 absent, 5 implemented, 1 improved, 4 enhanced, 1 not_targeted.
-- Acceptance checks: 92 passed, 0 failed, 0 flaky, 44 unknown, 36 unmet, 3 excluded.
-- Priority-weighted verified requirement coverage: **63.3%** (414/654 points). This is a conservative evidence measure, not “63.3% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
-- Like-for-like unit-evidence baseline: 26% → 38.1%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
-- Current validation records: 316 unit/integration tests and 156 browser journeys; 0 failures, 0 flaky results, 0 skipped.
+- Current inventory: 22 existing, 11 partial, 12 absent, 5 implemented, 1 improved, 5 enhanced, 1 not_targeted.
+- Acceptance checks: 97 passed, 0 failed, 0 flaky, 42 unknown, 36 unmet, 3 excluded.
+- Priority-weighted verified requirement coverage: **65.3%** (433/663 points). This is a conservative evidence measure, not “65.3% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
+- Like-for-like unit-evidence baseline: 25.6% → 37.6%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
+- Current validation records: 333 unit/integration tests and 162 browser journeys; 0 failures, 0 flaky results, 0 skipped.
 
 ## Implemented from this audit
 
@@ -28,6 +28,7 @@ remain separate from the verified requirement counts below.
 - CB18 Encounter-based coverage goal: partial → improved.
 - CB20 Find the biggest useful gap: existing → enhanced.
 - CB30 FSRS spaced repetition: existing → enhanced.
+- CB33 Sound alternatives versus recall errors: partial → enhanced.
 - CB34 Hints and first exposure: existing → enhanced.
 - CB36 Recommended short sessions: existing → enhanced.
 - CB37 Daily practice goal: absent → implemented.
@@ -643,7 +644,7 @@ Repeatable comparison task: Play a whole line without automatic explanations or 
 
 ## CB33 — Sound alternatives versus recall errors
 
-**Practice · P0 · partial**
+**Practice · P0 · enhanced**
 
 Chessbook evidence: Soft-fail docs separate sound unsaved moves from chess errors and terminal alternatives. [Chessbook soft fails documentation](https://wiki.chessbook.com/soft-fails)
 
@@ -652,10 +653,10 @@ Our feature description: Grade repertoire recall independently from chess qualit
 Acceptance criteria:
 
 - **passed** — An unsaved move cannot count as remembered repertoire content. Evidence: unit: records an unassisted off-repertoire move as a lapse.
-- **unknown** — Play a sound alternative and see separate chess-quality and recall feedback.
-- **unknown** — A failed or shallow engine evaluation cannot label the move a blunder.
+- **passed** — Play a sound alternative and see separate chess-quality and recall feedback. Evidence: browser/chromium: separates playable chess quality from recall and recovers unavailable analysis; browser/webkit: separates playable chess quality from recall and recovers unavailable analysis; unit: compares restricted scores for the white mover and reuses evidence; unit: compares restricted scores for the black mover and reuses evidence.
+- **passed** — A failed or shallow engine evaluation cannot label the move a blunder. Evidence: unit: keeps shallow analysis unverified; unit: keeps failure analysis unverified; unit: does not treat a score bound or an unsupported score as exact; browser/chromium: separates playable chess quality from recall and recovers unavailable analysis; browser/webkit: separates playable chess quality from recall and recovers unavailable analysis.
 
-Implementation: `apps/server/src/openings/opening-review-service.ts`
+Implementation: `apps/server/src/openings/opening-review-service.ts`, `apps/server/src/openings/opening-analysis-service.ts`, `apps/server/src/openings/opening-review-routes.ts`, `apps/web/src/components/OpeningReview.tsx`
 
 Repeatable comparison task: Play a sound alternative and see separate chess-quality and recall feedback. Competitor timing and our user-task timing remain unmeasured.
 
@@ -781,8 +782,11 @@ Acceptance criteria:
 - **passed** — Play through a model game or guess the continuation without changing repertoire recall. Evidence: unit: isolates profiles, invalidates changed saved positions, and leaves practice and played games untouched; unit: rejects an old browser position even when the same game matches its replacement; browser/chromium: uses the supplied move numbers and side in custom-start study games; browser/webkit: uses the supplied move numbers and side in custom-start study games; browser/chromium: studies an exact matching game and a transposition, resumes on reload and preserves opening recall; browser/webkit: studies an exact matching game and a transposition, resumes on reload and preserves opening recall.
 - **passed** — Missing games and unavailable providers show explicit empty and retry states. Evidence: browser/chromium: explains missing study games, rejects broken imports and recovers a failed study request; browser/webkit: explains missing study games, rejects broken imports and recovers a failed study request; unit: reports missing samples, provider failures and partial downloads without discarding saved study; browser/chromium: finds stronger-player games automatically, retries the provider and replays a matching continuation; browser/webkit: finds stronger-player games automatically, retries the provider and replays a matching continuation.
 - **passed** — Automatically find legal exact-position continuations with a known higher rating for the learner-side player, and disclose the sample limits. Evidence: unit: verifies both colours and exact transpositions, ranks direct routes, and starts a replay without changing recall; unit: checks the player on the learner side rather than the opponent, and rejects unknown, unfinished and mismatched games; browser/chromium: finds stronger-player games automatically, retries the provider and replays a matching continuation; browser/webkit: finds stronger-player games automatically, retries the provider and replays a matching continuation.
+- **passed** — Guess the learner-side historical move with future moves and notes hidden; distinguish an ungraded legal alternative from a chess mistake. Evidence: unit: asks only the white side and hides future moves and annotations until a guess; unit: asks only the black side and hides future moves and annotations until a guess; browser/chromium: finds stronger-player study from home and guesses with hidden answers, hints and saved recovery; browser/webkit: finds stronger-player study from home and guesses with hidden answers, hints and saved recovery; browser/chromium: guesses Black's moves and automatically follows White's continuation; browser/webkit: guesses Black's moves and automatically follows White's continuation.
+- **passed** — Hints, reveals, retries and resumed study preserve first attempts and never change normal memory or practice credit. Evidence: unit: labels different guesses as ungraded and keeps first attempts across hints, retries, exit and resume; unit: saves helped first attempts and completion without touching memory, practice or the repertoire; browser/chromium: finds stronger-player study from home and guesses with hidden answers, hints and saved recovery; browser/webkit: finds stronger-player study from home and guesses with hidden answers, hints and saved recovery.
+- **passed** — Recover an uncertain save, reject stale or illegal quiz writes, isolate profiles, and remove study records with their game. Evidence: unit: rejects stale tabs, duplicate answers and illegal guesses without changing saved state; unit: isolates profiles and removes guess history with its source game; browser/chromium: finds stronger-player study from home and guesses with hidden answers, hints and saved recovery; browser/webkit: finds stronger-player study from home and guesses with hidden answers, hints and saved recovery.
 
-Implementation: `apps/server/src/openings/opening-study-service.ts`, `apps/web/src/components/OpeningModelGameStudy.tsx`, `migrations/037_opening_model_games.sql`, `apps/server/src/openings/opening-study-discovery.ts`, `migrations/038_opening_study_discovery.sql`
+Implementation: `apps/server/src/openings/opening-study-service.ts`, `apps/web/src/components/OpeningModelGameStudy.tsx`, `migrations/037_opening_model_games.sql`, `apps/server/src/openings/opening-study-discovery.ts`, `migrations/038_opening_study_discovery.sql`, `apps/web/src/components/OpeningLearningRoutes.tsx`, `migrations/040_opening_study_guess.sql`
 
 Repeatable comparison task: Play through a model game or guess the continuation without changing repertoire recall. Competitor timing and our user-task timing remain unmeasured.
 

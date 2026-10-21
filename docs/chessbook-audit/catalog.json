@@ -1767,7 +1767,7 @@
       "category": "Practice",
       "priority": "P0",
       "baselineState": "partial",
-      "currentState": "partial",
+      "currentState": "enhanced",
       "sourceIds": [
         "SOFT"
       ],
@@ -1787,23 +1787,65 @@
         {
           "id": "CB33.2",
           "requirement": "Play a sound alternative and see separate chess-quality and recall feedback.",
-          "evidence": []
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "separates playable chess quality from recall and recovers unavailable analysis",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            },
+            {
+              "kind": "unit",
+              "title": "compares restricted scores for the white mover and reuses evidence"
+            },
+            {
+              "kind": "unit",
+              "title": "compares restricted scores for the black mover and reuses evidence"
+            }
+          ]
         },
         {
           "id": "CB33.3",
           "requirement": "A failed or shallow engine evaluation cannot label the move a blunder.",
-          "evidence": []
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "keeps shallow analysis unverified"
+            },
+            {
+              "kind": "unit",
+              "title": "keeps failure analysis unverified"
+            },
+            {
+              "kind": "unit",
+              "title": "does not treat a score bound or an unsupported score as exact"
+            },
+            {
+              "kind": "browser",
+              "title": "separates playable chess quality from recall and recovers unavailable analysis",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
         }
       ],
       "implementationPaths": [
-        "apps/server/src/openings/opening-review-service.ts"
+        "apps/server/src/openings/opening-review-service.ts",
+        "apps/server/src/openings/opening-analysis-service.ts",
+        "apps/server/src/openings/opening-review-routes.ts",
+        "apps/web/src/components/OpeningReview.tsx"
       ],
       "benchmark": {
         "task": "Play a sound alternative and see separate chess-quality and recall feedback.",
         "chessbookMeasuredResult": null,
         "ourMeasuredLatencyMs": null,
         "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
-      }
+      },
+      "limits": "Optional node-bounded local engine assessment after a persisted legal recall difference. Requires exact-position evidence with depth at least 10 for both compared moves. Reports relative engine loss, not a proof of soundness or strategic explanation. Preserves the original recall outcome; uncertain analysis never invents a blunder label. Human clarity and learning benefit remain unmeasured."
     },
     {
       "id": "CB34",
@@ -2320,6 +2362,80 @@
               ]
             }
           ]
+        },
+        {
+          "id": "CB40.5",
+          "requirement": "Guess the learner-side historical move with future moves and notes hidden; distinguish an ungraded legal alternative from a chess mistake.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "asks only the white side and hides future moves and annotations until a guess"
+            },
+            {
+              "kind": "unit",
+              "title": "asks only the black side and hides future moves and annotations until a guess"
+            },
+            {
+              "kind": "browser",
+              "title": "finds stronger-player study from home and guesses with hidden answers, hints and saved recovery",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            },
+            {
+              "kind": "browser",
+              "title": "guesses Black's moves and automatically follows White's continuation",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB40.6",
+          "requirement": "Hints, reveals, retries and resumed study preserve first attempts and never change normal memory or practice credit.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "labels different guesses as ungraded and keeps first attempts across hints, retries, exit and resume"
+            },
+            {
+              "kind": "unit",
+              "title": "saves helped first attempts and completion without touching memory, practice or the repertoire"
+            },
+            {
+              "kind": "browser",
+              "title": "finds stronger-player study from home and guesses with hidden answers, hints and saved recovery",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB40.7",
+          "requirement": "Recover an uncertain save, reject stale or illegal quiz writes, isolate profiles, and remove study records with their game.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "rejects stale tabs, duplicate answers and illegal guesses without changing saved state"
+            },
+            {
+              "kind": "unit",
+              "title": "isolates profiles and removes guess history with its source game"
+            },
+            {
+              "kind": "browser",
+              "title": "finds stronger-player study from home and guesses with hidden answers, hints and saved recovery",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
         }
       ],
       "implementationPaths": [
@@ -2327,7 +2443,9 @@
         "apps/web/src/components/OpeningModelGameStudy.tsx",
         "migrations/037_opening_model_games.sql",
         "apps/server/src/openings/opening-study-discovery.ts",
-        "migrations/038_opening_study_discovery.sql"
+        "migrations/038_opening_study_discovery.sql",
+        "apps/web/src/components/OpeningLearningRoutes.tsx",
+        "migrations/040_opening_study_guess.sql"
       ],
       "benchmark": {
         "task": "Play through a model game or guess the continuation without changing repertoire recall.",
@@ -2335,7 +2453,7 @@
         "ourMeasuredLatencyMs": null,
         "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
       },
-      "limits": "Automatic Lichess rapid/classical sample search using an explicit Lichess rating; verifies exact positions, legal finished games and the higher learner-side rating. Up to eight provider references checked and three offered. Requires a server Lichess token. Manual PGN import remains available. No exhaustive search, guessing, generated plans, complete study history or measured learning benefit."
+      "limits": "Automatic Lichess rapid/classical sample search using an explicit Lichess rating; verifies exact positions, legal finished games and the higher learner-side rating. Up to eight provider references checked and three offered. Requires a server Lichess token. Manual PGN import remains available. Historical-move guessing includes hidden answers, piece hints, resume, first attempts, and repeat study without extra recall credit. No exhaustive search, grading of alternative guesses, generated plans, complete study-history UI or measured learning benefit."
     },
     {
       "id": "CB41",

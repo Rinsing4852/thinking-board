@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import type {
+  OpeningMoveQuality,
   OpeningReviewActiveState,
   OpeningReviewComplete,
   OpeningReviewExercise,
@@ -109,6 +110,8 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
   const [hintSquares, setHintSquares] = useState<string[]>(initialExercise.assistance.moveShown
     ? [initialHint.square, initialExercise.introduction.repertoireMove.moveUci.slice(2, 4)]
     : initialExercise.assistance.pieceHint ? [initialHint.square] : []);
+  const [quality,setQuality]=useState<OpeningMoveQuality|null>(null);
+  const [qualityMove,setQualityMove]=useState<string|null>(initialExercise.lastDifferentMove?.moveUci??null);
   const [rejectedMove, setRejectedMove] = useState<string | null>(null);
   const teaching = exercise.phase === "introduction";
   const stageKey = `${exercise.queueEntryId}:${exercise.phase ?? "recall"}`;
@@ -133,6 +136,7 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
   const recallClock = useRecallClock(stageKey, !teaching && !observing && !feedback && !complete && !flow.paused && visible && !submitting && !moveReset.busy);
 
   const showExercise = (next: OpeningReviewExercise): void => {
+    setQuality(null);setQualityMove(next.lastDifferentMove?.moveUci??null);
     setExercise(next);
     setFeedback(null);
     setExplanationOpen(false);
@@ -225,6 +229,7 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
         .catch(failure => { setDisplayFen(exercise.fenToMove); flow.fail(failure instanceof Error ? failure.message : "Could not save the learning step. Play the move again to retry."); });
       return;
     }
+    setQuality(null);setQualityMove(null);
     const accepted = exercise.acceptedMoves.some((move) => move.moveUci === uci);
     if (!accepted) {
       if (boardSounds) signalBoardResult(false);
@@ -244,7 +249,7 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
       void post<OpeningReviewMistakeResponse>(
         `/api/v1/openings/reviews/${exercise.sessionId}/mistakes`,
         { moveUci: uci, queueEntryId: exercise.queueEntryId, activeResponseMs: recallClock.read() },
-      ).then(() => flow.finish()).catch((failure) => {
+      ).then(() => {setQualityMove(uci);flow.finish();}).catch((failure) => {
         flow.fail(failure instanceof Error ? failure.message : "Could not record this attempt");
       });
       return;
@@ -254,6 +259,15 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
     setRejectedMove(null);
     setLastMove(uci);
     void checkMove(uci);
+  };
+
+  const checkQuality=async()=>{
+    if(!qualityMove||!flow.begin())return;
+    try {
+      const result=await post<OpeningMoveQuality>(`/api/v1/openings/reviews/${exercise.sessionId}/quality`,
+        {queueEntryId:exercise.queueEntryId,moveUci:qualityMove});
+      setQuality(result);flow.finish();
+    } catch(failure) {setQuality({verdict:"uncertain",message:failure instanceof Error?failure.message:"Chess quality could not be checked. Your recall result is unchanged."});flow.finish();}
   };
 
   const continueReview = async (): Promise<void> => {
@@ -419,6 +433,12 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
             onMove={playRecallMove}
           />
           {!teaching && !complete && !observing && !feedback && !explanationOpen && moveNotice && <p className="opening-mobile-detail" role="status">{moveNotice}</p>}
+          {!teaching&&!complete&&!observing&&!feedback&&!explanationOpen&&qualityMove&&<section className="opening-quality-feedback" aria-label="Chess quality versus recall">
+            <strong>Recall: different from the requested saved response</strong>
+            {quality?<><p role="status"><strong>{quality.verdict==="playable"?"Chess quality: playable":quality.verdict==="weaker"?"Chess quality: weaker move":"Chess quality: unverified"}</strong> · {quality.message}</p>
+              {quality.depth&&<small>Local engine · depth {quality.depth} · scores assessed for the player moving.</small>}</>:<p>A recall difference alone does not mean a bad chess move.</p>}
+            <button className="secondary" disabled={submitting||moveReset.busy} onClick={()=>void checkQuality()}>{submitting?"Checking…":quality?"Check chess quality again":"Check this move’s chess quality"}</button>
+          </section>}
           {!teaching && !complete && !observing && !feedback && !explanationOpen && exercise.responseSequence && <p className="opening-recall-order">You learned {exercise.responseSequence.total} answers here. Recall answer {exercise.responseSequence.number}, using the order shown while learning.</p>}
           {!teaching && !complete && !observing && !feedback && !explanationOpen && <div className="answer-actions opening-recall-help">
             {exercise.introduction.explanation.ideaHint && <button className="secondary" disabled={submitting || moveReset.busy || ideaShown || hintShown}

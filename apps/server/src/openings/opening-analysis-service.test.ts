@@ -67,3 +67,41 @@ describe("analysis request coordination", () => {
     expect(analyze.mock.calls[0]?.[4]).toBe(200000);
   });
 });
+
+describe("chess quality independent of recall",()=>{
+  it.each(["white","black"])("compares restricted scores for the %s mover and reuses evidence",async(color)=>{
+    const board=new Chess();if(color==="black")board.move("e4");
+    const factor=color==="white"?1:-1,best=color==="white"?"e2e4":"e7e5",played=color==="white"?"d2d4":"c7c5";
+    const analyze=vi.spyOn(UciEngine.prototype,"analyze").mockImplementation(async(_fen,_depth,_pv,moves)=>({depth:12,lines:[
+      engineLine(moves?.length?played:best,"move",(moves?.length?55:80)*factor)]}));
+    const service=new OpeningAnalysisService(loadConfig());
+    expect(await service.assessMove(board.fen(),played)).toMatchObject({verdict:"playable",lossCp:25,depth:12});
+    expect(await service.assessMove(board.fen(),played)).toMatchObject({verdict:"playable",lossCp:25});
+    expect(analyze).toHaveBeenCalledTimes(2);
+  });
+  it("reports a weaker move separately without changing a recall outcome",async()=>{
+    vi.spyOn(UciEngine.prototype,"analyze").mockImplementation(async(_f,_d,_p,moves)=>({depth:12,lines:[engineLine(moves?.length?"d2d4":"e2e4","move",moves?.length?-170:25)]}));
+    expect(await new OpeningAnalysisService(loadConfig()).assessMove(new Chess().fen(),"d2d4")).toMatchObject({verdict:"weaker",lossCp:195});
+  });
+  it.each(["failure","shallow","missing"])("keeps %s analysis unverified",async(kind)=>{
+    vi.spyOn(UciEngine.prototype,"analyze").mockImplementation(async(_f,_d,_p,moves)=>{
+      if(kind==="failure")throw new Error("Timed out");
+      return {depth:14,lines:[{...engineLine(moves?.length&&kind!=="missing"?"d2d4":"e2e4","move",0),depth:moves?.length&&kind==="shallow"?3:14}]};
+    });
+    expect(await new OpeningAnalysisService(loadConfig()).assessMove(new Chess().fen(),"d2d4")).toMatchObject({verdict:"uncertain"});
+  });
+  it("keeps losing mate evidence distinct and accepts a maintained forced win",async()=>{
+    const analyze=vi.spyOn(UciEngine.prototype,"analyze").mockImplementation(async(_f,_d,_p,moves)=>({depth:12,lines:[
+      {...engineLine(moves?.length?"d2d4":"e2e4","move",0),centipawnsWhite:null,mateInWhite:moves?.length?4:2}]}));
+    expect((await new OpeningAnalysisService(loadConfig()).assessMove(new Chess().fen(),"d2d4")).verdict).toBe("playable");
+    analyze.mockImplementation(async(_f,_d,_p,moves)=>({depth:12,lines:[{...engineLine(moves?.length?"d2d4":"e2e4","move",0),centipawnsWhite:null,mateInWhite:moves?.length?-2:2}]}));
+    expect((await new OpeningAnalysisService(loadConfig()).assessMove(new Chess().fen(),"d2d4")).verdict).toBe("weaker");
+  });
+  it("does not grade an illegal move or a finished position",async()=>{
+    const analyze=vi.spyOn(UciEngine.prototype,"analyze");
+    const service=new OpeningAnalysisService(loadConfig());
+    expect((await service.assessMove(new Chess().fen(),"e7e5")).verdict).toBe("uncertain");
+    expect((await service.assessMove("7k/6Q1/6K1/8/8/8/8/8 b - - 0 1","h8h7")).verdict).toBe("uncertain");
+    expect(analyze).not.toHaveBeenCalled();
+  });
+});

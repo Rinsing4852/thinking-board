@@ -182,3 +182,23 @@ describe("learn first, then recall",()=>{
     expect(reviews.introduce(e.sessionId,e.queueEntryId,"e7e5").phase).toBe("recall");
   });
 });
+
+
+describe("post-guess quality evidence boundaries",()=>{
+  it("requires the recorded guess and keeps the first recall outcome after quality lookup and reload",()=>{
+    const {db,repertoireId,reviews}=setup();
+    const e=reviews.start(repertoireId,"new",1,1);
+    expect(()=>reviews.qualityTarget(e.sessionId,e.queueEntryId,"d2d4")).toThrow(/Try this move/);
+    reviews.recordMistake(e.sessionId,"d2d4",e.queueEntryId,1200);
+    const before=db.prepare("SELECT * FROM opening_review_mistakes").all();
+    expect(reviews.qualityTarget(e.sessionId,e.queueEntryId,"d2d4")).toBe(e.fenToMove);
+    expect(reviews.qualityTarget(e.sessionId,e.queueEntryId,"d2d4")).toBe(e.fenToMove);
+    const reloaded=new OpeningReviewService(db).active();
+    expect(reloaded).toMatchObject({lastDifferentMove:{moveUci:"d2d4",moveSan:"d4"}});
+    expect(db.prepare("SELECT * FROM opening_review_mistakes").all()).toEqual(before);
+    const answer=reviews.answer(e.sessionId,"e2e4",false,false,e.queueEntryId,1500);
+    expect(answer.outcome).toBe("learning");expect(answer.assisted).toBe(true);
+    expect(()=>reviews.qualityTarget(e.sessionId,e.queueEntryId,"d2d4")).toThrow(/changed/);
+    expect(db.prepare("SELECT COUNT(*) FROM opening_review_events").pluck().get()).toBe(1);
+  });
+});
