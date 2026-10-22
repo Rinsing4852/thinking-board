@@ -564,3 +564,20 @@ source, schema, tests, styles, copy, and assets were not copied. See
 `docs/decisions/0001-independent-implementation.md` and
 `THIRD_PARTY_LICENSES.md` for the maintained boundary and distributed runtime
 licences.
+
+## Reliability checks and external evaluation evidence
+
+Opening practice keeps saved repertoire controls before optional summaries, so
+late statistics and preparation data cannot move those controls during a tap.
+Use **Practise my repertoire** at the top to start or resume memory practice.
+
+After building, `npm run smoke:stockfish` checks move-quality feedback with the
+configured real engine in a fresh temporary database. Set `STOCKFISH_BINARY` if
+needed. It refuses the test engine, exercises both colours, mating outcomes,
+cache reuse and failure recovery, and verifies that the quality endpoint does not
+award recall credit. This is a disposable smoke test, not a benchmark of every
+position or a check against your live database.
+
+The [Lichess evaluation dataset proposal](docs/chessbook-audit/LICHESS_EVALUATION_DATASET.md)
+describes a possible small external evaluation cache. It is not enabled in the
+app; practical frequencies and model-game discovery remain separate sources.

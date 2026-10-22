@@ -2945,11 +2945,53 @@
         {
           "id": "CB50.3",
           "requirement": "Saved work and keyboard navigation remain usable while optional summaries fail.",
-          "evidence": []
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "keeps repertoire touch targets fixed when delayed summaries fail",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB50.4",
+          "requirement": "Repertoire controls and the game-import action must not move between pointer-down and pointer-up when optional data arrives.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "keeps repertoire touch targets fixed when delayed summaries arrive",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            },
+            {
+              "kind": "browser",
+              "title": "keeps repertoire touch targets fixed when delayed summaries fail",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            },
+            {
+              "kind": "browser",
+              "title": "keeps the game-import action fixed while player choices arrive",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
         }
       ],
       "implementationPaths": [
-        "apps/web/src/styles.css"
+        "apps/web/src/styles.css",
+        "apps/web/src/components/OpeningPractice.tsx",
+        "apps/web/src/components/OpeningLearningRoutes.tsx",
+        "apps/web/src/components/Dashboard.tsx"
       ],
       "benchmark": {
         "task": "Complete a first-move branch and recall session on mobile WebKit.",
@@ -3148,7 +3190,16 @@
         {
           "id": "CB55.3",
           "requirement": "An empty or failed optional summary offers a meaningful next action.",
-          "evidence": []
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "keeps the library usable when statistics fail and retries summaries independently",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
         }
       ],
       "implementationPaths": [

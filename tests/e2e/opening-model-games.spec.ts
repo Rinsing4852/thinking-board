@@ -207,7 +207,7 @@ test("finds stronger-player study from home and guesses with hidden answers, hin
   const before=await (await page.request.get("/api/v1/openings/activity")).json();
   await page.goto("/#openings");
   const routes=page.getByRole("region",{name:"Choose how to learn",exact:true});
-  await expect(routes.getByText("Practise my repertoire",{exact:true})).toBeVisible();
+  await expect(routes.getByRole("button",{name:"Practise my repertoire",exact:true})).toBeVisible();
   await routes.getByRole("button",{name:"Review my played game",exact:true}).click();
   await expect(page.getByRole("heading",{name:"Import. Analyse. Learn.",exact:true})).toBeVisible();
   await page.getByRole("button",{name:"Openings",exact:true}).click();

@@ -17,10 +17,10 @@ remain separate from the verified requirement counts below.
 
 - **57 feature descriptions**, each with three acceptance criteria and a repeatable comparison task.
 - Current inventory: 22 existing, 11 partial, 12 absent, 5 implemented, 1 improved, 5 enhanced, 1 not_targeted.
-- Acceptance checks: 97 passed, 0 failed, 0 flaky, 42 unknown, 36 unmet, 3 excluded.
-- Priority-weighted verified requirement coverage: **65.3%** (433/663 points). This is a conservative evidence measure, not “65.3% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
-- Like-for-like unit-evidence baseline: 25.6% → 37.6%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
-- Current validation records: 333 unit/integration tests and 162 browser journeys; 0 failures, 0 flaky results, 0 skipped.
+- Acceptance checks: 100 passed, 0 failed, 0 flaky, 40 unknown, 36 unmet, 3 excluded.
+- Priority-weighted verified requirement coverage: **67.1%** (448/668 points). This is a conservative evidence measure, not “67.1% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
+- Like-for-like unit-evidence baseline: 25.4% → 37.3%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
+- Current validation records: 333 unit/integration tests and 170 browser journeys; 0 failures, 0 flaky results, 0 skipped.
 
 ## Implemented from this audit
 
@@ -967,9 +967,10 @@ Acceptance criteria:
 
 - **unknown** — No horizontal overflow at supported mobile and tablet widths.
 - **passed** — Complete a first-move branch and recall session on mobile WebKit. Evidence: browser/chromium: builds a Black response to a different first move in the same repertoire; browser/webkit: builds a Black response to a different first move in the same repertoire.
-- **unknown** — Saved work and keyboard navigation remain usable while optional summaries fail.
+- **passed** — Saved work and keyboard navigation remain usable while optional summaries fail. Evidence: browser/chromium: keeps repertoire touch targets fixed when delayed summaries fail; browser/webkit: keeps repertoire touch targets fixed when delayed summaries fail.
+- **passed** — Repertoire controls and the game-import action must not move between pointer-down and pointer-up when optional data arrives. Evidence: browser/chromium: keeps repertoire touch targets fixed when delayed summaries arrive; browser/webkit: keeps repertoire touch targets fixed when delayed summaries arrive; browser/chromium: keeps repertoire touch targets fixed when delayed summaries fail; browser/webkit: keeps repertoire touch targets fixed when delayed summaries fail; browser/chromium: keeps the game-import action fixed while player choices arrive; browser/webkit: keeps the game-import action fixed while player choices arrive.
 
-Implementation: `apps/web/src/styles.css`
+Implementation: `apps/web/src/styles.css`, `apps/web/src/components/OpeningPractice.tsx`, `apps/web/src/components/OpeningLearningRoutes.tsx`, `apps/web/src/components/Dashboard.tsx`
 
 Repeatable comparison task: Complete a first-move branch and recall session on mobile WebKit. Competitor timing and our user-task timing remain unmeasured.
 
@@ -1057,7 +1058,7 @@ Acceptance criteria:
 
 - **passed** — Fresh production startup does not silently restore starter content. Evidence: unit: starts with an empty opening library without silently restoring starter repertoires.
 - **passed** — Recover a draft after refresh without changing saved repertoires. Evidence: browser/chromium: recovers an unfinished board draft after refresh without changing saved repertoires; browser/webkit: recovers an unfinished board draft after refresh without changing saved repertoires.
-- **unknown** — An empty or failed optional summary offers a meaningful next action.
+- **passed** — An empty or failed optional summary offers a meaningful next action. Evidence: browser/chromium: keeps the library usable when statistics fail and retries summaries independently; browser/webkit: keeps the library usable when statistics fail and retries summaries independently.
 
 Implementation: `apps/web/src/components/OpeningBoardBuilder.tsx`
 

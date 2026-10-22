@@ -42,9 +42,9 @@ test("keeps the library usable when statistics fail and retries summaries indepe
   await expect(page.getByRole("button", { name: "Build on the board", exact: true })).toBeEnabled();
   await expect(page.getByRole("alert")).toContainText("Opening statistics could not be refreshed");
   fail = false;
-  // Late optional suggestions can reflow the page during a pointer click.
+  // The retry action precedes optional content, so late data cannot move it.
   const retried = page.waitForResponse(response => response.url().endsWith("/api/v1/openings/progress") && response.ok());
-  await page.getByRole("button", { name: "Retry opening summaries", exact: true }).press("Enter");
+  await page.getByRole("button", { name: "Retry opening summaries", exact: true }).click();
   await retried;
   await expect(page.getByRole("alert")).toBeHidden();
   await expect(page.locator("article.opening-card").first()).toBeVisible();
@@ -299,4 +299,88 @@ test("keeps an unsaved preparation idea when background analysis refreshes the i
   await page.reload();
   await page.getByRole("button", { name: /Show all/ }).click();
   await expect(advice.getByText(note, { exact: true })).toBeVisible();
+});
+
+for(const failProgress of [false,true]) {
+  test(`keeps repertoire touch targets fixed when delayed summaries ${failProgress?"fail":"arrive"}`,async({page},testInfo)=>{
+    await page.route("**/api/v1/openings/lessons/active",route=>route.fulfill({json:null}));
+    const recommended=await(await page.request.get("/api/v1/openings/reviews/recommended")).json();
+    const progress=await(await page.request.get("/api/v1/openings/progress")).json();
+    let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});let waiting=0;
+    await page.route("**/api/v1/openings/reviews/recommended",async route=>{waiting++;await gate;await route.fulfill({json:recommended});});
+    await page.route("**/api/v1/openings/progress",async route=>{waiting++;await gate;await route.fulfill(failProgress?{status:503,json:{error:"Delayed statistics failure"}}:{json:progress});});
+    await page.route("**/api/v1/openings/coverage/recommended?*",route=>route.fulfill({json:{ratingGroup:1600,repertoireId:recommended.repertoire?.id,gaps:[{
+      positionId:"delayed-gap",fen:"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      chapterTitle:"Delayed sample",lineTitle:"Late coverage",moveUci:"d2d4",moveSan:"d4",games:0,frequencyPercent:0,
+    }]}}));
+    try {
+      await page.goto("/#openings");await expect.poll(()=>waiting).toBe(2);
+      const card=page.locator("article.opening-card").first(),summary=card.locator("summary").first();
+      await summary.scrollIntoViewIfNeeded();
+      const before=await summary.evaluate(el=>({top:el.getBoundingClientRect().top,documentTop:el.getBoundingClientRect().top+window.scrollY}));
+      const bounds=await summary.boundingBox();expect(bounds).not.toBeNull();
+      await page.mouse.move(bounds!.x+24,bounds!.y+24);await page.mouse.down();
+      const loaded=page.waitForResponse(response=>response.url().endsWith("/api/v1/openings/progress"));
+      release();await loaded;
+      await expect(page.getByText("Preparing your practice suggestions…",{exact:true})).toBeHidden();
+      if(failProgress)await expect(page.getByRole("alert")).toContainText("Opening statistics could not be refreshed");
+      else await expect(page.locator(".opening-home-progress")).toBeVisible();
+      await expect(page.locator(".opening-home-shell")).toHaveClass(/has-focus-board/);
+      await expect(page.getByRole("button",{name:/Consider d4 Late coverage/})).toBeVisible();
+      const after=await summary.evaluate(el=>({top:el.getBoundingClientRect().top,documentTop:el.getBoundingClientRect().top+window.scrollY}));
+      expect(Math.abs(after.documentTop-before.documentTop)).toBeLessThanOrEqual(1);
+      expect(Math.abs(after.top-before.top)).toBeLessThanOrEqual(1);
+      await page.mouse.up();await expect(card.locator("details").first()).toHaveAttribute("open","");
+      const open=card.getByRole("button",{name:"View all lines",exact:true});
+      if(failProgress){await open.focus();await open.press("Enter");}
+      else if(testInfo.project.use.hasTouch)await open.tap();else await open.click();
+      await expect(page.getByRole("region",{name:"Opening board and moves",exact:true})).toBeVisible();
+      await page.screenshot({path:testInfo.outputPath("stable-delayed-summary.png")});
+    } finally {release();await page.mouse.up();}
+  });
+}
+
+test("starts and resumes practice from the stable action before optional summaries",async({page},testInfo)=>{
+  await page.route("**/api/v1/openings/lessons/active",route=>route.fulfill({json:null}));
+  const imported=await page.request.post("/api/v1/openings/imports/pgn",{data:{
+    pgn:`[Event "Direct practice ${testInfo.project.name} ${testInfo.repeatEachIndex}"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bc4 h6 *`,
+    name:`Direct practice ${testInfo.project.name} ${testInfo.repeatEachIndex}`,learnerColor:"white",ownershipConfirmed:true,
+  }});expect(imported.ok()).toBeTruthy();const id=(await imported.json()).repertoireIds[0];
+  const detail=await(await page.request.get(`/api/v1/openings/repertoires/${id}`)).json();
+  let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});let waiting=0,starts=0;
+  await page.route(/\/api\/v1\/openings\/(?:progress|reviews\/recommended)$/,async route=>{waiting++;await gate;await route.continue().catch(()=>undefined);});
+  await page.route("**/api/v1/openings/reviews/recommended/start",async route=>{
+    starts++;const response=await page.request.post(`/api/v1/openings/repertoires/${id}/lines/${detail.chapters[0].lines[0].id}/reviews/start`);
+    expect(response.ok()).toBeTruthy();await route.fulfill({json:await response.json()});
+  });
+  try {
+    await page.goto("/#openings");await expect.poll(()=>waiting).toBe(2);
+    const action=page.getByRole("region",{name:"Choose how to learn",exact:true}).getByRole("button",{name:"Practise my repertoire",exact:true});
+    await action.click();await expect(page.getByRole("grid",{name:"Chess position",exact:true})).toBeVisible();
+    const active=await(await page.request.get("/api/v1/openings/reviews/active")).json();
+    await page.getByRole("button",{name:"Pause",exact:true}).click();await action.click();
+    await expect(page.getByRole("grid",{name:"Chess position",exact:true})).toBeVisible();
+    const resumed=await(await page.request.get("/api/v1/openings/reviews/active")).json();
+    expect(resumed.queueEntryId).toBe(active.queueEntryId);expect(starts).toBe(1);
+  } finally {release();}
+});
+
+test("keeps the game-import action fixed while player choices arrive",async({page},testInfo)=>{
+  const base=await(await page.request.get("/api/v1/dashboard")).json();
+  const profile=base.profile??{id:"delayed-primary",displayName:"Primary learner"};
+  await page.route("**/api/v1/dashboard",route=>route.fulfill({json:{...base,profile,
+    totals:{...base.totals,games:0,trainingItems:0,attempts:0,due:0},recurringProblems:[],recommendedSession:[]}}));
+  let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});let waiting=0;
+  await page.route("**/api/v1/profiles",async route=>{waiting++;await gate;await route.fulfill({json:{activeProfileId:profile.id,profiles:[profile,{id:"delayed-other",displayName:"Another learner with a longer name"}]}});});
+  try {
+    await page.goto("/#progress");await expect.poll(()=>waiting).toBe(1);
+    const action=page.getByRole("button",{name:"Import a game to begin",exact:true});
+    await action.scrollIntoViewIfNeeded();const before=await action.boundingBox();expect(before).not.toBeNull();
+    await page.mouse.move(before!.x+20,before!.y+20);await page.mouse.down();release();
+    await expect(page.getByRole("combobox",{name:"Player",exact:true})).toBeEnabled();
+    const after=await action.boundingBox();expect(after).not.toBeNull();
+    await testInfo.attach("import-action-layout",{body:JSON.stringify({before,after}),contentType:"application/json"});
+    expect(Math.abs(after!.y-before!.y)).toBeLessThanOrEqual(1);expect(Math.abs(after!.x-before!.x)).toBeLessThanOrEqual(1);
+    await page.mouse.up();await expect(page).toHaveURL(/#games$/);
+  } finally {release();await page.mouse.up();}
 });

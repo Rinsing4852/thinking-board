@@ -23,7 +23,8 @@
     "restore": "node scripts/restore.mjs",
     "audit:features": "node scripts/feature-audit.mjs",
     "audit:features:verify": "node scripts/feature-audit.mjs --verify",
-    "benchmark:openings": "node scripts/benchmark-opening-quality.mjs"
+    "benchmark:openings": "node scripts/benchmark-opening-quality.mjs",
+    "smoke:stockfish": "node scripts/smoke-opening-stockfish.mjs"
   },
   "dependencies": {
     "@fastify/static": "^10.1.3",

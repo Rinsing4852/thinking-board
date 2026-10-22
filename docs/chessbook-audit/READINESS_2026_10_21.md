@@ -1,5 +1,9 @@
 # Readiness assessment — 21 October 2026
 
+Follow-up: the [22 October reliability pass](./RELIABILITY_PASS_2026_10_22.md)
+implements the short gate described below. This document retains the preceding
+decision and its historical verification counts.
+
 The learning-route, independent move-quality and model-game guessing increment
 is ready to release. Regenerating the audit confirmed the source still matches
 the complete verification run: 333 unit/integration tests, 162 browser tests,

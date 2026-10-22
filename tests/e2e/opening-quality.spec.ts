@@ -199,10 +199,8 @@ test("teaches three new moves before hidden recall and resumes the saved learnin
   await page.goto("/#openings");
   const pause=page.getByRole("button",{name:"Pause",exact:true});if(await pause.isVisible()) await pause.click();
   const card=page.locator("article.opening-card").filter({hasText:name});
-  // This journey tests teaching persistence. Use native keyboard disclosure
-  // setup while optional home summaries finish; pointer setup can miss during
-  // the already-documented Safari home reflow. Other journeys retain touch.
-  await card.locator("summary").first().press("Enter");
+  const disclosure=card.locator("summary").first();
+  if(testInfo.project.use.hasTouch)await disclosure.tap();else await disclosure.click();
   await expect(card.locator("details.opening-card-details")).toHaveAttribute("open", "");
   page.on("dialog",dialog=>dialog.accept());
   await card.getByRole("button",{name:"Learn new moves first",exact:true}).click();

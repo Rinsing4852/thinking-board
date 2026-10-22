@@ -85,8 +85,8 @@ export function Dashboard({ refreshToken, onChooseMode, onStartSession, onProfil
           <h2>{compact ? "Your thinking practice" : `${dashboard.profile.displayName}’s training profile`}</h2>
         </div>
         <div className="dashboard-actions">
-          {profiles.length > 1 && <label>Player
-            <select disabled={busy || loading} value={activeProfile ?? ""} onChange={async (event) => {
+          <label>Player
+            <select disabled={busy || loading || profiles.length < 2} value={activeProfile ?? dashboard.profile.id} onChange={async (event) => {
               const profileId = event.target.value;
               setBusy(true); setError("");
               try {
@@ -94,8 +94,8 @@ export function Dashboard({ refreshToken, onChooseMode, onStartSession, onProfil
                 setActiveProfile(profileId); setSession(null); onProfileChanged();
               } catch (failure) { setError(failure instanceof Error ? failure.message : "Could not change player"); }
               finally { setBusy(false); }
-            }}>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.displayName}</option>)}</select>
-          </label>}
+            }}>{(profiles.length ? profiles : [dashboard.profile]).map((profile) => <option key={profile.id} value={profile.id}>{profile.displayName}</option>)}</select>
+          </label>
           <button disabled={busy} onClick={() => dashboard.totals.trainingItems === 0 ? onImport() : session ? onStartSession(session) : void createSession()}>
             {busy ? "Please wait…" : dashboard.totals.trainingItems === 0 ? "Import a game to begin" : session ? `Continue session · ${session.completedCount ?? 0}/${session.items.length}` : "Start a 15-exercise session"}
           </button>

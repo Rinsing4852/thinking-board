@@ -703,7 +703,11 @@ export function OpeningPractice({ refreshToken, onOpenGames, onReviewPlayedGame,
       {!loading && (!activeReview || reviewPaused) && phase === "catalog" && !showBuilder && !workspaceDetail && (
         <>
           <OpeningLearningRoutes repertoires={activeCatalog.map(item=>({id:item.id,name:item.name}))}
-            busy={submitting} onStudyGame={id=>void openWorkspace(id,null,null,true)} onReviewPlayedGame={onReviewPlayedGame}/>
+            busy={submitting} onPractice={()=>{
+              if(activeReview)void resumeReview();
+              else if(step&&pausedLessonPhase){setPhase(pausedLessonPhase);setPausedLessonPhase(null);}
+              else void startRecommendedReview();
+            }} onStudyGame={id=>void openWorkspace(id,null,null,true)} onReviewPlayedGame={onReviewPlayedGame}/>
           {activeReview && reviewPaused && (
             <div className="panel opening-resume-card">
               <div>
@@ -734,34 +738,6 @@ export function OpeningPractice({ refreshToken, onOpenGames, onReviewPlayedGame,
               <button disabled={submitting} onClick={() => { setShowBuilder(true); setShowImporter(false); }}>Build on the board</button>
               <button className="secondary" disabled={submitting} onClick={() => setShowImporter(shown => !shown)}>{showImporter ? "Close opening import" : "Import opening PGN"}</button>
             </div>
-          </div>}
-          {!activeReview && !(step && pausedLessonPhase) && (
-            <OpeningHomeCockpit
-              recommendation={recommendation}
-              recommendationLoading={insightsLoading && !recommendation}
-              coverage={coverageSpotlight}
-              coverageLoading={coverageSpotlightLoading}
-              progress={openingProgress}
-              preferences={playerPreferences}
-              libraryEmpty={catalog.length === 0}
-              busy={submitting}
-              importOpen={showImporter}
-              onSettings={() => { setSettingsOpen(true); requestAnimationFrame(() => settingsRef.current?.scrollIntoView({ block: "start" })); }}
-              onStartRecommended={() => void startRecommendedReview()}
-              onLearnFirst={() => void startRecommendedReview(true)}
-              learnableResponses={catalog.find(repertoire=>repertoire.id===recommendation?.repertoire?.id)?.newResponseCount ?? 0}
-              onStartRun={(repertoireId) => void startTreePractice(repertoireId)}
-              onOpenGames={onOpenGames}
-              onAnalyzeGame={onAnalyzeGame}
-              onOpenGap={(gap) => { if (coverageSpotlight) void openWorkspace(coverageSpotlight.repertoireId, null, gap); }}
-              onOpenWeakLine={(repertoireId, lineId) => void openWorkspace(repertoireId, lineId)}
-              onBuild={() => { setShowBuilder(true); setShowImporter(false); }}
-              onImport={() => setShowImporter((shown) => !shown)}
-            />
-          )}
-          {insightsError && <div className="panel" role="alert">
-            <p>{insightsError}</p>
-            <button className="secondary" disabled={insightsLoading} onClick={() => refreshOpeningInsights()}>Retry opening summaries</button>
           </div>}
           {playerPreferences && (
             <details ref={settingsRef} className="panel opening-settings" open={settingsOpen} onToggle={event => setSettingsOpen(event.currentTarget.open)}>
@@ -901,6 +877,38 @@ export function OpeningPractice({ refreshToken, onOpenGames, onReviewPlayedGame,
             </details>
           )}
           <OpeningLibraryManager repertoires={catalog} onDeleted={finishOpeningDeletion} />
+          {/* Optional insights stay after saved controls: late data must not move tap targets. */}
+          <div id="opening-insights">
+            {insightsError && <div className="panel" role="alert">
+              <p>{insightsError}</p>
+              <button className="secondary" disabled={insightsLoading} onClick={() => refreshOpeningInsights()}>Retry opening summaries</button>
+            </div>}
+            {!activeReview && !(step && pausedLessonPhase) && (
+              <OpeningHomeCockpit
+                recommendation={recommendation}
+                recommendationLoading={insightsLoading && !recommendation}
+                coverage={coverageSpotlight}
+                coverageLoading={coverageSpotlightLoading}
+                progress={openingProgress}
+                preferences={playerPreferences}
+                libraryEmpty={catalog.length === 0}
+                busy={submitting}
+                importOpen={showImporter}
+                onSettings={() => { setSettingsOpen(true); requestAnimationFrame(() => settingsRef.current?.scrollIntoView({ block: "start" })); }}
+                onStartRecommended={() => void startRecommendedReview()}
+                onLearnFirst={() => void startRecommendedReview(true)}
+                learnableResponses={catalog.find(repertoire=>repertoire.id===recommendation?.repertoire?.id)?.newResponseCount ?? 0}
+                onStartRun={(repertoireId) => void startTreePractice(repertoireId)}
+                onOpenGames={onOpenGames}
+                onAnalyzeGame={onAnalyzeGame}
+                onOpenGap={(gap) => { if (coverageSpotlight) void openWorkspace(coverageSpotlight.repertoireId, null, gap); }}
+                onOpenWeakLine={(repertoireId, lineId) => void openWorkspace(repertoireId, lineId)}
+                onBuild={() => { setShowBuilder(true); setShowImporter(false); }}
+                onImport={() => setShowImporter((shown) => !shown)}
+              />
+            )}
+
+          </div>
         </>
       )}
 

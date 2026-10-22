@@ -62,6 +62,11 @@ provider sample is bounded; master-source switching remains absent.
 adds direct home entry, optional post-guess engine feedback separate from recall,
 and historical-move guessing with saved hints, first attempts and local retries.
 
+The [22 October reliability pass](./RELIABILITY_PASS_2026_10_22.md) reproduces and
+addresses late-summary tap-target shifts and records real Stockfish checks.
+The [Lichess evaluation dataset proposal](./LICHESS_EVALUATION_DATASET.md) explains
+potential use as a separate, attributed evaluation cache and its evidence limits.
+
 [Saved game replay and recall](./GAME_REPLAY_RECALL.md) keeps feedback and local
 practice inside each played game. The [next-feature readiness review](./NEXT_FEATURE_READINESS.md)
 records its verified release gate, remaining usability uncertainty and the next

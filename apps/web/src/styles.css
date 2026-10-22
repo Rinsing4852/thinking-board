@@ -750,7 +750,8 @@ button.candidate-type.active { color: var(--lime); border-color: var(--lime); ba
 .dashboard-totals strong { color: var(--lime); font-size: 1.7rem; }
 .dashboard-totals span { color: var(--ink-soft); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; }
 .dashboard-grid { display: grid; grid-template-columns: 1.3fr .7fr; gap: 1.2rem; }
-.dashboard-actions { display: flex; align-items: end; gap: .75rem; }
+.dashboard-actions { display: grid; grid-template-columns: minmax(0, 1fr); width: min(100%, 16rem); flex: 0 0 auto; gap: .75rem; }
+.dashboard-actions label, .dashboard-actions select { min-width: 0; width: 100%; }
 .weakness-panel > p, .session-panel > p { color: var(--ink-soft); line-height: 1.5; }
 .skill-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .8rem 0; border-bottom: 1px solid var(--line); }
 .skill-row > div { display: grid; gap: .2rem; }
