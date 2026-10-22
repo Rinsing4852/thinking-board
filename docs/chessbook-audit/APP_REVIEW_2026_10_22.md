@@ -1,5 +1,9 @@
 # App review and next priorities — 22 October 2026
 
+Follow-up: the user deferred opening puzzles (CB58) and requested the other four
+areas. See [next four delivery](./NEXT_FOUR_DELIVERY.md) for that implementation
+and its verification. The ranking below records the earlier review decision.
+
 ## Release decision: blocked pending Linux WebKit investigation
 
 The reliability increment is committed and present on GitHub as

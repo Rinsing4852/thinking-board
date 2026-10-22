@@ -432,7 +432,7 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
             sourceAnnotations={explanationOpen ? lastAnswered?.explanation.boardAnnotations ?? [] : []}
             onMove={playRecallMove}
           />
-          {!teaching && !complete && !observing && !feedback && !explanationOpen && moveNotice && <p className="opening-mobile-detail" role="status">{moveNotice}</p>}
+          {!teaching && !complete && !observing && !feedback && !explanationOpen && <p className="opening-mobile-detail" role="status">{moveNotice || "Choose a piece, then its destination."}</p>}
           {!teaching&&!complete&&!observing&&!feedback&&!explanationOpen&&qualityMove&&<section className="opening-quality-feedback" aria-label="Chess quality versus recall">
             <strong>Recall: different from the requested saved response</strong>
             {quality?<><p role="status"><strong>{quality.verdict==="playable"?"Chess quality: playable":quality.verdict==="weaker"?"Chess quality: weaker move":"Chess quality: unverified"}</strong> · {quality.message}</p>

@@ -32,6 +32,7 @@ jobs:
       - run: docker build -t thinking-board:ci .
       - name: Smoke-test container, persistent data and local Stockfish
         run: |
+          docker run --rm --network none thinking-board:ci node scripts/smoke-opening-stockfish.mjs > stockfish-smoke.json
           docker volume create thinking-board-ci-data
           docker run -d --name thinking-board-ci -p 127.0.0.1:18000:8000 -v thinking-board-ci-data:/app/data thinking-board:ci
           node scripts/container-smoke.mjs http://127.0.0.1:18000
@@ -39,6 +40,13 @@ jobs:
           node scripts/container-smoke.mjs http://127.0.0.1:18000 --existing --clear-library
           docker restart thinking-board-ci
           node scripts/container-smoke.mjs http://127.0.0.1:18000 --cleared
+      - name: Save real-engine evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stockfish-smoke-evidence
+          path: stockfish-smoke.json
+          retention-days: 7
       - name: Container diagnostics and cleanup
         if: always()
         run: |

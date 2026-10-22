@@ -1,5 +1,5 @@
 import { Chess } from "chess.js";
-import type { OpeningStudyDiscoveryGame, OpeningStudyDiscoveryResponse } from "../../../../packages/contracts/src/api.js";
+import type { OpeningStudyDiscoveryGame, OpeningStudyDiscoveryResponse, OpeningStudySource } from "../../../../packages/contracts/src/api.js";
 import type { SqliteDatabase } from "../db/database.js";
 import { parsePgnText } from "../chess/pgn.js";
 import { ensureActiveProfile } from "../training/profile.js";
@@ -44,7 +44,8 @@ export class OpeningStudyDiscoveryService {
     this.queue=task;return task;
   }
 
-  async discover(target:Target,learnerRating:number):Promise<OpeningStudyDiscoveryResponse> {
+  async discover(target:Target,learnerRating:number, source:OpeningStudySource="online"):Promise<OpeningStudyDiscoveryResponse> {
+    if(!["online","masters","both"].includes(source)) throw new Error("Choose a supported game source.");
     if(!Number.isInteger(learnerRating)||learnerRating<100||learnerRating>4000) throw new Error("Enter your Lichess rating between 100 and 4000.");
     const profile=ensureActiveProfile(this.db),context=this.study.target(target.repertoireId,target.lineId,target.savedPly);
     if(position(context.fen)!==position(target.expectedFen)) throw new Error("This saved repertoire position changed. Reload study before searching.");
@@ -56,25 +57,27 @@ export class OpeningStudyDiscoveryService {
     };
     try {
       const signal=AbortSignal.timeout(22_000);
-      const url=new URL("https://explorer.lichess.org/lichess");
-      url.searchParams.set("variant","standard");url.searchParams.set("fen",context.fen);
-      // The provider groups games by rating; actual learner-side PGN ratings are
-      // checked below. Query all bands to avoid dropping unequal-rating games.
-      url.searchParams.set("speeds","rapid,classical");url.searchParams.set("moves","0");
-      url.searchParams.set("topGames","4");url.searchParams.set("recentGames","4");
-      let payload:{topGames?:unknown;recentGames?:unknown};
-      try {payload=JSON.parse(await this.download(url,"application/json",signal));}
-      catch(error) {if(error instanceof SyntaxError)throw new Error("Lichess returned unreadable search results. Try again.");throw error;}
-      if(!payload||!Array.isArray(payload.topGames)||!Array.isArray(payload.recentGames)) throw new Error("Lichess returned incomplete search results. Try again.");
-      const refs=[...payload.topGames,...payload.recentGames];
-      const ids=[...new Set(refs.flatMap(ref=>ref&&typeof ref==="object"&&"id" in ref&&typeof ref.id==="string"&&/^[A-Za-z0-9]{8}$/.test(ref.id)?[ref.id]:[]))].slice(0,8);
-      if(refs.length&&!ids.length) throw new Error("Lichess returned invalid game references. Try Find games again.");
+      const ids:Array<{gameId:string;pool:"online"|"masters"}>=[];
+      let sourceFailures=0;
+      for(const pool of (source==="both"?["online","masters"]:[source]) as Array<"online"|"masters">) {
+        const url=new URL(`https://explorer.lichess.org/${pool==="masters"?"masters":"lichess"}`);
+        url.searchParams.set("fen",context.fen);url.searchParams.set("moves","0");url.searchParams.set("topGames","4");
+        if(pool==="online") {url.searchParams.set("variant","standard");url.searchParams.set("speeds","rapid,classical");url.searchParams.set("recentGames","4");}
+        try {
+          const payload=JSON.parse(await this.download(url,"application/json",signal));
+          if(!payload||!Array.isArray(payload.topGames)||(pool==="online"&&!Array.isArray(payload.recentGames)))throw new Error("Lichess returned incomplete search results. Try again.");
+          const refs=[...payload.topGames,...(pool==="online"?payload.recentGames:[])];
+          const valid=[...new Set<string>(refs.flatMap((ref:unknown)=>ref&&typeof ref==="object"&&"id" in ref&&typeof ref.id==="string"&&/^[A-Za-z0-9]{8}$/.test(ref.id)?[ref.id]:[]))].slice(0,8);
+          if(refs.length&&!valid.length)throw new Error("Lichess returned invalid game references.");
+          ids.push(...valid.map(gameId=>({gameId,pool})));
+        } catch(error) {if(source!=="both")throw error;sourceFailures++;}
+      }
       const candidates:Array<{pgn:string;game:OpeningStudyDiscoveryGame}>=[];
-      let failures=0;
-      for(const gameId of ids) {
+      let failures=sourceFailures;
+      for(const {gameId,pool} of ids) {
         if(signal.aborted) {failures++;break;}
         try {
-          const gameUrl=new URL(`https://lichess.org/game/export/${gameId}`);
+          const gameUrl=new URL(pool==="masters"?`https://explorer.lichess.org/masters/pgn/${gameId}`:`https://lichess.org/game/export/${gameId}`);
           gameUrl.searchParams.set("clocks","false");gameUrl.searchParams.set("evals","false");
           gameUrl.searchParams.set("literate","false");gameUrl.searchParams.set("opening","true");
           const pgn=await this.download(gameUrl,"application/x-chess-pgn",signal);
@@ -82,14 +85,14 @@ export class OpeningStudyDiscoveryService {
           if(parsed.errors.length||parsed.games.length!==1||!game||game.moves.length>1000||!["1-0","0-1","1/2-1/2"].includes(game.result)) {failures++;continue;}
           const whiteRating=rating(game.headers.WhiteElo),blackRating=rating(game.headers.BlackElo);
           const stronger=context.learnerColor==="white"?whiteRating:blackRating;
-          if(stronger===null||stronger<=learnerRating) continue;
+          if(stronger===null||(pool==="online"&&stronger<=learnerRating)) continue;
           const path=context.line.moves.slice(0,target.savedPly).map(move=>move.moveUci).join(" ");
           const matches=[{fen:game.initialFen,ply:0},...game.moves.map(move=>({fen:move.fenAfter,ply:move.ply}))]
             .filter(match=>position(match.fen)===position(context.fen)&&match.ply<game.moves.length)
             .map(match=>({...match,direct:position(game.initialFen)===position(context.line.moves[0]!.fenBefore)&&game.moves.slice(0,match.ply).map(move=>move.uci).join(" ")===path}));
           matches.sort((a,b)=>Number(b.direct)-Number(a.direct)||a.ply-b.ply);
           const match=matches[0];if(!match)continue;
-          candidates.push({pgn,game:{id:id(),sourceUrl:`https://lichess.org/${gameId}`,white:game.white,black:game.black,
+          candidates.push({pgn,game:{id:id(),source:pool,sourceUrl:pool==="masters"?`https://explorer.lichess.org/masters/pgn/${gameId}`:`https://lichess.org/${gameId}`,white:game.white,black:game.black,
             whiteRating,blackRating,learnerRating:stronger,date:game.playedAt,result:game.result,transposition:!match.direct,
             reason:target.savedPly===0?"Matches the starting board. Choose a later saved position for a more specific example.":match.direct?"Follows your saved moves and continues from this position.":"Reaches the same position through a different move order or starting position."}});
         } catch(error) {
@@ -99,16 +102,27 @@ export class OpeningStudyDiscoveryService {
       }
       assertTarget();
       if(failures&&!candidates.length) throw new Error("Some Lichess games could not be downloaded or verified. Try Find games again. Your saved study games are still available.");
-      candidates.sort((a,b)=>Number(a.game.transposition)-Number(b.game.transposition)||a.game.learnerRating-b.game.learnerRating||a.game.sourceUrl.localeCompare(b.game.sourceUrl));
+      // Compare ratings only within the online pool; over-the-board and
+      // Lichess numbers are different scales. Each pool prefers direct routes.
+      candidates.sort((a,b)=>Number(a.game.transposition)-Number(b.game.transposition)
+        ||(a.game.source===b.game.source?(a.game.source==="online"?a.game.learnerRating-b.game.learnerRating:0):a.game.source==="online"?-1:1)
+        ||a.game.sourceUrl.localeCompare(b.game.sourceUrl));
       for(const [key,entry] of this.examples) if(entry.expires<Date.now())this.examples.delete(key);
       while(this.examples.size>90)this.examples.delete(this.examples.keys().next().value!);
-      const offered=candidates.slice(0,3);
+      const offered:typeof candidates=[];
+      if(source==="both") {
+        const online=candidates.filter(candidate=>candidate.game.source==="online"),masters=candidates.filter(candidate=>candidate.game.source==="masters");
+        for(let index=0;offered.length<3&&(online[index]||masters[index]);index++) {
+          if(online[index])offered.push(online[index]!);
+          if(masters[index]&&offered.length<3)offered.push(masters[index]!);
+        }
+      } else offered.push(...candidates.slice(0,3));
       for(const candidate of offered)this.examples.set(candidate.game.id,{profile,target:{...target},expires:Date.now()+10*60_000,...candidate});
       this.db.prepare(`INSERT INTO opening_study_preferences(profile_id,lichess_rating) VALUES(?,?)
         ON CONFLICT(profile_id) DO UPDATE SET lichess_rating=excluded.lichess_rating`).run(profile,learnerRating);
-      return {rating:learnerRating,learnerColor:context.learnerColor,games:offered.map(candidate=>candidate.game),partial:failures>0,
-        message:offered.length?`${offered.length} stronger-player examples found in Lichess's rapid and classical sample.${failures?" Some games were unavailable; you can retry.":""}`
-        :"No verified stronger-player continuation was found in this Lichess sample. Try an earlier position. This is not an exhaustive search of every game."};
+      return {source,rating:learnerRating,learnerColor:context.learnerColor,games:offered.map(candidate=>candidate.game),partial:failures>0,
+        message:offered.length?`${offered.length} ${source==="online"?"stronger-player examples found in Lichess's rapid and classical sample":"examples found in the selected "+source+" sample"}.${failures?" Some games were unavailable; you can retry.":""}`
+        :"No verified continuation was found in the selected source sample. Try an earlier position. This is not an exhaustive search of every game."};
     } catch(error) {
       if(error instanceof Error&&["TimeoutError","AbortError","TypeError"].includes(error.name)) throw new Error("Lichess game search could not finish. Check your connection and try Find games again. Saved study still works.");
       throw error;

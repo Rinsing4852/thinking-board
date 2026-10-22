@@ -26,6 +26,8 @@ import { OpeningLearningComment } from "./OpeningLearningComment";
 import { OpeningMoveSuggestions } from "./OpeningMoveSuggestions";
 import { openingBuildGuidance } from "../opening-build-guidance";
 import { useOpeningMoveEvidence } from "../use-opening-move-evidence";
+import { OpeningGapDraft } from "./OpeningGapDraft";
+import { OpeningMasterEvidence } from "./OpeningMasterEvidence";
 import { OpeningPreparationAdvice } from "./OpeningPreparationAdvice";
 import { OpeningBranchNavigation } from "./OpeningBranchNavigation";
 import { OpeningLineLibrary } from "./OpeningLineLibrary";
@@ -821,12 +823,17 @@ export function OpeningLineExplorer({
               guidance={guidance} onFocusMove={setFocusedSuggestion} arrowsShown={showSuggestions} onToggleArrows={() => setShowSuggestions(value => !value)}
               onChooseMove={previewNewMove}
             />
+            <OpeningMasterEvidence fen={displayFen} practical={moveEvidence.explorer}/>
             {useExplorer && <button className="secondary" disabled={navigationBlocked || coverageBusy} onClick={() => {
               const gap = coverage && worthwhileGap(coverage);
               if (gap) focusCoverageGap(gap); else void loadCoverage(true);
             }}>{coverageBusy ? "Checking likely replies…" : "Next worthwhile gap"}</button>}
             </>
           )}
+          {editing && !analysisOpen && (!pendingMove || displayFen.split(" ")[1] !== (detail.repertoire.learnerColor === "white" ? "w" : "b")) && <OpeningGapDraft
+            repertoireId={detail.repertoire.id} lineId={lineId} afterPly={ply} fen={displayFen}
+            {...(pendingMove?{opponentMoveUci:pendingMove.uci}:{})} disabled={localBusy||busy}
+            onChanged={(updated,targetLine)=>{onDetailChanged(updated);setLineId(targetLine);setPendingMove(null);setPreparingGap(null);setLastMutation(null);setStatus("Generated preparation updated. Existing lines and notes are kept.");}}/>}
           {pendingMove && (
             <div className="opening-new-move">
               <span className="eyebrow">{preparingGap ? "Explore this reply" : ply < line.moveCount ? "New branch" : "Extend line"}</span>

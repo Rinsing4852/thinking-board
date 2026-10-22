@@ -1323,7 +1323,7 @@ test("deletes the final line and clears a confirmed library without losing games
   await expect(clear).toBeFocused();
   await clear.click();
   await dialog.getByLabel("Type DELETE to confirm").fill("DELETE");
-  await page.screenshot({ path: testInfo.outputPath("library-deletion.png"), fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath("library-deletion.png") });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
   await confirm.click();
   await expect(page.getByRole("heading", { name: "Your opening library is empty", exact: true })).toBeVisible();
@@ -1799,4 +1799,39 @@ test("separates playable chess quality from recall and recovers unavailable anal
   const saved=page.waitForResponse(response=>/\/reviews\/[^/]+\/move$/.test(response.url())&&response.request().method()==="POST");
   await board.getByRole("gridcell",{name:"e2 white pawn",exact:true}).click();await board.getByRole("gridcell",{name:"e4 empty",exact:true}).click();
   expect(await(await saved).json()).toMatchObject({outcome:"learning",assisted:true});
+});
+
+test("previews one missing response and safely undoes generated preparation",async({page},testInfo)=>{
+  await page.route("**/api/v1/openings/reviews/active",route=>route.fulfill({json:null}));
+  await page.route("**/api/v1/openings/lessons/active",route=>route.fulfill({json:null}));
+  const name=`Gap draft ${testInfo.project.name}`;
+  const imported=await page.request.post("/api/v1/openings/imports/pgn",{data:{pgn:`[Event "${name}"]\n\n1. e4 e5 *`,name,learnerColor:"white",ownershipConfirmed:true}});
+  expect(imported.ok()).toBeTruthy();const id=(await imported.json()).repertoireIds[0];
+  const before=await(await page.request.get(`/api/v1/openings/repertoires/${id}`)).json(),lineId=before.chapters[0].lines[0].id;
+  await page.goto(`/#openings?repertoire=${id}&line=${lineId}&ply=2`);
+  await page.getByRole("button",{name:"Edit lines",exact:true}).click();
+  const panel=page.getByRole("region",{name:"Prepare one gap",exact:true});
+  await panel.getByRole("button",{name:"Preview suggested response",exact:true}).click();
+  await expect(panel).toContainText("Preview only");
+  expect(await(await page.request.get(`/api/v1/openings/repertoires/${id}`)).json()).toEqual(before);
+  await panel.getByRole("button",{name:"Add this response",exact:true}).click();
+  await expect(panel.getByText("Generated responses · undo",{exact:true})).toBeVisible();
+  await panel.getByText("Generated responses · undo",{exact:true}).click();
+  await panel.getByRole("button",{name:"Undo generated response",exact:true}).click();
+  await expect.poll(async()=>await(await page.request.get(`/api/v1/openings/repertoires/${id}`)).json()).toEqual(before);
+});
+
+test("compares master and practical samples at the same saved position",async({page},testInfo)=>{
+  await page.route("**/api/v1/openings/reviews/active",route=>route.fulfill({json:null}));
+  await page.route("**/api/v1/openings/lessons/active",route=>route.fulfill({json:null}));
+  const name=`Master comparison ${testInfo.project.name}`;
+  const imported=await page.request.post("/api/v1/openings/imports/pgn",{data:{pgn:`[Event "${name}"]\n\n1. e4 e5 *`,name,learnerColor:"white",ownershipConfirmed:true}});
+  const id=(await imported.json()).repertoireIds[0],detail=await(await page.request.get(`/api/v1/openings/repertoires/${id}`)).json();
+  await page.goto(`/#openings?repertoire=${id}&line=${detail.chapters[0].lines[0].id}&ply=0`);
+  await page.getByRole("button",{name:"Edit lines",exact:true}).click();
+  await page.getByText("Compare master-game evidence",{exact:true}).click();
+  const comparison=page.locator(".opening-master-evidence");await expect(comparison).toContainText("Masters: 100 games");await expect(comparison).toContainText("40.0%");
+  await expect(comparison).toContainText(/Rating-band sample unavailable|Lichess 1600 band/);
+  await expect(comparison.getByRole("columnheader",{name:"At your level",exact:true})).toBeVisible();
+  await page.screenshot({path:testInfo.outputPath("master-comparison.png")});
 });

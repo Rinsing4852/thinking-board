@@ -71,6 +71,7 @@ const report = { auditDate: catalog.auditDate, generatedAt: new Date().toISOStri
   currentUnitOnly: { counts: unitOnly.counts, verifiedPercent: unitOnly.verifiedPercent },
   counts: result.counts, verifiedPercent: result.verifiedPercent,
   weightedPoints: { earned: result.earned, possible: result.possible },
+  release: { status: "not_checked", message: "These are local acceptance results. Release checks and container publication must be verified separately in GitHub Actions." },
   measurement: "Verified requirements, not an overall product-quality score or a Chessbook parity percentage.",
   tests: { unit: currentUnit.length, browser: currentBrowser.length,
     failed: currentUnit.concat(currentBrowser).filter(test => test.status === "failed"),
@@ -102,9 +103,11 @@ Repeatable comparison task: ${feature.benchmark.task} Competitor timing and our 
 `).join("\n");
 const md = `# Chessbook feature audit and quality tracker
 
-Audit date: ${catalog.auditDate}. Baseline: \`${catalog.baselineCommit.slice(0, 7)}\`. Evidence status: **${stale ? "STALE — rerun verification" : validationFailed ? "FAILURES — inspect verification" : "CURRENT"}**.
+Audit date: ${catalog.auditDate}. Baseline: \`${catalog.baselineCommit.slice(0, 7)}\`. Local evidence status: **${stale ? "STALE — rerun verification" : validationFailed ? "FAILURES — inspect verification" : "CURRENT"}**.
 
 ${catalog.scope}
+
+Release status: **not established by this local report**. Check GitHub Actions verification and container publication separately; a successful push is not a published update.
 
 This is an independent behavioural specification. Chessbook source code, assets, trained models and private databases were not accessed. Public UI observations and documentation are not proof of hidden implementation or measured learning outcomes.
 
@@ -117,7 +120,7 @@ remain separate from the verified requirement counts below.
 
 ## What the tracker measures
 
-- **${catalog.features.length} feature descriptions**, each with three acceptance criteria and a repeatable comparison task.
+- **${catalog.features.length} feature descriptions**, each with explicit acceptance criteria and a repeatable comparison task.
 - Current inventory: ${Object.entries(stateCounts).map(([state, count]) => `${count} ${state}`).join(", ")}.
 - Acceptance checks: ${Object.entries(result.counts).map(([status, count]) => `${count} ${status}`).join(", ")}.
 - Priority-weighted verified requirement coverage: **${result.verifiedPercent ?? "unknown"}%** (${result.earned}/${result.possible} points). This is a conservative evidence measure, not “${result.verifiedPercent}% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
@@ -161,7 +164,7 @@ fs.writeFileSync(path.join(root, "AUDIT.md"), md);
 const embedded = JSON.stringify({ report, sources: catalog.sources }).replaceAll("<", "\\u003c");
 const html = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Opening feature quality tracker</title>
 <style>body{margin:0;background:#101712;color:#e7efe8;font:16px/1.5 system-ui}main{max-width:1200px;margin:auto;padding:32px 20px}h1{font-size:32px;margin:0}p{max-width:900px;color:#becbc0}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:24px 0}.card,article{background:#1b261e;border:1px solid #374b3c;border-radius:12px;padding:18px}.card strong{display:block;color:#d0ef8b;font-size:30px}label{display:inline-grid;gap:5px;margin:0 12px 15px 0}input,select{font:inherit;background:#1b261e;border:1px solid #647368;border-radius:6px;padding:10px;color:inherit;max-width:100%}article{margin:12px 0}summary{cursor:pointer;font-weight:650;min-height:44px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}.pill{font-size:13px;color:#bdcebd;border:1px solid #526254;border-radius:20px;padding:2px 9px}.passed{color:#c9ef86}.unknown,.flaky{color:#ffd39c}.failed,.unmet{color:#ffad9b}a{color:#c9ef86}li{margin:10px 0}code{overflow-wrap:anywhere}.banner{background:#624133;padding:16px;border-radius:10px}.small{font-size:14px;color:#bfccbf}button{cursor:pointer;font:inherit;padding:10px 16px;border:0;border-radius:6px;background:#c9ef86;color:#102010}*:focus-visible{outline:3px solid #e8bf72;outline-offset:3px}</style>
-<main><h1>Opening feature quality tracker</h1><p>Chessbook audit · ${catalog.auditDate} · Independent specifications and test evidence. Observed capability and proven quality are separate.</p><p><a href="RECONSTRUCTION.md">Behaviour reconstruction, nine task-quality gates and next improvements</a></p><div id="warning"></div><div class="cards" id="totals"></div><p id="summary"></p><p class="small">Weighted requirement coverage rewards verified acceptance checks (P0=5, P1=3, P2=1). Unknown checks and missing features earn no credit. This is not a percentage comparison of product quality with Chessbook. Competitor task timing and user-study ratings are unmeasured.</p>
+<main><h1>Opening feature quality tracker</h1><p>Chessbook audit · ${catalog.auditDate} · Independent specifications and test evidence. Observed capability and proven quality are separate.</p><p><a href="RECONSTRUCTION.md">Behaviour reconstruction, nine task-quality gates and next improvements</a></p><p class="banner">Local acceptance evidence only. Release verification and container publication must be checked separately in GitHub Actions.</p><div id="warning"></div><div class="cards" id="totals"></div><p id="summary"></p><p class="small">Weighted requirement coverage rewards verified acceptance checks (P0=5, P1=3, P2=1). Unknown checks and missing features earn no credit. This is not a percentage comparison of product quality with Chessbook. Competitor task timing and user-study ratings are unmeasured.</p>
 <label>Find a feature<input id="search" type="search" placeholder="Model games, daily goal…"></label><label>Category<select id="category"><option value="">All categories</option></select></label><label>Implementation<select id="state"><option value="">All states</option></select></label><label>Priority<select id="priority"><option value="">All priorities</option><option>P0</option><option>P1</option><option>P2</option></select></label><button id="download">Download evidence JSON</button><p id="count" aria-live="polite"></p><div id="features"></div><p class="small">Edit the feature catalogue in the repository and rerun npm run audit:features:verify to update this snapshot. Code changes invalidate old current-result credit. This page contains no private game data.</p></main>
 <script type="application/json" id="data">${embedded}</script><script>
 const data=JSON.parse(document.getElementById('data').textContent),r=data.report;const $=id=>document.getElementById(id);function text(tag,value,cls){const e=document.createElement(tag);e.textContent=value;if(cls)e.className=cls;return e}

@@ -1,11 +1,12 @@
 import { Chess } from "chess.js";
 import { useEffect, useRef, useState } from "react";
-import type { OpeningStudyDiscoveryResponse, OpeningStudyGame, OpeningStudyResponse, OpeningStudyQuizAction } from "../../../../packages/contracts/src/api";
+import type { OpeningStudyDiscoveryResponse, OpeningStudyGame, OpeningStudyResponse, OpeningStudyQuizAction, OpeningMoveQuality } from "../../../../packages/contracts/src/api";
 import { get, post, remove } from "../api";
 import { ChessBoard } from "./ChessBoard";
 
 type LibraryGame=Pick<OpeningStudyGame,"id"|"white"|"black"|"source">;
 export function OpeningModelGameStudy({repertoireId,lineId,savedPly,onBack}:{repertoireId:string;lineId:string;savedPly:number;onBack:()=>void}) {
+  const [quality,setQuality]=useState<OpeningMoveQuality|null>(null);
   const [data,setData]=useState<OpeningStudyResponse|null>(null);
   const [library,setLibrary]=useState<LibraryGame[]>([]);
   const [busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
@@ -13,6 +14,7 @@ export function OpeningModelGameStudy({repertoireId,lineId,savedPly,onBack}:{rep
   const [removeId,setRemoveId]=useState("");
   const [needsReload,setNeedsReload]=useState(false);
   const [rating,setRating]=useState("");
+  const [gameSource,setGameSource]=useState<"online"|"masters"|"both">("online");
   const [found,setFound]=useState<OpeningStudyDiscoveryResponse|null>(null);
   const [searchError,setSearchError]=useState("");
   const [searching,setSearching]=useState(false);
@@ -65,7 +67,7 @@ export function OpeningModelGameStudy({repertoireId,lineId,savedPly,onBack}:{rep
     void run(async signal=>{
       setSearching(true);
       try {
-        const result=await post<OpeningStudyDiscoveryResponse>(`${endpoint}/discover`,{savedPly,expectedFen:data.fen,rating:Number(rating)},signal);
+        const result=await post<OpeningStudyDiscoveryResponse>(`${endpoint}/discover`,{savedPly,expectedFen:data.fen,rating:Number(rating),source:gameSource},signal);
         if(!signal.aborted) {setFound(result);showChoices();}
       } catch(problem) {
         if(!signal.aborted)setSearchError(problem instanceof Error?problem.message:"Game search failed. Try again.");
@@ -100,6 +102,11 @@ export function OpeningModelGameStudy({repertoireId,lineId,savedPly,onBack}:{rep
     },true);
   };
   const quiz=data?.quiz;
+  useEffect(()=>{setQuality(null);},[quiz?.version]);
+  const checkQuality=()=>{
+    if(!quiz?.feedback)return;
+    void run(async signal=>{const result=await post<OpeningMoveQuality>(`${endpoint}/quality`,{savedPly,version:quiz.version},signal);if(!signal.aborted)setQuality(result);});
+  };
   const replay=data?.replay;
   const current=replay&&replay.currentPly>0?replay.moves[replay.currentPly-1]:null;
   const fen=replay?(current?.fenAfter??replay.initialFen):data?.fen;
@@ -129,7 +136,9 @@ export function OpeningModelGameStudy({repertoireId,lineId,savedPly,onBack}:{rep
             {quiz.feedback&&<div role="status" className="opening-study-note">
               <strong>{quiz.feedback.revealed?"Played move shown":quiz.feedback.matches?"You matched the played move":"A different legal move"}</strong>
               <p>{quiz.feedback.playedSan?`You chose ${quiz.feedback.playedSan}. `:""}The player played {quiz.feedback.historicalSan}.</p>
-              <p>The played move is a historical example. A different legal move may also be good; it has not been engine-graded here.</p>
+              <p>{quality?"The played move is a historical example. The separate engine assessment below does not change your study result.":"The played move is a historical example. A different legal move may also be good; it has not been engine-graded here."}</p>
+              {quiz.feedback.playedSan&&!quiz.feedback.revealed&&<button className="secondary" disabled={busy||needsReload} onClick={checkQuality}>Check my move with Stockfish</button>}
+              {quality&&<p><strong>{quality.verdict==="playable"?"Chess quality: playable":quality.verdict==="weaker"?"Chess quality: weaker move":"Chess quality: unverified"}</strong> · {quality.message} {quality.depth?`Engine depth ${quality.depth}.`:""}</p>}
               {quiz.feedback.comment&&<><strong>Supplied game annotation</strong><p>{quiz.feedback.comment}</p></>}
             </div>}
             <p role="status">{quiz.progress.attempted} first attempts · {quiz.progress.matchedUnaided} matched without help · {quiz.progress.helped} helped. Retries do not add first-attempt credit.</p>
@@ -165,7 +174,8 @@ export function OpeningModelGameStudy({repertoireId,lineId,savedPly,onBack}:{rep
         </div>
         {!quiz&&<div className="panel opening-study-choices" ref={choicesRef} tabIndex={-1} role="region" aria-label="Matching study games">
           <h3>Find a stronger player’s game</h3>
-          <p>We search Lichess rapid and classical games for this saved position. The player on your {data.learnerColor} side must be rated higher than you.</p>
+          <p>Search the selected databases for this saved position. Online examples require a higher-rated player on your {data.learnerColor} side. Master examples come from the over-the-board database; its ratings are not compared with your Lichess rating.</p>
+          <label>Game source<select aria-label="Game source" value={gameSource} disabled={busy||needsReload} onChange={e=>{setGameSource(e.target.value as "online"|"masters"|"both");setFound(null);setSearchError("");}}><option value="online">Stronger Lichess players</option><option value="masters">Over-the-board masters</option><option value="both">Both sources</option></select></label>
           <label className="opening-study-rating">Your Lichess rating<input type="number" min={100} max={4000} step={1} inputMode="numeric" value={rating} disabled={busy||needsReload} onChange={event=>{setRating(event.target.value);setFound(null);setSearchError("");}} /></label>
           <p className="opening-coverage-note">Use your Lichess rapid or classical rating. Ratings from other sites are not directly comparable.</p>
           <button disabled={busy||needsReload||!Number.isInteger(Number(rating))||Number(rating)<100||Number(rating)>4000} onClick={findGames}>{busy?"Working…":"Find games"}</button>
@@ -176,11 +186,11 @@ export function OpeningModelGameStudy({repertoireId,lineId,savedPly,onBack}:{rep
             {found.games.map(game=><article className="opening-study-discovered" key={game.id}>
               <strong>{game.white} – {game.black}</strong>
               <p>White {game.whiteRating??"unknown"} · Black {game.blackRating??"unknown"} · {game.result}</p>
-              <p>{found.learnerColor==="white"?game.white:game.black} played your side at {game.learnerRating} · {game.learnerRating-found.rating} above your {found.rating} rating.</p>
-              <p>{game.reason}</p><p>{game.date??"Date unknown"} · <a href={game.sourceUrl} target="_blank" rel="noreferrer">View original on Lichess</a></p>
+              <p>{game.source==="masters"?`Master-database example · player rating ${game.learnerRating}. Over-the-board ratings are not compared with your Lichess rating.`:`${found.learnerColor==="white"?game.white:game.black} played your side at ${game.learnerRating} · ${game.learnerRating-found.rating} above your ${found.rating} rating.`}</p>
+              <p>{game.reason}</p><p>{game.date??"Date unknown"} · <a href={game.sourceUrl} target="_blank" rel="noreferrer">{game.source==="masters"?"View master-game PGN":"View original on Lichess"}</a></p>
               <button disabled={busy||needsReload||!!quiz} onClick={()=>startExample(game.id)}>Replay from this position</button>
             </article>)}
-            <p className="opening-coverage-note">Up to three verified examples from a limited sample, preferring your move order and then the closest higher rating. A higher rating does not make every played move the best move.</p>
+            <p className="opening-coverage-note">Up to three verified examples from the selected sources, preferring your move order. Online examples use a higher learner-side Lichess rating; master examples use the master database. A higher rating does not make every played move the best move.</p>
           </div>}
           <h3>Saved examples</h3>
           <p>{data.totalMatches} matching {data.totalMatches===1?"game":"games"} in your {data.libraryGames}-game study library. Up to three are shown.</p>

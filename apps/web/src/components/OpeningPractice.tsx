@@ -33,6 +33,7 @@ import { OpeningLineExplorer } from "./OpeningLineExplorer";
 import { OpeningReview } from "./OpeningReview";
 import { OpeningLearningComment } from "./OpeningLearningComment";
 import { OpeningPlayerContext } from "./OpeningPlayerContext";
+import { OpeningLearningMeasures } from "./OpeningLearningMeasures";
 import { OpeningLearningRoutes } from "./OpeningLearningRoutes";
 import { OpeningHomeCockpit } from "./OpeningHomeCockpit";
 import { OpeningSourceUpdate } from "./OpeningSourceUpdate";
@@ -734,10 +735,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onReviewPlayedGame,
           )}
           {(Boolean(activeReview && reviewPaused) || Boolean(step && pausedLessonPhase)) && <div className="panel opening-paused-tools" role="group" aria-label="Repertoire tools">
             <p>Your practice is saved. You can build or import preparation without losing your place.</p>
-            <div className="answer-actions">
-              <button disabled={submitting} onClick={() => { setShowBuilder(true); setShowImporter(false); }}>Build on the board</button>
-              <button className="secondary" disabled={submitting} onClick={() => setShowImporter(shown => !shown)}>{showImporter ? "Close opening import" : "Import opening PGN"}</button>
-            </div>
+
           </div>}
           {playerPreferences && (
             <details ref={settingsRef} className="panel opening-settings" open={settingsOpen} onToggle={event => setSettingsOpen(event.currentTarget.open)}>
@@ -751,6 +749,10 @@ export function OpeningPractice({ refreshToken, onOpenGames, onReviewPlayedGame,
             </details>
           )}
           {archiveMessage && <p className="success opening-catalog-status" role="status">{archiveMessage}</p>}
+          <div className="panel answer-actions" role="group" aria-label="Add opening preparation">
+            <button disabled={submitting} onClick={() => { setShowBuilder(true); setShowImporter(false); }}>Build on the board</button>
+            <button className="secondary" disabled={submitting} onClick={() => setShowImporter(value => !value)}>{showImporter ? "Close importer" : "Import repertoire lines"}</button>
+          </div>
           {showImporter && (
             <OpeningImporter onImported={async () => {
               cancelInsights();
@@ -893,7 +895,6 @@ export function OpeningPractice({ refreshToken, onOpenGames, onReviewPlayedGame,
                 preferences={playerPreferences}
                 libraryEmpty={catalog.length === 0}
                 busy={submitting}
-                importOpen={showImporter}
                 onSettings={() => { setSettingsOpen(true); requestAnimationFrame(() => settingsRef.current?.scrollIntoView({ block: "start" })); }}
                 onStartRecommended={() => void startRecommendedReview()}
                 onLearnFirst={() => void startRecommendedReview(true)}
@@ -903,11 +904,10 @@ export function OpeningPractice({ refreshToken, onOpenGames, onReviewPlayedGame,
                 onAnalyzeGame={onAnalyzeGame}
                 onOpenGap={(gap) => { if (coverageSpotlight) void openWorkspace(coverageSpotlight.repertoireId, null, gap); }}
                 onOpenWeakLine={(repertoireId, lineId) => void openWorkspace(repertoireId, lineId)}
-                onBuild={() => { setShowBuilder(true); setShowImporter(false); }}
-                onImport={() => setShowImporter((shown) => !shown)}
               />
             )}
 
+            <OpeningLearningMeasures/>
           </div>
         </>
       )}

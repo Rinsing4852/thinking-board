@@ -22,6 +22,8 @@ async function fixture(page:Page,label:string) {
 }
 async function move(page:Page,from:string,to:string) {
   const board=page.getByRole("grid",{name:"Game replay board",exact:true});
+  // A question can render before the preceding save unlocks board input.
+  await expect(board).toHaveClass(/\binteractive\b/);
   await board.getByRole("gridcell",{name:new RegExp(`^${from} `)}).press("Enter");
   await board.getByRole("gridcell",{name:new RegExp(`^${to} `)}).press("Enter");
 }

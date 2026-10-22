@@ -21,6 +21,11 @@ process.env.STOCKFISH_BINARY = path.resolve("tests/fake-stockfish.mjs");
 const originalFetch=globalThis.fetch;
 globalThis.fetch=async(input,options)=>{
   const url=new URL(String(input));
+  if(url.hostname==="explorer.lichess.org"&&url.pathname==="/masters") {
+    if(url.searchParams.get("topGames")==="4")return Response.json({topGames:[{id:"master01"}]});
+    return Response.json({white:50,draws:30,black:20,moves:[{uci:"e2e4",san:"e4",white:20,draws:10,black:10}]});
+  }
+  if(url.hostname==="explorer.lichess.org"&&url.pathname==="/masters/pgn/master01")return new Response('[Event "Master fixture"]\n[White "Master White"]\n[Black "Master Black"]\n[WhiteElo "2400"]\n[BlackElo "2380"]\n[Result "1/2-1/2"]\n\n1. d4 d5 2. Nf3 Nf6 3. c4 e6 4. Nc3 Be7 5. Bg5 O-O 1/2-1/2');
   if(url.hostname==="explorer.lichess.org"&&url.pathname==="/lichess"&&url.searchParams.get("topGames")==="4") {
     return new Response(JSON.stringify({topGames:[{id:"study001"},{id:"study002"},{id:"weak0001"}],recentGames:[]}),{headers:{"Content-Type":"application/json"}});
   }

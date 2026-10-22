@@ -1,0 +1,15 @@
+{
+  "measuredAt": "2026-10-22T19:06:28.268Z",
+  "sourceFingerprint": "8ca7872c8f2ac939aa7c921a5f292a3ec0883b480dd0ae4ed30f15696c176f85",
+  "environment": "Linux Playwright v1.62.1-noble, CI=1, Chromium desktop and WebKit iPhone 13",
+  "stats": {
+    "startTime": "2026-10-22T18:59:34.969Z",
+    "duration": 391121.244,
+    "expected": 180,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "errors": [],
+  "rawReportSha256": "0e19300376963cad8a2ad9a8f7ca95427bdb5aa8ee99b56b044f16ca2ff29860"
+}

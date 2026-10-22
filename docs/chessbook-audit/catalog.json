@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "auditDate": "2026-10-17",
   "baselineCommit": "25d5efe79f89977d8df7faa48df839230f338b71",
-  "scope": "57-feature public inventory originally observed 14 October; core build, practice, coverage, autofill setup and model-game observations refreshed 17 October. Account/paid/destructive workflows and matched human outcomes remain unverified.",
+  "scope": "58-feature public inventory originally observed 14 October; core build, practice, coverage, autofill setup and model-game observations refreshed 17 October. Account/paid/destructive workflows and matched human outcomes remain unverified. Opening-specific puzzles are deferred at the user\u2019s request.",
   "sources": [
     {
       "id": "UI",
@@ -1281,7 +1281,7 @@
       "category": "Analysis",
       "priority": "P1",
       "baselineState": "absent",
-      "currentState": "absent",
+      "currentState": "partial",
       "sourceIds": [
         "UI"
       ],
@@ -1291,26 +1291,49 @@
         {
           "id": "CB22.1",
           "requirement": "Master and rating-band samples use distinct schemas and cache keys.",
-          "evidence": []
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "keeps master counts and caches separate from practical data and returns honest empty samples"
+            }
+          ]
         },
         {
           "id": "CB22.2",
           "requirement": "Compare the same position in the master and practical databases.",
-          "evidence": []
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "compares master and practical samples at the same saved position",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
         },
         {
           "id": "CB22.3",
           "requirement": "Empty samples display unknown rather than 0% popularity.",
-          "evidence": []
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "keeps master counts and caches separate from practical data and returns honest empty samples"
+            }
+          ]
         }
       ],
-      "implementationPaths": [],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-master-service.ts",
+        "apps/web/src/components/OpeningMasterEvidence.tsx"
+      ],
       "benchmark": {
         "task": "Compare the same position in the master and practical databases.",
         "chessbookMeasuredResult": null,
         "ourMeasuredLatencyMs": null,
         "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
-      }
+      },
+      "limits": "Optional master comparison at the saved builder position; no claim of exhaustive samples or engine-best moves."
     },
     {
       "id": "CB23",
@@ -1498,7 +1521,7 @@
       "category": "Build",
       "priority": "P1",
       "baselineState": "absent",
-      "currentState": "absent",
+      "currentState": "partial",
       "sourceIds": [
         "AUTOFILL"
       ],
@@ -1508,7 +1531,12 @@
         {
           "id": "CB27.1",
           "requirement": "Existing authored moves and notes are never replaced.",
-          "evidence": []
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "creates and removes a gap branch while preserving authored lines and notes"
+            }
+          ]
         },
         {
           "id": "CB27.2",
@@ -1521,13 +1549,18 @@
           "evidence": []
         }
       ],
-      "implementationPaths": [],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-gap-draft-service.ts",
+        "apps/web/src/components/OpeningGapDraft.tsx",
+        "migrations/041_opening_sources_and_drafts.sql"
+      ],
       "benchmark": {
         "task": "Preview a single gap and a bounded full build before saving.",
         "chessbookMeasuredResult": null,
         "ourMeasuredLatencyMs": null,
         "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
-      }
+      },
+      "limits": "One missing learner response per preview, optionally preceded by an explicitly selected opponent reply. Whole-repertoire generation remains unimplemented. Undo conservatively rejects any later change to the repertoire snapshot."
     },
     {
       "id": "CB28",
@@ -1572,7 +1605,7 @@
       "category": "Build",
       "priority": "P1",
       "baselineState": "absent",
-      "currentState": "absent",
+      "currentState": "partial",
       "sourceIds": [
         "AUTOFILL"
       ],
@@ -1582,26 +1615,58 @@
         {
           "id": "CB29.1",
           "requirement": "Batch provenance distinguishes generated from authored content.",
-          "evidence": []
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "previews without writes to preparation, applies once and undoes only its new moves for either colour"
+            }
+          ]
         },
         {
           "id": "CB29.2",
           "requirement": "Undo a draft batch and confirm authored branches remain.",
-          "evidence": []
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "previews without writes to preparation, applies once and undoes only its new moves for either colour"
+            },
+            {
+              "kind": "browser",
+              "title": "previews one missing response and safely undoes generated preparation",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
         },
         {
           "id": "CB29.3",
           "requirement": "User-edited generated nodes are protected or explicitly reviewed before removal.",
-          "evidence": []
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "rejects existing replies, weak evidence, changed previews and later edits without losing preparation"
+            },
+            {
+              "kind": "unit",
+              "title": "protects another player's notes before undoing shared generated content"
+            }
+          ]
         }
       ],
-      "implementationPaths": [],
+      "implementationPaths": [
+        "apps/server/src/openings/opening-gap-draft-service.ts",
+        "apps/web/src/components/OpeningGapDraft.tsx",
+        "migrations/041_opening_sources_and_drafts.sql"
+      ],
       "benchmark": {
         "task": "Undo a draft batch and confirm authored branches remain.",
         "chessbookMeasuredResult": null,
         "ourMeasuredLatencyMs": null,
         "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
-      }
+      },
+      "limits": "One missing learner response per preview, optionally preceded by an explicitly selected opponent reply. Whole-repertoire generation remains unimplemented. Undo conservatively rejects any later change to the repertoire snapshot."
     },
     {
       "id": "CB30",
@@ -2453,7 +2518,7 @@
         "ourMeasuredLatencyMs": null,
         "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
       },
-      "limits": "Automatic Lichess rapid/classical sample search using an explicit Lichess rating; verifies exact positions, legal finished games and the higher learner-side rating. Up to eight provider references checked and three offered. Requires a server Lichess token. Manual PGN import remains available. Historical-move guessing includes hidden answers, piece hints, resume, first attempts, and repeat study without extra recall credit. No exhaustive search, grading of alternative guesses, generated plans, complete study-history UI or measured learning benefit."
+      "limits": "Bounded online/master discovery and optional quality assessment only after a persisted guess. Historical match and engine quality remain separate; supplied annotations are attributed. No generated strategic plans, complete study-history UI or measured learning benefit."
     },
     {
       "id": "CB41",
@@ -2471,12 +2536,38 @@
         {
           "id": "CB41.1",
           "requirement": "Source filters alter available candidates consistently.",
-          "evidence": []
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "selects master and combined pools without comparing master ratings to Lichess or losing saved study"
+            },
+            {
+              "kind": "browser",
+              "title": "switches online and master sources without losing saved study and checks a guess separately",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
         },
         {
           "id": "CB41.2",
           "requirement": "Switch sources while preserving a saved study session.",
-          "evidence": []
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "selects master and combined pools without comparing master ratings to Lichess or losing saved study"
+            },
+            {
+              "kind": "browser",
+              "title": "switches online and master sources without losing saved study and checks a guess separately",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
         },
         {
           "id": "CB41.3",
@@ -2494,7 +2585,8 @@
         }
       ],
       "implementationPaths": [
-        "apps/server/src/openings/opening-study-discovery.ts"
+        "apps/server/src/openings/opening-study-discovery.ts",
+        "apps/web/src/components/OpeningModelGameStudy.tsx"
       ],
       "benchmark": {
         "task": "Switch sources while preserving a saved study session.",
@@ -2502,7 +2594,7 @@
         "ourMeasuredLatencyMs": null,
         "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
       },
-      "limits": "One online source: authenticated Lichess rapid/classical samples. No master-game adapter or source switching. Rating comparisons are Lichess-only; sampled matches are not an exhaustive database search."
+      "limits": "Online, master and combined bounded discovery; no direct comparison of over-the-board ratings with Lichess ratings. Saved study remains independent of candidate filters."
     },
     {
       "id": "CB42",
@@ -2983,6 +3075,14 @@
                 "chromium",
                 "webkit"
               ]
+            },
+            {
+              "kind": "browser",
+              "title": "keeps import and learn-first actions fixed when late progress arrives",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
             }
           ]
         }
@@ -3331,6 +3431,44 @@
         "chessbookMeasuredResult": null,
         "ourMeasuredLatencyMs": null,
         "target": "Legal, correctly ranked, labelled guidance only while building; no recall spoilers."
+      }
+    },
+    {
+      "id": "CB58",
+      "name": "Opening-specific external puzzle practice (deferred)",
+      "category": "Study",
+      "priority": "P2",
+      "baselineState": "absent",
+      "currentState": "absent",
+      "sourceIds": [
+        "EXTENSION"
+      ],
+      "chessbookObservation": "User-requested future extension; no corresponding Chessbook puzzle feature is asserted.",
+      "desiredBehavior": "Future consideration only: select rated Lichess puzzles by saved opening positions or verified source-game ancestry, learner colour and suitable difficulty; prioritize common responses without confusing puzzle popularity with move frequency.",
+      "acceptanceChecks": [
+        {
+          "id": "CB58.1",
+          "requirement": "Verify repertoire relevance, colour, transpositions and provenance for every offered puzzle.",
+          "evidence": []
+        },
+        {
+          "id": "CB58.2",
+          "requirement": "Accept verified legal solutions and distinguish tactical progress from saved-repertoire recall.",
+          "evidence": []
+        },
+        {
+          "id": "CB58.3",
+          "requirement": "Measure relevant sample coverage, difficulty, loading, empty states and delayed repeat success before expansion.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [],
+      "limits": "Deferred: do not implement an importer, download a corpus, or add a puzzle screen in this increment. See LICHESS_EVALUATION_DATASET.md.",
+      "benchmark": {
+        "task": "Find and solve a relevant Ruy Lopez or Modern puzzle for the selected side.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Future evaluation; not part of current delivery."
       }
     }
   ]

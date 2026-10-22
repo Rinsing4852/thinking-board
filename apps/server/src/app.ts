@@ -31,6 +31,9 @@ import { OpeningTrainingService } from "./openings/opening-training-service.js";
 import { OpeningWorkspaceService } from "./openings/opening-workspace-service.js";
 import { OpeningCoverageService } from "./openings/opening-coverage-service.js";
 import { OpeningAnalysisService } from "./openings/opening-analysis-service.js";
+import { OpeningGapDraftService } from "./openings/opening-gap-draft-service.js";
+import { registerOpeningGapDraftRoutes } from "./openings/opening-gap-draft-routes.js";
+import { OpeningMasterService } from "./openings/opening-master-service.js";
 import { OpeningExplorerService } from "./openings/opening-explorer-service.js";
 import { OpeningActivityService } from "./openings/opening-activity-service.js";
 import { OpeningPreferencesService } from "./openings/opening-preferences-service.js";
@@ -86,7 +89,6 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   const attempts = new AttemptLifecycle(database.connection);
   const openingContent = new OpeningContentService(database.connection);
   const openingStudy=new OpeningStudyService(database.connection);
-  registerOpeningStudyRoutes(app, openingStudy, new OpeningStudyDiscoveryService(database.connection,openingStudy,config.lichessApiToken));
   const openingImports = new OpeningPgnImportService(database.connection, openingContent);
   const openingLichessImports = new OpeningLichessImportService(openingImports, config.lichessApiToken);
   registerOpeningUpdateRoutes(app, new OpeningUpdateService(database.connection, openingLichessImports));
@@ -94,6 +96,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   const openingReviews = new OpeningReviewService(database.connection);
   const openingWorkspace = new OpeningWorkspaceService(database.connection);
   const openingAnalysis = new OpeningAnalysisService(config, database.connection);
+  registerOpeningStudyRoutes(app, openingStudy, new OpeningStudyDiscoveryService(database.connection,openingStudy,config.lichessApiToken),openingAnalysis);
   const openingExplorer = new OpeningExplorerService(database.connection, config.lichessApiToken);
   const openingPreferences = new OpeningPreferencesService(database.connection, Boolean(config.lichessApiToken));
   registerOpeningPracticeSelectionRoutes(app, new OpeningPracticeSelectionService(database.connection,
@@ -434,6 +437,13 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not analyse opening position" });
     }
+  });
+
+  registerOpeningGapDraftRoutes(app,new OpeningGapDraftService(database.connection,openingAnalysis));
+  const masterEvidence = new OpeningMasterService(database.connection, config.lichessApiToken);
+  app.get("/api/v1/openings/masters", async (request, reply) => {
+    try { return await masterEvidence.position(requiredString((request.query as {fen?:string}).fen,"Position")); }
+    catch(error) { return reply.code(400).send({error:error instanceof Error?error.message:"Master data unavailable"}); }
   });
 
   app.get("/api/v1/openings/explorer", async (request, reply) => {

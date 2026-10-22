@@ -1,5 +1,9 @@
 # Safari layout and real-engine reliability pass — 22 October 2026
 
+Later implementation and verification are recorded in the
+[next four delivery](./NEXT_FOUR_DELIVERY.md). The results and publication
+follow-up below retain the history of the preceding increment.
+
 Publication follow-up: the [subsequent app review](./APP_REVIEW_2026_10_22.md)
 records three failed and one flaky Linux WebKit release checks. The local results
 below do not establish release readiness; publication is blocked pending that work.

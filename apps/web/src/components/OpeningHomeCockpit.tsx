@@ -17,7 +17,6 @@ interface OpeningHomeCockpitProps {
   preferences: OpeningPlayerPreferences | null;
   libraryEmpty: boolean;
   busy: boolean;
-  importOpen: boolean;
   onStartRecommended: () => void;
   onLearnFirst?: () => void;
   learnableResponses?: number;
@@ -26,8 +25,6 @@ interface OpeningHomeCockpitProps {
   onAnalyzeGame: (() => void) | undefined;
   onOpenGap: (gap: OpeningCoverageGap) => void;
   onOpenWeakLine: (repertoireId: string, lineId: string) => void;
-  onBuild: () => void;
-  onImport: () => void;
   onSettings: () => void;
 }
 
@@ -45,7 +42,6 @@ export function OpeningHomeCockpit({
   preferences,
   libraryEmpty,
   busy,
-  importOpen,
   onStartRecommended,
   onLearnFirst, learnableResponses=0,
   onStartRun,
@@ -53,8 +49,6 @@ export function OpeningHomeCockpit({
   onAnalyzeGame,
   onOpenGap,
   onOpenWeakLine,
-  onBuild,
-  onImport,
   onSettings,
 }: OpeningHomeCockpitProps) {
   const gap = coverage ? firstPreparationTask(coverage.gaps) : null;
@@ -116,18 +110,8 @@ export function OpeningHomeCockpit({
             </div>
             <small>A streak means completing practice on consecutive days. Corrected or hinted answers count as practice, but not unaided recall.</small>
           </section>}
-          {progress && progress.totalLines > 0 && (
-            <div className="opening-home-progress" aria-label={`${progress.masteredLines} of ${progress.totalLines} opening lines secure for now`}>
-              <span><i style={{ width: `${masteredPercent}%` }} /></span>
-              <small><strong>{progress.masteredLines} of {progress.totalLines}</strong> lines secure for now</small>
-            </div>
-          )}
         </div>
 
-        {coverage?.personal?.replyOccurrences ? <p className="opening-home-coverage-summary">
-          <strong>Your games: {coverage.personal.preparedPercent}% of observed replies prepared</strong> · {coverage.personal.preparedReplyOccurrences}/{coverage.personal.replyOccurrences} replies at saved positions.
-          <br />Lichess {coverage.ratingGroup} band: {preferences?.useExplorer ? `${coverage.evidence?.freshPositions ?? 0} fresh position samples` : "frequency data is off"}.
-        </p> : null}
         <h3>Recommended next steps</h3>
         <p>Practise saved responses, prepare replies from your games, or use Lichess samples at your level.</p>
         {recommendationLoading ? <div className="opening-home-primary" role="status">
@@ -164,14 +148,21 @@ export function OpeningHomeCockpit({
               <span className="eyebrow">Ready when you are</span>
               <h3>{libraryEmpty ? "Your opening library is empty" : activity?.goalReached ? "Your daily practice is complete" : "No scheduled positions right now"}</h3>
               <p>{libraryEmpty ? "Build moves on the board, paste opening lines as PGN, or bring in your Lichess Study. Then practise the moves and their ideas." : activity?.goalReached ? "Come back tomorrow, or open a repertoire to practise extra moves or a complete line." : recommendation?.message ?? "Practice suggestions could not be loaded yet. Retry the summary or open a saved line to practise it directly."}</p>
-              {libraryEmpty && <div className="answer-actions">
-                <button onClick={onImport}>{importOpen ? "Close importer" : "Import repertoire lines"}</button>
-                <button className="secondary" onClick={onBuild}>Build on the board</button>
-              </div>}
+
             </div>
           </div>
         )}
 
+          {progress && progress.totalLines > 0 && (
+            <div className="opening-home-progress" aria-label={`${progress.masteredLines} of ${progress.totalLines} opening lines secure for now`}>
+              <span><i style={{ width: `${masteredPercent}%` }} /></span>
+              <small><strong>{progress.masteredLines} of {progress.totalLines}</strong> lines secure for now</small>
+            </div>
+          )}
+        {coverage?.personal?.replyOccurrences ? <p className="opening-home-coverage-summary">
+          <strong>Your games: {coverage.personal.preparedPercent}% of observed replies prepared</strong> · {coverage.personal.preparedReplyOccurrences}/{coverage.personal.replyOccurrences} replies at saved positions.
+          <br />Lichess {coverage.ratingGroup} band: {preferences?.useExplorer ? `${coverage.evidence?.freshPositions ?? 0} fresh position samples` : "frequency data is off"}.
+        </p> : null}
         <div className="opening-home-actions">
           {onAnalyzeGame && (
             <button className="opening-home-action primary-route" onClick={onAnalyzeGame}>
@@ -206,13 +197,7 @@ export function OpeningHomeCockpit({
           <p>{preferences.explorerAvailable ? "Enable practical frequencies and choose your Lichess rating band in Opening settings." : "Your games still provide preparation recommendations. Add a Lichess API token to the server to also rank common replies at your level."}</p>
           <button className="secondary" onClick={onSettings}>Open recommendation settings</button>
         </div>}
-        {!libraryEmpty && <div className="opening-home-create">
-          <span>Build or import repertoire</span>
-          <div>
-            <button className="secondary" onClick={onBuild}>Build on the board</button>
-            <button className="text-button" onClick={onImport}>{importOpen ? "Close importer" : "Import repertoire lines"}</button>
-          </div>
-        </div>}
+
       </section>
     </div>
   );

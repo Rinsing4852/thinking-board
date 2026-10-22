@@ -1,6 +1,10 @@
 # Opening feature audit
 
-Release caveat: the [22 October app review](./APP_REVIEW_2026_10_22.md) records
+The [next four delivery](./NEXT_FOUR_DELIVERY.md) adds master sources, bounded gap
+previews/undo, separate study quality feedback and visible delayed-recall measures.
+Opening puzzles remain deferred as CB58.
+
+Release history caveat: the [22 October app review](./APP_REVIEW_2026_10_22.md) records
 failed Linux WebKit release checks after the successful local reliability run.
 The generated tracker below reflects local evidence and is not a release verdict.
 

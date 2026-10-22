@@ -581,3 +581,17 @@ position or a check against your live database.
 The [Lichess evaluation dataset proposal](docs/chessbook-audit/LICHESS_EVALUATION_DATASET.md)
 describes a possible small external evaluation cache. It is not enabled in the
 app; practical frequencies and model-game discovery remain separate sources.
+
+### Latest opening-study improvements
+
+In **Edit lines**, expand **Compare master-game evidence** for separately labelled
+master and rating-band samples. **Preview suggested response** prepares one
+missing response; applying it is explicit and generated batches have protected
+undo. Whole-repertoire autofill is not included.
+
+Model-game study now offers online, master or combined search sources. After a
+guess, **Check my move with Stockfish** provides optional chess-quality feedback
+separate from matching the historical move. On the repertoire home, expand
+**What am I remembering over time?** for delayed recall and played-game measures.
+Opening-specific puzzles remain deferred in the REA inventory (CB58). See
+[delivery details and limits](docs/chessbook-audit/NEXT_FOUR_DELIVERY.md).

@@ -1,8 +1,10 @@
+import { Chess } from "chess.js";
+import type { OpeningAnalysisService } from "./opening-analysis-service.js";
 import type { FastifyInstance } from "fastify";
 import type { OpeningStudyDiscoveryService } from "./opening-study-discovery.js";
 import type { OpeningStudyService } from "./opening-study-service.js";
 
-export function registerOpeningStudyRoutes(app:FastifyInstance,study:OpeningStudyService,discovery:OpeningStudyDiscoveryService) {
+export function registerOpeningStudyRoutes(app:FastifyInstance,study:OpeningStudyService,discovery:OpeningStudyDiscoveryService,analysis:OpeningAnalysisService) {
   const handle=async(action:()=>unknown,reply:{code:(code:number)=>{send:(body:unknown)=>unknown}})=>{
     try {return await action();} catch(error) {return reply.code(400).send({error:error instanceof Error?error.message:"Could not load study games."});}
   };
@@ -29,16 +31,29 @@ export function registerOpeningStudyRoutes(app:FastifyInstance,study:OpeningStud
       const {repertoireId,lineId}=request.params as {repertoireId:string;lineId:string};
       return study.quiz(repertoireId,lineId,request.body as import("../../../../packages/contracts/src/api.js").OpeningStudyQuizAction);
     },reply));
+  app.post(`${base}/quality`,{schema:{body:{type:"object",additionalProperties:false,required:["savedPly","version"],properties:{savedPly:{type:"integer",minimum:0,maximum:10000},version:{type:"integer",minimum:0}}}}},async(request,reply)=>handle(async()=>{
+    const {repertoireId,lineId}=request.params as {repertoireId:string;lineId:string};
+    const {savedPly,version}=request.body as {savedPly:number;version:number};
+    const target=()=>{
+      const state=study.list(repertoireId,lineId,savedPly),quiz=state.quiz;
+      if(!quiz||quiz.version!==version||!quiz.feedback?.playedSan||quiz.feedback.revealed)throw new Error("Answer this position before checking its chess quality. Reload if study has changed.");
+      const move=new Chess(quiz.fen).move(quiz.feedback.playedSan);
+      return {fen:quiz.fen,uci:`${move.from}${move.to}${move.promotion??""}`,gameId:quiz.game.id};
+    };
+    const before=target(),result=await analysis.assessMove(before.fen,before.uci);
+    if(JSON.stringify(target())!==JSON.stringify(before))throw new Error("Study changed while analysing. Check the current position again.");
+    return {...result,message:result.verdict==="playable"?"The engine regards your move as playable within its assessment tolerance. Matching the historical move and chess quality are different results.":result.verdict==="weaker"?"The engine finds a stronger continuation here. This does not change your historical-move match result or repertoire recall.":"There is not enough reliable engine evidence to judge your move. No mistake is inferred from a different historical choice."};
+  },reply));
   const targetSchema={savedPly:{type:"integer",minimum:0,maximum:10000},expectedFen:{type:"string",minLength:1,maxLength:200}};
   for(const start of [false,true]) {
     const properties=start?{...targetSchema,exampleId:{type:"string",minLength:1,maxLength:100}}
-      :{...targetSchema,rating:{type:"integer",minimum:100,maximum:4000}};
+      :{...targetSchema,rating:{type:"integer",minimum:100,maximum:4000},source:{type:"string",enum:["online","masters","both"]}};
     app.post(`${base}/${start?"discover/start":"discover"}`,{schema:{body:{type:"object",additionalProperties:false,
       required:["savedPly","expectedFen",start?"exampleId":"rating"],properties}}},async(request,reply)=>handle(()=>{
       const {repertoireId,lineId}=request.params as {repertoireId:string;lineId:string};
-      const body=request.body as {savedPly:number;expectedFen:string;rating:number;exampleId:string};
+      const body=request.body as {savedPly:number;expectedFen:string;rating:number;source?:import("../../../../packages/contracts/src/api.js").OpeningStudySource;exampleId:string};
       const target={repertoireId,lineId,savedPly:body.savedPly,expectedFen:body.expectedFen};
-      return start?discovery.start(target,body.exampleId):discovery.discover(target,body.rating);
+      return start?discovery.start(target,body.exampleId):discovery.discover(target,body.rating,body.source);
     },reply));
   }
   app.get("/api/v1/openings/study-games",async()=>study.library());

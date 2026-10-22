@@ -1041,11 +1041,13 @@ export interface OpeningRepertoireGoal {
 
 /** Verified Lichess examples from a bounded provider sample, not an exhaustive search. */
 export interface OpeningStudyDiscoveryGame {
+  source?:"online"|"masters";
   id: string; sourceUrl: string; white: string; black: string;
   whiteRating: number | null; blackRating: number | null; learnerRating: number;
   date: string | null; result: string; transposition: boolean; reason: string;
 }
 export interface OpeningStudyDiscoveryResponse {
+  source?:OpeningStudySource;
   games: OpeningStudyDiscoveryGame[]; rating: number; learnerColor: Color;
   message: string; partial: boolean;
 }
@@ -1082,4 +1084,15 @@ export interface OpeningStudyQuizAction {
   savedPly: number; gameId: string; expectedFen: string; version: number;
   action: "start" | "hint" | "answer" | "reveal" | "continue" | "retry" | "restart" | "exit";
   moveUci?: string;
+}
+
+export type OpeningStudySource = "online" | "masters" | "both";
+export interface OpeningMasterPosition {
+  source:"masters"; fen:string; totalGames:number; fetchedAt:string; cached:boolean;
+  replies:Array<Omit<OpeningExplorerReply,"frequencyPercent"> & {frequencyPercent:number|null}>;
+}
+export interface OpeningGeneratedDraft {
+  id:string; state:"preview"|"applied"|"undone"; moves:Array<{uci:string;san:string}>;
+  source:string; message:string;
+  detail?:OpeningRepertoireDetailResponse; lineId?:string;
 }

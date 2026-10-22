@@ -1,8 +1,10 @@
 # Chessbook feature audit and quality tracker
 
-Audit date: 2026-10-17. Baseline: `25d5efe`. Evidence status: **CURRENT**.
+Audit date: 2026-10-17. Baseline: `25d5efe`. Local evidence status: **CURRENT**.
 
-57-feature public inventory originally observed 14 October; core build, practice, coverage, autofill setup and model-game observations refreshed 17 October. Account/paid/destructive workflows and matched human outcomes remain unverified.
+58-feature public inventory originally observed 14 October; core build, practice, coverage, autofill setup and model-game observations refreshed 17 October. Account/paid/destructive workflows and matched human outcomes remain unverified. Opening-specific puzzles are deferred at the user’s request.
+
+Release status: **not established by this local report**. Check GitHub Actions verification and container publication separately; a successful push is not a published update.
 
 This is an independent behavioural specification. Chessbook source code, assets, trained models and private databases were not accessed. Public UI observations and documentation are not proof of hidden implementation or measured learning outcomes.
 
@@ -15,18 +17,21 @@ remain separate from the verified requirement counts below.
 
 ## What the tracker measures
 
-- **57 feature descriptions**, each with three acceptance criteria and a repeatable comparison task.
-- Current inventory: 22 existing, 11 partial, 12 absent, 5 implemented, 1 improved, 5 enhanced, 1 not_targeted.
-- Acceptance checks: 100 passed, 0 failed, 0 flaky, 40 unknown, 36 unmet, 3 excluded.
-- Priority-weighted verified requirement coverage: **67.1%** (448/668 points). This is a conservative evidence measure, not “67.1% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
-- Like-for-like unit-evidence baseline: 25.4% → 37.3%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
-- Current validation records: 333 unit/integration tests and 170 browser journeys; 0 failures, 0 flaky results, 0 skipped.
+- **58 feature descriptions**, each with explicit acceptance criteria and a repeatable comparison task.
+- Current inventory: 22 existing, 14 partial, 10 absent, 5 implemented, 1 improved, 5 enhanced, 1 not_targeted.
+- Acceptance checks: 109 passed, 0 failed, 0 flaky, 40 unknown, 30 unmet, 3 excluded.
+- Priority-weighted verified requirement coverage: **70.2%** (471/671 points). This is a conservative evidence measure, not “70.2% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
+- Like-for-like unit-evidence baseline: 25.3% → 39.3%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
+- Current validation records: 343 unit/integration tests and 180 browser journeys; 0 failures, 0 flaky results, 0 skipped.
 
 ## Implemented from this audit
 
 - CB17 Time-control selection for samples: absent → implemented.
 - CB18 Encounter-based coverage goal: partial → improved.
 - CB20 Find the biggest useful gap: existing → enhanced.
+- CB22 Master-game move statistics: absent → partial.
+- CB27 Autofill repertoire gaps: absent → partial.
+- CB29 Undo generated repertoire moves: absent → partial.
 - CB30 FSRS spaced repetition: existing → enhanced.
 - CB33 Sound alternatives versus recall errors: partial → enhanced.
 - CB34 Hints and first exposure: existing → enhanced.
@@ -50,11 +55,8 @@ To update: edit `catalog.json`, map exact tests to individual criteria, and run 
 
 ## Largest remaining gaps
 
-- CB22 Master-game move statistics (P1).
 - CB24 Repertoire effectiveness assessment (P1).
 - CB25 Repertoire soundness assessment (P1).
-- CB27 Autofill repertoire gaps (P1).
-- CB29 Undo generated repertoire moves (P1).
 - CB43 Chess.com game connection (P1).
 - CB44 Played games contribute recall evidence (P1).
 
@@ -446,7 +448,7 @@ Repeatable comparison task: Use the analysis board without writing unsaved varia
 
 ## CB22 — Master-game move statistics
 
-**Analysis · P1 · absent**
+**Analysis · P1 · partial**
 
 Chessbook evidence: Build table includes Masters alongside Eval and Peer results. [Chessbook guest app — direct UI audit](https://chessbook.com/)
 
@@ -454,11 +456,11 @@ Our feature description: Offer master-database popularity and results beside pra
 
 Acceptance criteria:
 
-- **unmet** — Master and rating-band samples use distinct schemas and cache keys.
-- **unmet** — Compare the same position in the master and practical databases.
-- **unmet** — Empty samples display unknown rather than 0% popularity.
+- **passed** — Master and rating-band samples use distinct schemas and cache keys. Evidence: unit: keeps master counts and caches separate from practical data and returns honest empty samples.
+- **passed** — Compare the same position in the master and practical databases. Evidence: browser/chromium: compares master and practical samples at the same saved position; browser/webkit: compares master and practical samples at the same saved position.
+- **passed** — Empty samples display unknown rather than 0% popularity. Evidence: unit: keeps master counts and caches separate from practical data and returns honest empty samples.
 
-Implementation: No implementation identified.
+Implementation: `apps/server/src/openings/opening-master-service.ts`, `apps/web/src/components/OpeningMasterEvidence.tsx`
 
 Repeatable comparison task: Compare the same position in the master and practical databases. Competitor timing and our user-task timing remain unmeasured.
 
@@ -536,7 +538,7 @@ Repeatable comparison task: Compare tested-move evidence with complete-line reca
 
 ## CB27 — Autofill repertoire gaps
 
-**Build · P1 · absent**
+**Build · P1 · partial**
 
 Chessbook evidence: Official docs describe drafting then whole-repertoire refinement; live control was not executed. [Chessbook autofill documentation](https://wiki.chessbook.com/autofill)
 
@@ -544,11 +546,11 @@ Our feature description: Generate a bounded, reviewable draft around user-author
 
 Acceptance criteria:
 
-- **unmet** — Existing authored moves and notes are never replaced.
-- **unmet** — Preview a single gap and a bounded full build before saving.
-- **unmet** — Same inputs and source snapshots give reproducible output; cancellation and failed data leave saved content intact.
+- **passed** — Existing authored moves and notes are never replaced. Evidence: unit: creates and removes a gap branch while preserving authored lines and notes.
+- **unknown** — Preview a single gap and a bounded full build before saving.
+- **unknown** — Same inputs and source snapshots give reproducible output; cancellation and failed data leave saved content intact.
 
-Implementation: No implementation identified.
+Implementation: `apps/server/src/openings/opening-gap-draft-service.ts`, `apps/web/src/components/OpeningGapDraft.tsx`, `migrations/041_opening_sources_and_drafts.sql`
 
 Repeatable comparison task: Preview a single gap and a bounded full build before saving. Competitor timing and our user-task timing remain unmeasured.
 
@@ -572,7 +574,7 @@ Repeatable comparison task: Compare two proposed styles without editing the save
 
 ## CB29 — Undo generated repertoire moves
 
-**Build · P1 · absent**
+**Build · P1 · partial**
 
 Chessbook evidence: Settings includes Remove autofilled moves; docs promise authored moves remain. [Chessbook autofill documentation](https://wiki.chessbook.com/autofill)
 
@@ -580,11 +582,11 @@ Our feature description: Record generated batches separately and let the user un
 
 Acceptance criteria:
 
-- **unmet** — Batch provenance distinguishes generated from authored content.
-- **unmet** — Undo a draft batch and confirm authored branches remain.
-- **unmet** — User-edited generated nodes are protected or explicitly reviewed before removal.
+- **passed** — Batch provenance distinguishes generated from authored content. Evidence: unit: previews without writes to preparation, applies once and undoes only its new moves for either colour.
+- **passed** — Undo a draft batch and confirm authored branches remain. Evidence: unit: previews without writes to preparation, applies once and undoes only its new moves for either colour; browser/chromium: previews one missing response and safely undoes generated preparation; browser/webkit: previews one missing response and safely undoes generated preparation.
+- **passed** — User-edited generated nodes are protected or explicitly reviewed before removal. Evidence: unit: rejects existing replies, weak evidence, changed previews and later edits without losing preparation; unit: protects another player's notes before undoing shared generated content.
 
-Implementation: No implementation identified.
+Implementation: `apps/server/src/openings/opening-gap-draft-service.ts`, `apps/web/src/components/OpeningGapDraft.tsx`, `migrations/041_opening_sources_and_drafts.sql`
 
 Repeatable comparison task: Undo a draft batch and confirm authored branches remain. Competitor timing and our user-task timing remain unmeasured.
 
@@ -800,11 +802,11 @@ Our feature description: Let users filter model-game source and display selectio
 
 Acceptance criteria:
 
-- **unknown** — Source filters alter available candidates consistently.
-- **unknown** — Switch sources while preserving a saved study session.
+- **passed** — Source filters alter available candidates consistently. Evidence: unit: selects master and combined pools without comparing master ratings to Lichess or losing saved study; browser/chromium: switches online and master sources without losing saved study and checks a guess separately; browser/webkit: switches online and master sources without losing saved study and checks a guess separately.
+- **passed** — Switch sources while preserving a saved study session. Evidence: unit: selects master and combined pools without comparing master ratings to Lichess or losing saved study; browser/chromium: switches online and master sources without losing saved study and checks a guess separately; browser/webkit: switches online and master sources without losing saved study and checks a guess separately.
 - **passed** — An empty filtered pool does not substitute an unrelated game. Evidence: unit: checks the player on the learner side rather than the opponent, and rejects unknown, unfinished and mismatched games; unit: reports missing samples, provider failures and partial downloads without discarding saved study.
 
-Implementation: `apps/server/src/openings/opening-study-discovery.ts`
+Implementation: `apps/server/src/openings/opening-study-discovery.ts`, `apps/web/src/components/OpeningModelGameStudy.tsx`
 
 Repeatable comparison task: Switch sources while preserving a saved study session. Competitor timing and our user-task timing remain unmeasured.
 
@@ -968,7 +970,7 @@ Acceptance criteria:
 - **unknown** — No horizontal overflow at supported mobile and tablet widths.
 - **passed** — Complete a first-move branch and recall session on mobile WebKit. Evidence: browser/chromium: builds a Black response to a different first move in the same repertoire; browser/webkit: builds a Black response to a different first move in the same repertoire.
 - **passed** — Saved work and keyboard navigation remain usable while optional summaries fail. Evidence: browser/chromium: keeps repertoire touch targets fixed when delayed summaries fail; browser/webkit: keeps repertoire touch targets fixed when delayed summaries fail.
-- **passed** — Repertoire controls and the game-import action must not move between pointer-down and pointer-up when optional data arrives. Evidence: browser/chromium: keeps repertoire touch targets fixed when delayed summaries arrive; browser/webkit: keeps repertoire touch targets fixed when delayed summaries arrive; browser/chromium: keeps repertoire touch targets fixed when delayed summaries fail; browser/webkit: keeps repertoire touch targets fixed when delayed summaries fail; browser/chromium: keeps the game-import action fixed while player choices arrive; browser/webkit: keeps the game-import action fixed while player choices arrive.
+- **passed** — Repertoire controls and the game-import action must not move between pointer-down and pointer-up when optional data arrives. Evidence: browser/chromium: keeps repertoire touch targets fixed when delayed summaries arrive; browser/webkit: keeps repertoire touch targets fixed when delayed summaries arrive; browser/chromium: keeps repertoire touch targets fixed when delayed summaries fail; browser/webkit: keeps repertoire touch targets fixed when delayed summaries fail; browser/chromium: keeps the game-import action fixed while player choices arrive; browser/webkit: keeps the game-import action fixed while player choices arrive; browser/chromium: keeps import and learn-first actions fixed when late progress arrives; browser/webkit: keeps import and learn-first actions fixed when late progress arrives.
 
 Implementation: `apps/web/src/styles.css`, `apps/web/src/components/OpeningPractice.tsx`, `apps/web/src/components/OpeningLearningRoutes.tsx`, `apps/web/src/components/Dashboard.tsx`
 
@@ -1099,6 +1101,24 @@ Acceptance criteria:
 Implementation: `apps/web/src/opening-build-guidance.ts`, `apps/web/src/use-opening-move-evidence.ts`, `apps/web/src/components/ChessBoard.tsx`
 
 Repeatable comparison task: Build a repertoire move and inspect three likely opponent replies; hide arrows and leave editing. Competitor timing and our user-task timing remain unmeasured.
+
+## CB58 — Opening-specific external puzzle practice (deferred)
+
+**Study · P2 · absent**
+
+Chessbook evidence: User-requested future extension; no corresponding Chessbook puzzle feature is asserted. Audit-driven independent improvement
+
+Our feature description: Future consideration only: select rated Lichess puzzles by saved opening positions or verified source-game ancestry, learner colour and suitable difficulty; prioritize common responses without confusing puzzle popularity with move frequency.
+
+Acceptance criteria:
+
+- **unmet** — Verify repertoire relevance, colour, transpositions and provenance for every offered puzzle.
+- **unmet** — Accept verified legal solutions and distinguish tactical progress from saved-repertoire recall.
+- **unmet** — Measure relevant sample coverage, difficulty, loading, empty states and delayed repeat success before expansion.
+
+Implementation: No implementation identified.
+
+Repeatable comparison task: Find and solve a relevant Ruy Lopez or Modern puzzle for the selected side. Competitor timing and our user-task timing remain unmeasured.
 
 ## Sources
 

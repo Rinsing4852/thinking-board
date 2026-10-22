@@ -54,6 +54,14 @@ try {
   const answer=await request(`${base}/move`,{queueEntryId:exercise.queueEntryId,moveUci:"e2e4"});
   assert.equal(answer.assisted,true);assert.equal(answer.outcome,"learning");
   results.push({name:"Real HTTP quality route preserves original recall and practice credit",passed:true});
+  const gapImport=await request("/api/v1/openings/imports/pgn",{pgn:'[Event "Real gap smoke"]\n\n1. e4 e5 *',name:"Real gap smoke",learnerColor:"white",ownershipConfirmed:true});
+  const repertoireId=gapImport.repertoireIds[0],original=await request(`/api/v1/openings/repertoires/${repertoireId}`),line=original.chapters[0].lines[0];
+  const draft=await request("/api/v1/openings/gap-drafts",{repertoireId,lineId:line.id,afterPly:2,expectedFen:line.moves[1].fenAfter});
+  assert.equal(draft.state,"preview");assert.deepEqual(await request(`/api/v1/openings/repertoires/${repertoireId}`),original);
+  assert.equal((await request(`/api/v1/openings/gap-drafts/${draft.id}/apply`,{})).state,"applied");
+  assert.equal((await request(`/api/v1/openings/gap-drafts/${draft.id}/undo`,{})).state,"undone");
+  assert.deepEqual(await request(`/api/v1/openings/repertoires/${repertoireId}`),original);
+  results.push({name:"Real-engine missing-response preview, atomic apply and undo",passed:true,source:draft.source,moves:draft.moves});
   console.log(JSON.stringify({measuredAt:new Date().toISOString(),engine:identity.engineName,platform:process.platform,architecture:process.arch,
     nodes:config.openingAnalysisNodes,toleranceCp:config.acceptableToleranceCp,results},null,2));
 } finally {

@@ -29,6 +29,23 @@ function provider(games:Record<string,string>,status=200) {
   });
 }
 describe("automatic stronger-player model games",()=>{
+  it("selects master and combined pools without comparing master ratings to Lichess or losing saved study",async()=>{
+    const {db,study,target}=setup();
+    const fetcher=vi.fn<typeof fetch>(async input=>{
+      const url=new URL(String(input));
+      if(url.pathname==="/masters")return Response.json({topGames:[{id:"master01"}]});
+      if(url.pathname==="/lichess")return Response.json({topGames:[{id:"online01"},{id:"online02"},{id:"online03"}],recentGames:[]});
+      return new Response(pgn(undefined,url.pathname.includes("masters/pgn")?"1500":"1900","1800"));
+    });
+    const service=new OpeningStudyDiscoveryService(db,study,undefined,fetcher);
+    const masters=await service.discover(target,2000,"masters");expect(masters.games).toHaveLength(1);expect(masters.games[0]?.source).toBe("masters");
+    const replay=service.start(target,masters.games[0]!.id);expect(replay.replay?.game.source).toContain("/masters/pgn/master01");
+    const combined=await service.discover(target,1600,"both");expect(new Set(combined.games.map(g=>g.source))).toEqual(new Set(["online","masters"]));expect(combined.games).toHaveLength(3);expect(combined.games[0]?.source).toBe("online");expect(combined.games[1]?.source).toBe("masters");
+    expect(study.list(target.repertoireId,target.lineId,6).replay?.game.id).toBe(replay.replay?.game.id);
+    const empty=new OpeningStudyDiscoveryService(db,study,undefined,vi.fn(async()=>Response.json({topGames:[]})));
+    expect((await empty.discover(target,1600,"masters")).games).toHaveLength(0);
+    expect(study.list(target.repertoireId,target.lineId,6).replay?.game.id).toBe(replay.replay?.game.id);
+  });
   it("verifies both colours and exact transpositions, ranks direct routes, and starts a replay without changing recall",async()=>{
     for(const color of ["white","black"] as const) {
       const {db,study,target}=setup(color);
@@ -106,7 +123,7 @@ describe("automatic stronger-player model games",()=>{
   it("serves search and selection through validated routes and catches asynchronous provider failures",async()=>{
     const {db,study,target}=setup(),fetcher=provider({direct01:pgn()});
     const service=new OpeningStudyDiscoveryService(db,study,undefined,fetcher as typeof fetch);
-    const app=Fastify();registerOpeningStudyRoutes(app,study,service);
+    const app=Fastify();registerOpeningStudyRoutes(app,study,service,{assessMove:vi.fn()} as never);
     const base=`/api/v1/openings/repertoires/${target.repertoireId}/lines/${target.lineId}/study`;
     try {
       expect((await app.inject({method:"POST",url:`${base}/discover`,payload:{savedPly:6,expectedFen:target.expectedFen,rating:0}})).statusCode).toBe(400);
@@ -119,6 +136,22 @@ describe("automatic stronger-player model games",()=>{
       const failed=await app.inject({method:"POST",url:`${base}/discover`,payload:{savedPly:6,expectedFen:target.expectedFen,rating:1600}});
       expect(failed.statusCode).toBe(400);expect(failed.json().error).toContain("Check your connection");
     } finally {await app.close();}
+  });
+  it("grades only a persisted submitted guess and never alters study or recall credit",async()=>{
+    const {db,study,target}=setup(),discovery=new OpeningStudyDiscoveryService(db,study,undefined,provider({direct01:pgn()}) as typeof fetch);
+    const found=await discovery.discover(target,1600),selected=discovery.start(target,found.games[0]!.id),base=`/api/v1/openings/repertoires/${target.repertoireId}/lines/${target.lineId}/study`;
+    const assessMove=vi.fn(async()=>({verdict:"playable" as const,message:"Fixture",depth:16}));
+    const app=Fastify();registerOpeningStudyRoutes(app,study,discovery,{assessMove} as never);
+    try {
+      const quiz=study.quiz(target.repertoireId,target.lineId,{savedPly:6,gameId:selected.replay!.game.id,expectedFen:target.expectedFen,version:selected.replay!.version,action:"start"});
+      expect((await app.inject({method:"POST",url:`${base}/quality`,payload:{savedPly:6,version:quiz.quiz!.version}})).statusCode).toBe(400);expect(assessMove).not.toHaveBeenCalled();
+      const after=study.quiz(target.repertoireId,target.lineId,{savedPly:6,gameId:quiz.quiz!.game.id,expectedFen:target.expectedFen,version:quiz.quiz!.version,action:"answer",moveUci:"b1c3"});
+      const events=db.prepare("SELECT * FROM opening_review_events").all();
+      const result=await app.inject({method:"POST",url:`${base}/quality`,payload:{savedPly:6,version:after.quiz!.version}});
+      expect(result.statusCode).toBe(200);expect(result.json().message).toContain("historical move");expect(assessMove).toHaveBeenCalledTimes(1);
+      expect(study.list(target.repertoireId,target.lineId,6).quiz).toEqual(after.quiz);expect(db.prepare("SELECT * FROM opening_review_events").all()).toEqual(events);
+      expect((await app.inject({method:"POST",url:`${base}/quality`,payload:{savedPly:6,version:quiz.quiz!.version}})).statusCode).toBe(400);
+    }finally {await app.close();}
   });
   it("does not follow hostile references and rejects invalid ratings before contacting the provider",async()=>{
     const {db,study,target}=setup();const fetcher=vi.fn(async()=>new Response(JSON.stringify({topGames:[{id:"https://evil.test"},{id:"../local"}],recentGames:[]})));

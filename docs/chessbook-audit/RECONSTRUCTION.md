@@ -296,3 +296,11 @@ human timings, comprehension and durable learning outcomes remain unmeasured.
 The [review of both increments](./RECENT_FEATURE_REVIEW.md) adds fresh observations,
 per-response teaching and preserved first-review scheduling on later retries.
 These corrections supersede the earlier implementation limitations above.
+
+## Deferred: opening-specific external puzzles (CB58)
+
+The user has explicitly deferred puzzle implementation. Keep it in the REA
+feature inventory for future consideration. The
+[dataset and puzzle proposal](./LICHESS_EVALUATION_DATASET.md) records the selection
+model and validation gates. No puzzle importer, corpus download or new puzzle
+practice screen is authorized by this increment.

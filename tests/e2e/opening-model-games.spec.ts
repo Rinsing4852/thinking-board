@@ -5,9 +5,9 @@ test.use({baseURL:"http://127.0.0.1:8192"});
 // Projects share this disposable server. Extra matching examples must not
 // displace the earlier ranking fixtures when the phone project starts.
 test.afterEach(async({page},testInfo)=>{
-  if(!/^(finds stronger-player study|guesses Black's moves)/.test(testInfo.title))return;
+  if(!/^(finds stronger-player study|guesses Black's moves|switches online and master)/.test(testInfo.title))return;
   const library=await(await page.request.get("/api/v1/openings/study-games")).json();
-  for(const entry of library.games.filter((entry:{source:string})=>["Home guessing fixture","Black guessing fixture"].includes(entry.source))) {
+  for(const entry of library.games.filter((entry:{source:string})=>["Home guessing fixture","Black guessing fixture","https://explorer.lichess.org/masters/pgn/master01"].includes(entry.source))) {
     expect((await page.request.delete(`/api/v1/openings/study-games/${entry.id}`)).ok()).toBeTruthy();
   }
 });
@@ -274,4 +274,30 @@ test("guesses Black's moves and automatically follows White's continuation",asyn
   await quiz.getByRole("button",{name:"Study this game again",exact:true}).click();
   await expect(quiz).toContainText("Position after replay step 7 of 10");
   await expect(quiz).toContainText("2 first attempts · 1 matched without help · 1 helped");
+});
+
+test("switches online and master sources without losing saved study and checks a guess separately",async({page},testInfo)=>{
+  const {repertoireId,lineId}=await openStudy(page,`Master source ${testInfo.project.name}`,"1. d4 d5 2. Nf3 Nf6 3. c4 e6 *","white");
+  const study=page.getByRole("region",{name:"Model-game study",exact:true});
+  await study.getByLabel("Your Lichess rating",{exact:true}).fill("1600");
+  await study.getByRole("combobox",{name:"Game source",exact:true}).selectOption("masters");
+  await study.getByRole("button",{name:"Find games",exact:true}).click();
+  const candidate=study.locator(".opening-study-discovered").filter({hasText:"Master White"});
+  await expect(candidate).toContainText("Over-the-board ratings are not compared");
+  await candidate.getByRole("button",{name:"Replay from this position",exact:true}).click();
+  const before=await(await page.request.get(`/api/v1/openings/repertoires/${repertoireId}/lines/${lineId}/study?ply=6`)).json();
+  await study.getByRole("button",{name:"Guess the player’s moves",exact:true}).click();
+  const quiz=study.getByRole("region",{name:"Guess the player's move",exact:true});
+  const board=quiz.getByRole("grid",{name:"Guess-the-move board",exact:true});
+  await board.getByRole("gridcell",{name:"b1 white knight",exact:true}).click();await board.getByRole("gridcell",{name:"c3 empty",exact:true}).click();
+  await expect(quiz).toContainText("You matched the played move");
+  await quiz.getByRole("button",{name:"Check my move with Stockfish",exact:true}).click();
+  await expect(quiz).toContainText(/Chess quality: (playable|weaker move|unverified)/);
+  await quiz.getByRole("button",{name:"Return to replay",exact:true}).click();
+  await study.getByRole("combobox",{name:"Game source",exact:true}).selectOption("online");
+  await study.getByRole("button",{name:"Find games",exact:true}).click();
+  await expect(study).toContainText("Online White");
+  const after=await(await page.request.get(`/api/v1/openings/repertoires/${repertoireId}/lines/${lineId}/study?ply=6`)).json();
+  expect(after.replay.game.id).toBe(before.replay.game.id);
+  await page.screenshot({path:testInfo.outputPath("master-source-study.png")});
 });

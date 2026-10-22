@@ -1116,3 +1116,10 @@ footer { border-top: 1px solid var(--line); padding: 2rem 4vw; color: #69756d; d
 .opening-quality-feedback small { display: block; margin-bottom: .5rem; }
 
 .opening-study-guessing .opening-study-layout { grid-template-columns: minmax(0, 680px); justify-content: center; }
+
+.opening-gap-draft, .opening-master-evidence { margin-block: .8rem; padding: .75rem; border: 1px solid var(--line); border-radius: 10px; overflow-wrap: anywhere; }
+.opening-master-evidence table { width: 100%; font-size: .8rem; }
+.opening-master-evidence th, .opening-master-evidence td { overflow-wrap: normal; word-break: normal; }
+.opening-master-evidence td small { display: block; color: var(--ink-soft); }
+.opening-table-scroll { max-width: 100%; overflow-x: auto; }
+@media (max-width: 760px) { .opening-review .opening-mobile-detail { min-height: calc(2.8em + 1rem); } }

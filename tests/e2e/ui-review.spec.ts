@@ -384,3 +384,39 @@ test("keeps the game-import action fixed while player choices arrive",async({pag
     await page.mouse.up();await expect(page).toHaveURL(/#games$/);
   } finally {release();await page.mouse.up();}
 });
+
+test("shows delayed learning measures without inventing a retention result",async({page})=>{
+  await page.route("**/api/v1/openings/reviews/active",route=>route.fulfill({json:null}));
+  await page.route("**/api/v1/openings/lessons/active",route=>route.fulfill({json:null}));
+  await page.route("**/api/v1/openings/quality/metrics",route=>route.fulfill({json:{delayedRecall:[{minimumDays:7,maximumDays:14,encounters:0,independent:0,percent:null},{minimumDays:14,maximumDays:null,encounters:5,independent:3,percent:60}],games:{gamesMatched:0,playerDepartures:0,departuresPer100Games:null},explanation:"Observed results, not proof of learning improvement."}}));
+  await page.goto("/#openings");await page.getByText("What am I remembering over time?",{exact:true}).click();
+  const measures=page.locator(".opening-learning-measures");await expect(measures).toContainText("Not enough delayed practice yet");await expect(measures).toContainText("3/5 recalled without help (60%)");await expect(measures).toContainText("The rate is unknown");
+});
+
+test("keeps import and learn-first actions fixed when late progress arrives",async({page},testInfo)=>{
+  await page.route("**/api/v1/openings/reviews/active",route=>route.fulfill({json:null}));
+  await page.route("**/api/v1/openings/lessons/active",route=>route.fulfill({json:null}));
+  const name=`Late actions ${testInfo.project.name}`;
+  const imported=await page.request.post("/api/v1/openings/imports/pgn",{data:{pgn:`[Event "${name}"]\n\n1. e4 e5 *`,name,learnerColor:"white",ownershipConfirmed:true}});
+  const id=(await imported.json()).repertoireIds[0],catalog=await(await page.request.get("/api/v1/openings/catalog")).json(),progress=await(await page.request.get("/api/v1/openings/progress")).json();
+  const repertoire=catalog.repertoires.find((r:{id:string})=>r.id===id);
+  await page.route("**/api/v1/openings/catalog",route=>route.fulfill({json:{repertoires:[repertoire]}}));
+  await page.route("**/api/v1/openings/reviews/recommended",route=>route.fulfill({json:{available:true,repertoire:{id,name,learnerColor:"white"},counts:{gameMisses:0,due:0,new:1,early:0,total:1},message:"New responses available."}}));
+  let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});
+  await page.route("**/api/v1/openings/progress",async route=>{await gate;await route.fulfill({json:progress});});
+  await page.route("**/api/v1/openings/reviews/recommended/start",async route=>{
+    expect(route.request().postDataJSON()).toEqual({learnFirst:true});const response=await page.request.post(`/api/v1/openings/repertoires/${id}/reviews/start`,{data:{mode:"new",teachNew:true}});await route.fulfill({json:await response.json()});
+  });
+  try {
+    await page.goto("/#openings");
+    const importer=page.getByRole("button",{name:"Import repertoire lines",exact:true}),learn=page.getByRole("button",{name:"Learn new moves first",exact:true});
+    await expect(learn).toBeVisible();await expect(importer).toHaveCount(1);
+    const importTop=await importer.evaluate(el=>el.getBoundingClientRect().top+window.scrollY);
+    await learn.scrollIntoViewIfNeeded();const before=await learn.boundingBox();expect(before).not.toBeNull();
+    await page.mouse.move(before!.x+before!.width/2,before!.y+before!.height/2);await page.mouse.down();release();
+    await expect(page.locator(".opening-home-progress")).toBeVisible();
+    const after=await learn.boundingBox();expect(Math.abs(after!.y-before!.y)).toBeLessThanOrEqual(1);
+    expect(await importer.evaluate(el=>el.getBoundingClientRect().top+window.scrollY)).toBe(importTop);
+    await page.mouse.up();await expect(page.getByRole("region",{name:"Learn this move",exact:true})).toBeVisible();
+  } finally {release();await page.mouse.up();}
+});
