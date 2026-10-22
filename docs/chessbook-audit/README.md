@@ -1,5 +1,9 @@
 # Opening feature audit
 
+Release caveat: the [22 October app review](./APP_REVIEW_2026_10_22.md) records
+failed Linux WebKit release checks after the successful local reliability run.
+The generated tracker below reflects local evidence and is not a release verdict.
+
 Open `tracker.html` for the filterable feature tracker or `AUDIT.md` for all
 feature descriptions, acceptance criteria, sources and implementation gaps.
 `catalog.json` is the editable specification; `quality-report.json` is the

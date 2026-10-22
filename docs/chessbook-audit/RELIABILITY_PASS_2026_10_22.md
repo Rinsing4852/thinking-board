@@ -1,5 +1,9 @@
 # Safari layout and real-engine reliability pass — 22 October 2026
 
+Publication follow-up: the [subsequent app review](./APP_REVIEW_2026_10_22.md)
+records three failed and one flaky Linux WebKit release checks. The local results
+below do not establish release readiness; publication is blocked pending that work.
+
 ## Reproduce before changing behaviour
 
 A controlled phone WebKit test held recommendation/statistics responses until
