@@ -1123,3 +1123,22 @@ footer { border-top: 1px solid var(--line); padding: 2rem 4vw; color: #69756d; d
 .opening-master-evidence td small { display: block; color: var(--ink-soft); }
 .opening-table-scroll { max-width: 100%; overflow-x: auto; }
 @media (max-width: 760px) { .opening-review .opening-mobile-detail { min-height: calc(2.8em + 1rem); } }
+
+/* Keep each page centred on a task; additional tools open on request. */
+.workflow-actions { display: flex; flex-wrap: wrap; gap: .65rem; margin-block: .8rem; }
+.workflow-disclosure { margin-block: 1rem; }
+.workflow-disclosure > summary, .opening-extra-options > summary, .study-route > summary { cursor: pointer; font-weight: 650; padding-block: .65rem; }
+.workflow-disclosure[open] > summary, .opening-extra-options[open] > summary { margin-bottom: .75rem; border-bottom: 1px solid var(--line); }
+.workflow-section-title { font-size: 1.25rem; margin-top: 1.5rem; }
+.opening-extra-options { margin-block: .75rem; }
+.opening-extra-options .opening-card-actions { margin-bottom: 1rem; }
+.opening-learning-routes h1 { margin-block: 0 .5rem; font-size: 1.8rem; }
+.opening-learning-routes > .workflow-actions { margin-block: 1rem; }
+.opening-learning-routes .study-route { border-top: 1px solid var(--line); }
+.opening-learning-routes .study-route label { max-width: 36rem; }
+.game-import-disclosure > .import-panel { margin-bottom: 0; }
+@media (max-width: 600px) {
+  .workflow-actions > button { flex: 1 1 100%; }
+  .opening-card-actions > button { min-height: 44px; }
+}
+.game-followups { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }

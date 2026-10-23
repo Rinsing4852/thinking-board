@@ -12,7 +12,7 @@ import { CandidateGenerationPanel } from "./components/CandidateGenerationPanel"
 import { Dashboard } from "./components/Dashboard";
 import { PunishBlunderPanel } from "./components/PunishBlunderPanel";
 import { QuietPositionPanel } from "./components/QuietPositionPanel";
-import { GettingStarted } from "./components/GettingStarted";
+import { OpeningLearningMeasures } from "./components/OpeningLearningMeasures";
 import { OpeningPractice } from "./components/OpeningPractice";
 
 type AppView = "today" | "openings" | "games" | "progress";
@@ -28,6 +28,7 @@ export function App() {
   const [refreshToken, setRefreshToken] = useState(0);
   const [gameReviewFocusToken, setGameReviewFocusToken] = useState(0);
   const [trainingRequest, setTrainingRequest] = useState<{ itemId: string; requestId: number } | null>(null);
+  const [showGameImport, setShowGameImport] = useState(() => new URLSearchParams(window.location.hash.split("?")[1]).has("add"));
   const [activeMode, setActiveMode] = useState("blunder_check");
   const [session, setSession] = useState<TrainingSessionResponse | null>(null);
 
@@ -40,6 +41,7 @@ export function App() {
   useEffect(() => {
     const onHashChange = (): void => {
       const nextView = initialView(); setView(nextView);
+      if (nextView === "games" && new URLSearchParams(window.location.hash.split("?")[1]).has("add")) setShowGameImport(true);
       if (nextView !== "openings") setOpeningFocusActive(false);
     };
     window.addEventListener("hashchange", onHashChange);
@@ -69,6 +71,7 @@ export function App() {
   };
   const openGamesAt = (targetId: "import" | "opening-inbox"): void => {
     setView("games");
+    if (targetId === "import") setShowGameImport(true);
     window.history.pushState(null, "", "#games");
     requestAnimationFrame(() => requestAnimationFrame(() => {
       document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -126,30 +129,26 @@ export function App() {
             <button className={view === target ? "active" : ""} aria-current={view === target ? "page" : undefined} key={target} onClick={() => navigate(target)}>{label}</button>
           ))}
         </nav>
-        <span className="local-badge">Local engine · no cloud</span>
+
       </header>
 
       <main id="main-content" tabIndex={-1} className={`app-view app-view-${view}${openingFocusActive ? " app-view-practice-focus" : ""}`}>
         {view === "today" && (
           <>
             <section className="hero hero-compact">
-              <div>
-                <span className="eyebrow">Train the pause before the move</span>
-                <h1>See it. Choose. Check.</h1>
-                <p>Practise the thinking habit that failed in your own games, one focused position at a time.</p>
-              </div>
-              <div className="hero-checklist">
-                <span>Before I move…</span>
-                <strong>Can they check?</strong>
-                <strong>Can they capture?</strong>
-                <strong>Can they threaten?</strong>
+              <div><h1>What would you like to practise?</h1><p>Choose your openings, review a game, or work on a thinking exercise below.</p>
+                <div className="workflow-actions">
+                  <button onClick={() => navigate("openings")}>Practise openings</button>
+                  <button className="secondary" onClick={() => navigate("games")}>Review a game</button>
+                </div>
               </div>
             </section>
-            <GettingStarted refreshToken={refreshToken} onNavigate={navigate} />
             <Dashboard compact onImport={() => openGamesAt("import")} refreshToken={refreshToken} onChooseMode={chooseMode} onStartSession={startSession} onProfileChanged={() => {
               setSession(null); setTrainingRequest(null); setRefreshToken((value) => value + 1);
             }} />
             <section className="trainer-hub" id="trainer">
+              <details className="panel workflow-disclosure thinking-mode-picker"><summary>Choose a thinking exercise</summary>
+              <p>Start with blunder check, or choose a specific skill to practise.</p>
               <div className="mode-tabs" aria-label="Training modes">
                 {([[
                   "what_changed", "1 · What changed",
@@ -162,6 +161,7 @@ export function App() {
                   >{label}</button>
                 ))}
               </div>
+              </details>
               {session && session.status !== "completed" && (
                 <div className="session-progress" aria-live="polite">
                   <strong>Today’s session</strong>
@@ -195,10 +195,10 @@ export function App() {
           <>
             <div className="page-heading">
               <span className="eyebrow">Your games</span>
-              <h1>Import. Analyse. Learn.</h1>
-              <p>Compare your latest games with your repertoire, practise the first missed decision, then review important thinking mistakes.</p>
+              <h1>My games</h1>
+              <p>Choose a saved game to replay it and practise the moves you missed.</p>
             </div>
-            <ImportPanel refreshToken={refreshToken} onAnalyzed={refreshAfterGameAnalysis} />
+            <ImportPanel refreshToken={refreshToken} onAnalyzed={refreshAfterGameAnalysis} expanded={showGameImport} onExpandedChange={setShowGameImport} />
             <GameReview
               refreshToken={refreshToken}
               focusToken={gameReviewFocusToken}
@@ -212,14 +212,15 @@ export function App() {
           <>
             <div className="page-heading">
               <span className="eyebrow">Patterns over time</span>
-              <h1>What do I repeatedly miss?</h1>
+              <h1>Your progress</h1>
               <p>Use your real-game occurrences and practice results to choose the next thinking habit to strengthen.</p>
             </div>
             <section className="panel opening-progress-link" aria-label="Opening progress">
-              <div><h3>Opening recall and repertoire gaps</h3>
-                <p>Find your opening memory results, due reviews and preparation gaps in Openings. The figures below cover thinking drills from your games.</p></div>
-              <button className="secondary" onClick={() => navigate("openings")}>View opening progress</button>
+              <div><h3>Preparation gaps</h3>
+                <p>Open a saved repertoire to inspect missing replies and choose what to prepare. The dashboard figures below cover thinking drills from your games.</p></div>
+              <button className="secondary" onClick={() => navigate("openings")}>Open saved repertoires</button>
             </section>
+            <OpeningLearningMeasures />
             <Dashboard onImport={() => openGamesAt("import")} refreshToken={refreshToken} onChooseMode={chooseMode} onStartSession={startSession} onProfileChanged={() => {
               setSession(null); setTrainingRequest(null); setRefreshToken((value) => value + 1);
             }} />
@@ -228,8 +229,7 @@ export function App() {
       </main>
 
       <footer>
-        <span>Thinking Board v{APP_VERSION} · Self-hosted · SQLite · Local Stockfish</span>
-        <span>SEE → CANDIDATES → CHECK</span>
+        <span>Thinking Board v{APP_VERSION}</span>
         <a href="/legal/index.html">Source &amp; licences</a>
       </footer>
     </>

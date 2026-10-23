@@ -1,3 +1,4 @@
+import { revealControl } from "./workflow-helpers";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -50,6 +51,7 @@ test.describe.serial("stable V1 browser journey", () => {
   test("remembers the player's practical opening level", async ({ page }) => {
     await page.goto("/#openings");
     const openings = page.locator("#opening-practice");
+    await revealControl(openings.locator("details.opening-settings"));
     await openings.locator("details.opening-settings > summary").click();
     // A serial retry may inherit preferences saved during the first attempt.
     const change = openings.locator(".opening-player-context").getByRole("button", { name: "Change", exact: true });
@@ -60,7 +62,9 @@ test.describe.serial("stable V1 browser journey", () => {
     await openings.getByRole("button", { name: "Use these settings" }).click();
     await expect(openings.getByText("1400+ · common moves off")).toBeVisible();
     await page.reload();
+    await revealControl(openings.locator("details.opening-settings"));
     await expect(openings.getByText("1400+ · common moves off")).toBeVisible();
+    await revealControl(openings.locator("details.opening-settings"));
     await openings.locator("details.opening-settings > summary").click();
     await expect(openings.getByText("Lichess · 1400+")).toBeVisible();
     await expect(openings.getByRole("button", { name: "Change" })).toBeVisible();
@@ -71,8 +75,8 @@ test.describe.serial("stable V1 browser journey", () => {
     await page.goto("/#openings");
     const openings = page.locator("#opening-practice");
     await expect(openings.getByRole("grid", { name: "Opening focus board" })).toBeHidden();
-    await expect(openings.getByRole("button", { name: /Analyse a played game/ })).toBeVisible();
-    await openings.getByRole("button", { name: /Analyse a played game/ }).click();
+    await revealControl(openings.getByRole("button", { includeHidden: true, name: /Analyse a played game/ }));
+    await openings.getByRole("button", { includeHidden: true, name: /Analyse a played game/ }).click();
     await expect(page).toHaveURL(/#games$/);
     await expect(page.getByRole("heading", { name: "Paste a game (PGN)" })).toBeVisible();
     await expect(page.getByLabel("PGN text")).toBeVisible();
@@ -134,12 +138,12 @@ test.describe.serial("stable V1 browser journey", () => {
 
   test("browses complete lines and builds a personal line on the board", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "Openings" }).click();
+    await page.getByRole("button", { name: "Openings", exact: true }).click();
     const openings = page.locator("#opening-practice");
     const starter = openings.locator("article").filter({ hasText: "Practical 1.e4 Repertoire" });
     await expect(starter.locator(".opening-card-body")).toBeHidden();
     expect(await starter.evaluate((card) => card.getBoundingClientRect().height)).toBeLessThan(100);
-    await starter.locator("summary").click();
+    await starter.locator("summary").first().click();
     await starter.getByRole("button", { name: "View all lines" }).click();
     await expect(openings.getByRole("heading", { name: "Practical 1.e4 Repertoire", level: 2 })).toBeVisible();
     await expect(openings.getByText("1. e4 e5 2. Nf3 Nc6 3. Bc4", { exact: false })).toBeVisible();
@@ -252,10 +256,10 @@ test.describe.serial("stable V1 browser journey", () => {
 
   test("practises a chosen line as a continuous board drill", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "Openings" }).click();
+    await page.getByRole("button", { name: "Openings", exact: true }).click();
     const openings = page.locator("#opening-practice");
     const starter = openings.locator("article").filter({ hasText: "Modern Defence with 1...g6" });
-    await starter.locator("summary").click();
+    await starter.locator("summary").first().click();
     await starter.getByRole("button", { name: "View all lines" }).click();
     await openings.getByRole("button", { name: "Practise this line" }).click();
 
@@ -288,20 +292,22 @@ test.describe.serial("stable V1 browser journey", () => {
 
   test("archives and restores built-in repertoires and individual lines", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "Openings" }).click();
+    await page.getByRole("button", { name: "Openings", exact: true }).click();
     const openings = page.locator("#opening-practice");
     let starter = openings.locator("article").filter({ hasText: "Practical 1.e4 Repertoire" });
-    await starter.locator("summary").click();
-    await starter.getByRole("button", { name: "Archive", exact: true }).click();
+    await starter.locator("summary").first().click();
+    await revealControl(starter.getByRole("button", { includeHidden: true, name: "Archive", exact: true }));
+    await starter.getByRole("button", { includeHidden: true, name: "Archive", exact: true }).click();
     await expect(starter).toBeHidden();
     const archiveLibrary = openings.locator("details.opening-archive-library");
-    await archiveLibrary.locator("summary").click();
+    await revealControl(archiveLibrary);
+    await archiveLibrary.locator("summary").first().click();
     await expect(archiveLibrary.getByText("Practical 1.e4 Repertoire")).toBeVisible();
     await archiveLibrary.getByRole("button", { name: "Restore" }).click();
     starter = openings.locator("article").filter({ hasText: "Practical 1.e4 Repertoire" });
     await expect(starter).toBeVisible();
 
-    await starter.locator("summary").click();
+    await starter.locator("summary").first().click();
     await starter.getByRole("button", { name: "View all lines" }).click();
     await openings.getByText("Coverage and repertoire settings", { exact: true }).click();
     await openings.locator("details.opening-management > summary").click();
@@ -314,7 +320,7 @@ test.describe.serial("stable V1 browser journey", () => {
 
   test("previews and imports a private opening repertoire for both sides", async ({ page }, testInfo) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "Openings" }).click();
+    await page.getByRole("button", { name: "Openings", exact: true }).click();
     const openings = page.locator("#opening-practice");
     await openings.getByRole("button", { name: "Import repertoire lines" }).click();
     await openings.getByRole("textbox", { name: /Repertoire name/ }).fill("Browser repertoire");
@@ -352,12 +358,12 @@ test.describe.serial("stable V1 browser journey", () => {
 
   test("reviews opening positions with spaced repetition and clear feedback", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "Openings" }).click();
+    await page.getByRole("button", { name: "Openings", exact: true }).click();
     const openings = page.locator("#opening-practice");
     const starter = openings.locator("article").filter({ hasText: "Practical 1.e4 Repertoire" });
-    await expect(openings.getByLabel("Ways to practise a repertoire")).toHaveCount(1);
+    await expect(openings.getByLabel("Ways to practise a repertoire")).toHaveCount(0);
     await expect(starter.getByLabel("0 of 29 positions practised")).toBeVisible();
-    await starter.locator("summary").click();
+    await starter.locator("summary").first().click();
     await starter.getByRole("button", { name: "Practise 5 new moves" }).click();
     await expect(openings.getByText("Step 1 of 5")).toBeVisible();
     await expect(page.locator(".site-header")).toHaveClass(/practice-hidden/);
@@ -404,30 +410,32 @@ test.describe.serial("stable V1 browser journey", () => {
     await openings.getByRole("button", { name: "Back to opening choices" }).click();
     await expect(page.locator(".site-header")).not.toHaveClass(/practice-hidden/);
     await expect(starter.getByLabel("5 of 29 positions practised")).toBeVisible();
-    await starter.locator("summary").click();
+    await starter.locator("summary").first().click();
     await expect(starter.getByText("4 reviewed", { exact: false })).toBeVisible();
     await expect(starter.getByText("1 learning", { exact: false })).toBeVisible();
   });
 
   test("starts an opening lesson, explains the move, and restores the next decision", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "Openings" }).click();
+    await page.getByRole("button", { name: "Openings", exact: true }).click();
     const openings = page.locator("#opening-practice");
-    await expect(openings.getByRole("heading", { name: "Opening Practice" })).toBeVisible();
+    await expect(openings.getByRole("heading", { name: "Your openings" })).toBeVisible();
     const starter = openings.locator("article").filter({ hasText: "Practical 1.e4 Repertoire" });
-    await starter.locator("summary").click();
-    await starter.getByRole("button", { name: "Learn the ideas (guided)" }).click();
+    await starter.locator("summary").first().click();
+    await revealControl(starter.getByRole("button", { includeHidden: true, name: "Learn the ideas (guided)" }));
+    await starter.getByRole("button", { includeHidden: true, name: "Learn the ideas (guided)" }).click();
     await expect(openings.getByText("Decision 1 of 6")).toBeVisible();
     await openings.getByRole("button", { name: "Pause" }).click();
-    await expect(openings.getByText("Guided line paused")).toBeVisible();
+    await expect(openings.getByText("Your practice is paused and your place is saved.")).toBeVisible();
     page.once("dialog", async (dialog) => {
       expect(dialog.message()).toContain("end the paused guided line");
       await dialog.dismiss();
     });
-    await starter.locator("summary").click();
-    await starter.getByRole("button", { name: "Learn the ideas (guided)" }).click();
-    await expect(openings.getByText("Guided line paused")).toBeVisible();
-    await openings.getByRole("button", { name: "Resume guided line" }).click();
+    await starter.locator("summary").first().click();
+    await revealControl(starter.getByRole("button", { includeHidden: true, name: "Learn the ideas (guided)" }));
+    await starter.getByRole("button", { includeHidden: true, name: "Learn the ideas (guided)" }).click();
+    await expect(openings.getByText("Your practice is paused and your place is saved.")).toBeVisible();
+    await openings.getByRole("button", { name: "Resume opening practice" }).click();
 
     const board = openings.getByRole("grid", { name: "Chess position" });
     await board.getByRole("gridcell", { name: "g1 white knight" }).click();
@@ -468,6 +476,7 @@ test.describe.serial("stable V1 browser journey", () => {
   test("imports a game and explains every training mode", async ({ page }, testInfo) => {
     await page.goto("/");
     await page.getByRole("button", { name: "My games" }).click();
+    await page.locator(".game-import-disclosure > summary").click();
     const pgnInput = page.getByRole("textbox", { name: "PGN text" });
     await expect(pgnInput).toBeVisible();
     await pgnInput.fill(PGN);
@@ -476,9 +485,10 @@ test.describe.serial("stable V1 browser journey", () => {
     await page.getByRole("button", { name: "Import & analyse" }).click();
     await expect(page.getByText("Analysis complete. Your exercises and repertoire comparison are ready below.")).toBeVisible({ timeout: 30_000 });
     await page.getByRole("button", { name: "Today" }).click();
-    await expect(page.getByRole("heading", { name: "Your first exercise is ready" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Blunder Check", exact: true })).toBeVisible();
 
-    await page.getByRole("button", { name: "1 · What changed" }).click();
+    await revealControl(page.getByRole("button", { includeHidden: true, name: "1 · What changed" }));
+    await page.getByRole("button", { includeHidden: true, name: "1 · What changed" }).click();
     await expect(page.getByRole("heading", { name: "What Changed?" })).toBeVisible();
     await page.getByRole("button", { name: "Play their last move" }).click();
     await expect(page.getByText("Choose the most important change", { exact: false })).toBeVisible();
@@ -486,28 +496,32 @@ test.describe.serial("stable V1 browser journey", () => {
     await expect(page.getByRole("heading", { name: "This is what changed" })).toBeVisible();
     await page.locator(".trainer-layout").screenshot({ path: testInfo.outputPath("what-changed-feedback.png") });
 
-    await page.getByRole("button", { name: "2 · Candidates" }).click();
+    await revealControl(page.getByRole("button", { includeHidden: true, name: "2 · Candidates" }));
+    await page.getByRole("button", { includeHidden: true, name: "2 · Candidates" }).click();
     await page.getByRole("button", { name: "Start generating candidates" }).click();
     await expect(page.getByText(/tap or click a piece and a highlighted square/i)).toBeVisible();
     await page.getByRole("button", { name: "Show engine candidates" }).click();
     await expect(page.getByText("These are comparison moves, not a demand to find one single “correct” move.")).toBeVisible();
     await page.locator(".trainer-layout").screenshot({ path: testInfo.outputPath("candidates-feedback.png") });
 
-    await page.getByRole("button", { name: "3 · Blunder check" }).click();
+    await revealControl(page.getByRole("button", { includeHidden: true, name: "3 · Blunder check" }));
+    await page.getByRole("button", { includeHidden: true, name: "3 · Blunder check" }).click();
     await page.getByRole("button", { name: "Play my move on the board" }).click();
     await expect(page.getByRole("heading", { name: "Before making this move, what can the opponent do immediately?" })).toBeVisible();
     await page.getByRole("button", { name: "Show answer" }).click();
     await expect(page.getByRole("heading", { name: "This was the danger to find" })).toBeVisible();
     await page.locator(".trainer-layout").screenshot({ path: testInfo.outputPath("blunder-check-feedback.png") });
 
-    await page.getByRole("button", { name: "4 · Punish" }).click();
+    await revealControl(page.getByRole("button", { includeHidden: true, name: "4 · Punish" }));
+    await page.getByRole("button", { includeHidden: true, name: "4 · Punish" }).click();
     await page.getByRole("button", { name: "Find the punishment" }).click();
     await expect(page.getByRole("heading", { name: "How can the opponent punish this immediately?" })).toBeVisible();
     await page.getByRole("button", { name: "Show answer" }).click();
     await expect(page.getByRole("heading", { name: "This was the immediate punishment" })).toBeVisible();
     await page.locator(".trainer-layout").screenshot({ path: testInfo.outputPath("punish-feedback.png") });
 
-    await page.getByRole("button", { name: "5 · Quiet plan" }).click();
+    await revealControl(page.getByRole("button", { includeHidden: true, name: "5 · Quiet plan" }));
+    await page.getByRole("button", { includeHidden: true, name: "5 · Quiet plan" }).click();
     await page.getByRole("button", { name: "Assess my pieces" }).click();
     await expect(page.getByText("More than one plan can be reasonable.")).toBeVisible();
     await page.getByRole("button", { name: "Show an example" }).click();

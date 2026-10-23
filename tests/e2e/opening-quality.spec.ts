@@ -1,3 +1,4 @@
+import { revealControl } from "./workflow-helpers";
 import { expect, test } from "@playwright/test";
 test.use({ baseURL: "http://127.0.0.1:8192" });
 
@@ -96,6 +97,7 @@ test("resets whole-repertoire results on changes and return, and ignores an obso
   try {
     await page.getByRole("button", {name:"Back to repertoires",exact:true}).click();
     const settings = page.locator("details.opening-settings");
+    await revealControl(settings);
     await settings.locator(":scope > summary").click();
     const change = settings.getByRole("button", {name:"Change",exact:true});
     if (await change.isVisible()) await change.click();
@@ -138,17 +140,20 @@ test("offers learn-first from the home recommendation without changing normal pr
     expect(response.ok()).toBeTruthy();await route.fulfill({json:await response.json()});
   });
   await page.goto("/#openings");
+  await page.locator("#opening-insights > summary").click();
   const primary=page.locator(".opening-home-primary");
   await expect(primary.getByRole("button",{name:"Start 1-position practice",exact:true})).toBeVisible();
   await expect(primary).toContainText("then recall them with the answers hidden");
   await page.screenshot({path:testInfo.outputPath("recommended-teaching.png"),fullPage:true});
   recommended.counts={gameMisses:0,due:1,new:0,early:0,total:1};
   await page.reload();
+  await page.locator("#opening-insights > summary").click();
   await expect(primary.getByRole("button",{name:"Start 1-position practice",exact:true})).toBeVisible();
   await expect(primary.getByRole("button",{name:"Learn new moves first",exact:true})).toHaveCount(0);
   recommended.counts={gameMisses:0,due:0,new:1,early:0,total:1};
   await page.reload();
-  await primary.getByRole("button",{name:"Learn new moves first",exact:true}).click();
+  await revealControl(primary.getByRole("button",{includeHidden:true,name:"Learn new moves first",exact:true}));
+  await primary.getByRole("button",{includeHidden:true,name:"Learn new moves first",exact:true}).click();
   await expect(page.getByText("Learning 1 of 2",{exact:true})).toBeVisible();
   await expect(page.getByRole("region",{name:"Learn this move"})).toContainText("Play e4");
 });
@@ -203,7 +208,8 @@ test("teaches three new moves before hidden recall and resumes the saved learnin
   if(testInfo.project.use.hasTouch)await disclosure.tap();else await disclosure.click();
   await expect(card.locator("details.opening-card-details")).toHaveAttribute("open", "");
   page.on("dialog",dialog=>dialog.accept());
-  await card.getByRole("button",{name:"Learn new moves first",exact:true}).click();
+  await revealControl(card.getByRole("button",{includeHidden:true,name:"Learn new moves first",exact:true}));
+  await card.getByRole("button",{includeHidden:true,name:"Learn new moves first",exact:true}).click();
   const board=page.getByRole("grid",{name:"Chess position"});
   await expect(page.getByText("Learning 1 of 3",{exact:true})).toBeVisible();
   await expect(page.getByRole("region",{name:"Learn this move"})).toContainText("Claim central space");
@@ -869,6 +875,7 @@ test("previews and applies source changes from an expanded repertoire card", asy
   await expect(pause.or(repertoireCard.locator("summary").first())).toBeVisible();
   if (await pause.isVisible()) await pause.click();
   await repertoireCard.locator("summary").first().click();
+  await repertoireCard.locator(".opening-extra-options > summary").filter({hasText:"Update imported lines"}).click();
   await repertoireCard.getByRole("button", { name: "Update from source", exact: true }).click();
   await repertoireCard.getByLabel("Updated opening PGN", { exact: true }).fill(pgn.replace("Occupy the centre.", "Control the centre and free the bishop.").replace("3. Bc4 *", "3. Bc4 Bc5 (3... Nf6 4. Ng5) 4. c3 *"));
   await repertoireCard.getByRole("button", { name: "Preview update", exact: true }).click();
@@ -1128,7 +1135,7 @@ test("shows honest coverage, distinct recall and reversible stopping points with
   await panel.getByText(/Explore branches and stopping points/).click();
   await panel.getByRole("combobox", { name: "Show branches" }).selectOption("all");
   const node = panel.locator(".opening-coverage-node").first();
-  await node.locator("summary").click();
+  await node.locator("summary").first().click();
   await expect(node.getByText("Reply frequency unknown", { exact: false })).toBeVisible();
   await node.getByRole("button", { name: "Prepared enough — stop here" }).click();
   await expect(panel.getByText("Saved responses / stopping points: 100%", { exact: true })).toBeVisible();
@@ -1312,7 +1319,8 @@ test("deletes the final line and clears a confirmed library without losing games
   expect((await page.request.post("/api/v1/imports/pgn", { data: { pgn: gamePgn, playerName: "Library Learner" } })).ok()).toBeTruthy();
   const gamesBefore = await (await page.request.get("/api/v1/games")).json();
   const manager = page.locator("details.opening-library-manager");
-  await manager.locator("summary").click();
+  await revealControl(manager);
+  await manager.locator("summary").first().click();
   const clear = manager.getByRole("button", { name: "Delete all opening repertoires", exact: true });
   await clear.click();
   await expect(dialog.getByText(`Archived safety ${testInfo.project.name}`, { exact: true })).toBeVisible();
@@ -1519,13 +1527,16 @@ test("tracks the daily goal, streak and activity without inflating unaided recal
   await expect(page.getByText("Practice complete", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Back to this repertoire", exact: true }).click();
   await page.getByRole("button", { name: "Back to repertoires", exact: true }).click();
+  await page.locator("#opening-insights > summary").click();
   const activity = page.getByRole("region", { name: "Daily opening practice", exact: true });
+  await activity.locator("details > summary").click();
   await expect(activity).toContainText("Daily goal reached");
   await expect(activity).toContainText("1 / 1 positions · 1-day streak");
   await expect(activity).toContainText("0 recalled without help today");
   await expect(activity.getByRole("progressbar", { name: "Daily practice goal", exact: true })).toHaveAttribute("value", "1");
   await expect(activity.getByLabel("Practice over the last seven days")).toBeVisible();
   await page.reload();
+  await page.locator("#opening-insights > summary").click();
   await expect(activity).toContainText("Daily goal reached");
   await page.screenshot({ path: testInfo.outputPath("daily-practice-tracker.png"), fullPage: true });
   const before = await (await page.request.get("/api/v1/openings/preferences")).json();
@@ -1574,6 +1585,8 @@ test("draws our strongest move and the three most frequent opponent replies whil
   await initialBoard.getByRole("gridcell", { name: "e4 empty" }).click();
   await expect(guide).toContainText("Blue arrows: up to three most frequent replies");
   await expect(choices.getByText("Opponent replies by frequency", { exact: true })).toHaveCount(1);
+  await expect(choices.locator(".opening-suggestion-list button > span:first-child > strong")).toHaveText(["c5", "e5", "e6"]);
+  await choices.getByRole("button",{name:"Show all 4 moves",exact:true}).click();
   await expect(choices.locator(".opening-suggestion-list button > span:first-child > strong")).toHaveText(["c5", "e5", "e6", "d5"]);
   await expect(choices.getByLabel("Position evaluation", { exact: true })).toContainText("Position: -0.20");
   await expect(choices.getByLabel("Evaluation for e6", { exact: true })).toHaveText("+0.60");
@@ -1608,6 +1621,8 @@ test("shows game-based preparation recommendations even with Lichess frequencies
   await page.route("**/api/v1/openings/reviews/active", route => route.fulfill({ json: null }));
   await page.route("**/api/v1/openings/lessons/active", route => route.fulfill({ json: null }));
   await page.goto("/#openings");
+  await page.locator("#opening-insights > summary").click();
+  await page.locator(".opening-home-actions").locator("xpath=..").locator(":scope > summary").click();
   await expect(page.getByRole("heading", { name: "Recommended next steps", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: /Consider d4/ })).toBeEnabled();
   await expect(page.getByRole("region", { name: "Lichess recommendation setup", exact: true })).toContainText("Your games still provide preparation recommendations");
@@ -1668,7 +1683,8 @@ test("persists preparation goals and allows postponing, skipping and restoring t
   const preferences=await (await page.request.get("/api/v1/openings/preferences")).json();
   await page.getByRole("button", {name:"Back to repertoires",exact:true}).click();
   const settings=page.locator("details.opening-settings");
-  await settings.locator("summary").click();
+  await revealControl(settings);
+  await settings.locator("summary").first().click();
   const change=settings.getByRole("button",{name:"Change",exact:true});
   if(await change.isVisible()) await change.click();
   await settings.getByLabel(/^Preparation goal/).selectOption("100");
@@ -1811,7 +1827,8 @@ test("previews one missing response and safely undoes generated preparation",asy
   await page.goto(`/#openings?repertoire=${id}&line=${lineId}&ply=2`);
   await page.getByRole("button",{name:"Edit lines",exact:true}).click();
   const panel=page.getByRole("region",{name:"Prepare one gap",exact:true});
-  await panel.getByRole("button",{name:"Preview suggested response",exact:true}).click();
+  await revealControl(panel.getByRole("button",{includeHidden:true,name:"Preview suggested response",exact:true}));
+  await panel.getByRole("button",{includeHidden:true,name:"Preview suggested response",exact:true}).click();
   await expect(panel).toContainText("Preview only");
   expect(await(await page.request.get(`/api/v1/openings/repertoires/${id}`)).json()).toEqual(before);
   await panel.getByRole("button",{name:"Add this response",exact:true}).click();

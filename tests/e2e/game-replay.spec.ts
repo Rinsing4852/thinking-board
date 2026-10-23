@@ -24,7 +24,9 @@ async function move(page:Page,from:string,to:string) {
   const board=page.getByRole("grid",{name:"Game replay board",exact:true});
   // A question can render before the preceding save unlocks board input.
   await expect(board).toHaveClass(/\binteractive\b/);
-  await board.getByRole("gridcell",{name:new RegExp(`^${from} `)}).press("Enter");
+  const origin=board.getByRole("gridcell",{name:new RegExp(`^${from} `)});
+  await origin.press("Enter");
+  await expect(origin).toHaveAttribute("aria-selected","true");
   await board.getByRole("gridcell",{name:new RegExp(`^${to} `)}).press("Enter");
 }
 test("keeps a replay and hidden recall with each game without changing normal practice",async({page},testInfo)=>{

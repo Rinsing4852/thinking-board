@@ -1,3 +1,4 @@
+import { revealControl } from "./workflow-helpers";
 import { execFileSync } from "node:child_process";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
@@ -14,7 +15,8 @@ async function previewReply(page: Page, fen: string, color: "white" | "black" = 
   } }));
   await page.route("**/api/v1/training/items/board-regression/start", route => route.fulfill({ json: { attemptId: "board-attempt" } }));
   await page.goto("/#today");
-  await page.getByRole("button", { name: "3 · Blunder check", exact: true }).click();
+  await revealControl(page.getByRole("button", { includeHidden: true, name: "3 · Blunder check", exact: true }));
+  await page.getByRole("button", { includeHidden: true, name: "3 · Blunder check", exact: true }).click();
   await page.getByRole("button", { name: "Play my move on the board", exact: true }).click();
   const board = page.getByRole("grid", { name: "Chess position" });
   await expect(board).toHaveClass(/interactive/);
@@ -100,7 +102,8 @@ test("collects multiple candidates while restoring the original native position"
   } }));
   await page.route("**/api/v1/training/items/board-regression/start", route => route.fulfill({ json: { attemptId: "board-attempt" } }));
   await page.goto("/#today");
-  await page.getByRole("button", { name: "2 · Candidates", exact: true }).click();
+  await revealControl(page.getByRole("button", { includeHidden: true, name: "2 · Candidates", exact: true }));
+  await page.getByRole("button", { includeHidden: true, name: "2 · Candidates", exact: true }).click();
   await page.getByRole("button", { name: "Start generating candidates", exact: true }).click();
   const board = page.getByRole("grid", { name: "Chess position" });
   for (const [from, to, san] of [["e2", "e4", "e4"], ["d2", "d4", "d4"], ["g1", "f3", "Nf3"]]) {

@@ -1,3 +1,4 @@
+import { revealControl } from "./workflow-helpers";
 import { expect, test } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
@@ -21,8 +22,8 @@ test("opens the library and its board without waiting for suggestions or progres
     await expect(card).toBeVisible();
     await expect.poll(() => waiting).toBe(2);
     await expect(page.getByText("Loading opening practice…", { exact: true })).toBeHidden();
-    await expect(page.getByText("Preparing your practice suggestions…", { exact: true })).toBeVisible();
-    await card.locator("summary").click();
+    await expect(page.getByText("Preparing your practice suggestions…", { exact: true })).toBeHidden();
+    await card.locator("summary").first().click();
     await card.getByRole("button", { name: "View all lines", exact: true }).click();
     await expect(page.getByRole("region", { name: "Opening board and moves" })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("library-before-statistics.png") });
@@ -40,6 +41,7 @@ test("keeps the library usable when statistics fail and retries summaries indepe
   await page.goto("/#openings");
   await expect(page.locator("article.opening-card").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Build on the board", exact: true })).toBeEnabled();
+  await page.locator("#opening-insights > summary").click();
   await expect(page.getByRole("alert")).toContainText("Opening statistics could not be refreshed");
   fail = false;
   // The retry action precedes optional content, so late data cannot move it.
@@ -96,7 +98,7 @@ test("keeps navigation history, keyboard access and first-run actions clear", as
   await expect(page.getByRole("button", { name: "Import a game to begin" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Opening progress", exact: true })).toContainText("figures below cover thinking drills");
   await page.screenshot({ path: testInfo.outputPath("progress-first-run.png"), fullPage: true });
-  await page.getByRole("button", { name: "View opening progress", exact: true }).click();
+  await page.getByRole("button", { name: "Open saved repertoires", exact: true }).click();
   await expect(page).toHaveURL(/#openings$/);
   await page.getByRole("button", { name: "Progress", exact: true }).click();
   await page.getByRole("button", { name: "Import a game to begin" }).click();
@@ -139,6 +141,7 @@ test("keeps home screens and saved-line workspaces within intermediate tablet wi
 
 test("puts pasted games before optional sync and invalidates stale previews", async ({ page }, testInfo) => {
   await page.goto("/#games");
+  await page.locator(".game-import-disclosure > summary").click();
   const input = page.getByLabel("PGN text");
   await expect(input).toBeVisible();
   const sync = page.locator("details.lichess-sync-card");
@@ -154,7 +157,7 @@ test("puts pasted games before optional sync and invalidates stale previews", as
   await expect(page.getByLabel("I am")).toBeHidden();
   await expect(page.getByRole("button", { name: "Import & analyse" })).toBeHidden();
   await page.screenshot({ path: testInfo.outputPath("paste-first-games.png"), fullPage: true });
-  await sync.locator("summary").click();
+  await sync.locator("summary").first().click();
   await expect(page.getByLabel("Lichess username")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
@@ -166,6 +169,7 @@ test("exposes first-load failures and retry in every thinking drill", async ({ p
   for (const mode of ["1 · What changed", "2 · Candidates", "3 · Blunder check", "4 · Punish", "5 · Quiet plan"]) {
     fail = true;
     await page.goto("/#today");
+    if (!await page.locator(".thinking-mode-picker").evaluate(el=>el.hasAttribute("open"))) await page.locator(".thinking-mode-picker > summary").click();
     await page.getByRole("button", { name: mode, exact: true }).click();
     await expect(page.locator(".exercise-load-state").getByRole("alert")).toHaveText("Exercise temporarily unavailable");
     fail = false;
@@ -291,6 +295,7 @@ test("keeps an unsaved preparation idea when background analysis refreshes the i
   const refreshed = page.waitForResponse(response => response.url().endsWith("/openings/game-inbox") && response.status() === 200);
   release!();
   await (await refreshed).finished();
+  await revealControl(page.getByText("Analysis complete. Your exercises and repertoire comparison are ready below.", { exact: true }));
   await expect(page.getByText("Analysis complete. Your exercises and repertoire comparison are ready below.", { exact: true })).toBeVisible();
   await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   await expect(noteInput).toHaveValue(note);
@@ -323,10 +328,10 @@ for(const failProgress of [false,true]) {
       const loaded=page.waitForResponse(response=>response.url().endsWith("/api/v1/openings/progress"));
       release();await loaded;
       await expect(page.getByText("Preparing your practice suggestions…",{exact:true})).toBeHidden();
-      if(failProgress)await expect(page.getByRole("alert")).toContainText("Opening statistics could not be refreshed");
-      else await expect(page.locator(".opening-home-progress")).toBeVisible();
-      await expect(page.locator(".opening-home-shell")).toHaveClass(/has-focus-board/);
-      await expect(page.getByRole("button",{name:/Consider d4 Late coverage/})).toBeVisible();
+      if(failProgress)await expect(page.getByRole("alert",{includeHidden:true})).toContainText("Opening statistics could not be refreshed");
+      else await expect(page.locator(".opening-home-progress")).toBeAttached();
+      await expect(page.locator(".opening-home-shell")).toHaveClass(/task-only/);
+      await expect(page.getByRole("button",{name:/Consider d4 Late coverage/,includeHidden:true})).toBeAttached();
       const after=await summary.evaluate(el=>({top:el.getBoundingClientRect().top,documentTop:el.getBoundingClientRect().top+window.scrollY}));
       expect(Math.abs(after.documentTop-before.documentTop)).toBeLessThanOrEqual(1);
       expect(Math.abs(after.top-before.top)).toBeLessThanOrEqual(1);
@@ -358,7 +363,7 @@ test("starts and resumes practice from the stable action before optional summari
     const action=page.getByRole("region",{name:"Choose how to learn",exact:true}).getByRole("button",{name:"Practise my repertoire",exact:true});
     await action.click();await expect(page.getByRole("grid",{name:"Chess position",exact:true})).toBeVisible();
     const active=await(await page.request.get("/api/v1/openings/reviews/active")).json();
-    await page.getByRole("button",{name:"Pause",exact:true}).click();await action.click();
+    await page.getByRole("button",{name:"Pause",exact:true}).click();await page.getByRole("button",{name:"Resume opening practice",exact:true}).click();
     await expect(page.getByRole("grid",{name:"Chess position",exact:true})).toBeVisible();
     const resumed=await(await page.request.get("/api/v1/openings/reviews/active")).json();
     expect(resumed.queueEntryId).toBe(active.queueEntryId);expect(starts).toBe(1);
@@ -389,7 +394,7 @@ test("shows delayed learning measures without inventing a retention result",asyn
   await page.route("**/api/v1/openings/reviews/active",route=>route.fulfill({json:null}));
   await page.route("**/api/v1/openings/lessons/active",route=>route.fulfill({json:null}));
   await page.route("**/api/v1/openings/quality/metrics",route=>route.fulfill({json:{delayedRecall:[{minimumDays:7,maximumDays:14,encounters:0,independent:0,percent:null},{minimumDays:14,maximumDays:null,encounters:5,independent:3,percent:60}],games:{gamesMatched:0,playerDepartures:0,departuresPer100Games:null},explanation:"Observed results, not proof of learning improvement."}}));
-  await page.goto("/#openings");await page.getByText("What am I remembering over time?",{exact:true}).click();
+  await page.goto("/#progress");await page.getByText("What am I remembering over time?",{exact:true}).click();
   const measures=page.locator(".opening-learning-measures");await expect(measures).toContainText("Not enough delayed practice yet");await expect(measures).toContainText("3/5 recalled without help (60%)");await expect(measures).toContainText("The rate is unknown");
 });
 
@@ -409,7 +414,8 @@ test("keeps import and learn-first actions fixed when late progress arrives",asy
   });
   try {
     await page.goto("/#openings");
-    const importer=page.getByRole("button",{name:"Import repertoire lines",exact:true}),learn=page.getByRole("button",{name:"Learn new moves first",exact:true});
+    const importer=page.getByRole("button",{name:"Import repertoire lines",exact:true}),learn=page.locator(".opening-home-primary").getByRole("button",{name:"Learn new moves first",exact:true});
+    await page.locator("#opening-insights > summary").click();
     await expect(learn).toBeVisible();await expect(importer).toHaveCount(1);
     const importTop=await importer.evaluate(el=>el.getBoundingClientRect().top+window.scrollY);
     await learn.scrollIntoViewIfNeeded();const before=await learn.boundingBox();expect(before).not.toBeNull();
@@ -419,4 +425,44 @@ test("keeps import and learn-first actions fixed when late progress arrives",asy
     expect(await importer.evaluate(el=>el.getBoundingClientRect().top+window.scrollY)).toBe(importTop);
     await page.mouse.up();await expect(page.getByRole("region",{name:"Learn this move",exact:true})).toBeVisible();
   } finally {release();await page.mouse.up();}
+});
+
+test("keeps the opening landing page focused and reveals each workflow on request", async ({ page }, testInfo) => {
+  await page.route("**/api/v1/openings/lessons/active", route => route.fulfill({json:null}));
+  await page.goto("/#openings");
+  await expect(page.getByRole("heading", {name:"Your openings",exact:true})).toBeVisible();
+  await expect(page.getByRole("button", {name:"Practise my repertoire",exact:true})).toBeVisible();
+  await expect(page.locator(".opening-player-context")).toBeHidden();
+  await expect(page.locator(".opening-home-tasks")).toBeHidden();
+  await expect(page.getByLabel("Repertoire for model-game study")).toBeHidden();
+  await expect(page.getByRole("grid",{name:"Opening focus board"})).toHaveCount(0);
+  const card=page.locator("article.opening-card").first();
+  await card.locator(":scope > details > summary").click();
+  await expect(card.locator(".opening-card-actions").first().getByRole("button")).toHaveCount(2);
+  await expect(card.getByRole("button",{name:"Learn the ideas (guided)"})).toBeHidden();
+  await card.locator(".opening-extra-options > summary").first().click();
+  await expect(card.getByRole("button",{name:"Learn the ideas (guided)"})).toBeVisible();
+  await page.locator(".study-route > summary").click();
+  await expect(page.getByLabel("Repertoire for model-game study")).toBeVisible();
+  await expect(page.getByRole("button",{name:"Find a study game"})).toBeEnabled();
+  await page.screenshot({path:testInfo.outputPath("simplified-openings.png")});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+
+test("keeps saved games and analysis feedback available with the import form closed", async ({ page }, testInfo) => {
+  const job={id:"workflow-analysis",status:"failed",progressCurrent:0,progressTotal:1,error:"Analysis interrupted; your game is saved."};
+  await page.route("**/api/v1/jobs/active",route=>route.fulfill({json:job}));
+  await page.route("**/api/v1/jobs/workflow-analysis",route=>route.fulfill({json:job}));
+  await page.goto("/#games");
+  await expect(page.getByRole("heading",{name:"My games",exact:true})).toBeVisible();
+  await expect(page.getByText("Analysis interrupted; your game is saved.",{exact:true})).toBeVisible();
+  await expect(page.getByRole("button",{name:"Retry analysis",exact:true})).toBeVisible();
+  await expect(page.getByLabel("PGN text")).toBeHidden();
+  await page.locator(".game-import-disclosure > summary").click();
+  await page.getByLabel("PGN text").fill('[White "Workflow learner"]\n[Black "Opponent"]\n\n1. e4 e5 *');
+  await page.locator(".game-import-disclosure > summary").click();
+  await expect(page.getByLabel("PGN text")).toBeHidden();
+  await page.locator(".game-import-disclosure > summary").click();
+  await expect(page.getByLabel("PGN text")).toHaveValue(/Workflow learner/);
+  await page.screenshot({path:testInfo.outputPath("simplified-games.png")});
 });

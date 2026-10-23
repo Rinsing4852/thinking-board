@@ -12,8 +12,10 @@ import { get, post } from "../api";
 interface ImportPanelProps {
   refreshToken: number;
   onAnalyzed: () => void;
+  expanded?: boolean;
+  onExpandedChange?: (open: boolean) => void;
 }
-export function ImportPanel({ refreshToken, onAnalyzed }: ImportPanelProps) {
+export function ImportPanel({ refreshToken, onAnalyzed, expanded = false, onExpandedChange }: ImportPanelProps) {
   const [pgn, setPgn] = useState("");
   const [playerName, setPlayerName] = useState("");
   const [preview, setPreview] = useState<PgnPreviewResponse | null>(null);
@@ -183,6 +185,8 @@ export function ImportPanel({ refreshToken, onAnalyzed }: ImportPanelProps) {
 
   return (
     <section className="panel import-panel" id="import">
+      <details className="workflow-disclosure game-import-disclosure" open={expanded} onToggle={event => onExpandedChange?.(event.currentTarget.open)}>
+      <summary>Add a game</summary>
       <div className="panel-heading">
         <div>
           <span className="eyebrow">Your games</span>
@@ -264,6 +268,7 @@ export function ImportPanel({ refreshToken, onAnalyzed }: ImportPanelProps) {
           </p>
         )}
         {lichessStatus && <p className="status" aria-live="polite">{lichessStatus}</p>}
+      </details>
       </details>
       {job && job.status !== "completed" && (
         <div className={`analysis-status ${job.status}`} aria-live="polite">

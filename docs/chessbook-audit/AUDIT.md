@@ -22,7 +22,7 @@ remain separate from the verified requirement counts below.
 - Acceptance checks: 109 passed, 0 failed, 0 flaky, 40 unknown, 30 unmet, 3 excluded.
 - Priority-weighted verified requirement coverage: **70.2%** (471/671 points). This is a conservative evidence measure, not “70.2% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
 - Like-for-like unit-evidence baseline: 25.3% → 39.3%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
-- Current validation records: 343 unit/integration tests and 180 browser journeys; 0 failures, 0 flaky results, 0 skipped.
+- Current validation records: 343 unit/integration tests and 184 browser journeys; 0 failures, 0 flaky results, 0 skipped.
 
 ## Implemented from this audit
 

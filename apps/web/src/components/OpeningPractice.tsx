@@ -33,7 +33,6 @@ import { OpeningLineExplorer } from "./OpeningLineExplorer";
 import { OpeningReview } from "./OpeningReview";
 import { OpeningLearningComment } from "./OpeningLearningComment";
 import { OpeningPlayerContext } from "./OpeningPlayerContext";
-import { OpeningLearningMeasures } from "./OpeningLearningMeasures";
 import { OpeningLearningRoutes } from "./OpeningLearningRoutes";
 import { OpeningHomeCockpit } from "./OpeningHomeCockpit";
 import { OpeningSourceUpdate } from "./OpeningSourceUpdate";
@@ -704,50 +703,12 @@ export function OpeningPractice({ refreshToken, onOpenGames, onReviewPlayedGame,
       {!loading && (!activeReview || reviewPaused) && phase === "catalog" && !showBuilder && !workspaceDetail && (
         <>
           <OpeningLearningRoutes repertoires={activeCatalog.map(item=>({id:item.id,name:item.name}))}
-            busy={submitting} onPractice={()=>{
+            busy={submitting} resuming={Boolean(activeReview || (step && pausedLessonPhase))} onPractice={()=>{
               if(activeReview)void resumeReview();
               else if(step&&pausedLessonPhase){setPhase(pausedLessonPhase);setPausedLessonPhase(null);}
               else void startRecommendedReview();
             }} onStudyGame={id=>void openWorkspace(id,null,null,true)} onReviewPlayedGame={onReviewPlayedGame}/>
-          {activeReview && reviewPaused && (
-            <div className="panel opening-resume-card">
-              <div>
-                <span className="eyebrow">Practice paused</span>
-                <h3>{activeReview.kind === "feedback" ? activeReview.exercise.repertoire.name : activeReview.repertoire.name}</h3>
-                <p>Your place is saved. Resume when you are ready; pausing does not affect the review schedule.</p>
-              </div>
-              <button disabled={submitting} onClick={() => void resumeReview()}>
-                {submitting ? "Resuming…" : "Resume opening practice"}
-              </button>
-            </div>
-          )}
-          {step && pausedLessonPhase && (
-            <div className="panel opening-resume-card">
-              <div>
-                <span className="eyebrow">Guided line paused</span>
-                <h3>{step.lineTitle}</h3>
-                <p>Your place is saved. Guided line study explains a full sequence; it does not change the memory schedule.</p>
-              </div>
-              <button onClick={() => { setPhase(pausedLessonPhase); setPausedLessonPhase(null); }}>
-                Resume guided line
-              </button>
-            </div>
-          )}
-          {(Boolean(activeReview && reviewPaused) || Boolean(step && pausedLessonPhase)) && <div className="panel opening-paused-tools" role="group" aria-label="Repertoire tools">
-            <p>Your practice is saved. You can build or import preparation without losing your place.</p>
-
-          </div>}
-          {playerPreferences && (
-            <details ref={settingsRef} className="panel opening-settings" open={settingsOpen} onToggle={event => setSettingsOpen(event.currentTarget.open)}>
-              <summary>
-                <span><strong>Opening settings</strong><small>Playing level and common-move data</small></span>
-                <b>{playerPreferences.configured
-                  ? `${playerPreferences.ratingGroup}+ · common moves ${playerPreferences.useExplorer ? "on" : "off"}`
-                  : "Set up"}</b>
-              </summary>
-              <OpeningPlayerContext preferences={playerPreferences} onSaved={updatePlayerPreferences} />
-            </details>
-          )}
+          {(Boolean(activeReview && reviewPaused) || Boolean(step && pausedLessonPhase)) && <p role="status">Your practice is paused and your place is saved.</p>}
           {archiveMessage && <p className="success opening-catalog-status" role="status">{archiveMessage}</p>}
           <div className="panel answer-actions" role="group" aria-label="Add opening preparation">
             <button disabled={submitting} onClick={() => { setShowBuilder(true); setShowImporter(false); }}>Build on the board</button>
@@ -765,15 +726,8 @@ export function OpeningPractice({ refreshToken, onOpenGames, onReviewPlayedGame,
             }} />
           )}
 
-          <details className="panel opening-mode-guide opening-mode-guide-global" aria-label="Ways to practise a repertoire">
-            <summary>How the three practice options differ</summary>
-            <div>
-              <p><strong>Quick practice</strong><span>Play continuously; replies and the next position are automatic.</span></p>
-              <p><strong>Guided learning (optional)</strong><span>Stop to study move purposes. For continuous recall, open View all lines and choose Practise this line.</span></p>
-              <p><strong>Browse lines</strong><span>Inspect every saved branch without starting a lesson.</span></p>
-            </div>
-          </details>
-
+          <h2 className="workflow-section-title">Saved repertoires</h2>
+          {catalog.length === 0 && <div className="panel"><h3>Your opening library is empty</h3><p>Choose Build on the board to save your first moves, or import lines you already have.</p></div>}
           <div className="opening-catalog">
             {activeCatalog.map((repertoire) => (
               <article className="panel opening-card" key={repertoire.id}>
@@ -801,20 +755,6 @@ export function OpeningPractice({ refreshToken, onOpenGames, onReviewPlayedGame,
                         : (repertoire.newResponseCount ?? 0) > 0 ? `${repertoire.newResponseCount} new saved answers` : "Ready to review"}</span>
                   </summary>
                   <div className="opening-card-body">
-                    <div className="opening-card-topline">
-                      <span>{repertoire.learnerColor === "white" ? "Play as White" : "Play as Black"}</span>
-                      <small>{repertoire.origin === "imported" ? "Private import" : repertoire.status === "preview" ? "Starter preview" : "Published"}</small>
-                    </div>
-                    <p>{repertoire.summary}</p>
-                    {repertoire.sourceTitle && <p className="opening-source">Source: {repertoire.sourceTitle}</p>}
-                    <div className="opening-tags">
-                      {repertoire.style.map((style) => <span key={style}>{style.replaceAll("-", " ")}</span>)}
-                    </div>
-                    <dl className="opening-facts">
-                      <div><dt>For</dt><dd>{repertoire.audienceLabel}</dd></div>
-                      <div><dt>Memory</dt><dd>{repertoire.memoryBurden}</dd></div>
-                      <div><dt>Training positions</dt><dd>{repertoire.decisionCount}</dd></div>
-                    </dl>
                     <div className="opening-card-actions">
                       <button disabled={submitting || repertoire.review.total === 0} onClick={() => void startReview(
                         repertoire.id,
@@ -826,6 +766,14 @@ export function OpeningPractice({ refreshToken, onOpenGames, onReviewPlayedGame,
                             : `Review ${repertoire.review.due} due`
                           : repertoire.review.new > 0 ? `Practise ${Math.min(playerPreferences?.newMovesPerSession ?? 5, repertoire.review.new)} new moves` : "Review early"}
                       </button>
+                      <button className="secondary" disabled={submitting} onClick={() => void openWorkspace(repertoire.id)}>
+                        View all lines
+                      </button>
+                    </div>
+                    <details className="opening-extra-options">
+                      <summary>More practice options and details</summary>
+                      <p>Learn the ideas explains a line. Varied practice follows different saved replies. Neither changes your saved moves.</p>
+                      <div className="opening-card-actions">
                       {repertoire.review.due > 0 && repertoire.review.new > 0 && (
                         <button className="secondary" disabled={submitting} onClick={() => void startReview(repertoire.id, "new")}>
                           Practise {Math.min(playerPreferences?.newMovesPerSession ?? 5, repertoire.review.new)} new instead
@@ -841,18 +789,30 @@ export function OpeningPractice({ refreshToken, onOpenGames, onReviewPlayedGame,
                       <button className="secondary" disabled={submitting || repertoire.review.total === 0} onClick={() => void startTreePractice(repertoire.id)}>
                         Practise a varied line
                       </button>
-                      <button className="secondary" disabled={submitting} onClick={() => void openWorkspace(repertoire.id)}>
-                        View all lines
-                      </button>
                       <button className="text-button" disabled={submitting} onClick={() => void setRepertoireArchived(repertoire, true)}>
                         Archive
                       </button>
+                      </div>
+                    <div className="opening-card-topline">
+                      <span>{repertoire.learnerColor === "white" ? "Play as White" : "Play as Black"}</span>
+                      <small>{repertoire.origin === "imported" ? "Private import" : repertoire.status === "preview" ? "Starter preview" : "Published"}</small>
                     </div>
+                    <p>{repertoire.summary}</p>
+                    {repertoire.sourceTitle && <p className="opening-source">Source: {repertoire.sourceTitle}</p>}
+                    <div className="opening-tags">
+                      {repertoire.style.map((style) => <span key={style}>{style.replaceAll("-", " ")}</span>)}
+                    </div>
+                    <dl className="opening-facts">
+                      <div><dt>For</dt><dd>{repertoire.audienceLabel}</dd></div>
+                      <div><dt>Memory</dt><dd>{repertoire.memoryBurden}</dd></div>
+                      <div><dt>Training positions</dt><dd>{repertoire.decisionCount}</dd></div>
+                    </dl>
+                    </details>
                     <p className="opening-review-summary">
                       <strong>{repertoire.review.reviewed}</strong> reviewed · <strong>{repertoire.review.learning}</strong> learning · <strong>{repertoire.review.new}</strong> new
                     </p>
                     {repertoire.review.total === 0 && <p>Automatic practice is paused. Choose View all lines to include lines or practise one once.</p>}
-                    {repertoire.origin === "imported" && <OpeningSourceUpdate repertoire={repertoire} onUpdated={() => finishSourceUpdate(repertoire.id)} />}
+                    {repertoire.origin === "imported" && <details className="opening-extra-options"><summary>Update imported lines</summary><OpeningSourceUpdate repertoire={repertoire} onUpdated={() => finishSourceUpdate(repertoire.id)} /></details>}
                   </div>
                 </details>
               </article>
@@ -864,6 +824,19 @@ export function OpeningPractice({ refreshToken, onOpenGames, onReviewPlayedGame,
               </div>
             )}
           </div>
+          <details className="panel workflow-disclosure" aria-label="Opening settings and library">
+            <summary>Settings and library management</summary>
+          {playerPreferences && (
+            <details ref={settingsRef} className="panel opening-settings" open={settingsOpen} onToggle={event => setSettingsOpen(event.currentTarget.open)}>
+              <summary>
+                <span><strong>Opening settings</strong><small>Playing level and common-move data</small></span>
+                <b>{playerPreferences.configured
+                  ? `${playerPreferences.ratingGroup}+ · common moves ${playerPreferences.useExplorer ? "on" : "off"}`
+                  : "Set up"}</b>
+              </summary>
+              <OpeningPlayerContext preferences={playerPreferences} onSaved={updatePlayerPreferences} />
+            </details>
+          )}
           {archivedCatalog.length > 0 && (
             <details className="panel opening-archive-library">
               <summary>Archived repertoires <span>{archivedCatalog.length}</span></summary>
@@ -879,8 +852,10 @@ export function OpeningPractice({ refreshToken, onOpenGames, onReviewPlayedGame,
             </details>
           )}
           <OpeningLibraryManager repertoires={catalog} onDeleted={finishOpeningDeletion} />
+          </details>
           {/* Optional insights stay after saved controls: late data must not move tap targets. */}
-          <div id="opening-insights">
+          <details id="opening-insights" className="panel workflow-disclosure">
+            <summary>Practice plan</summary>
             {insightsError && <div className="panel" role="alert">
               <p>{insightsError}</p>
               <button className="secondary" disabled={insightsLoading} onClick={() => refreshOpeningInsights()}>Retry opening summaries</button>
@@ -895,7 +870,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onReviewPlayedGame,
                 preferences={playerPreferences}
                 libraryEmpty={catalog.length === 0}
                 busy={submitting}
-                onSettings={() => { setSettingsOpen(true); requestAnimationFrame(() => settingsRef.current?.scrollIntoView({ block: "start" })); }}
+                onSettings={() => { if (settingsRef.current?.parentElement instanceof HTMLDetailsElement) settingsRef.current.parentElement.open = true; setSettingsOpen(true); requestAnimationFrame(() => settingsRef.current?.scrollIntoView({ block: "start" })); }}
                 onStartRecommended={() => void startRecommendedReview()}
                 onLearnFirst={() => void startRecommendedReview(true)}
                 learnableResponses={catalog.find(repertoire=>repertoire.id===recommendation?.repertoire?.id)?.newResponseCount ?? 0}
@@ -907,8 +882,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onReviewPlayedGame,
               />
             )}
 
-            <OpeningLearningMeasures/>
-          </div>
+          </details>
         </>
       )}
 

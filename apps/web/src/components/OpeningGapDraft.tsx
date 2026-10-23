@@ -21,13 +21,14 @@ export function OpeningGapDraft({repertoireId,lineId,afterPly,fen,opponentMoveUc
     finally {if(!controller.signal.aborted)setBusy(false);}
   };
   return <section className="opening-gap-draft" aria-label="Prepare one gap">
-    <strong>Prepare one missing response</strong>
+    <details><summary>Prepare one missing response</summary>
     <p>Preview an engine suggestion for this position. Existing responses and notes are kept. Nothing is saved until you apply it.</p>
     <button className="secondary" disabled={disabled||busy} onClick={()=>void run("preview")}>{busy?"Working…":"Preview suggested response"}</button>
     {draft&&<div role="status"><p>{draft.message}</p><p>{draft.moves.map(m=>m.san).join(" → ")} · {draft.source}</p>
       {draft.state==="preview"&&<div className="answer-actions"><button disabled={busy||disabled} onClick={()=>void run("apply",draft.id)}>Add this response</button><button className="secondary" disabled={busy} onClick={()=>setDraft(null)}>Discard preview</button></div>}
     </div>}
     {error&&<p role="alert">{error}</p>}
+    </details>
     {saved.length>0&&<details><summary>Generated responses · undo</summary><p>Undo protects later edits. If preparation has changed, review the line manually.</p>{saved.map(item=><div key={item.id}><span>{item.moves.map(m=>m.san).join(" → ")}</span> <button className="secondary" disabled={busy||disabled} onClick={()=>void run("undo",item.id)}>Undo generated response</button></div>)}</details>}
   </section>;
 }

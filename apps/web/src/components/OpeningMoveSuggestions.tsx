@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Chess } from "chess.js";
 
 import type {
@@ -52,6 +52,8 @@ export function OpeningMoveSuggestions({
   const ownEvidence = useOpeningMoveEvidence(fen, ratingGroup, useExplorer, !evidence, savedMoves.map(move => move.moveUci), explorerSpeeds);
   const { analysis, explorer, analysisBusy, explorerBusy, analysisError, explorerError } = evidence ?? ownEvidence;
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [showAllMoves, setShowAllMoves] = useState(false);
+  useEffect(() => setShowAllMoves(false), [fen]);
   const ownTurn = fen.split(" ")[1] === (learnerColor === "white" ? "w" : "b");
 
   const candidates = useMemo(() => {
@@ -101,7 +103,7 @@ export function OpeningMoveSuggestions({
       </div>
       <div className="opening-position-evaluation" aria-label="Position evaluation">
         <strong>Position: {openingEvaluation(analysis?.lines.find(line => line.rank === 1), fen)}</strong>
-        <small>White's perspective · + favours White, − favours Black{analysis ? ` · depth ${analysis.depth}` : analysisBusy ? " · analysing…" : " · unavailable"}</small>
+        <small>+ favours White · − favours Black{analysisBusy ? " · analysing…" : !analysis ? " · unavailable" : ""}</small>
       </div>
       {guidance && <section className="opening-arrow-controls" aria-label="Board move suggestions">
         <div><small>{ownTurn ? "Green arrow: engine's leading move" : "Blue arrows: up to three most frequent replies"}</small>
@@ -112,7 +114,7 @@ export function OpeningMoveSuggestions({
         <span>Move</span><span>{useExplorer ? `Seen in ${ratingGroup} band` : "Seen"}</span><span>Results for {learnerColor === "white" ? "White" : "Black"}</span><span>Evaluation</span>
       </div>
       <div className="opening-suggestion-list">
-        {candidates.map((candidate) => (
+        {(showAllMoves ? candidates : candidates.slice(0, 3)).map((candidate) => (
           <button
             type="button"
             className={candidate.saved ? "saved" : ""}
@@ -146,12 +148,13 @@ export function OpeningMoveSuggestions({
           <p>No candidate data is available for this position.</p>
         )}
       </div>
+      {candidates.length > 3 && <button type="button" className="text-button" aria-expanded={showAllMoves} onClick={() => setShowAllMoves(value => !value)}>{showAllMoves ? "Show top three moves" : `Show all ${candidates.length} moves`}</button>}
       {!useExplorer && <p className="opening-suggestion-note">Practical frequencies are off. Enable them in your opening settings to rank moves seen at your level.</p>}
       <button type="button" className="text-button" aria-expanded={detailsOpen} onClick={() => setDetailsOpen(open => !open)}>
         {detailsOpen ? "Hide game results" : "Show game results"}
       </button>
-      <p className="opening-suggestion-note">{ownTurn ? "Your engine choices come first." : explorer?.replies.length && useExplorer ? "Replies are ordered by frequency, not engine strength." : "Engine choices shown; reply frequencies are unavailable."} Frequency applies at this position.{explorer?.stale ? " Cached game data may be out of date." : ""}</p>
-      {detailsOpen && <p className="opening-suggestion-note">Results describe the sampled games, not your personal results. Move evaluations use White’s perspective and describe the position after that move, assuming best play.</p>}
+      <p className="opening-suggestion-note">{ownTurn ? "Stockfish ranks your options by strength." : explorer?.replies.length && useExplorer ? "Replies are ordered by frequency, not engine strength." : "Engine choices shown; reply frequencies are unavailable."} {explorer?.stale ? " Cached game data may be out of date." : ""}</p>
+      {detailsOpen && <p className="opening-suggestion-note">Stockfish search depth: {analysis?.depth ?? "unavailable"}. Results describe the sampled games, not your personal results. Move evaluations use White’s perspective and describe the position after that move, assuming best play.</p>}
       {analysisError && <p className="error">{analysisError}</p>}
       {explorerError && <p className="error">{explorerError}</p>}
     </section>

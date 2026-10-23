@@ -317,32 +317,10 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
 
   if (games.length === 0) return <section className="panel game-review-state" aria-label="Game review" aria-busy={loadingGames}>
     {error ? <><p className="error" role="alert">{error}</p><button className="secondary" onClick={() => setRetryToken(value => value + 1)}>Retry game review</button></>
-      : <p role="status">{loadingGames ? "Loading your games…" : "No games imported yet. Paste a game above to see its opening comparison and thinking mistakes."}</p>}
+      : <p role="status">{loadingGames ? "Loading your games…" : "No games imported yet. Choose Add a game to see your opening comparison and thinking mistakes."}</p>}
   </section>;
   return (
-    <section className="review-section" id="opening-inbox">
-      <div className="panel-heading">
-        <div>
-          <span className="eyebrow">From your games</span>
-          <h2>Opening inbox</h2>
-          <p>Recurring misses come first. Practise what you forgot, inspect surprises, and clear each pattern when you understand it.</p>
-        </div>
-        <span className="step-number">Review</span>
-      </div>
-      <OpeningGameInbox
-        inbox={inbox}
-        busyKey={inboxBusyKey}
-        practiceBusy={openingStarting}
-        onInspect={inspectInboxGame}
-        onPractice={(gameId) => void practiceOpening(gameId)}
-        onMarkReviewed={(groupKey) => void markInboxGroupReviewed(groupKey)}
-        onPrepared={(response: OpeningSurprisePreparationResponse) => {
-          setInbox(response.inbox);
-          setStatus(response.message);
-          setError("");
-        }}
-        onPreparationDecision={response => { setInbox(response.inbox); setStatus(response.message); setError(""); }}
-      />
+    <section className="review-section" id="game-review">
       {status && <p className="success" role="status">{status}</p>}
       {error && <p className="error" role="alert">{error} <button className="text-button" onClick={() => setRetryToken(value => value + 1)}>Retry game review</button></p>}
       <div className="game-review-heading" id="selected-game-review">
@@ -388,6 +366,30 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
           </details>
         </div>
       )}
+      <section className="game-followups" id="opening-inbox" aria-label="Opening follow-ups across games">
+      <div className="panel-heading">
+        <div>
+          <span className="eyebrow">From your games</span>
+          <h2>Opening inbox</h2>
+          <p>Recurring misses come first. Practise what you forgot, inspect surprises, and clear each pattern when you understand it.</p>
+        </div>
+        <span className="step-number">Review</span>
+      </div>
+      <OpeningGameInbox
+        inbox={inbox}
+        busyKey={inboxBusyKey}
+        practiceBusy={openingStarting}
+        onInspect={inspectInboxGame}
+        onPractice={(gameId) => void practiceOpening(gameId)}
+        onMarkReviewed={(groupKey) => void markInboxGroupReviewed(groupKey)}
+        onPrepared={(response: OpeningSurprisePreparationResponse) => {
+          setInbox(response.inbox);
+          setStatus(response.message);
+          setError("");
+        }}
+        onPreparationDecision={response => { setInbox(response.inbox); setStatus(response.message); setError(""); }}
+      />
+      </section>
     </section>
   );
 }

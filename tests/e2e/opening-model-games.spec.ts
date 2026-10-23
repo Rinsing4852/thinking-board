@@ -209,11 +209,12 @@ test("finds stronger-player study from home and guesses with hidden answers, hin
   const routes=page.getByRole("region",{name:"Choose how to learn",exact:true});
   await expect(routes.getByRole("button",{name:"Practise my repertoire",exact:true})).toBeVisible();
   await routes.getByRole("button",{name:"Review my played game",exact:true}).click();
-  await expect(page.getByRole("heading",{name:"Import. Analyse. Learn.",exact:true})).toBeVisible();
+  await expect(page.getByRole("heading",{name:"My games",exact:true})).toBeVisible();
   await page.getByRole("button",{name:"Openings",exact:true}).click();
+  await routes.locator(".study-route > summary").click();
   await routes.getByLabel("Repertoire for model-game study").selectOption(repertoireId);
   await routes.screenshot({path:testInfo.outputPath("learning-routes.png")});
-  await routes.getByRole("button",{name:"Study a stronger player’s game",exact:true}).click();
+  await routes.getByRole("button",{name:"Find a study game",exact:true}).click();
   const study=page.getByRole("region",{name:"Model-game study",exact:true});
   await study.locator(".opening-study-candidate").filter({hasText:"Home guessing fixture"}).getByRole("button",{name:"Study this game",exact:true}).click();
   await study.getByRole("button",{name:"Guess the player’s moves",exact:true}).click();

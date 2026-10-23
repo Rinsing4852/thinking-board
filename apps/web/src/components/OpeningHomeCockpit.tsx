@@ -6,7 +6,7 @@ import type {
   OpeningProgressResponse,
   OpeningReviewRecommendation,
 } from "../../../../packages/contracts/src/api";
-import { ChessBoard } from "./ChessBoard";
+
 
 interface OpeningHomeCockpitProps {
   recommendation: OpeningReviewRecommendation | null;
@@ -57,49 +57,24 @@ export function OpeningHomeCockpit({
   const activity = recommendation?.activity;
   const offerLearning=Boolean(onLearnFirst&&learnableResponses>0&&recommendation?.available
     &&recommendation.counts.due===0&&recommendation.counts.gameMisses===0&&(activity?.remaining??1)>0);
-  const orientation = gap ? gap.fen.split(" ")[1] === "w" ? "black" : "white" : repertoire?.learnerColor ?? weakLine?.learnerColor ?? "white";
   const masteredPercent = progress && progress.totalLines > 0
     ? Math.round((progress.masteredLines / progress.totalLines) * 100)
     : 0;
 
   return (
-    <div className={`opening-home-shell${gap ? " has-focus-board" : " task-only"}`}>
-      {gap && <section className="opening-home-board-pane" aria-label="Opening position preview">
-        <div className="candidate-banner">
-          <div>
-            <span>{gap.lineTitle}</span>
-            <small>{gap ? `Position before ${gap.moveSan}` : `Board shown from ${orientation}'s side`}</small>
-          </div>
-          <strong>{orientation === "white" ? "White" : "Black"}</strong>
-        </div>
-        <ChessBoard
-          fen={gap.fen}
-          orientation={orientation}
-          interactive={false}
-          ariaLabel="Opening focus board"
-        />
-        <div className="opening-home-board-caption">
-          <span>
-            <span className="eyebrow">Reply worth considering</span>
-            <strong>{gap.moveSan} is not covered yet</strong>
-            <small>{gap.task?.reason}</small>
-            <small>{gap.games > 0 ? `${gap.frequencyPercent}% at this position · ${frequencyLabel(gap.frequencyPercent)}` : `Lichess frequency unknown · seen ${gap.personalFrequency?.games ?? gap.preparation?.personal.occurrences ?? 0} times in your games`}</small>
-          </span>
-          <button onClick={() => onOpenGap(gap)}>Inspect this reply</button>
-        </div>
-      </section>}
-
+    <div className="opening-home-shell task-only">
       <section className="panel opening-home-tasks">
         <div className="opening-home-heading">
-          <span className="eyebrow">Understand your opening</span>
+
           <h2>Opening Practice</h2>
-          <p>One useful task at a time: prepare likely replies, repair game misses, and remember the ideas behind your moves.</p>
+
           {activity && <section className="opening-daily-activity" aria-label="Daily opening practice">
             <div className="opening-daily-summary">
               <strong>{activity.goalReached ? "Daily goal reached" : "Today's practice"}</strong>
               <span>{activity.completedToday} / {activity.goal} positions · {activity.streakDays}-day streak</span>
             </div>
             <progress aria-label="Daily practice goal" value={Math.min(activity.completedToday, activity.goal)} max={activity.goal} />
+            <details><summary>Activity details</summary>
             <small>{activity.independentToday} recalled without help today · {activity.remaining} to your goal · {activity.timeZone}</small>
             <div className="opening-activity-days" aria-label="Practice over the last seven days">
               {activity.days.slice(-7).map(day => <span key={day.date} className={day.completed > 0 ? "practised" : ""}
@@ -109,11 +84,11 @@ export function OpeningHomeCockpit({
               </span>)}
             </div>
             <small>A streak means completing practice on consecutive days. Corrected or hinted answers count as practice, but not unaided recall.</small>
+            </details>
           </section>}
         </div>
 
         <h3>Recommended next steps</h3>
-        <p>Practise saved responses, prepare replies from your games, or use Lichess samples at your level.</p>
         {recommendationLoading ? <div className="opening-home-primary" role="status">
           <strong>Preparing your practice suggestions…</strong>
           <p>Your library is ready. You can browse a repertoire or build a line while suggestions load.</p>
@@ -163,7 +138,7 @@ export function OpeningHomeCockpit({
           <strong>Your games: {coverage.personal.preparedPercent}% of observed replies prepared</strong> · {coverage.personal.preparedReplyOccurrences}/{coverage.personal.replyOccurrences} replies at saved positions.
           <br />Lichess {coverage.ratingGroup} band: {preferences?.useExplorer ? `${coverage.evidence?.freshPositions ?? 0} fresh position samples` : "frequency data is off"}.
         </p> : null}
-        <div className="opening-home-actions">
+        <details className="opening-extra-options"><summary>Other useful tasks</summary><div className="opening-home-actions">
           {onAnalyzeGame && (
             <button className="opening-home-action primary-route" onClick={onAnalyzeGame}>
               <span><b>Analyse a played game</b><small>{libraryEmpty ? "Paste a game PGN for local analysis. Add a repertoire to compare your opening moves." : "Paste a game PGN or sync Lichess, then compare it with your repertoire."}</small></span>
@@ -192,6 +167,7 @@ export function OpeningHomeCockpit({
           )}
         </div>
 
+        </details>
         {preferences && !preferences.useExplorer && <div className="opening-recommendation-setup" role="region" aria-label="Lichess recommendation setup">
           <strong>{preferences.explorerAvailable ? "Add rating-based Lichess suggestions" : "Lichess frequency data needs setup"}</strong>
           <p>{preferences.explorerAvailable ? "Enable practical frequencies and choose your Lichess rating band in Opening settings." : "Your games still provide preparation recommendations. Add a Lichess API token to the server to also rank common replies at your level."}</p>
