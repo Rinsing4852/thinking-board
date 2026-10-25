@@ -95,3 +95,37 @@ describe("shared move quality",()=>{
  });
 
 });
+
+describe("versioned game accuracy",()=>{
+ it("gives an isolated serious error more influence than a simple average, without inventing scores for empty games",()=>{
+  const moves=[move("good",1,100),move("good",2,100),move("blunder",3,10)];
+  expect(sideSummary(moves).accuracy).toBe(47.5);
+  expect(sideSummary(moves,moves,"chances-v1").accuracy).toBe(70);
+  expect(sideSummary([]).accuracy).toBeNull();
+  expect(sideSummary([move("blunder",1,0)]).accuracy).toBe(0);
+  expect(sideSummary([move("best")]).accuracy).toBe(100);
+ });
+ it("averages complete game scores in progress rather than letting long games dominate",()=>{
+  const long=Array.from({length:20},(_,i)=>move("good",i+1,100));
+  const short=[move("blunder",1,0)];
+  const rows=[long,short].map(moves=>({moves,side:sideSummary(moves)}));
+  expect(qualityWindow(rows).accuracy).toBe(50);
+  expect(qualityWindow(rows,"chances-v1").accuracy).toBe(95.2);
+ });
+ it("keeps old reports readable and in separate comparison groups while allowing an explicit upgrade",()=>{
+  const {db,imports,service}=setup();
+  for(const [n,version] of [[1,"chances-v1"],[2,"chances-v2"]] as const){
+   imports.import(`[White "Alice"]\n[Black "Version ${n}"]\n[Date "2026.10.0${n}"]\n[TimeControl "600+0"]\n[Result "1-0"]\n\n1. ${n===1?"e4":"d4"} e5 1-0`,"Alice");
+   const game=db.prepare("SELECT id FROM games WHERE black_name=?").pluck().get(`Version ${n}`) as string;
+   db.prepare(`INSERT INTO analysis_runs(id,game_id,engine_name,engine_version,depth,multipv,threads,hash_mb,analysis_version,status,started_at,completed_at) VALUES (?,?,'Fixture','v1',14,3,1,128,3,'completed','2026-01-01','2026-02-01')`).run(`version${n}`,game);
+   for(const row of db.prepare("SELECT id FROM moves WHERE game_id=?").all(game) as {id:string}[])db.prepare(`INSERT INTO game_move_quality VALUES (?,?,?,50,50,0,100,'good','e2e4','e4')`).run(`version${n}`,row.id,version);
+  }
+  const profile=db.prepare("SELECT id FROM player_profiles WHERE display_name='Alice'").pluck().get() as string;
+  const old=db.prepare("SELECT id FROM games WHERE black_name='Version 1'").pluck().get() as string;
+  expect(service.report(old,profile)).toMatchObject({ruleVersion:"chances-v1",white:{accuracy:100}});
+  expect(service.trends(profile).cohorts.map(c=>c.ruleVersion).sort()).toEqual(["chances-v1","chances-v2"]);
+  expect(service.trends(profile).recent.games).toBe(1);
+  expect(service.enqueue(profile,{all:true})).toMatchObject({queued:1,alreadyAnalyzed:1});
+  expect(db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+ });
+});

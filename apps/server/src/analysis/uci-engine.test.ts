@@ -65,3 +65,14 @@ describe("engine recovery after failed searches",()=>{
     } finally {await engine.close();}
   });
 });
+
+describe("completed MultiPV iterations",()=>{
+ it("does not mix a new best line with older alternatives after a bounded search",async()=>{
+  const engine=new UciEngine(path.resolve("tests/partial-stockfish.mjs"),1,16);
+  try {
+   const result=await engine.analyze("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",18,2,[],undefined,2000);
+   expect(result.depth).toBe(14);
+   expect(result.lines.map(line=>[line.moveUci,line.depth,line.centipawnsWhite])).toEqual([["e2e4",14,20],["d2d4",14,10]]);
+  }finally{await engine.close();}
+ });
+});

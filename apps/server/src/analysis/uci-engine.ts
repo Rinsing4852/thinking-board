@@ -117,6 +117,7 @@ export class UciEngine {
     multiPv: number,
     searchMoves: string[] = [],
     nodes?: number,
+    maxNodes?: number,
   ): Promise<EngineAnalysis> {
     await this.initialize();
     if (this.analyzing) throw new Error("Stockfish analysis is already running");
@@ -124,7 +125,7 @@ export class UciEngine {
     if (board.isGameOver()) return this.terminalAnalysis(board, depth);
 
     this.analyzing = true;
-    const infos = new Map<number, ParsedInfo>();
+    const iterations = new Map<number, Map<number, ParsedInfo>>();
     try {
       const requestedMultiPv = searchMoves.length > 0 ? 1 : multiPv;
       this.send(`setoption name MultiPV value ${requestedMultiPv}`);
@@ -150,8 +151,9 @@ export class UciEngine {
         const listener = (line: string): void => {
           const info = parseInfoLine(line);
           if (info) {
-            const existing = infos.get(info.rank);
-            if (!existing || info.depth >= existing.depth) infos.set(info.rank, info);
+            const iteration=iterations.get(info.depth)??new Map<number,ParsedInfo>();
+            iteration.set(info.rank,info);
+            iterations.set(info.depth,iteration);
           }
           if (line.startsWith("bestmove ")) {
             clearTimeout(timer);
@@ -164,11 +166,16 @@ export class UciEngine {
         this.failureListeners.add(onFailure);
       });
       this.send(`position fen ${fen}`);
-      this.send(`go ${nodes ? `nodes ${nodes}` : `depth ${depth}`}${restrictedMoves.length ? ` searchmoves ${restrictedMoves.join(" ")}` : ""}`);
+      this.send(`go ${nodes ? `nodes ${nodes}` : `depth ${depth}${maxNodes ? ` nodes ${maxNodes}` : ""}`}${restrictedMoves.length ? ` searchmoves ${restrictedMoves.join(" ")}` : ""}`);
       await completion;
 
+      const expected=Math.min(requestedMultiPv,restrictedMoves.length||board.moves().length);
+      const completed=[...iterations.entries()].filter(([,ranks])=>
+        Array.from({length:expected},(_,i)=>i+1).every(rank=>ranks.has(rank)))
+        .sort(([a],[b])=>b-a)[0];
+      if(!completed)throw new Error("Stockfish returned no complete search iteration");
       const whiteToMove = board.turn() === "w";
-      const lines = [...infos.values()]
+      const lines = [...completed[1].values()]
         .sort((left, right) => left.rank - right.rank)
         .map((info): EngineLine => {
           const pvSan = pvToSan(fen, info.pv);

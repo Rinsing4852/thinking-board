@@ -19,10 +19,10 @@ remain separate from the verified requirement counts below.
 
 - **60 feature descriptions**, each with explicit acceptance criteria and a repeatable comparison task.
 - Current inventory: 22 existing, 14 partial, 10 absent, 7 implemented, 1 improved, 5 enhanced, 1 not_targeted.
-- Acceptance checks: 117 passed, 0 failed, 0 flaky, 41 unknown, 30 unmet, 3 excluded.
-- Priority-weighted verified requirement coverage: **71.4%** (511/716 points). This is a conservative evidence measure, not “71.4% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
-- Like-for-like unit-evidence baseline: 23% → 40.4%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
-- Current validation records: 354 unit/integration tests and 186 browser journeys; 0 failures, 0 flaky results, 0 skipped.
+- Acceptance checks: 119 passed, 0 failed, 0 flaky, 41 unknown, 30 unmet, 3 excluded.
+- Priority-weighted verified requirement coverage: **71.8%** (521/726 points). This is a conservative evidence measure, not “71.8% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
+- Like-for-like unit-evidence baseline: 22.7% → 41.2%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
+- Current validation records: 363 unit/integration tests and 186 browser journeys; 0 failures, 0 flaky results, 0 skipped.
 
 ## Implemented from this audit
 
@@ -1136,8 +1136,9 @@ Acceptance criteria:
 - **passed** — Move assessment uses the mover perspective, estimated chance loss and explicit mate outcomes rather than treating every equal centipawn loss as equally serious. Evidence: unit: uses the mover's perspective and treats equal losses differently in settled positions; unit: handles mate outcomes without inventing centipawn differences or penalising a slower forced mate.
 - **passed** — Stopping/restarting retains completed reports and progress; other profiles cannot inspect or stop the job. Evidence: unit: resumes unfinished games and preserves completed progress when stopped; unit: stops queued batches without losing games and prevents access across player profiles.
 - **passed** — Move-quality reports can inspect the existing board on desktop and mobile without adding a duplicate analysis board. Evidence: browser/chromium: requests individual and selected/all analysis, retains reports, and compares completed games; browser/webkit: requests individual and selected/all analysis, retains reports, and compares completed games.
+- **passed** — Potential errors, mate scores and search disagreements receive bounded extra verification; provisional grades can change and failed verification preserves a previous report. Evidence: unit: checks errors, near-threshold moves, mates and conflicting searches for either colour; unit: updates a provisional blunder after verification and retains that report if the next verification fails; unit: does not mix a new best line with older alternatives after a bounded search.
 
-Implementation: `apps/server/src/analysis/move-quality.ts`, `apps/server/src/analysis/game-quality-service.ts`, `apps/server/src/analysis/analysis-service.ts`, `apps/server/src/jobs/job-worker.ts`, `apps/web/src/components/GameMoveReport.tsx`, `apps/web/src/components/GameLibrary.tsx`, `migrations/042_game_quality.sql`
+Implementation: `apps/server/src/analysis/move-quality.ts`, `apps/server/src/analysis/game-quality-service.ts`, `apps/server/src/analysis/analysis-service.ts`, `apps/server/src/jobs/job-worker.ts`, `apps/web/src/components/GameMoveReport.tsx`, `apps/web/src/components/GameLibrary.tsx`, `migrations/042_game_quality.sql`, `apps/server/src/analysis/verify-move.ts`, `migrations/043_game_quality_verification.sql`
 
 Repeatable comparison task: Import two games, analyse one, then select all while retaining its existing report, inspect a graded position and stop a queued batch. Competitor timing and our user-task timing remain unmeasured.
 
@@ -1156,6 +1157,7 @@ Acceptance criteria:
 - **passed** — Normalise error rates by player moves and distinguish unobserved early endings from blunder-free survival through a checkpoint. Evidence: unit: normalises loss rates by the player's moves and keeps time controls distinct; unit: does not give blunder-free games a fake first-error move or treat unobserved endings as success.
 - **passed** — Show source counts, small samples, unavailable earlier comparisons and checkpoint limitations on mobile and desktop. Evidence: browser/chromium: requests individual and selected/all analysis, retains reports, and compares completed games; browser/webkit: requests individual and selected/all analysis, retains reports, and compares completed games.
 - **unknown** — Demonstrate that the measures reliably reflect stronger play in a matched human longitudinal study.
+- **passed** — Game accuracy gives serious errors more influence; progress averages completed game scores and preserves old reports in separate method groups. Evidence: unit: gives an isolated serious error more influence than a simple average, without inventing scores for empty games; unit: averages complete game scores in progress rather than letting long games dominate; unit: keeps old reports readable and in separate comparison groups while allowing an explicit upgrade.
 
 Implementation: `apps/server/src/analysis/game-quality-service.ts`, `apps/web/src/components/GameQualityProgress.tsx`, `apps/web/src/App.tsx`
 

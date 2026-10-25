@@ -1,3 +1,4 @@
+import { UciEngine } from "./analysis/uci-engine.js";
 import { V1Generator } from "./analysis/v1-generator.js";
 import fs from "node:fs";
 import os from "node:os";
@@ -2629,8 +2630,9 @@ describe("vertical slice", () => {
     expect(repeat.json()).toMatchObject({queued:0,alreadyQueued:1});
     await waitForCompleted(app,requested.json().id);
     const report=(await app.inject({method:"GET",url:`/api/v1/games/${gameId}/quality`})).json();
-    expect(report).toMatchObject({gameId,ruleVersion:"chances-v1",playerColor:"white",white:{moves:2},black:{moves:2}});
+    expect(report).toMatchObject({gameId,ruleVersion:"chances-v2",playerColor:"white",white:{moves:2},black:{moves:2}});
     expect(report.moves).toHaveLength(4);expect(report.white.counts.blunder).toBeGreaterThan(0);
+    expect(report.moves.find((move:{san:string})=>move.san==="g4").verification).toMatchObject({reason:"mate",initialGrade:"blunder"});
     expect((await app.inject({method:"POST",url:"/api/v1/games/analysis",payload:{all:true}})).json()).toMatchObject({queued:0,alreadyAnalyzed:1});
     const trends=(await app.inject({method:"GET",url:"/api/v1/game-quality/progress"})).json();
     expect(trends).toMatchObject({totalGames:1,analyzedGames:1,timeControl:"rapid",recent:{games:1},previous:{games:0}});
@@ -2674,6 +2676,33 @@ describe("vertical slice", () => {
       expect((await app.inject({method:"GET",url:`/api/v1/games/${game.id}/quality`})).json()).toEqual(original);
       expect(db.prepare("SELECT id,active FROM training_items ORDER BY id").all()).toEqual(before);
     } finally {failure.mockRestore();db.close();}
+  });
+
+  it("updates a provisional blunder after verification and retains that report if the next verification fails",async()=>{
+    const settings=config(true,false),app=await buildApp(settings);apps.push(app);
+    await app.inject({method:"POST",url:"/api/v1/imports/pgn",payload:{pgn:FOOLS_MATE,playerName:"Alice"}});
+    const originalAnalyze=UciEngine.prototype.analyze;
+    const search=vi.spyOn(UciEngine.prototype,"analyze").mockImplementation(async function(this:UciEngine,...args){
+      const result=await originalAnalyze.apply(this,args);
+      // Deliberately contradictory engine fixture: the second pass rescinds the
+      // shallow mate claim. This tests publication, not the chess of Fool's Mate.
+      if(args[5]&&args[0].includes("5P2")&&args[0].includes("4p3"))return {...result,lines:result.lines.map(line=>line.moveUci==="g2g4"?{...line,centipawnsWhite:0,mateInWhite:null}:line)};
+      return result;
+    });
+    try {
+      const job=await requestAllAnalysis(app);await waitForCompleted(app,job);
+      const game=(await app.inject({method:"GET",url:"/api/v1/games"})).json().games[0];
+      const url=`/api/v1/games/${game.id}/quality`;
+      const report=(await app.inject({method:"GET",url})).json();
+      expect(report.moves.find((move:{san:string})=>move.san==="g4")).toMatchObject({grade:"good",verification:{initialGrade:"blunder"}});
+      search.mockImplementation(async function(this:UciEngine,...args){
+        if(args[5])throw new Error("Verification fixture failure");
+        return originalAnalyze.apply(this,args);
+      });
+      const next=(await app.inject({method:"POST",url:`/api/v1/games/${game.id}/analyze`})).json();
+      await vi.waitFor(async()=>expect((await app.inject({method:"GET",url:`/api/v1/jobs/${next.id}`})).json().status).toBe("failed"),{timeout:4000});
+      expect((await app.inject({method:"GET",url})).json()).toEqual(report);
+    }finally{search.mockRestore();}
   });
 
 });

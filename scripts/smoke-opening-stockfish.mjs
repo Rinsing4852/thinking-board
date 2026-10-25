@@ -37,6 +37,7 @@ try {
     const report=quality.report(game.id,game.profile_id);
     assert.equal(report.moves.length,4);assert.equal(report.white.firstBlunder,2);
     assert.equal(report.moves.find(move=>move.san==="g4").grade,"blunder");
+    assert.equal(report.ruleVersion,"chances-v2");assert.equal(report.moves.find(move=>move.san==="g4").verification.reason,"mate");
     assert.equal(report.moves.find(move=>move.san==="Qh4#").grade,"best");
     assert.equal(quality.trends(game.profile_id).recent.games,1);
     results.push({name:"Whole-game move quality and progress with real Stockfish",engine:report.engine,firstBlunder:report.white.firstBlunder,passed:true});

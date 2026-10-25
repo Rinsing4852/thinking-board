@@ -1102,6 +1102,7 @@ export type GameMoveGrade = "best" | "good" | "inaccuracy" | "mistake" | "blunde
 export interface GameQualityMove {
   ply:number; moveNumber:number; color:Color; san:string; grade:GameMoveGrade;
   accuracy:number; chanceLoss:number; chancesBefore:number; chancesAfter:number; bestSan:string;
+  verification?:{reason:string;initialGrade:GameMoveGrade;depth:number}|null;
 }
 export interface GameQualitySide {
   moves:number; accuracy:number|null; counts:Record<GameMoveGrade,number>; errorsPer100Moves:number|null;

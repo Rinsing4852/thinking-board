@@ -1,0 +1,145 @@
+{
+  "scope": "Public cached positions, not a comparison against the live Lichess whole-game service. Engine version unspecified by endpoint.",
+  "results": [
+    {
+      "name": "Starting position",
+      "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "move": "e2e4",
+      "source": "https://lichess.org/api/cloud-eval?fen=rnbqkbnr%2Fpppppppp%2F8%2F8%2F8%2F8%2FPPPPPPPP%2FRNBQKBNR+w+KQkq+-+0+1&multiPv=5",
+      "fetchedAt": "2026-10-25T19:44:14.362Z",
+      "status": 200,
+      "data": {
+        "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        "knodes": 593446314,
+        "depth": 65,
+        "pvs": [
+          {
+            "moves": "c2c4 e7e5 g2g3 g8f6 f1g2 f8c5 d2d3 e8h8 b1c3 f8e8",
+            "cp": 19
+          },
+          {
+            "moves": "e2e4 e7e5 g1f3 b8c6 f1b5 g8f6 e1h1 f6e4 f1e1 e4d6",
+            "cp": 17
+          },
+          {
+            "moves": "g1f3 e7e6 e2e4 d7d5 e4d5 e6d5 d2d4 b8c6 f1e2 f8d6",
+            "cp": 14
+          },
+          {
+            "moves": "d2d4 g8f6 c2c4 e7e6 g1f3 d7d5 g2g3 f8b4 c1d2 b4e7",
+            "cp": 13
+          },
+          {
+            "moves": "g2g3 d7d5 g1f3 g7g6 d2d4 f8g7 f1g2 g8f6 c2c4 c7c6",
+            "cp": 6
+          }
+        ]
+      }
+    },
+    {
+      "name": "Ruy Lopez",
+      "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
+      "move": "f1b5",
+      "source": "https://lichess.org/api/cloud-eval?fen=r1bqkbnr%2Fpppp1ppp%2F2n5%2F4p3%2F4P3%2F5N2%2FPPPP1PPP%2FRNBQKB1R+w+KQkq+-+2+3&multiPv=5",
+      "fetchedAt": "2026-10-25T19:44:14.405Z",
+      "status": 200,
+      "data": {
+        "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
+        "knodes": 3767607,
+        "depth": 65,
+        "pvs": [
+          {
+            "moves": "f1b5 g8f6 e1h1 f6e4 f1e1 e4d6 f3e5 c6e5 e1e5 f8e7",
+            "cp": 22
+          },
+          {
+            "moves": "f1c4 g8f6 d2d3 f8c5 c2c3 e8h8 e1h1 d7d6 f1e1 a7a5",
+            "cp": 19
+          },
+          {
+            "moves": "b1c3 g8f6 d2d4 e5d4 f3d4 f8b4 d4c6 b7c6 f1d3 d7d5",
+            "cp": 8
+          },
+          {
+            "moves": "d2d4 e5d4 f3d4 g8f6 d4c6 b7c6 b1c3 f8b4 f1d3 e8h8",
+            "cp": 7
+          },
+          {
+            "moves": "h2h3 g8f6 b1c3 d7d5 e4d5 f6d5 f1b5 d5c3 b2c3 f8d6",
+            "cp": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "Modern black",
+      "fen": "rnbqkbnr/pppppp1p/6p1/8/3PP3/8/PPP2PPP/RNBQKBNR b KQkq - 0 2",
+      "move": "f8g7",
+      "source": "https://lichess.org/api/cloud-eval?fen=rnbqkbnr%2Fpppppp1p%2F6p1%2F8%2F3PP3%2F8%2FPPP2PPP%2FRNBQKBNR+b+KQkq+-+0+2&multiPv=5",
+      "fetchedAt": "2026-10-25T19:44:14.471Z",
+      "status": 200,
+      "data": {
+        "fen": "rnbqkbnr/pppppp1p/6p1/8/3PP3/8/PPP2PPP/RNBQKBNR b KQkq - 0 2",
+        "knodes": 3500481,
+        "depth": 50,
+        "pvs": [
+          {
+            "moves": "f8g7 b1c3 d7d5 e4d5 g8f6 f1b5 b8d7 g1f3 e8h8 e1h1",
+            "cp": 47
+          },
+          {
+            "moves": "d7d6 c1e3 f8g7 b1c3 g8f6 d1d2 c7c6 a2a4 e8h8 f2f3",
+            "cp": 47
+          },
+          {
+            "moves": "a7a6 g1f3 d7d6 f1d3 f8g7 e1h1 g8f6 f1e1 e8h8 h2h3",
+            "cp": 68
+          },
+          {
+            "moves": "c7c6 c2c4 d7d6 b1c3 g8f6 f1e2 f8g7 f2f4 e8h8 g1f3",
+            "cp": 73
+          },
+          {
+            "moves": "d7d5 e4d5 f8g7 f1e2 d8d5 g1f3 d5d6 e1h1 g8f6 b1a3",
+            "cp": 73
+          }
+        ]
+      }
+    },
+    {
+      "name": "Modern white",
+      "fen": "rnbqk1nr/ppp1ppbp/3p2p1/8/3PP3/2N5/PPP2PPP/R1BQKBNR w KQkq - 0 4",
+      "move": "g1f3",
+      "source": "https://lichess.org/api/cloud-eval?fen=rnbqk1nr%2Fppp1ppbp%2F3p2p1%2F8%2F3PP3%2F2N5%2FPPP2PPP%2FR1BQKBNR+w+KQkq+-+0+4&multiPv=5",
+      "fetchedAt": "2026-10-25T19:44:14.515Z",
+      "status": 200,
+      "data": {
+        "fen": "rnbqk1nr/ppp1ppbp/3p2p1/8/3PP3/2N5/PPP2PPP/R1BQKBNR w KQkq - 0 4",
+        "knodes": 47382087,
+        "depth": 50,
+        "pvs": [
+          {
+            "moves": "f2f4 g8f6 f1d3 e8h8 g1f3 b8c6 e1h1 e7e5 d4d5 c6d4",
+            "cp": 48
+          },
+          {
+            "moves": "g1f3 g8f6 c1e3 e8h8 d1d2 c7c6 a2a4 b8d7 h2h3 e7e5",
+            "cp": 47
+          },
+          {
+            "moves": "c1e3 g8f6 d1d2 c7c6 g1f3 e8h8 a2a4 b8d7 h2h3 e7e5",
+            "cp": 45
+          },
+          {
+            "moves": "f2f3 g8f6 c1e3 c7c6 a2a4 e8h8 d1d2 d8a5 g1e2 e7e5",
+            "cp": 40
+          },
+          {
+            "moves": "h2h3 g8f6 c1e3 e8h8 d1d2 e7e5 d4e5 d6e5 e1a1 b8c6",
+            "cp": 32
+          }
+        ]
+      }
+    }
+  ]
+}

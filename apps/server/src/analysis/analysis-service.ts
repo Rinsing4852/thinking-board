@@ -1,3 +1,4 @@
+import { verificationReason, verifyMove, type VerificationEvidence } from "./verify-move.js";
 import { assessMove, QUALITY_VERSION } from "./move-quality.js";
 import { Chess } from "chess.js";
 
@@ -108,7 +109,7 @@ export class AnalysisService {
       INSERT INTO analysis_runs(
         id, game_id, engine_name, engine_version, depth, multipv, threads,
         hash_mb, analysis_version, status, started_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 3, 'running', ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 4, 'running', ?)
     `).run(
       runId, gameId, this.engine.name, this.engine.name, this.config.stockfishDepth,
       this.config.stockfishMultiPv, this.config.stockfishThreads,
@@ -192,7 +193,7 @@ export class AnalysisService {
         comparison_loss, classification, meaningful
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    const qualities: Array<{moveId:string;quality:ReturnType<typeof assessMove>;bestUci:string;bestSan:string}> = [];
+    const qualities: Array<{moveId:string;quality:ReturnType<typeof assessMove>;bestUci:string;bestSan:string;verification:VerificationEvidence|null}> = [];
     const assessments: Array<{
       move: MoveRow; before: StoredScore; played: EngineScore; loss: number;
       classification: "good" | "inaccuracy" | "mistake" | "blunder";
@@ -212,22 +213,44 @@ export class AnalysisService {
           1,
           [move.uci],
         )).lines[0];
-        const played: EngineScore = storedLine
+        let played: EngineScore = storedLine
           ? { centipawnsWhite: storedLine.centipawns_white, mateInWhite: storedLine.mate_in_white }
           : searchedLine ?? (() => { throw new Error(`No played-move score for ply ${move.ply}`); })();
+        let leading = this.db.prepare("SELECT move_uci, move_san FROM engine_lines WHERE position_analysis_id=? AND rank=1").get(before.positionAnalysisId) as {move_uci:string;move_san:string};
+        const initial=assessMove(before,played,move.mover_color,leading.move_uci===move.uci);
+        const reason=verificationReason(before,played,scores.get(move.to_position_id),move.mover_color);
+        let verification:VerificationEvidence|null=null;
+        if(reason) {
+          const checked=await verifyMove(this.engine,move.from_fen,move.uci,this.config.stockfishDepth,this.config.stockfishMultiPv);
+          played=checked.played;
+          before.centipawnsWhite=checked.best.centipawnsWhite;
+          before.mateInWhite=checked.best.mateInWhite;
+          leading={move_uci:checked.best.moveUci,move_san:checked.best.moveSan};
+          verification={reason,initialGrade:initial.grade,depth:checked.analysis.depth};
+          this.db.transaction(()=>{
+            this.db.prepare("UPDATE position_analyses SET centipawns_white=?,mate_in_white=?,depth=? WHERE id=?")
+              .run(before.centipawnsWhite,before.mateInWhite,checked.analysis.depth,before.positionAnalysisId);
+            this.db.prepare("DELETE FROM engine_lines WHERE position_analysis_id=?").run(before.positionAnalysisId);
+            const save=this.db.prepare(`INSERT INTO engine_lines(id,position_analysis_id,rank,move_uci,move_san,centipawns_white,mate_in_white,pv_uci_json,pv_san_json) VALUES (?,?,?,?,?,?,?,?,?)`);
+            for(const line of checked.analysis.lines)save.run(id(),before.positionAnalysisId,line.rank,line.moveUci,line.moveSan,line.centipawnsWhite,line.mateInWhite,JSON.stringify(line.pvUci),JSON.stringify(line.pvSan));
+          })();
+        }
         const rawLoss = move.mover_color === "white"
           ? utilityWhite(before) - utilityWhite(played)
           : utilityWhite(played) - utilityWhite(before);
         const loss = Math.min(3_000, Math.max(0, Math.round(rawLoss)));
-        const leading = this.db.prepare("SELECT move_uci, move_san FROM engine_lines WHERE position_analysis_id=? AND rank=1").get(before.positionAnalysisId) as {move_uci:string;move_san:string};
         const quality=assessMove(before,played,move.mover_color,leading.move_uci===move.uci);
         const classification=quality.grade==="best"?"good":quality.grade;
-        qualities.push({moveId:move.id, quality,bestUci:leading.move_uci,bestSan:leading.move_san});
+        qualities.push({moveId:move.id, quality,bestUci:leading.move_uci,bestSan:leading.move_san,verification});
         assessments.push({ move, before, played, loss, classification });
     }
     this.db.transaction(() => {
       const saveQuality=this.db.prepare(`INSERT INTO game_move_quality(run_id,move_id,rule_version,chances_before,chances_after,chance_loss,accuracy,grade,best_uci,best_san) VALUES (?,?,?,?,?,?,?,?,?,?)`);
-      for(const row of qualities) saveQuality.run(runId,row.moveId,QUALITY_VERSION,row.quality.before,row.quality.after,row.quality.loss,row.quality.accuracy,row.quality.grade,row.bestUci,row.bestSan);
+      for(const row of qualities) {
+        saveQuality.run(runId,row.moveId,QUALITY_VERSION,row.quality.before,row.quality.after,row.quality.loss,row.quality.accuracy,row.quality.grade,row.bestUci,row.bestSan);
+        if(row.verification)this.db.prepare(`INSERT INTO game_move_verification(run_id,move_id,reason,initial_grade,depth) VALUES (?,?,?,?,?)`)
+          .run(runId,row.moveId,row.verification.reason,row.verification.initialGrade,row.verification.depth);
+      }
       for (const { move, before, played, loss, classification } of assessments) {
         insert.run(
           id(), runId, move.id,

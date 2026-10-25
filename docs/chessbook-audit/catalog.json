@@ -3554,6 +3554,24 @@
               ]
             }
           ]
+        },
+        {
+          "id": "CB59.5",
+          "requirement": "Potential errors, mate scores and search disagreements receive bounded extra verification; provisional grades can change and failed verification preserves a previous report.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "checks errors, near-threshold moves, mates and conflicting searches for either colour"
+            },
+            {
+              "kind": "unit",
+              "title": "updates a provisional blunder after verification and retains that report if the next verification fails"
+            },
+            {
+              "kind": "unit",
+              "title": "does not mix a new best line with older alternatives after a bounded search"
+            }
+          ]
         }
       ],
       "implementationPaths": [
@@ -3563,9 +3581,11 @@
         "apps/server/src/jobs/job-worker.ts",
         "apps/web/src/components/GameMoveReport.tsx",
         "apps/web/src/components/GameLibrary.tsx",
-        "migrations/042_game_quality.sql"
+        "migrations/042_game_quality.sql",
+        "apps/server/src/analysis/verify-move.ts",
+        "migrations/043_game_quality_verification.sql"
       ],
-      "limits": "Finite-depth analysis and a documented chances transform; simple move-mean accuracy is not another site\u2019s score or a personal rating. Position-level opening guidance remains a separate existing tool. Saved replay feedback is refreshed explicitly.",
+      "limits": "Finite searches and an independent chances transform; chances-v2 uses bounded adaptive verification and weighted/harmonic accuracy, not an exact Lichess or Chessigma score. Public cached-position and deeper-engine samples are diagnostics, not a measured whole-game parity claim. Older methods remain separate.",
       "benchmark": {
         "task": "Import two games, analyse one, then select all while retaining its existing report, inspect a graded position and stop a queued batch.",
         "chessbookMeasuredResult": null,
@@ -3642,6 +3662,24 @@
           "id": "CB60.5",
           "requirement": "Demonstrate that the measures reliably reflect stronger play in a matched human longitudinal study.",
           "evidence": []
+        },
+        {
+          "id": "CB60.6",
+          "requirement": "Game accuracy gives serious errors more influence; progress averages completed game scores and preserves old reports in separate method groups.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "gives an isolated serious error more influence than a simple average, without inventing scores for empty games"
+            },
+            {
+              "kind": "unit",
+              "title": "averages complete game scores in progress rather than letting long games dominate"
+            },
+            {
+              "kind": "unit",
+              "title": "keeps old reports readable and in separate comparison groups while allowing an explicit upgrade"
+            }
+          ]
         }
       ],
       "implementationPaths": [

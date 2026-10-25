@@ -36,13 +36,13 @@ export function GameMoveReport({gameId,refreshToken,onInspect}:{gameId:string;re
         <p>{Object.entries(own.counts).map(([grade,count])=>`${gradeName[grade as keyof typeof gradeName]}: ${count}`).join(" · ")}</p>
         <div className="quality-moves">{ownMoves.map(move=><button className={`secondary quality-move grade-${move.grade}`} key={move.ply} onClick={()=>onInspect(move.ply-1)}>
           <span><strong>{move.moveNumber}{move.color==="white"?".":"…"}{move.san}</strong> · {gradeName[move.grade]}</span>
-          <small>{move.chanceLoss.toFixed(1)} percentage-point loss · Engine choice: {move.bestSan}</small><small>Review position →</small>
+          <small>{move.chanceLoss.toFixed(1)} percentage-point loss · Engine choice: {move.bestSan}</small>{move.verification&&<small>Extra engine check{move.verification.initialGrade!==move.grade?" · grade updated after checking":""}</small>}<small>Review position →</small>
         </button>)}</div>
       </details>
       <details><summary>Opponent’s move quality</summary><p>{Object.entries(report[report.playerColor==="white"?"black":"white"].counts).map(([grade,count])=>`${gradeName[grade as keyof typeof gradeName]}: ${count}`).join(" · ")}</p></details>
       <details><summary>How this report is calculated</summary>
         <p>Best is the engine’s leading move with less than 0.5 percentage points lost. Inaccuracy: at least 5 points lost; mistake: at least 10; blunder: at least 20. Other moves are Good. Mate outcomes are handled separately from pawn scores.</p>
-        <p>Accuracy averages the estimated accuracy of your moves, including forced moves. Our aggregation is not the same as other sites’ accuracy scores. It is not a rating or a guarantee of improvement.</p>
+        <p>{report.ruleVersion==="chances-v1"?"This older report uses a simple average of your move accuracies. Analyse again to use the improved method.":"Accuracy combines a weighted average with a calculation that gives low-accuracy moves more influence. Potential errors and conflicting evaluations receive an extra engine check."} Forced moves are included. Scores can differ from other sites and are not a rating.</p>
         <p>{report.engine} · depth {report.depth} · method {report.ruleVersion} · analysed {new Date(report.analyzedAt).toLocaleString()}. A limited search can miss a stronger defence. Older saved reports remain available if a new analysis fails.</p>
         <GameAnalysisRequest gameId={gameId} hasReport/>
       </details>

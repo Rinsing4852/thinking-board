@@ -1,0 +1,225 @@
+{
+  "measuredAt": "2026-10-25T19:48:58.324Z",
+  "scope": "Small curated diagnostic sample, not a product parity score or live Lichess whole-game benchmark.",
+  "method": "Base depth14/MultiPV3; flagged moves target depth18 with 2M node ceiling per search; independent fresh-engine reference target depth24/8M ceiling. Lichess cached scores use our grading rules, not Lichess move labels. Cache engine version unknown.",
+  "results": [
+    {
+      "name": "Starting position",
+      "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "move": "e2e4",
+      "engine": "Stockfish 18",
+      "initialGrade": "best",
+      "grade": "best",
+      "chanceLoss": 0,
+      "checked": false,
+      "depth": 14,
+      "elapsedMs": 574,
+      "deeperReference": {
+        "depth": 24,
+        "grade": "good",
+        "chanceLoss": 0.0917027143049367
+      },
+      "seriousErrorAgreement": true,
+      "lichess": {
+        "source": "https://lichess.org/api/cloud-eval?fen=rnbqkbnr%2Fpppppppp%2F8%2F8%2F8%2F8%2FPPPPPPPP%2FRNBQKBNR+w+KQkq+-+0+1&multiPv=5",
+        "depth": 65,
+        "bestCpWhite": 19,
+        "playedCpWhite": 17,
+        "chanceLoss": 0.18390176246957424,
+        "gradeUsingOurRules": "good"
+      }
+    },
+    {
+      "name": "Ruy Lopez",
+      "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
+      "move": "f1b5",
+      "engine": "Stockfish 18",
+      "initialGrade": "best",
+      "grade": "best",
+      "chanceLoss": 0,
+      "checked": false,
+      "depth": 14,
+      "elapsedMs": 519,
+      "deeperReference": {
+        "depth": 24,
+        "grade": "best",
+        "chanceLoss": 0
+      },
+      "seriousErrorAgreement": true,
+      "lichess": {
+        "source": "https://lichess.org/api/cloud-eval?fen=r1bqkbnr%2Fpppp1ppp%2F2n5%2F4p3%2F4P3%2F5N2%2FPPPP1PPP%2FRNBQKB1R+w+KQkq+-+2+3&multiPv=5",
+        "depth": 65,
+        "bestCpWhite": 22,
+        "playedCpWhite": 22,
+        "chanceLoss": 0,
+        "gradeUsingOurRules": "best"
+      }
+    },
+    {
+      "name": "Modern black",
+      "fen": "rnbqkbnr/pppppp1p/6p1/8/3PP3/8/PPP2PPP/RNBQKBNR b KQkq - 0 2",
+      "move": "f8g7",
+      "engine": "Stockfish 18",
+      "initialGrade": "best",
+      "grade": "best",
+      "chanceLoss": 0,
+      "checked": false,
+      "depth": 14,
+      "elapsedMs": 310,
+      "deeperReference": {
+        "depth": 23,
+        "grade": "best",
+        "chanceLoss": 0
+      },
+      "seriousErrorAgreement": true,
+      "lichess": {
+        "source": "https://lichess.org/api/cloud-eval?fen=rnbqkbnr%2Fpppppp1p%2F6p1%2F8%2F3PP3%2F8%2FPPP2PPP%2FRNBQKBNR+b+KQkq+-+0+2&multiPv=5",
+        "depth": 50,
+        "bestCpWhite": 47,
+        "playedCpWhite": 47,
+        "chanceLoss": 0,
+        "gradeUsingOurRules": "best"
+      }
+    },
+    {
+      "name": "Modern white",
+      "fen": "rnbqk1nr/ppp1ppbp/3p2p1/8/3PP3/2N5/PPP2PPP/R1BQKBNR w KQkq - 0 4",
+      "move": "g1f3",
+      "engine": "Stockfish 18",
+      "initialGrade": "best",
+      "grade": "best",
+      "chanceLoss": 0,
+      "checked": false,
+      "depth": 14,
+      "elapsedMs": 375,
+      "deeperReference": {
+        "depth": 22,
+        "grade": "good",
+        "chanceLoss": 1.6310939339420827
+      },
+      "seriousErrorAgreement": true,
+      "lichess": {
+        "source": "https://lichess.org/api/cloud-eval?fen=rnbqk1nr%2Fppp1ppbp%2F3p2p1%2F8%2F3PP3%2F2N5%2FPPP2PPP%2FR1BQKBNR+w+KQkq+-+0+4&multiPv=5",
+        "depth": 50,
+        "bestCpWhite": 48,
+        "playedCpWhite": 47,
+        "chanceLoss": 0.09135159002080684,
+        "gradeUsingOurRules": "good"
+      }
+    },
+    {
+      "name": "White hangs mate",
+      "fen": "rnbqkbnr/pppp1ppp/8/4p3/8/5P2/PPPPP1PP/RNBQKBNR w KQkq - 0 2",
+      "move": "g2g4",
+      "engine": "Stockfish 18",
+      "initialGrade": "blunder",
+      "grade": "blunder",
+      "chanceLoss": 43.13964347189121,
+      "checked": true,
+      "depth": 18,
+      "elapsedMs": 1832,
+      "deeperReference": {
+        "depth": 22,
+        "grade": "blunder",
+        "chanceLoss": 43.13964347189121
+      },
+      "seriousErrorAgreement": true,
+      "lichess": null
+    },
+    {
+      "name": "Black hangs mate",
+      "fen": "r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 3 3",
+      "move": "g8f6",
+      "engine": "Stockfish 18",
+      "initialGrade": "blunder",
+      "grade": "blunder",
+      "chanceLoss": 52.666974403086314,
+      "checked": true,
+      "depth": 18,
+      "elapsedMs": 1733,
+      "deeperReference": {
+        "depth": 23,
+        "grade": "blunder",
+        "chanceLoss": 53.76698043044984
+      },
+      "seriousErrorAgreement": true,
+      "lichess": null
+    },
+    {
+      "name": "White misses queen",
+      "fen": "6k1/8/8/8/8/8/1q6/1R4K1 w - - 0 1",
+      "move": "b1a1",
+      "engine": "Stockfish 18",
+      "initialGrade": "blunder",
+      "grade": "blunder",
+      "chanceLoss": 78.93111370804529,
+      "checked": true,
+      "depth": 18,
+      "elapsedMs": 289,
+      "deeperReference": {
+        "depth": 24,
+        "grade": "blunder",
+        "chanceLoss": 100
+      },
+      "seriousErrorAgreement": true,
+      "lichess": null
+    },
+    {
+      "name": "Black misses queen",
+      "fen": "1r4k1/1Q6/8/8/8/8/8/6K1 b - - 0 1",
+      "move": "b8a8",
+      "engine": "Stockfish 18",
+      "initialGrade": "blunder",
+      "grade": "blunder",
+      "chanceLoss": 85.45919878415964,
+      "checked": true,
+      "depth": 18,
+      "elapsedMs": 232,
+      "deeperReference": {
+        "depth": 24,
+        "grade": "blunder",
+        "chanceLoss": 99.99999999998946
+      },
+      "seriousErrorAgreement": true,
+      "lichess": null
+    },
+    {
+      "name": "White mate",
+      "fen": "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1",
+      "move": "e1e8",
+      "engine": "Stockfish 18",
+      "initialGrade": "best",
+      "grade": "best",
+      "chanceLoss": 0,
+      "checked": true,
+      "depth": 18,
+      "elapsedMs": 311,
+      "deeperReference": {
+        "depth": 24,
+        "grade": "best",
+        "chanceLoss": 0
+      },
+      "seriousErrorAgreement": true,
+      "lichess": null
+    },
+    {
+      "name": "Black mate",
+      "fen": "4r1k1/5ppp/8/8/8/8/5PPP/6K1 b - - 0 1",
+      "move": "e8e1",
+      "engine": "Stockfish 18",
+      "initialGrade": "best",
+      "grade": "best",
+      "chanceLoss": 0,
+      "checked": true,
+      "depth": 18,
+      "elapsedMs": 265,
+      "deeperReference": {
+        "depth": 24,
+        "grade": "best",
+        "chanceLoss": 0
+      },
+      "seriousErrorAgreement": true,
+      "lichess": null
+    }
+  ]
+}

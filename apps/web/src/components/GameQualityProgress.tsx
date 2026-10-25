@@ -17,14 +17,14 @@ export function GameQualityProgress({refreshToken,onOpenGames}:{refreshToken:num
       <p>{data.analyzedGames} of {data.totalGames} saved games have a move-quality report.</p>
         <div className="workflow-actions">
           {data.timeControls.length>0&&<label>Time control<select value={data.timeControl??""} onChange={e=>setControl(e.target.value)}>{data.timeControls.map(t=><option key={t} value={t}>{t==="unknown"?"Time control unknown":t}</option>)}</select></label>}
-          {data.cohorts.length>1&&<label>Analysis settings<select value={data.cohort??""} onChange={e=>{setCohort(e.target.value);setControl("");}}>{data.cohorts.map((c,index)=><option key={c.id} value={c.id}>{c.engine} · depth {c.depth} · group {index+1}</option>)}</select></label>}
+          {data.cohorts.length>1&&<label>Analysis settings<select value={data.cohort??""} onChange={e=>{setCohort(e.target.value);setControl("");}}>{data.cohorts.map((c,index)=><option key={c.id} value={c.id}>{c.engine} · depth {c.depth} · {c.ruleVersion==="chances-v1"?"original method":"verified method"} · group {index+1}</option>)}</select></label>}
         </div>
       {recent?.games?<>
         {data.timeControl==="unknown"&&<p>Time controls are missing for this group. Different playing speeds may affect these comparisons.</p>}
         <p>Your latest {recent.games} eligible games by date played{previous?.games?`, compared with the previous ${previous.games}`:". Analyse more completed, dated games for an earlier comparison"}. {data.timeControl==="unknown"?"Same engine settings and grading method; playing speeds are unknown.":"Same time control, engine settings and grading method."}</p>
         {recent.games<10&&<p>Small sample: treat these figures as a starting point, not a trend.</p>}
         <div className="quality-table-wrap"><table className="quality-trends-table"><thead><tr><th>Measure</th><th>Recent</th><th>Earlier</th></tr></thead><tbody>
-          <tr><th>Engine accuracy</th><td>{value(recent.accuracy,"%")}</td><td>{value(previous?.accuracy??null,"%")}</td></tr>
+          <tr><th>Average game accuracy</th><td>{value(recent.accuracy,"%")}</td><td>{value(previous?.accuracy??null,"%")}</td></tr>
           <tr><th>Best or good moves</th><td>{value(recent.goodMovePercent,"%")}</td><td>{value(previous?.goodMovePercent??null,"%")}</td></tr>
           <tr><th>Blunders per game</th><td>{value(recent.blundersPerGame)}</td><td>{value(previous?.blundersPerGame??null)}</td></tr>
           <tr><th>Mistakes per game</th><td>{value(recent.mistakesPerGame)}</td><td>{value(previous?.mistakesPerGame??null)}</td></tr>
