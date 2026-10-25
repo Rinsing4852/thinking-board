@@ -793,6 +793,7 @@ export interface PgnPreviewResponse {
 }
 
 export interface ImportPgnResponse {
+  profileId?: string;
   batchId: string;
   jobId: string | null;
   imported: number;
@@ -1095,4 +1096,29 @@ export interface OpeningGeneratedDraft {
   id:string; state:"preview"|"applied"|"undone"; moves:Array<{uci:string;san:string}>;
   source:string; message:string;
   detail?:OpeningRepertoireDetailResponse; lineId?:string;
+}
+
+export type GameMoveGrade = "best" | "good" | "inaccuracy" | "mistake" | "blunder";
+export interface GameQualityMove {
+  ply:number; moveNumber:number; color:Color; san:string; grade:GameMoveGrade;
+  accuracy:number; chanceLoss:number; chancesBefore:number; chancesAfter:number; bestSan:string;
+}
+export interface GameQualitySide {
+  moves:number; accuracy:number|null; counts:Record<GameMoveGrade,number>; errorsPer100Moves:number|null;
+  firstMistake:number|null; firstBlunder:number|null;
+}
+export interface GameQualityReport {
+  gameId:string; analyzedAt:string; cohort:string; engine:string; depth:number; ruleVersion:string;
+  playerColor:Color; timeControl:string; white:GameQualitySide; black:GameQualitySide;
+  moves:GameQualityMove[]; opening:GameOpeningConnection|null;
+}
+export interface GameQualityWindow {
+  games:number; moves:number; accuracy:number|null; goodMovePercent:number|null; blundersPerGame:number|null; mistakesPerGame:number|null;
+  errorsPer100Moves:number|null; firstMistakeMedian:number|null; firstBlunderMedian:number|null; blunderFreeGames:number;
+  checkpoints:Array<{move:number;observed:number;withoutBlunder:number;endedEarlier:number}>;
+}
+export interface GameQualityTrends {
+  totalGames:number; analyzedGames:number; excludedGames:number;
+  cohorts:Array<{id:string;engine:string;depth:number;ruleVersion:string}>; cohort:string|null;
+  timeControls:string[]; timeControl:string|null; recent:GameQualityWindow; previous:GameQualityWindow;
 }

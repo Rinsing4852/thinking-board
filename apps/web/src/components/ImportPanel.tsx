@@ -20,6 +20,7 @@ export function ImportPanel({ refreshToken, onAnalyzed, expanded = false, onExpa
   const [playerName, setPlayerName] = useState("");
   const [preview, setPreview] = useState<PgnPreviewResponse | null>(null);
   const [status, setStatus] = useState("");
+  const [pollError,setPollError]=useState(false);
   const [busy, setBusy] = useState(false);
   const [job, setJob] = useState<JobResponse | null>(null);
   const pollGeneration = useRef(0);
@@ -31,11 +32,17 @@ export function ImportPanel({ refreshToken, onAnalyzed, expanded = false, onExpa
 
   const pollJob = async (jobId: string, generation: number): Promise<void> => {
     for (;;) {
-      const current = await get<JobResponse>(`/api/v1/jobs/${jobId}`);
+      let current:JobResponse;
+      try { current=await get<JobResponse>(`/api/v1/jobs/${jobId}`); }
+      catch(error) {
+        if(generation!==pollGeneration.current)return;
+        setPollError(true);setBusy(false);setStatus("Could not check analysis progress. Saved results are kept; check again to reconnect.");return;
+      }
       if (generation !== pollGeneration.current) return;
+      setPollError(false);
       setJob(current);
       if (current.status === "completed") {
-        setStatus("Analysis complete. Your exercises and repertoire comparison are ready below.");
+        setStatus((current.result as {stopped?:boolean}|null)?.stopped ? `Stopped after ${current.progressCurrent} of ${current.progressTotal} games. Completed reports are saved.` : "Analysis complete. Your move report and exercises are ready below.");
         setBusy(false);
         onAnalyzed();
         return;
@@ -94,8 +101,18 @@ export function ImportPanel({ refreshToken, onAnalyzed, expanded = false, onExpa
         setStatus(error instanceof Error ? error.message : "Could not restore game and sync status");
       }
     });
+    const requested=()=>{
+      const next=++pollGeneration.current;
+      void get<JobResponse|null>("/api/v1/jobs/active").then(active=>{
+        if(next!==pollGeneration.current)return;
+        if(active){setJob(active);return pollJob(active.id,next);}
+        setPollError(false);setBusy(false);onAnalyzed();
+      }).catch(error=>{if(next===pollGeneration.current){setPollError(true);setBusy(false);setStatus(error.message);}});
+    };
+    window.addEventListener("analysis-requested",requested);
     return () => {
-      if (generation === pollGeneration.current) pollGeneration.current += 1;
+      window.removeEventListener("analysis-requested",requested);
+      if (generation <= pollGeneration.current) pollGeneration.current += 1;
     };
   }, [refreshToken]);
 
@@ -156,10 +173,11 @@ export function ImportPanel({ refreshToken, onAnalyzed, expanded = false, onExpa
     setBusy(true);
     try {
       const result = await post<ImportPgnResponse>("/api/v1/imports/pgn", { pgn, playerName });
+      if(result.profileId)await post(`/api/v1/profiles/${result.profileId}/activate`);
       setStatus(
         `Imported ${result.imported} game${result.imported === 1 ? "" : "s"}. `
         + `${result.duplicates} duplicate${result.duplicates === 1 ? "" : "s"} skipped. `
-        + `${result.rejected} rejected.`,
+        + `${result.rejected} rejected. Choose a game or select a batch when you want engine analysis.`,
       );
       if (result.jobId) await pollJob(result.jobId, ++pollGeneration.current);
       else onAnalyzed();
@@ -216,7 +234,7 @@ export function ImportPanel({ refreshToken, onAnalyzed, expanded = false, onExpa
               </select>
             </label>
             <button disabled={busy || !playerName} onClick={() => void importPgn()}>
-              Import & analyse
+              Save games
             </button>
           </>
         )}
@@ -270,6 +288,7 @@ export function ImportPanel({ refreshToken, onAnalyzed, expanded = false, onExpa
         {lichessStatus && <p className="status" aria-live="polite">{lichessStatus}</p>}
       </details>
       </details>
+      {pollError&&<button className="secondary" onClick={()=>{if(job)void pollJob(job.id,++pollGeneration.current);else window.dispatchEvent(new Event("analysis-requested"));}}>Check analysis progress</button>}
       {job && job.status !== "completed" && (
         <div className={`analysis-status ${job.status}`} aria-live="polite">
           <div>
@@ -279,7 +298,8 @@ export function ImportPanel({ refreshToken, onAnalyzed, expanded = false, onExpa
           {job.status === "failed" ? (
             <button onClick={() => void retryAnalysis()}>Retry analysis</button>
           ) : (
-            <progress value={job.progressCurrent} max={Math.max(1, job.progressTotal)} />
+            <div><progress value={job.progressCurrent} max={Math.max(1, job.progressTotal)} /><small>{job.progressCurrent} of {job.progressTotal} games completed</small>
+              <button className="secondary" onClick={()=>void post<{message:string}>(`/api/v1/jobs/${job.id}/stop`).then(r=>setStatus(r.message)).catch(e=>setStatus(e.message))}>Stop after current game</button></div>
           )}
         </div>
       )}

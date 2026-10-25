@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "auditDate": "2026-10-17",
   "baselineCommit": "25d5efe79f89977d8df7faa48df839230f338b71",
-  "scope": "58-feature public inventory originally observed 14 October; core build, practice, coverage, autofill setup and model-game observations refreshed 17 October. Account/paid/destructive workflows and matched human outcomes remain unverified. Opening-specific puzzles are deferred at the user\u2019s request.",
+  "scope": "60-feature inventory, including independently specified user-requested game analysis and progress. Public Chessbook observations were refreshed 17 October; account/paid/destructive workflows and matched human outcomes remain unverified. Opening-specific puzzles remain deferred.",
   "sources": [
     {
       "id": "UI",
@@ -91,6 +91,13 @@
       "observedAt": "2026-10-17",
       "method": "Official repository guidance read; method adapted using available browser inspection",
       "limits": "REA MCP/CLI was not run. No claim of client-bundle, network-body, server-source or trained-model recovery."
+    },
+    {
+      "id": "USER_GAME_ANALYSIS",
+      "title": "User-requested whole-game analysis and progress",
+      "observedAt": "2026-10-25",
+      "method": "User requirements and supplied Chessigma report screenshot; independent implementation specification",
+      "limits": "No claim to reproduce Chessigma or Chessbook proprietary scoring, calibration or learning outcomes."
     }
   ],
   "features": [
@@ -2607,15 +2614,15 @@
         "UI"
       ],
       "chessbookObservation": "Connected accounts offers Lichess and promises automatic checks.",
-      "desiredBehavior": "Incrementally fetch authorised games, retain sync cursor and duplicates, then compare openings locally; disclose whether sync is manual or automatic.",
+      "desiredBehavior": "Incrementally fetch authorised games with cursor and deduplication, compare openings locally, and request full-game engine analysis separately only when the user selects games. Disclose sync status and preserve previous games on provider failures.",
       "acceptanceChecks": [
         {
           "id": "CB42.1",
-          "requirement": "Connected Lichess games enter the normal queue incrementally.",
+          "requirement": "Connected Lichess games are saved incrementally without automatically starting full-game engine work.",
           "evidence": [
             {
               "kind": "unit",
-              "title": "connects and incrementally imports public Lichess games through the normal analysis queue"
+              "title": "connects and incrementally saves public Lichess games without starting engine analysis"
             }
           ]
         },
@@ -3469,6 +3476,185 @@
         "chessbookMeasuredResult": null,
         "ourMeasuredLatencyMs": null,
         "target": "Future evaluation; not part of current delivery."
+      }
+    },
+    {
+      "id": "CB59",
+      "name": "Requested whole-game move-quality analysis",
+      "category": "Analysis",
+      "priority": "P0",
+      "baselineState": "absent",
+      "currentState": "implemented",
+      "sourceIds": [
+        "USER_GAME_ANALYSIS"
+      ],
+      "chessbookObservation": "Independent user requirement inspired by the supplied report screenshot; not a claimed proprietary Chessbook or Chessigma reconstruction.",
+      "desiredBehavior": "Analyse one, selected or all saved games only after an explicit request. Persist complete both-side assessments with engine/settings/method provenance. Keep repertoire departures separate from chess errors, retain prior successful reports, and allow batch stop/resume. Use the existing saved replay board.",
+      "acceptanceChecks": [
+        {
+          "id": "CB59.1",
+          "requirement": "Importing does not start analysis; explicit single/selected/all requests are scoped to the active player and pending work is deduplicated.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "saves imports without starting analysis, scopes all/selected requests and deduplicates pending work atomically"
+            },
+            {
+              "kind": "unit",
+              "title": "analyses only selected games on request and serves complete reports and comparable progress"
+            },
+            {
+              "kind": "browser",
+              "title": "requests individual and selected/all analysis, retains reports, and compares completed games",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB59.2",
+          "requirement": "Move assessment uses the mover perspective, estimated chance loss and explicit mate outcomes rather than treating every equal centipawn loss as equally serious.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "uses the mover's perspective and treats equal losses differently in settled positions"
+            },
+            {
+              "kind": "unit",
+              "title": "handles mate outcomes without inventing centipawn differences or penalising a slower forced mate"
+            }
+          ]
+        },
+        {
+          "id": "CB59.3",
+          "requirement": "Stopping/restarting retains completed reports and progress; other profiles cannot inspect or stop the job.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "resumes unfinished games and preserves completed progress when stopped"
+            },
+            {
+              "kind": "unit",
+              "title": "stops queued batches without losing games and prevents access across player profiles"
+            }
+          ]
+        },
+        {
+          "id": "CB59.4",
+          "requirement": "Move-quality reports can inspect the existing board on desktop and mobile without adding a duplicate analysis board.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "requests individual and selected/all analysis, retains reports, and compares completed games",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/analysis/move-quality.ts",
+        "apps/server/src/analysis/game-quality-service.ts",
+        "apps/server/src/analysis/analysis-service.ts",
+        "apps/server/src/jobs/job-worker.ts",
+        "apps/web/src/components/GameMoveReport.tsx",
+        "apps/web/src/components/GameLibrary.tsx",
+        "migrations/042_game_quality.sql"
+      ],
+      "limits": "Finite-depth analysis and a documented chances transform; simple move-mean accuracy is not another site\u2019s score or a personal rating. Position-level opening guidance remains a separate existing tool. Saved replay feedback is refreshed explicitly.",
+      "benchmark": {
+        "task": "Import two games, analyse one, then select all while retaining its existing report, inspect a graded position and stop a queued batch.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Explicit user request; no automatic whole-game engine work; saved state and touch/keyboard controls remain usable."
+      }
+    },
+    {
+      "id": "CB60",
+      "name": "Played-game move-quality progress over time",
+      "category": "Quality",
+      "priority": "P0",
+      "baselineState": "absent",
+      "currentState": "implemented",
+      "sourceIds": [
+        "USER_GAME_ANALYSIS"
+      ],
+      "chessbookObservation": "User-requested first-mistake/blunder timing and longitudinal game quality; no proprietary score or measured learning improvement is asserted.",
+      "desiredBehavior": "Compare recent and preceding games by date played under a common engine/settings/method and time control. Show accuracy, best/good move proportion, per-game and per-100-move error rates, blunder-free counts and explicit first-error timing without giving blunder-free games an artificial move number.",
+      "acceptanceChecks": [
+        {
+          "id": "CB60.1",
+          "requirement": "Separate analysis settings/time controls, exclude ineligible dates/results/starting positions, and count each game once rather than each analysis run.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "counts only complete reports once and separates settings, date eligibility and playing speed"
+            },
+            {
+              "kind": "unit",
+              "title": "analyses only selected games on request and serves complete reports and comparable progress"
+            }
+          ]
+        },
+        {
+          "id": "CB60.2",
+          "requirement": "Compare the latest twenty eligible games with the preceding twenty by playing date rather than importing date.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "compares the latest twenty played games with the preceding twenty rather than import order"
+            }
+          ]
+        },
+        {
+          "id": "CB60.3",
+          "requirement": "Normalise error rates by player moves and distinguish unobserved early endings from blunder-free survival through a checkpoint.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "normalises loss rates by the player's moves and keeps time controls distinct"
+            },
+            {
+              "kind": "unit",
+              "title": "does not give blunder-free games a fake first-error move or treat unobserved endings as success"
+            }
+          ]
+        },
+        {
+          "id": "CB60.4",
+          "requirement": "Show source counts, small samples, unavailable earlier comparisons and checkpoint limitations on mobile and desktop.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "requests individual and selected/all analysis, retains reports, and compares completed games",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB60.5",
+          "requirement": "Demonstrate that the measures reliably reflect stronger play in a matched human longitudinal study.",
+          "evidence": []
+        }
+      ],
+      "implementationPaths": [
+        "apps/server/src/analysis/game-quality-service.ts",
+        "apps/web/src/components/GameQualityProgress.tsx",
+        "apps/web/src/App.tsx"
+      ],
+      "limits": "Last 20 versus prior 20 eligible games; no causal improvement claim, opponent-strength/position-complexity adjustment or game-derived scheduled-recall credit. Small samples and unknown time controls are explicit.",
+      "benchmark": {
+        "task": "Inspect recent and earlier decision quality for the same time control and analysis group, including games with no blunder and games ending before move 20.",
+        "chessbookMeasuredResult": null,
+        "ourMeasuredLatencyMs": null,
+        "target": "Honest denominators and unknowns, no added navigation tab or fake first-blunder values."
       }
     }
   ]

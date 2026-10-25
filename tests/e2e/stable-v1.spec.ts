@@ -482,8 +482,11 @@ test.describe.serial("stable V1 browser journey", () => {
     await pgnInput.fill(PGN);
     await page.getByRole("button", { name: "Check PGN" }).click();
     await page.getByLabel("I am").selectOption({ label: "olleyr" });
-    await page.getByRole("button", { name: "Import & analyse" }).click();
-    await expect(page.getByText("Analysis complete. Your exercises and repertoire comparison are ready below.")).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("button", { name: "Save games" }).click();
+    await page.getByRole("button", { name: "Select games to analyse",exact:true }).click();
+    await page.getByRole("button", { name: /^Select all \d+ games$/ }).click();
+    await page.getByRole("button", { name: "Analyse selected games",exact:true }).click();
+    await expect(page.getByText("Analysis complete. Your move report and exercises are ready below.")).toBeVisible({ timeout: 30_000 });
     await page.getByRole("button", { name: "Today" }).click();
     await expect(page.getByRole("heading", { name: "Blunder Check", exact: true })).toBeVisible();
 

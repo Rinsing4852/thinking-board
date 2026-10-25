@@ -312,6 +312,30 @@ scrape Chessable or grant rights to third-party material: only import lines and
 notes you own or have permission to use. For books, enter the moves you want to
 learn and write the explanations in your own words.
 
+## Request game analysis and track progress
+
+Saving or syncing a game does not start full-game engine analysis. In **My games**,
+choose a game and **Analyse this game**, or use **Select games to analyse** to
+choose a batch. **Select all** includes every saved game for the current player,
+including games outside the current search. Press **Analyse selected games** to
+start. Existing reports are kept unless you enable **Include games with an
+existing report**. Progress is saved; a failed batch can resume, and **Stop after
+current game** retains completed reports.
+
+Each report shows your engine accuracy, move grades, first mistake/blunder and
+engine alternatives. **Review on the board** uses the existing saved replay.
+Its saved feedback can be explicitly refreshed after analysis. A move outside
+your repertoire can still be a good chess move.
+
+In **Progress**, compare your latest 20 eligible games with the preceding 20:
+accuracy, Best/Good moves, blunders/mistakes per game, serious errors per 100 of
+your moves, and how far you get before a blunder. Only completed, dated games
+from the normal starting position with moves by you enter these trends. Different
+engine settings and time controls are kept separate. Earlier endings and small
+samples are labelled. Accuracy uses our documented aggregation, is not a rating,
+and will not necessarily match other sites' scores. See the
+[analysis method and limitations](docs/chessbook-audit/GAME_ANALYSIS_DELIVERY.md).
+
 ## Replay and recall in your own games
 
 Open **My games** and select a game under **Inspect a complete game**. Its saved
@@ -485,7 +509,7 @@ npm run test:e2e
 ```
 
 The integration tests execute the complete core loop against a small fake UCI
-engine: PGN import → persistent job → analysis → generated modes → recorded
+engine: PGN import → explicit user request → persistent job → analysis → generated modes → recorded
 answers → player model and weighted session. Docker verification uses the real
 Stockfish 18 build.
 
@@ -504,7 +528,7 @@ for release notes.
 | `STOCKFISH_THREADS` | `1` | Threads used by the single engine worker |
 | `STOCKFISH_HASH_MB` | `128` | Stockfish hash allocation |
 | `ACCEPTABLE_TOLERANCE_CP` | `40` | Reply distance from the best line |
-| `MEANINGFUL_LOSS_CP` | `150` | Minimum centipawn loss for consideration |
+| `MEANINGFUL_LOSS_CP` | `150` | Legacy compatibility setting; does not change current move grades |
 | `LICHESS_API_TOKEN` | empty | Server-side token for Lichess Explorer and private/unlisted Study imports; use `study:read` for Study access |
 
 ## V1 features

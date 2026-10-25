@@ -47,6 +47,7 @@ export class ImportService {
     const errors = [...parsed.errors];
     const importedGameIds: string[] = [];
     let duplicates = 0;
+    let importedProfileId = "";
 
     this.db.transaction(() => {
       this.db.prepare(`
@@ -55,6 +56,7 @@ export class ImportService {
       `).run(batchId, pgn, now());
 
       const profileId = requestedProfileId ?? this.resolveProfile(playerName, selected);
+      importedProfileId = profileId;
       for (const game of parsed.games) {
         const whiteMatches = normalizePlayerName(game.white) === selected;
         const blackMatches = normalizePlayerName(game.black) === selected;
@@ -86,18 +88,10 @@ export class ImportService {
       `).run(status, importedGameIds.length, duplicates, rejected, JSON.stringify(errors), now(), batchId);
     })();
 
-    let jobId: string | null = null;
-    if (importedGameIds.length > 0) {
-      jobId = id();
-      this.db.prepare(`
-        INSERT INTO jobs(id, kind, status, progress_total, payload_json, created_at)
-        VALUES (?, 'analyze_games', 'queued', ?, ?, ?)
-      `).run(jobId, importedGameIds.length, JSON.stringify({ gameIds: importedGameIds }), now());
-    }
-
     return {
       batchId,
-      jobId,
+      profileId: importedProfileId,
+      jobId: null,
       imported: importedGameIds.length,
       duplicates,
       rejected: errors.length,

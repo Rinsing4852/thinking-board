@@ -1,3 +1,4 @@
+import { GameMoveReport } from "./GameMoveReport";
 import { useEffect, useRef, useState } from "react";
 
 import type {
@@ -213,6 +214,7 @@ function OpeningConnectionCard({
 }
 
 export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPracticeStarted }: GameReviewProps) {
+  const [inspectMove,setInspectMove]=useState<{ply:number;requestId:number}|null>(null);
   const [games, setGames] = useState<GameSummary[]>([]);
   const [review, setReview] = useState<Review | null>(null);
   const [concepts, setConcepts] = useState<Concept[]>([]);
@@ -230,7 +232,7 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
   const loadReview = async (gameId: string, updateLocation = true): Promise<void> => {
     reviewRequest.current?.abort();
     const controller = new AbortController(); reviewRequest.current = controller;
-    setLoadingGameId(gameId); setReview(null);
+    setLoadingGameId(gameId); setReview(null); setInspectMove(null);
     if (updateLocation) window.history.replaceState(null, "", `#games?game=${encodeURIComponent(gameId)}`);
     setError("");
     try {
@@ -334,8 +336,9 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
       {loadingGameId && <p role="status">Loading the selected game…</p>}
       {review && (
         <div className="mistake-list">
-          <GameReplay key={review.game.id} gameId={review.game.id} onRefreshed={()=>void loadReview(review.game.id,false)} />
-          {!review.game.analyzedAt && <div className="panel review-analysis-note"><strong>Opening comparison ready</strong><p>The local engine analysis is still pending. Opening comparison does not need Stockfish.</p></div>}
+          <GameMoveReport key={`quality-${review.game.id}`} gameId={review.game.id} refreshToken={refreshToken} onInspect={ply=>setInspectMove(current=>({ply,requestId:(current?.requestId??0)+1}))}/>
+          <GameReplay key={review.game.id} gameId={review.game.id} requestedPosition={inspectMove} onRefreshed={()=>void loadReview(review.game.id,false)} />
+
           <details className="game-review-details"><summary>Current review notes and practice options</summary>
           <p className="opening-coverage-note">These notes use the current repertoire and analysis. The replay above preserves its saved feedback until you refresh it.</p>
           {review.opening && (

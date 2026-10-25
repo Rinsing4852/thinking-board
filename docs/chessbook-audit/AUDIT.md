@@ -2,7 +2,7 @@
 
 Audit date: 2026-10-17. Baseline: `25d5efe`. Local evidence status: **CURRENT**.
 
-58-feature public inventory originally observed 14 October; core build, practice, coverage, autofill setup and model-game observations refreshed 17 October. Account/paid/destructive workflows and matched human outcomes remain unverified. Opening-specific puzzles are deferred at the user’s request.
+60-feature inventory, including independently specified user-requested game analysis and progress. Public Chessbook observations were refreshed 17 October; account/paid/destructive workflows and matched human outcomes remain unverified. Opening-specific puzzles remain deferred.
 
 Release status: **not established by this local report**. Check GitHub Actions verification and container publication separately; a successful push is not a published update.
 
@@ -17,12 +17,12 @@ remain separate from the verified requirement counts below.
 
 ## What the tracker measures
 
-- **58 feature descriptions**, each with explicit acceptance criteria and a repeatable comparison task.
-- Current inventory: 22 existing, 14 partial, 10 absent, 5 implemented, 1 improved, 5 enhanced, 1 not_targeted.
-- Acceptance checks: 109 passed, 0 failed, 0 flaky, 40 unknown, 30 unmet, 3 excluded.
-- Priority-weighted verified requirement coverage: **70.2%** (471/671 points). This is a conservative evidence measure, not “70.2% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
-- Like-for-like unit-evidence baseline: 25.3% → 39.3%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
-- Current validation records: 343 unit/integration tests and 184 browser journeys; 0 failures, 0 flaky results, 0 skipped.
+- **60 feature descriptions**, each with explicit acceptance criteria and a repeatable comparison task.
+- Current inventory: 22 existing, 14 partial, 10 absent, 7 implemented, 1 improved, 5 enhanced, 1 not_targeted.
+- Acceptance checks: 117 passed, 0 failed, 0 flaky, 41 unknown, 30 unmet, 3 excluded.
+- Priority-weighted verified requirement coverage: **71.4%** (511/716 points). This is a conservative evidence measure, not “71.4% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
+- Like-for-like unit-evidence baseline: 23% → 40.4%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
+- Current validation records: 354 unit/integration tests and 186 browser journeys; 0 failures, 0 flaky results, 0 skipped.
 
 ## Implemented from this audit
 
@@ -42,6 +42,8 @@ remain separate from the verified requirement counts below.
 - CB40 Model-game learning: absent → partial.
 - CB41 Master and online model-game sources: absent → partial.
 - CB57 Turn-aware move arrows while building: absent → implemented.
+- CB59 Requested whole-game move-quality analysis: absent → implemented.
+- CB60 Played-game move-quality progress over time: absent → implemented.
 
 Daily effort counts scheduled encounters once, excludes lapse repeats, and shows independent recall separately. Local calendar days use a validated player time zone. A streak records consecutive days with completed practice, not consecutive days meeting the goal. The compact display shows seven days; the activity endpoint retains a 28-day view. Recommended sessions use up to ten remaining goal positions; deliberate line practice remains available after the goal is reached.
 
@@ -816,11 +818,11 @@ Repeatable comparison task: Switch sources while preserving a saved study sessio
 
 Chessbook evidence: Connected accounts offers Lichess and promises automatic checks. [Chessbook guest app — direct UI audit](https://chessbook.com/)
 
-Our feature description: Incrementally fetch authorised games, retain sync cursor and duplicates, then compare openings locally; disclose whether sync is manual or automatic.
+Our feature description: Incrementally fetch authorised games with cursor and deduplication, compare openings locally, and request full-game engine analysis separately only when the user selects games. Disclose sync status and preserve previous games on provider failures.
 
 Acceptance criteria:
 
-- **passed** — Connected Lichess games enter the normal queue incrementally. Evidence: unit: connects and incrementally imports public Lichess games through the normal analysis queue.
+- **passed** — Connected Lichess games are saved incrementally without automatically starting full-game engine work. Evidence: unit: connects and incrementally saves public Lichess games without starting engine analysis.
 - **unknown** — Connect or inspect an existing account and request game refresh without duplicates.
 - **unknown** — Token failures retain previous games and never expose credentials in client output.
 
@@ -1120,6 +1122,45 @@ Implementation: No implementation identified.
 
 Repeatable comparison task: Find and solve a relevant Ruy Lopez or Modern puzzle for the selected side. Competitor timing and our user-task timing remain unmeasured.
 
+## CB59 — Requested whole-game move-quality analysis
+
+**Analysis · P0 · implemented**
+
+Chessbook evidence: Independent user requirement inspired by the supplied report screenshot; not a claimed proprietary Chessbook or Chessigma reconstruction. User-requested whole-game analysis and progress
+
+Our feature description: Analyse one, selected or all saved games only after an explicit request. Persist complete both-side assessments with engine/settings/method provenance. Keep repertoire departures separate from chess errors, retain prior successful reports, and allow batch stop/resume. Use the existing saved replay board.
+
+Acceptance criteria:
+
+- **passed** — Importing does not start analysis; explicit single/selected/all requests are scoped to the active player and pending work is deduplicated. Evidence: unit: saves imports without starting analysis, scopes all/selected requests and deduplicates pending work atomically; unit: analyses only selected games on request and serves complete reports and comparable progress; browser/chromium: requests individual and selected/all analysis, retains reports, and compares completed games; browser/webkit: requests individual and selected/all analysis, retains reports, and compares completed games.
+- **passed** — Move assessment uses the mover perspective, estimated chance loss and explicit mate outcomes rather than treating every equal centipawn loss as equally serious. Evidence: unit: uses the mover's perspective and treats equal losses differently in settled positions; unit: handles mate outcomes without inventing centipawn differences or penalising a slower forced mate.
+- **passed** — Stopping/restarting retains completed reports and progress; other profiles cannot inspect or stop the job. Evidence: unit: resumes unfinished games and preserves completed progress when stopped; unit: stops queued batches without losing games and prevents access across player profiles.
+- **passed** — Move-quality reports can inspect the existing board on desktop and mobile without adding a duplicate analysis board. Evidence: browser/chromium: requests individual and selected/all analysis, retains reports, and compares completed games; browser/webkit: requests individual and selected/all analysis, retains reports, and compares completed games.
+
+Implementation: `apps/server/src/analysis/move-quality.ts`, `apps/server/src/analysis/game-quality-service.ts`, `apps/server/src/analysis/analysis-service.ts`, `apps/server/src/jobs/job-worker.ts`, `apps/web/src/components/GameMoveReport.tsx`, `apps/web/src/components/GameLibrary.tsx`, `migrations/042_game_quality.sql`
+
+Repeatable comparison task: Import two games, analyse one, then select all while retaining its existing report, inspect a graded position and stop a queued batch. Competitor timing and our user-task timing remain unmeasured.
+
+## CB60 — Played-game move-quality progress over time
+
+**Quality · P0 · implemented**
+
+Chessbook evidence: User-requested first-mistake/blunder timing and longitudinal game quality; no proprietary score or measured learning improvement is asserted. User-requested whole-game analysis and progress
+
+Our feature description: Compare recent and preceding games by date played under a common engine/settings/method and time control. Show accuracy, best/good move proportion, per-game and per-100-move error rates, blunder-free counts and explicit first-error timing without giving blunder-free games an artificial move number.
+
+Acceptance criteria:
+
+- **passed** — Separate analysis settings/time controls, exclude ineligible dates/results/starting positions, and count each game once rather than each analysis run. Evidence: unit: counts only complete reports once and separates settings, date eligibility and playing speed; unit: analyses only selected games on request and serves complete reports and comparable progress.
+- **passed** — Compare the latest twenty eligible games with the preceding twenty by playing date rather than importing date. Evidence: unit: compares the latest twenty played games with the preceding twenty rather than import order.
+- **passed** — Normalise error rates by player moves and distinguish unobserved early endings from blunder-free survival through a checkpoint. Evidence: unit: normalises loss rates by the player's moves and keeps time controls distinct; unit: does not give blunder-free games a fake first-error move or treat unobserved endings as success.
+- **passed** — Show source counts, small samples, unavailable earlier comparisons and checkpoint limitations on mobile and desktop. Evidence: browser/chromium: requests individual and selected/all analysis, retains reports, and compares completed games; browser/webkit: requests individual and selected/all analysis, retains reports, and compares completed games.
+- **unknown** — Demonstrate that the measures reliably reflect stronger play in a matched human longitudinal study.
+
+Implementation: `apps/server/src/analysis/game-quality-service.ts`, `apps/web/src/components/GameQualityProgress.tsx`, `apps/web/src/App.tsx`
+
+Repeatable comparison task: Inspect recent and earlier decision quality for the same time control and analysis group, including games with no blunder and games ending before move 20. Competitor timing and our user-task timing remain unmeasured.
+
 ## Sources
 
 - **UI** [Chessbook guest app — direct UI audit](https://chessbook.com/); Guest browser inspection; checked 2026-10-14. Limit: Account connections, paid purchase, autofill execution, trimming, learning reset and deletion were not performed.
@@ -1133,3 +1174,4 @@ Repeatable comparison task: Find and solve a relevant Ruy Lopez or Modern puzzle
 - **EVAL** [Chessbook engine evaluations documentation](https://wiki.chessbook.com/evaluations); Official documentation read in browser; checked 2026-10-14. Limit: Precomputed engine database was not accessed or copied.
 - **EXTENSION** Audit-driven independent improvement; Own product requirement; checked 2026-10-14. Limit: Not asserted to be a Chessbook feature.
 - **REA_METHOD** [REA browser observation and evidence methodology](https://github.com/morluto/rea/blob/main/docs/browser-observation.md); Official repository guidance read; method adapted using available browser inspection; checked 2026-10-17. Limit: REA MCP/CLI was not run. No claim of client-bundle, network-body, server-source or trained-model recovery.
+- **USER_GAME_ANALYSIS** User-requested whole-game analysis and progress; User requirements and supplied Chessigma report screenshot; independent implementation specification; checked 2026-10-25. Limit: No claim to reproduce Chessigma or Chessbook proprietary scoring, calibration or learning outcomes.

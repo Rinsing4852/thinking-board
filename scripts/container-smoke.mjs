@@ -45,8 +45,9 @@ if (existing) {
   assert(games.games.some((game) => game.white === "Container Learner"), "Imported game must survive restart");
 } else {
   const imported = await request("/api/v1/imports/pgn", { pgn, playerName: "Container Learner" });
-  assert(imported.jobId, "Import must queue local analysis");
-  const job = await waitFor(() => request(`/api/v1/jobs/${imported.jobId}`),
+  assert.equal(imported.jobId,null,"Import must wait for an analysis request");
+  const requested=await request("/api/v1/games/analysis",{all:true});
+  const job = await waitFor(() => request(`/api/v1/jobs/${requested.id}`),
     (result) => result.status === "completed" || result.status === "failed");
   assert.equal(job.status, "completed", job.error ?? "Local game analysis must complete");
 }
@@ -121,7 +122,8 @@ if (!existing) {
     pgn: '[Event "Container preparation"]\n[White "Container Learner"]\n[Black "Preparation opponent"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 d6 3. d4 *',
     playerName: "Container Learner",
   });
-  const job = await waitFor(() => request(`/api/v1/jobs/${imported.jobId}`),
+  const requested=await request("/api/v1/games/analysis",{all:true});
+  const job = await waitFor(() => request(`/api/v1/jobs/${requested.id}`),
     result => result.status === "completed" || result.status === "failed");
   assert.equal(job.status, "completed", job.error ?? "Preparation game analysis must complete");
 }

@@ -1,3 +1,4 @@
+import { assessMove, QUALITY_VERSION } from "./move-quality.js";
 import { Chess } from "chess.js";
 
 import type { AppConfig } from "../config.js";
@@ -84,11 +85,12 @@ export class AnalysisService {
     return this.v1.backfill();
   }
 
-  async analyzeGames(gameIds: string[], onProgress: (completed: number) => void): Promise<{ analyzed: number; items: number }> {
+  async analyzeGames(gameIds: string[], onProgress: (completed: number) => void, shouldContinue: () => boolean = () => true): Promise<{ analyzed: number; items: number }> {
     await this.engine.initialize();
     let analyzed = 0;
     let items = 0;
     for (const gameId of gameIds) {
+      if (!shouldContinue()) break;
       items += await this.analyzeGame(gameId);
       analyzed += 1;
       onProgress(analyzed);
@@ -106,7 +108,7 @@ export class AnalysisService {
       INSERT INTO analysis_runs(
         id, game_id, engine_name, engine_version, depth, multipv, threads,
         hash_mb, analysis_version, status, started_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 2, 'running', ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 3, 'running', ?)
     `).run(
       runId, gameId, this.engine.name, this.engine.name, this.config.stockfishDepth,
       this.config.stockfishMultiPv, this.config.stockfishThreads,
@@ -164,15 +166,17 @@ export class AnalysisService {
         WHERE m.game_id = ? ORDER BY m.ply
       `).all(gameId) as MoveRow[];
       await this.storeAssessments(runId, moves, scores);
-      this.deactivateStaleGeneratedItems(gameId, runId);
-      const blunderChecks = this.generateBlunderChecks(gameId, runId, moves, scores);
-      this.db.prepare("UPDATE analysis_runs SET status = 'completed', completed_at = ? WHERE id = ?")
-        .run(now(), runId);
-      const whatChanged = this.whatChanged.generateForGame(gameId, runId);
-      const candidates = this.candidates.generateForGame(gameId, runId);
-      const v1 = this.v1.generateForGame(gameId, runId);
-      this.db.prepare("UPDATE games SET analyzed_at = ? WHERE id = ?").run(now(), gameId);
-      return blunderChecks + whatChanged + candidates + v1;
+      return this.db.transaction(() => {
+        this.deactivateStaleGeneratedItems(gameId, runId);
+        const blunderChecks = this.generateBlunderChecks(gameId, runId, moves, scores);
+        const whatChanged = this.whatChanged.generateForGame(gameId, runId);
+        const candidates = this.candidates.generateForGame(gameId, runId);
+        const v1 = this.v1.generateForGame(gameId, runId);
+        const completedAt=now();
+        this.db.prepare("UPDATE analysis_runs SET status = 'completed', completed_at = ? WHERE id = ?").run(completedAt,runId);
+        this.db.prepare("UPDATE games SET analyzed_at = ? WHERE id = ?").run(completedAt,gameId);
+        return blunderChecks + whatChanged + candidates + v1;
+      })();
     } catch (error) {
       this.db.prepare("UPDATE analysis_runs SET status = 'failed', completed_at = ? WHERE id = ?")
         .run(now(), runId);
@@ -188,6 +192,7 @@ export class AnalysisService {
         comparison_loss, classification, meaningful
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
+    const qualities: Array<{moveId:string;quality:ReturnType<typeof assessMove>;bestUci:string;bestSan:string}> = [];
     const assessments: Array<{
       move: MoveRow; before: StoredScore; played: EngineScore; loss: number;
       classification: "good" | "inaccuracy" | "mistake" | "blunder";
@@ -214,21 +219,22 @@ export class AnalysisService {
           ? utilityWhite(before) - utilityWhite(played)
           : utilityWhite(played) - utilityWhite(before);
         const loss = Math.min(3_000, Math.max(0, Math.round(rawLoss)));
-        const classification = loss >= 300
-          ? "blunder"
-          : loss >= this.config.meaningfulLossCp
-            ? "mistake"
-            : loss >= 75 ? "inaccuracy" : "good";
+        const leading = this.db.prepare("SELECT move_uci, move_san FROM engine_lines WHERE position_analysis_id=? AND rank=1").get(before.positionAnalysisId) as {move_uci:string;move_san:string};
+        const quality=assessMove(before,played,move.mover_color,leading.move_uci===move.uci);
+        const classification=quality.grade==="best"?"good":quality.grade;
+        qualities.push({moveId:move.id, quality,bestUci:leading.move_uci,bestSan:leading.move_san});
         assessments.push({ move, before, played, loss, classification });
     }
     this.db.transaction(() => {
+      const saveQuality=this.db.prepare(`INSERT INTO game_move_quality(run_id,move_id,rule_version,chances_before,chances_after,chance_loss,accuracy,grade,best_uci,best_san) VALUES (?,?,?,?,?,?,?,?,?,?)`);
+      for(const row of qualities) saveQuality.run(runId,row.moveId,QUALITY_VERSION,row.quality.before,row.quality.after,row.quality.loss,row.quality.accuracy,row.quality.grade,row.bestUci,row.bestSan);
       for (const { move, before, played, loss, classification } of assessments) {
         insert.run(
           id(), runId, move.id,
           before.centipawnsWhite, before.mateInWhite,
           played.centipawnsWhite, played.mateInWhite,
           before.mateInWhite !== null || played.mateInWhite !== null ? null : loss,
-          loss, classification, loss >= this.config.meaningfulLossCp ? 1 : 0,
+          loss, classification, classification === "mistake" || classification === "blunder" ? 1 : 0,
         );
       }
     })();

@@ -772,6 +772,7 @@ for (const reducedMotion of [false, true]) {
 test("retains hints across reloads and asks the player to execute a shown answer", async ({ page }, testInfo) => {
   await startPractice(page);
   await page.getByRole("button", { name: "Hint: show the piece" }).click();
+  await expect(page.getByRole("button",{name:"Piece highlighted",exact:true})).toBeVisible();
   await page.reload();
   const resume = page.getByRole("button", { name: "Resume opening practice" });
   if (await resume.isVisible()) await resume.click();

@@ -1,3 +1,4 @@
+import { GameQualityService } from "./analysis/game-quality-service.js";
 import { GameReplayService } from "./games/game-replay-service.js";
 import { openingQualityMetrics } from "./openings/opening-quality-metrics.js";
 import fs from "node:fs";
@@ -118,35 +119,26 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   });
   const openingCoverage = new OpeningCoverageService(database.connection, config.lichessApiToken, openingExplorer, openingPreparation, openingGames);
   registerOpeningPreparationRoutes(app, database.connection, openingGames, openingPreparation);
+  const gameQuality = new GameQualityService(database.connection,config,openingGames);
+  app.post("/api/v1/games/analysis",{schema:{body:{type:"object",additionalProperties:false,properties:{all:{type:"boolean"},gameIds:{type:"array",maxItems:10000,items:{type:"string",minLength:1,maxLength:100}},reanalyse:{type:"boolean"}},oneOf:[{required:["all"],properties:{all:{const:true}},not:{required:["gameIds"]}},{required:["gameIds"],not:{required:["all"]}}]}}},async(request,reply)=>{
+    const profileId=activeProfileId(database.connection);if(!profileId)return reply.code(400).send({error:"Choose a player first"});
+    try{return reply.code(202).send(gameQuality.enqueue(profileId,request.body as {all?:boolean;gameIds?:string[];reanalyse?:boolean}));}
+    catch(error){return reply.code(400).send({error:error instanceof Error?error.message:"Could not request analysis"});}
+  });
+  app.get("/api/v1/games/:gameId/quality",async(request,reply)=>{
+    try{return gameQuality.report((request.params as {gameId:string}).gameId,activeProfileId(database.connection)??"");}
+    catch{return reply.code(404).send({error:"Game not found"});}
+  });
+  app.get("/api/v1/game-quality/progress",async(request,reply)=>{
+    const query=request.query as {cohort?:string;timeControl?:string};
+    try{return gameQuality.trends(activeProfileId(database.connection)??"",query.cohort,query.timeControl);}
+    catch(error){return reply.code(400).send({error:error instanceof Error?error.message:"Could not load progress"});}
+  });
   const analysis = new AnalysisService(database.connection, config);
   analysis.backfillWhatChanged();
   analysis.backfillCandidates();
   analysis.backfillV1();
   const worker = new JobWorker(database.connection, analysis);
-  const activeAnalysisGames = new Set<string>();
-  const activeJobs = database.connection.prepare(`
-    SELECT payload_json FROM jobs WHERE kind = 'analyze_games' AND status IN ('queued', 'running')
-  `).all() as Array<{ payload_json: string }>;
-  for (const job of activeJobs) {
-    const payload = JSON.parse(job.payload_json) as { gameIds?: unknown };
-    if (Array.isArray(payload.gameIds)) {
-      for (const gameId of payload.gameIds) if (typeof gameId === "string") activeAnalysisGames.add(gameId);
-    }
-  }
-  const outdatedGames = database.connection.prepare(`
-    SELECT g.id FROM games g
-    WHERE COALESCE((
-      SELECT MAX(ar.analysis_version) FROM analysis_runs ar
-      WHERE ar.game_id = g.id AND ar.status = 'completed'
-    ), 0) < 2
-  `).all() as Array<{ id: string }>;
-  for (const game of outdatedGames) {
-    if (activeAnalysisGames.has(game.id)) continue;
-    database.connection.prepare(`
-      INSERT INTO jobs(id, kind, status, progress_total, payload_json, created_at)
-      VALUES (?, 'analyze_games', 'queued', 1, ?, ?)
-    `).run(id(), JSON.stringify({ gameIds: [game.id] }), now());
-  }
   if (config.runWorker) worker.start();
 
   app.get("/api/v1/health", async () => {
@@ -630,9 +622,8 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       SELECT id, kind, status, progress_current, progress_total, payload_json,
              result_json, error_message
       FROM jobs
-      WHERE kind = 'analyze_games'
-      ORDER BY created_at DESC
-      LIMIT 50
+      WHERE kind = 'analyze_games' AND json_extract(payload_json,'$.requestedByUser')=1
+      ORDER BY CASE status WHEN 'running' THEN 0 WHEN 'queued' THEN 1 ELSE 2 END, created_at DESC
     `).all() as JobRow[];
     const belongsToProfile = database.connection.prepare(
       "SELECT 1 FROM games WHERE id = ? AND profile_id = ?",
@@ -653,17 +644,31 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
              result_json, error_message
       FROM jobs WHERE id = ?
     `).get(jobId) as JobRow | undefined;
-    if (!row) return reply.code(404).send({ error: "Job not found" });
+    if (!row || JSON.parse(row.payload_json).profileId!==activeProfileId(database.connection)) return reply.code(404).send({ error: "Job not found" });
     return jobResponse(row);
+  });
+
+  app.post("/api/v1/jobs/:jobId/stop",async(request,reply)=>{
+    const jobId=(request.params as {jobId:string}).jobId;
+    const row=database.connection.prepare("SELECT payload_json,status FROM jobs WHERE id=?").get(jobId) as {payload_json:string;status:string}|undefined;
+    if(!row||JSON.parse(row.payload_json).profileId!==activeProfileId(database.connection))return reply.code(404).send({error:"Job not found"});
+    if(!["queued","running"].includes(row.status))return reply.code(409).send({error:"This analysis is no longer running"});
+    const payload={...JSON.parse(row.payload_json),stopRequested:true};
+    database.connection.prepare("UPDATE jobs SET payload_json=? WHERE id=?").run(JSON.stringify(payload),jobId);
+    if(row.status==="queued")database.connection.prepare("UPDATE jobs SET status='completed',result_json=?,completed_at=? WHERE id=?").run(JSON.stringify({stopped:true,analyzed:0,items:0}),now(),jobId);
+    return {message:"Analysis will stop after the current game. Completed reports are kept."};
   });
 
   app.post("/api/v1/jobs/:jobId/retry", async (request, reply) => {
     const { jobId } = request.params as { jobId: string };
+    const owner=database.connection.prepare("SELECT payload_json FROM jobs WHERE id=?").get(jobId) as {payload_json:string}|undefined;
+    if(!owner||JSON.parse(owner.payload_json).profileId!==activeProfileId(database.connection)||!JSON.parse(owner.payload_json).requestedByUser)return reply.code(404).send({error:"Job not found"});
     const result = database.connection.prepare(`
-      UPDATE jobs SET status = 'queued', progress_current = 0, error_message = NULL,
+      UPDATE jobs SET status = 'queued', error_message = NULL,
         started_at = NULL, completed_at = NULL WHERE id = ? AND status = 'failed'
     `).run(jobId);
     if (result.changes === 0) return reply.code(409).send({ error: "Only failed jobs can be retried" });
+    database.connection.prepare("UPDATE jobs SET payload_json=? WHERE id=?").run(JSON.stringify({...JSON.parse(owner.payload_json),stopRequested:false}),jobId);
     return reply.code(202).send({ id: jobId, status: "queued" });
   });
 
@@ -860,17 +865,8 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     const { gameId } = request.params as { gameId: string };
     const game = database.connection.prepare("SELECT id FROM games WHERE id = ?").get(gameId);
     if (!game) return reply.code(404).send({ error: "Game not found" });
-    const queued = database.connection.prepare(`
-      SELECT id FROM jobs WHERE kind = 'analyze_games' AND status IN ('queued', 'running')
-        AND payload_json LIKE ? LIMIT 1
-    `).get(`%${gameId}%`) as { id: string } | undefined;
-    if (queued) return reply.code(202).send({ id: queued.id, status: "queued" });
-    const jobId = id();
-    database.connection.prepare(`
-      INSERT INTO jobs(id, kind, status, progress_total, payload_json, created_at)
-      VALUES (?, 'analyze_games', 'queued', 1, ?, ?)
-    `).run(jobId, JSON.stringify({ gameIds: [gameId] }), now());
-    return reply.code(202).send({ id: jobId, status: "queued" });
+    try{return reply.code(202).send(gameQuality.enqueue(activeProfileId(database.connection)??"",{gameIds:[gameId],reanalyse:true}));}
+    catch{return reply.code(404).send({error:"Game not found"});}
   });
 
   app.post("/api/v1/training/next", async (request) => {

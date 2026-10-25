@@ -1,3 +1,4 @@
+import { GameQualityProgress } from "./components/GameQualityProgress";
 import { useEffect, useState } from "react";
 
 import type { TrainingSessionResponse } from "../../../packages/contracts/src/api";
@@ -215,6 +216,7 @@ export function App() {
               <h1>Your progress</h1>
               <p>Use your real-game occurrences and practice results to choose the next thinking habit to strengthen.</p>
             </div>
+            <GameQualityProgress refreshToken={refreshToken} onOpenGames={()=>navigate("games")}/>
             <section className="panel opening-progress-link" aria-label="Opening progress">
               <div><h3>Preparation gaps</h3>
                 <p>Open a saved repertoire to inspect missing replies and choose what to prepare. The dashboard figures below cover thinking drills from your games.</p></div>

@@ -1,10 +1,11 @@
+import { V1Generator } from "./analysis/v1-generator.js";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import BetterSqlite3 from "better-sqlite3";
 import { Chess } from "chess.js";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AppConfig } from "./config.js";
 import { buildApp } from "./app.js";
@@ -104,6 +105,11 @@ function config(runWorker: boolean, seedLegacyFixtures = true): AppConfig {
     meaningfulLossCp: 150,
     runWorker,
   };
+}
+
+async function requestAllAnalysis(app: Awaited<ReturnType<typeof buildApp>>):Promise<string> {
+  const response=await app.inject({method:"POST",url:"/api/v1/games/analysis",payload:{all:true}});
+  expect(response.statusCode).toBe(202);return response.json().id;
 }
 
 async function waitForCompleted(app: Awaited<ReturnType<typeof buildApp>>, jobId: string): Promise<void> {
@@ -290,7 +296,7 @@ describe("vertical slice", () => {
     const imported = await app.inject({ method: "POST", url: "/api/v1/imports/pgn", payload: {
       pgn: '[Event "Preparation safety"]\n[White "Alice"]\n[Black "Bob"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 d6 3. d4 *', playerName: "Alice",
     } });
-    await waitForCompleted(app, imported.json().jobId);
+    await waitForCompleted(app, await requestAllAnalysis(app));
     expect((await app.inject({ method: "PATCH", url: "/api/v1/openings/preferences", payload: {
       ratingGroup: 1600, platform: "lichess", useExplorer: true,
     } })).statusCode).toBe(200);
@@ -440,6 +446,7 @@ describe("vertical slice", () => {
     const app = await buildApp(settings);
     apps.push(app);
     await app.inject({ method: "POST", url: "/api/v1/imports/pgn", payload: { pgn: FOOLS_MATE, playerName: "Alice" } });
+    await requestAllAnalysis(app);
     const preferences = (await app.inject({ method: "GET", url: "/api/v1/openings/preferences" })).json();
     await app.inject({ method: "POST", url: "/api/v1/openings/repertoires/repertoire.white-e4-principled/reviews/start", payload: { mode: "new" } });
     await app.inject({ method: "PATCH", url: "/api/v1/openings/repertoires/repertoire.black-modern-e4/archive", payload: { archived: true } });
@@ -1213,7 +1220,7 @@ describe("vertical slice", () => {
     connection.close();
   });
 
-  it("connects and incrementally imports public Lichess games through the normal analysis queue", async () => {
+  it("connects and incrementally saves public Lichess games without starting engine analysis", async () => {
     globalThis.fetch = (async (input) => {
       const url = String(input);
       if (url.includes("/api/user/")) {
@@ -1242,8 +1249,8 @@ describe("vertical slice", () => {
     const synced = await app.inject({
       method: "POST", url: "/api/v1/lichess/sync", payload: { maxGames: 25 },
     });
-    expect(synced.statusCode).toBe(202);
-    expect(synced.json()).toMatchObject({ imported: 1, duplicates: 0, jobId: expect.any(String) });
+    expect(synced.statusCode).toBe(200);
+    expect(synced.json()).toMatchObject({ imported: 1, duplicates: 0, jobId: null });
     const games = await app.inject({ method: "GET", url: "/api/v1/games" });
     expect(games.json()).toMatchObject({ games: [expect.objectContaining({ white: "Alice", playerColor: "white" })] });
 
@@ -2431,7 +2438,7 @@ describe("vertical slice", () => {
     const imported = await app.inject({
       method: "POST", url: "/api/v1/imports/pgn", payload: { pgn: FOOLS_MATE, playerName: "Alice" },
     });
-    const jobId = (imported.json() as { jobId: string }).jobId;
+    const jobId = await requestAllAnalysis(app);
     const connection = new BetterSqlite3(appConfig.databasePath);
     connection.prepare("UPDATE jobs SET status = 'failed', error_message = 'Engine stopped' WHERE id = ?").run(jobId);
     connection.close();
@@ -2459,7 +2466,8 @@ describe("vertical slice", () => {
     expect(imported.statusCode).toBe(202);
     expect(imported.json()).toMatchObject({ imported: 1, duplicates: 0, rejected: 0 });
     const activeJob = await app.inject({ method: "GET", url: "/api/v1/jobs/active" });
-    expect(activeJob.json()).toMatchObject({ id: expect.any(String), status: "queued", progressTotal: 1 });
+    expect(activeJob.json()).toBeNull();
+    await requestAllAnalysis(app);
 
     const duplicate = await app.inject({
       method: "POST", url: "/api/v1/imports/pgn", payload: { pgn: FOOLS_MATE, playerName: "Alice" },
@@ -2473,7 +2481,7 @@ describe("vertical slice", () => {
     const imported = await app.inject({
       method: "POST", url: "/api/v1/imports/pgn", payload: { pgn: FOOLS_MATE, playerName: "Alice" },
     });
-    const jobId = (imported.json() as { jobId: string }).jobId;
+    const jobId = await requestAllAnalysis(app);
     await waitForCompleted(app, jobId);
     const noActiveJob = await app.inject({ method: "GET", url: "/api/v1/jobs/active" });
     expect(noActiveJob.json()).toBeNull();
@@ -2608,4 +2616,64 @@ describe("vertical slice", () => {
     expect(db.prepare("SELECT COUNT(*) FROM opening_line_practice_preferences WHERE enabled = 0").pluck().get()).toBe(1);
     expect(db.pragma("foreign_key_check")).toEqual([]); db.close();
   });
+  it("analyses only selected games on request and serves complete reports and comparable progress", async () => {
+    const app=await buildApp(config(true,false));apps.push(app);
+    await app.inject({method:"POST",url:"/api/v1/imports/pgn",payload:{pgn:FOOLS_MATE.replace('[Date "2026.08.14"]','[Date "2026.08.14"]\n[TimeControl "600+0"]'),playerName:"Alice"}});
+    expect((await app.inject({method:"GET",url:"/api/v1/jobs/active"})).json()).toBeNull();
+    const gameId=(await app.inject({method:"GET",url:"/api/v1/games"})).json().games[0].id;
+    expect((await app.inject({method:"GET",url:`/api/v1/games/${gameId}/quality`})).json()).toBeNull();
+    expect((await app.inject({method:"POST",url:"/api/v1/games/analysis",payload:{gameIds:[]}})).statusCode).toBe(400);
+    const requested=await app.inject({method:"POST",url:"/api/v1/games/analysis",payload:{gameIds:[gameId,gameId]}});
+    expect(requested.json()).toMatchObject({queued:1,alreadyQueued:0});
+    const repeat=await app.inject({method:"POST",url:"/api/v1/games/analysis",payload:{all:true}});
+    expect(repeat.json()).toMatchObject({queued:0,alreadyQueued:1});
+    await waitForCompleted(app,requested.json().id);
+    const report=(await app.inject({method:"GET",url:`/api/v1/games/${gameId}/quality`})).json();
+    expect(report).toMatchObject({gameId,ruleVersion:"chances-v1",playerColor:"white",white:{moves:2},black:{moves:2}});
+    expect(report.moves).toHaveLength(4);expect(report.white.counts.blunder).toBeGreaterThan(0);
+    expect((await app.inject({method:"POST",url:"/api/v1/games/analysis",payload:{all:true}})).json()).toMatchObject({queued:0,alreadyAnalyzed:1});
+    const trends=(await app.inject({method:"GET",url:"/api/v1/game-quality/progress"})).json();
+    expect(trends).toMatchObject({totalGames:1,analyzedGames:1,timeControl:"rapid",recent:{games:1},previous:{games:0}});
+    const again=(await app.inject({method:"POST",url:`/api/v1/games/${gameId}/analyze`})).json();
+    await waitForCompleted(app,again.id);
+    expect((await app.inject({method:"GET",url:"/api/v1/game-quality/progress"})).json()).toMatchObject({analyzedGames:1,recent:{games:1}});
+  });
+
+  it("stops queued batches without losing games and prevents access across player profiles",async()=>{
+    const app=await buildApp(config(false,false));apps.push(app);
+    await app.inject({method:"POST",url:"/api/v1/imports/pgn",payload:{pgn:FOOLS_MATE,playerName:"Alice"}});
+    const requested=await app.inject({method:"POST",url:"/api/v1/games/analysis",payload:{all:true}});
+    const jobId=requested.json().id;
+    await app.inject({method:"POST",url:"/api/v1/imports/pgn",payload:{pgn:'[White "Carol"]\n[Black "Other"]\n\n1. d4 d5 *',playerName:"Carol"}});
+    const profiles=(await app.inject({method:"GET",url:"/api/v1/profiles"})).json();
+    const carol=profiles.profiles.find((p:{displayName:string})=>p.displayName==="Carol");
+    await app.inject({method:"POST",url:`/api/v1/profiles/${carol.id}/activate`});
+    expect((await app.inject({method:"GET",url:`/api/v1/jobs/${jobId}`})).statusCode).toBe(404);
+    expect((await app.inject({method:"POST",url:`/api/v1/jobs/${jobId}/stop`})).statusCode).toBe(404);
+    expect((await app.inject({method:"GET",url:"/api/v1/jobs/active"})).json()).toBeNull();
+    const alice=profiles.profiles.find((p:{displayName:string})=>p.displayName==="Alice");
+    await app.inject({method:"POST",url:`/api/v1/profiles/${alice.id}/activate`});
+    expect((await app.inject({method:"POST",url:`/api/v1/jobs/${jobId}/stop`})).statusCode).toBe(200);
+    expect((await app.inject({method:"GET",url:`/api/v1/jobs/${jobId}`})).json()).toMatchObject({status:"completed",progressCurrent:0,result:{stopped:true}});
+    expect((await app.inject({method:"GET",url:"/api/v1/games"})).json().games).toHaveLength(1);
+  });
+
+  it("keeps a successful report and existing training intact when reanalysis fails during publication",async()=>{
+    const settings=config(true,false),app=await buildApp(settings);apps.push(app);
+    await app.inject({method:"POST",url:"/api/v1/imports/pgn",payload:{pgn:FOOLS_MATE,playerName:"Alice"}});
+    const firstJob=await requestAllAnalysis(app);await waitForCompleted(app,firstJob);
+    const game=(await app.inject({method:"GET",url:"/api/v1/games"})).json().games[0];
+    const original=(await app.inject({method:"GET",url:`/api/v1/games/${game.id}/quality`})).json();
+    const db=new BetterSqlite3(settings.databasePath);
+    // Compare the published card identities and activation, not timestamps from failed work.
+    const before=db.prepare("SELECT id,active FROM training_items ORDER BY id").all();
+    const failure=vi.spyOn(V1Generator.prototype,"generateForGame").mockImplementationOnce(()=>{throw new Error("Publication fixture failure");});
+    try {
+      const next=(await app.inject({method:"POST",url:`/api/v1/games/${game.id}/analyze`})).json();
+      await vi.waitFor(async()=>expect((await app.inject({method:"GET",url:`/api/v1/jobs/${next.id}`})).json().status).toBe("failed"),{timeout:4000});
+      expect((await app.inject({method:"GET",url:`/api/v1/games/${game.id}/quality`})).json()).toEqual(original);
+      expect(db.prepare("SELECT id,active FROM training_items ORDER BY id").all()).toEqual(before);
+    } finally {failure.mockRestore();db.close();}
+  });
+
 });

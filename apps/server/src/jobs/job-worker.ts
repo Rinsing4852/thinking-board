@@ -6,6 +6,7 @@ interface JobRow {
   id: string;
   kind: string;
   payload_json: string;
+  progress_current: number;
 }
 
 export class JobWorker {
@@ -38,7 +39,7 @@ export class JobWorker {
 
   private async tick(): Promise<void> {
     const job = this.db.prepare(`
-      SELECT id, kind, payload_json FROM jobs WHERE status = 'queued' ORDER BY created_at LIMIT 1
+      SELECT id, kind, payload_json, progress_current FROM jobs WHERE status = 'queued' ORDER BY created_at LIMIT 1
     `).get() as JobRow | undefined;
     if (!job) return;
     this.db.prepare(`
@@ -46,16 +47,18 @@ export class JobWorker {
     `).run(now(), job.id);
     try {
       if (job.kind !== "analyze_games") throw new Error(`Unknown job kind: ${job.kind}`);
-      const payload = JSON.parse(job.payload_json) as { gameIds?: unknown };
+      const payload = JSON.parse(job.payload_json) as { gameIds?: unknown; requestedByUser?:boolean };
+      if(!payload.requestedByUser)throw new Error("Select games and request analysis to continue.");
       if (!Array.isArray(payload.gameIds) || !payload.gameIds.every((value) => typeof value === "string")) {
         throw new Error("Analysis job has an invalid game list");
       }
-      const result = await this.analysis.analyzeGames(payload.gameIds, (progress) => {
-        this.db.prepare("UPDATE jobs SET progress_current = ? WHERE id = ?").run(progress, job.id);
-      });
+      const result = await this.analysis.analyzeGames(payload.gameIds.slice(job.progress_current), (progress) => {
+        this.db.prepare("UPDATE jobs SET progress_current = ? WHERE id = ?").run(job.progress_current + progress, job.id);
+      },()=>!JSON.parse((this.db.prepare("SELECT payload_json FROM jobs WHERE id=?").get(job.id) as {payload_json:string}).payload_json).stopRequested);
+      const saved=this.db.prepare("SELECT progress_current,progress_total FROM jobs WHERE id=?").get(job.id) as {progress_current:number;progress_total:number};
       this.db.prepare(`
         UPDATE jobs SET status = 'completed', result_json = ?, completed_at = ? WHERE id = ?
-      `).run(JSON.stringify(result), now(), job.id);
+      `).run(JSON.stringify({...result,stopped:saved.progress_current<saved.progress_total}), now(), job.id);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Analysis failed";
       this.db.prepare(`

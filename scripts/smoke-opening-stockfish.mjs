@@ -1,3 +1,7 @@
+import { AnalysisService } from "../dist/apps/server/src/analysis/analysis-service.js";
+import { ImportService } from "../dist/apps/server/src/imports/import-service.js";
+import { GameQualityService } from "../dist/apps/server/src/analysis/game-quality-service.js";
+import { OpeningGameService } from "../dist/apps/server/src/openings/opening-game-service.js";
 // Uses a fresh temporary database and the configured real engine; never live data.
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -21,6 +25,22 @@ async function check(name,fen,move,verdict){
 try {
   const identity=await service.analyze(start);
   assert(identity.engineName?.startsWith("Stockfish ")&&!identity.engineName.includes("Fake"),"Use a real Stockfish binary");
+  const gameDatabase=new Database(path.join(root,"games.sqlite3"),config.migrationsDir);
+  const gameAnalysis=new AnalysisService(gameDatabase.connection,{...config,stockfishDepth:12});
+  try {
+    const imported=new ImportService(gameDatabase.connection).import('[White "Real learner"]\n[Black "Opponent"]\n[Date "2026.10.25"]\n[TimeControl "600+0"]\n[Result "0-1"]\n\n1. f3 e5 2. g4 Qh4# 0-1',"Real learner");
+    assert.equal(imported.jobId,null,"Import must not start engine work");
+    assert.equal(gameDatabase.connection.prepare("SELECT COUNT(*) FROM jobs").pluck().get(),0);
+    const game=gameDatabase.connection.prepare("SELECT id,profile_id FROM games").get();
+    await gameAnalysis.analyzeGames([game.id],()=>{});
+    const quality=new GameQualityService(gameDatabase.connection,config,new OpeningGameService(gameDatabase.connection));
+    const report=quality.report(game.id,game.profile_id);
+    assert.equal(report.moves.length,4);assert.equal(report.white.firstBlunder,2);
+    assert.equal(report.moves.find(move=>move.san==="g4").grade,"blunder");
+    assert.equal(report.moves.find(move=>move.san==="Qh4#").grade,"best");
+    assert.equal(quality.trends(game.profile_id).recent.games,1);
+    results.push({name:"Whole-game move quality and progress with real Stockfish",engine:report.engine,firstBlunder:report.white.firstBlunder,passed:true});
+  } finally {await gameAnalysis.close();gameDatabase.close();}
   await check("White sound opening alternative",start,"d2d4","playable");
   await check("White developing move after e4 e5","rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2","g1f3","playable");
   await check("Black sound opening alternative","rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1","e7e5","playable");

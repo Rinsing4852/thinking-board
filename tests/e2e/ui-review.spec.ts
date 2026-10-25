@@ -2,6 +2,7 @@ import { revealControl } from "./workflow-helpers";
 import { expect, test } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
+  await page.route("**/api/v1/games/*/quality",route=>route.fulfill({json:null}));
   // These home-screen checks must not resume sessions left by other serial journeys.
   await page.route("**/api/v1/openings/reviews/active", route => route.fulfill({ json: null }));
   await page.route("**/api/v1/training/session/active", route => route.fulfill({ json: null }));
@@ -155,7 +156,7 @@ test("puts pasted games before optional sync and invalidates stale previews", as
   await expect(page.getByLabel("I am")).toBeVisible();
   await input.fill('[White "Different learner"]\n[Black "Opponent"]\n[Result "*"]\n\n1. d4 d5 *');
   await expect(page.getByLabel("I am")).toBeHidden();
-  await expect(page.getByRole("button", { name: "Import & analyse" })).toBeHidden();
+  await expect(page.getByRole("button", { name: "Save games" })).toBeHidden();
   await page.screenshot({ path: testInfo.outputPath("paste-first-games.png"), fullPage: true });
   await sync.locator("summary").first().click();
   await expect(page.getByLabel("Lichess username")).toBeVisible();
@@ -228,14 +229,14 @@ test("searches the whole game library and ignores an obsolete review response", 
   await pending;
   await library.getByRole("button", { name: /UI learner – Opponent 2 / }).click();
   await expect(library.locator(".active")).toContainText("Opponent 2");
-  await expect(page.getByText("Opening comparison ready", { exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name:"Game move-quality report",exact:true })).toBeVisible();
   release!();
   await handled;
   // WebKit does not reliably emit requestfailed for a cancelled intercepted fetch.
   // Check the visible outcome after releasing the obsolete response instead.
   await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   await expect(page).toHaveURL(/#games\?game=ui-game-2$/);
-  await expect(page.getByText("Opening comparison ready", { exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name:"Game move-quality report",exact:true })).toBeVisible();
   await expect(library.locator(".active")).toContainText("Opponent 2");
   await expect(page.getByText("No major engine mistakes found", { exact: true })).toBeHidden();
 });
@@ -295,8 +296,8 @@ test("keeps an unsaved preparation idea when background analysis refreshes the i
   const refreshed = page.waitForResponse(response => response.url().endsWith("/openings/game-inbox") && response.status() === 200);
   release!();
   await (await refreshed).finished();
-  await revealControl(page.getByText("Analysis complete. Your exercises and repertoire comparison are ready below.", { exact: true }));
-  await expect(page.getByText("Analysis complete. Your exercises and repertoire comparison are ready below.", { exact: true })).toBeVisible();
+  await revealControl(page.getByText("Analysis complete. Your move report and exercises are ready below.", { exact: true }));
+  await expect(page.getByText("Analysis complete. Your move report and exercises are ready below.", { exact: true })).toBeVisible();
   await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   await expect(noteInput).toHaveValue(note);
   await advice.getByRole("button", { name: "Save idea without a line", exact: true }).click();

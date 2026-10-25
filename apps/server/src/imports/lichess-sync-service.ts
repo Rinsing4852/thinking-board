@@ -124,7 +124,7 @@ export class LichessSyncService {
       ...imported,
       connection: this.connectionFor(profileId),
       message: imported.imported > 0
-        ? `${imported.imported} new Lichess game${imported.imported === 1 ? "" : "s"} imported for local analysis.`
+        ? `${imported.imported} new Lichess game${imported.imported === 1 ? "" : "s"} saved. Choose which games to analyse.`
         : "Your latest Lichess games were already imported.",
     };
   }

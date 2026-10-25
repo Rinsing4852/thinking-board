@@ -1,0 +1,16 @@
+{
+  "measuredAt": "2026-10-25T15:30:55.403Z",
+  "fixture": "1000 synthetic completed games, 16 plies, one analysis group/time control",
+  "scope": "Server progress calculation only; in-memory SQLite, warm cache, one warmup then five runs. Not browser task time or Chessbook parity.",
+  "samplesMs": [
+    47,
+    53,
+    53,
+    54,
+    54
+  ],
+  "medianMs": 53,
+  "worstMs": 54,
+  "passed": true,
+  "sourceFingerprint": "7a49be108b598500404190f9b4d3275d53e1b9dd1b3292a8ba4c93e424debcb2"
+}

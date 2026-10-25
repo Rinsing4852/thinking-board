@@ -108,7 +108,7 @@ export function Dashboard({ refreshToken, onChooseMode, onStartSession, onProfil
         <div><strong>{dashboard.totals.due}</strong><span>due now</span></div>
         <div><strong>{dashboard.totals.attempts}</strong><span>attempts</span></div>
       </div>
-      {dashboard.totals.trainingItems === 0 && <p className="panel-help">Your progress starts with a game. Import its PGN, choose your name, then practise the positions found in analysis.</p>}
+      {dashboard.totals.trainingItems === 0 && <p className="panel-help">Your progress starts with a game. Import its PGN, choose your name, then request analysis for the games you want to practise.</p>}
       <div className="dashboard-grid">
         <div className="panel weakness-panel">
           <span className="eyebrow">Training priorities</span>

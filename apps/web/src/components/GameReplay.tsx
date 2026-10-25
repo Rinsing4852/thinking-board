@@ -3,7 +3,7 @@ import type { GameReplayAction,GameReplayResponse } from "../../../../packages/c
 import { get,post } from "../api";
 import { ChessBoard } from "./ChessBoard";
 
-export function GameReplay({gameId,onRefreshed}:{gameId:string;onRefreshed?:()=>void}) {
+export function GameReplay({gameId,onRefreshed,requestedPosition}:{gameId:string;onRefreshed?:()=>void;requestedPosition?:{ply:number;requestId:number}|null}) {
   const [data,setData]=useState<GameReplayResponse|null>(null),[busy,setBusy]=useState(false);
   const [error,setError]=useState(""),[needsReload,setNeedsReload]=useState(false);
   const lock=useRef(false),request=useRef<AbortController|null>(null),board=useRef<HTMLDivElement|null>(null);
@@ -26,6 +26,12 @@ export function GameReplay({gameId,onRefreshed}:{gameId:string;onRefreshed?:()=>
       if(focus)requestAnimationFrame(()=>{board.current?.focus({preventScroll:true});board.current?.scrollIntoView({block:"start"});});
     },true);
   };
+  const consumedPosition=useRef<number|null>(null);
+  useEffect(()=>{
+    if(!requestedPosition||!data||busy||needsReload||consumedPosition.current===requestedPosition.requestId)return;
+    consumedPosition.current=requestedPosition.requestId;
+    act("jump",{ply:requestedPosition.ply},true);
+  },[requestedPosition,data,busy,needsReload]);
   const point=data?.checkpoints.find(point=>point.id===data.activeCheckpointId);
   const blocked=busy||needsReload;
   const nextPoint=data?.checkpoints.find((point,index)=>point.ply>data.currentPly||(point.ply===data.currentPly&&index>data.checkpoints.findIndex(p=>p.id===data.activeCheckpointId)));
@@ -39,7 +45,7 @@ export function GameReplay({gameId,onRefreshed}:{gameId:string;onRefreshed?:()=>
     {data&&<>
       {data.updatesAvailable&&<div className="game-replay-update"><p>Your analysis or repertoire has changed. This replay keeps the feedback you saved.</p>
         <button className="secondary" disabled={blocked} onClick={()=>{if(window.confirm("Save a fresh review using the current analysis and repertoire? Replay restarts; the previous saved feedback and local attempts are retained."))act("refresh");}}>Refresh saved feedback</button></div>}
-      {data.analysisPending&&<p className="opening-coverage-note">This saved review contains opening feedback. Engine analysis was not ready when it was saved; refresh feedback when analysis finishes.</p>}
+      {data.analysisPending&&<p className="opening-coverage-note">This saved review contains opening feedback. Engine analysis was not available when it was saved. Request analysis, then refresh saved feedback when it finishes.</p>}
       <div className="game-replay-layout">
         <div ref={board} role="region" aria-label="Game replay board and controls" tabIndex={-1}>
           <ChessBoard fen={data.displayFen} orientation={data.playerColor} lastMove={data.displayMove} ariaLabel="Game replay board"

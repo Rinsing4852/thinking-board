@@ -1142,3 +1142,26 @@ footer { border-top: 1px solid var(--line); padding: 2rem 4vw; color: #69756d; d
   .opening-card-actions > button { min-height: 44px; }
 }
 .game-followups { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+.game-library-entry { min-width: 0; display: grid; gap: .4rem; }
+.game-library-entry .game-chip { height: 100%; width: 100%; }
+.game-select { display: flex; align-items: center; gap: .4rem; }
+.game-batch-analysis input[type=checkbox], .game-select input { width: auto; }
+.quality-summary { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .7rem; margin-block: 1rem; }
+.quality-summary > div { display: grid; gap: .35rem; background: var(--panel-soft); border: 1px solid var(--line); border-radius: 8px; padding: .8rem; }
+.quality-summary strong { font-size: 1.4rem; }
+.quality-summary span { font-size: .8rem; color: var(--ink-soft); }
+.quality-chart { display: block; width: 100%; height: 100px; border: 1px solid var(--line); border-radius: 8px; color: var(--lime); margin-top: 1rem; }
+.game-quality-report details, .game-quality-progress details { margin-block: 1rem; }
+.game-quality-report summary, .game-quality-progress summary { cursor: pointer; padding-block: .6rem; font-weight: 650; }
+.quality-moves { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(230px,100%),1fr)); gap: .5rem; }
+button.quality-move { display: grid; gap: .3rem; text-align: left; min-height: 70px; }
+.quality-move small { color: var(--ink-soft); }
+.quality-move.grade-blunder { border-left: 4px solid #ed7676; }
+.quality-move.grade-mistake { border-left: 4px solid #edb876; }
+.quality-move.grade-inaccuracy { border-left: 4px solid #b6bd76; }
+.quality-opening-context { padding: .8rem; border: 1px solid var(--line); border-radius: 8px; }
+.quality-table-wrap { overflow-x: auto; }
+.quality-trends-table { width: 100%; border-collapse: collapse; text-align: left; }
+.quality-trends-table th,.quality-trends-table td { padding: .7rem .4rem; border-bottom: 1px solid var(--line); }
+.quality-trends-table td { font-variant-numeric: tabular-nums; }
+@media(max-width:600px) { .quality-summary { gap: .4rem; } .quality-summary>div { padding: .5rem; } .quality-summary strong { font-size: 1.1rem; } .quality-trends-table { font-size: .8rem; } }
