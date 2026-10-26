@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { Database } from "./database.js";
 import { Chess } from "chess.js";
 import { ImportService } from "../imports/import-service.js";
+import { parsePgnText } from "../chess/pgn.js";
 
 describe("opening database upgrades", () => {
   it("upgrades an existing v1.5.3 database without losing games, cards or review history", () => {
@@ -36,7 +37,17 @@ describe("opening database upgrades", () => {
           'e2e4', 'e4', 'learner', 'primary', 0)`).run();
       database.connection.prepare(`INSERT INTO opening_move_annotations(move_id, summary, changes_json, concepts_json)
         VALUES ('legacy-move', 'Claim the centre', '[]', '[]')`).run();
-      new ImportService(database.connection).import('[White "Alice"]\n[Black "Bob"]\n[Result "*"]\n\n1. e4 e5 *', "Alice");
+      const oldPgn='[White "Alice"]\n[Black "Bob"]\n[Result "*"]\n\n1. e4 e5 *';
+      const game=parsePgnText(oldPgn).games[0]!;
+      database.connection.prepare("INSERT INTO player_profiles(id,display_name,created_at) VALUES ('legacy-profile','Alice',?)").run(seededAt);
+      database.connection.prepare("INSERT INTO player_aliases(profile_id,display_name,normalized_name) VALUES ('legacy-profile','Alice','alice')").run();
+      database.connection.prepare("INSERT INTO import_batches(id,original_pgn,status,created_at) VALUES ('legacy-batch',?,'completed',?)").run(oldPgn,seededAt);
+      database.connection.prepare(`INSERT INTO games(id,import_batch_id,profile_id,fingerprint,raw_pgn_sha256,original_pgn,headers_json,initial_fen,white_name,black_name,player_color,result,created_at)
+        VALUES ('legacy-game','legacy-batch','legacy-profile',?,?,?,?,?,'Alice','Bob','white','*',?)`)
+        .run(game.fingerprint,game.rawHash,oldPgn,JSON.stringify(game.headers),game.initialFen,seededAt);
+      for(const [index,fen] of [game.initialFen,...game.moves.map(move=>move.fenAfter)].entries())database.connection.prepare("INSERT INTO positions(id,game_id,ply_index,fen,side_to_move) VALUES (?,'legacy-game',?,?,?)").run(`legacy-p${index}`,index,fen,index%2?'black':'white');
+      for(const move of game.moves)database.connection.prepare(`INSERT INTO moves(id,game_id,ply,move_number,mover_color,from_position_id,to_position_id,uci,san) VALUES (?,'legacy-game',?,?,?,?,?,?,?)`)
+        .run(`legacy-m${move.ply}`,move.ply,move.moveNumber,move.moverColor,`legacy-p${move.ply-1}`,`legacy-p${move.ply}`,move.uci,move.san);
       const profileId = database.connection.prepare("SELECT id FROM player_profiles WHERE display_name = 'Alice'").pluck().get();
       database.connection.prepare(`INSERT INTO opening_player_preferences(profile_id, rating_group, platform, use_explorer, updated_at)
         VALUES (?, 1400, 'lichess', 0, ?)`).run(profileId, seededAt);
@@ -63,6 +74,7 @@ describe("opening database upgrades", () => {
       database.close();
       for (let restart = 0; restart < 2; restart += 1) {
         database = new Database(filename, path.resolve("migrations"));
+        expect(new ImportService(database.connection).import(oldPgn,"Alice").duplicates).toBe(1);
         expect(database.connection.prepare("SELECT id, original_pgn FROM games").all()).toEqual(games);
         expect(database.connection.prepare("SELECT state, repetitions, stability FROM opening_review_items WHERE id = 'legacy-card'").get())
           .toEqual({ state: 2, repetitions: 4, stability: 12 });

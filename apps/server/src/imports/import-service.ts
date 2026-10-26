@@ -1,15 +1,42 @@
 import type { ImportPgnResponse, PgnPreviewResponse } from "../../../../packages/contracts/src/api.js";
+import { activeProfileId } from "../training/profile.js";
 import { Chess } from "chess.js";
 import type { SqliteDatabase } from "../db/database.js";
 import { id, now } from "../lib/ids.js";
-import { normalizePlayerName, parsePgnText, type ParsedGame } from "../chess/pgn.js";
+import { normalizePlayerName, parsePgnText, gameIdentity, scopedGameFingerprint, type ParsedGame } from "../chess/pgn.js";
 
 export class ImportService {
-  constructor(private readonly db: SqliteDatabase) {}
+  constructor(private readonly db: SqliteDatabase) {
+    // One-time, identity-only upgrade; foreign-key game IDs remain unchanged.
+    const rows=db.prepare("SELECT id,profile_id,headers_json,content_fingerprint FROM games WHERE identity_key IS NULL").all() as Array<{id:string;profile_id:string;headers_json:string;content_fingerprint:string}>;
+    db.transaction(()=>{
+      const update=db.prepare("UPDATE games SET identity_key=?,fingerprint=? WHERE id=?");
+      for(const row of rows) {
+        let key=gameIdentity(JSON.parse(row.headers_json),row.content_fingerprint);
+        if(db.prepare("SELECT 1 FROM games WHERE profile_id=? AND identity_key=? AND id!=?").get(row.profile_id,key,row.id))key=`legacy:${row.id}:${key}`;
+        update.run(key,scopedGameFingerprint(row.profile_id,key),row.id);
+      }
+    })();
+    for(const connection of db.prepare("SELECT profile_id,username FROM lichess_connections").all() as Array<{profile_id:string;username:string}>)this.linkAlias(connection.profile_id,connection.username);
+  }
+
+  linkAlias(profileId:string,displayName:string):void {
+    this.db.prepare("INSERT OR IGNORE INTO player_aliases(profile_id,display_name,normalized_name) VALUES (?,?,?)")
+      .run(profileId,displayName.trim(),normalizePlayerName(displayName));
+    const provisional=this.db.prepare("SELECT value FROM app_state WHERE key='provisional_profile_id'").pluck().get();
+    if(provisional===profileId) {
+      this.db.prepare("UPDATE player_profiles SET display_name=? WHERE id=? AND display_name='Local learner'").run(displayName.trim(),profileId);
+      this.db.prepare("DELETE FROM app_state WHERE key='provisional_profile_id'").run();
+    }
+  }
+
+  hasGame(profileId:string,game:ParsedGame):boolean {
+    return Boolean(this.db.prepare("SELECT 1 FROM games WHERE profile_id=? AND identity_key=?").get(profileId,game.identityKey));
+  }
 
   preview(pgn: string): PgnPreviewResponse {
     const parsed = parsePgnText(pgn);
-    const duplicate = this.db.prepare("SELECT 1 FROM games WHERE fingerprint = ?");
+    const duplicate = this.db.prepare("SELECT 1 FROM games WHERE identity_key = ? AND profile_id=? LIMIT 1");
     const players = new Set<string>();
     const games = parsed.games.map((game) => {
       players.add(game.white);
@@ -22,7 +49,7 @@ export class ImportService {
         date: game.playedAt,
         moveCount: game.moves.length,
         fingerprint: game.fingerprint,
-        duplicate: Boolean(duplicate.get(game.fingerprint)),
+        duplicate: Boolean(duplicate.get(game.identityKey,activeProfileId(this.db))),
       };
     });
     return { games, players: [...players].sort(), errors: parsed.errors };
@@ -57,6 +84,7 @@ export class ImportService {
 
       const profileId = requestedProfileId ?? this.resolveProfile(playerName, selected);
       importedProfileId = profileId;
+      if(requestedProfileId)this.linkAlias(profileId,playerName);
       for (const game of parsed.games) {
         const whiteMatches = normalizePlayerName(game.white) === selected;
         const blackMatches = normalizePlayerName(game.black) === selected;
@@ -69,7 +97,7 @@ export class ImportService {
           });
           continue;
         }
-        if (this.db.prepare("SELECT 1 FROM games WHERE fingerprint = ?").get(game.fingerprint)) {
+        if (this.hasGame(profileId,game)) {
           duplicates += 1;
           continue;
         }
@@ -101,8 +129,8 @@ export class ImportService {
 
   private resolveProfile(displayName: string, normalizedName: string): string {
     const existing = this.db.prepare(`
-      SELECT profile_id FROM player_aliases WHERE normalized_name = ? LIMIT 1
-    `).get(normalizedName) as { profile_id: string } | undefined;
+      SELECT profile_id FROM player_aliases WHERE normalized_name = ? ORDER BY (profile_id=?) DESC,profile_id LIMIT 1
+    `).get(normalizedName,activeProfileId(this.db)) as { profile_id: string } | undefined;
     if (existing) return existing.profile_id;
 
     const provisional = this.db.prepare(`
@@ -144,12 +172,12 @@ export class ImportService {
       INSERT INTO games(
         id, import_batch_id, profile_id, fingerprint, raw_pgn_sha256, original_pgn,
         headers_json, initial_fen, white_name, black_name, player_color, result,
-        played_at, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        played_at, created_at,content_fingerprint,identity_key
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      gameId, batchId, profileId, game.fingerprint, game.rawHash, game.originalPgn,
+      gameId, batchId, profileId, scopedGameFingerprint(profileId,game.identityKey), game.rawHash, game.originalPgn,
       JSON.stringify(game.headers), game.initialFen, game.white, game.black, playerColor,
-      game.result, game.playedAt, now(),
+      game.result, game.playedAt, now(),game.fingerprint,game.identityKey,
     );
 
     const positionIds: string[] = [];

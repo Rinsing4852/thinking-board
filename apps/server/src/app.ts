@@ -45,6 +45,7 @@ import { preparationTarget, registerOpeningPreparationRoutes } from "./openings/
 import { TrainingService } from "./training/training-service.js";
 import { CandidateTrainingService } from "./training/candidate-training-service.js";
 import { V1TrainingService } from "./training/v1-training-service.js";
+import { parseGameDays } from "./training/practice-scope.js";
 import { AttemptLifecycle } from "./training/attempt-lifecycle.js";
 import { activeProfileId, ensureActiveProfile, setActiveProfile } from "./training/profile.js";
 
@@ -112,7 +113,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   });
   app.post("/api/v1/games/:gameId/replay",{schema:{body:{type:"object",additionalProperties:false,
     required:["snapshotId","version","action"],properties:{snapshotId:{type:"string",minLength:1,maxLength:100},version:{type:"integer",minimum:0},
-      action:{enum:["next","previous","jump","retry","answer","reveal","refresh","schedule","skip"]},ply:{type:"integer",minimum:0,maximum:10000},
+      action:{enum:["latest","next","previous","jump","retry","answer","reveal","refresh","schedule","skip"]},ply:{type:"integer",minimum:0,maximum:10000},
       checkpointId:{type:"string",minLength:1,maxLength:200},moveUci:{type:"string",pattern:"^[a-h][1-8][a-h][1-8][qrbn]?$"}}}}},async(request,reply)=>{
     try {return gameReplay.act((request.params as {gameId:string}).gameId,request.body as import("../../../packages/contracts/src/api.js").GameReplayAction);}
     catch(error) {return reply.code(400).send({error:error instanceof Error?error.message:"Could not save game review."});}
@@ -143,7 +144,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
 
   app.get("/api/v1/health", async () => {
     database.connection.prepare("SELECT 1").get();
-    return { status: "ok", version: APP_VERSION };
+    return { status: "ok", version: APP_VERSION,build:process.env.APP_BUILD_SHA??null };
   });
 
   app.get("/api/v1/system/engine", async () => ({
@@ -811,7 +812,10 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     }
   });
 
-  app.get("/api/v1/dashboard", async () => v1Training.dashboard());
+  app.get("/api/v1/dashboard", async (request, reply) => {
+    try { return v1Training.dashboard(parseGameDays((request.query as { gameDays?: unknown }).gameDays)); }
+    catch (error) { return reply.code(400).send({ error: error instanceof Error ? error.message : "Invalid game filter" }); }
+  });
 
   app.get("/api/v1/profiles", async () => ({
     activeProfileId: activeProfileId(database.connection),
@@ -845,9 +849,11 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     }
   });
 
-  app.post("/api/v1/training/session", async (request) => {
-    const body = (request.body ?? {}) as { size?: unknown };
-    return v1Training.createSession(typeof body.size === "number" ? body.size : 15);
+  app.post("/api/v1/training/session", async (request, reply) => {
+    try {
+      const body = (request.body ?? {}) as { size?: unknown; gameDays?: unknown };
+      return v1Training.createSession(typeof body.size === "number" ? body.size : 15, parseGameDays(body.gameDays));
+    } catch (error) { return reply.code(400).send({ error: error instanceof Error ? error.message : "Invalid practice settings" }); }
   });
 
   app.get("/api/v1/training/session/active", async () => v1Training.activeSession());
@@ -869,29 +875,39 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     catch{return reply.code(404).send({error:"Game not found"});}
   });
 
-  app.post("/api/v1/training/next", async (request) => {
-    const body = (request.body ?? {}) as { pool?: unknown; itemId?: unknown };
-    return training.next(typeof body.pool === "string" ? body.pool : "due", typeof body.itemId === "string" ? body.itemId : undefined);
+  app.post("/api/v1/training/next", async (request, reply) => {
+    try {
+      const body = (request.body ?? {}) as { pool?: unknown; itemId?: unknown; gameDays?: unknown };
+      return training.next(typeof body.pool === "string" ? body.pool : "due", typeof body.itemId === "string" ? body.itemId : undefined, parseGameDays(body.gameDays));
+    } catch (error) { return reply.code(400).send({ error: error instanceof Error ? error.message : "Invalid game filter" }); }
   });
 
-  app.post("/api/v1/training/what-changed/next", async (request) => {
-    const body = (request.body ?? {}) as { pool?: unknown; itemId?: unknown };
-    return training.nextWhatChanged(typeof body.pool === "string" ? body.pool : "due", typeof body.itemId === "string" ? body.itemId : undefined);
+  app.post("/api/v1/training/what-changed/next", async (request, reply) => {
+    try {
+      const body = (request.body ?? {}) as { pool?: unknown; itemId?: unknown; gameDays?: unknown };
+      return training.nextWhatChanged(typeof body.pool === "string" ? body.pool : "due", typeof body.itemId === "string" ? body.itemId : undefined, parseGameDays(body.gameDays));
+    } catch (error) { return reply.code(400).send({ error: error instanceof Error ? error.message : "Invalid game filter" }); }
   });
 
-  app.post("/api/v1/training/candidates/next", async (request) => {
-    const body = (request.body ?? {}) as { pool?: unknown; itemId?: unknown };
-    return candidateTraining.next(typeof body.pool === "string" ? body.pool : "due", typeof body.itemId === "string" ? body.itemId : undefined);
+  app.post("/api/v1/training/candidates/next", async (request, reply) => {
+    try {
+      const body = (request.body ?? {}) as { pool?: unknown; itemId?: unknown; gameDays?: unknown };
+      return candidateTraining.next(typeof body.pool === "string" ? body.pool : "due", typeof body.itemId === "string" ? body.itemId : undefined, parseGameDays(body.gameDays));
+    } catch (error) { return reply.code(400).send({ error: error instanceof Error ? error.message : "Invalid game filter" }); }
   });
 
-  app.post("/api/v1/training/punish/next", async (request) => {
-    const body = (request.body ?? {}) as { pool?: unknown; itemId?: unknown };
-    return v1Training.nextPunish(typeof body.pool === "string" ? body.pool : "due", typeof body.itemId === "string" ? body.itemId : undefined);
+  app.post("/api/v1/training/punish/next", async (request, reply) => {
+    try {
+      const body = (request.body ?? {}) as { pool?: unknown; itemId?: unknown; gameDays?: unknown };
+      return v1Training.nextPunish(typeof body.pool === "string" ? body.pool : "due", typeof body.itemId === "string" ? body.itemId : undefined, parseGameDays(body.gameDays));
+    } catch (error) { return reply.code(400).send({ error: error instanceof Error ? error.message : "Invalid game filter" }); }
   });
 
-  app.post("/api/v1/training/quiet/next", async (request) => {
-    const body = (request.body ?? {}) as { pool?: unknown; itemId?: unknown };
-    return v1Training.nextQuiet(typeof body.pool === "string" ? body.pool : "due", typeof body.itemId === "string" ? body.itemId : undefined);
+  app.post("/api/v1/training/quiet/next", async (request, reply) => {
+    try {
+      const body = (request.body ?? {}) as { pool?: unknown; itemId?: unknown; gameDays?: unknown };
+      return v1Training.nextQuiet(typeof body.pool === "string" ? body.pool : "due", typeof body.itemId === "string" ? body.itemId : undefined, parseGameDays(body.gameDays));
+    } catch (error) { return reply.code(400).send({ error: error instanceof Error ? error.message : "Invalid game filter" }); }
   });
 
   app.post("/api/v1/training/items/:itemId/start", async (request, reply) => {

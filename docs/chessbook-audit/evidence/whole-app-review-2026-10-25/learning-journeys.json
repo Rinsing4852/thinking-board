@@ -1,0 +1,22 @@
+{
+  "at": "2026-10-25T23:52:38.784Z",
+  "checks": [
+    {
+      "name": "Settled builder guidance",
+      "body": "Your move options\nPosition: —\n+ favours White · − favours Black\nGreen arrow: engine's leading move\nHide suggestion arrows\nMOVE\nSEEN\nEVALUATION\n1\nBb5\nBishop to b5\nSaved · follow this move\n—\n+0.47\nd4\nPawn to d4\n—\n+0.44\n\nPractical frequencies are off. Enable them in your opening settings to rank moves seen at your level.\n\nShow game results\n\nStockfish ranks your options by strength."
+    },
+    {
+      "name": "Study guessing keeps repertoire credit separate",
+      "activityUnchanged": true
+    },
+    {
+      "name": "Study reveal survives reload",
+      "preserved": true
+    },
+    {
+      "name": "Exact-line practice entry",
+      "phase": "recall",
+      "body": "TODAY’S OPENING PRACTICE\nReview Ruy Lopez\nStep 1 of 5\nPause\nLine run · Review Ruy · Main line\nYou are White\nYour turn\n8\n7\n6\n5\n4\n3\n2\na\nb\nc\nd\ne\nf\ng\n1\nh\nSelect a piece, then its destination, or drag it. Arrow keys move focus; Enter or Space selects a square.\nHint: show the piece\nShow move\nExplain last move\nAvailable after you play a move.\nPosition reached after\nStarting position\nOPENING\nYOUR MOVE\nRecall your repertoire move for this position.\n\nPlay directly on the board. Correct moves continue automatically. After a mistake, try again or choose Hint or Show move."
+    }
+  ]
+}

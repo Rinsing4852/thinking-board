@@ -11,7 +11,7 @@ interface ReviewStateRow {
 const REVIEW_INTERVAL_DAYS = [1, 3, 7, 16, 35] as const;
 
 export function nextReviewDate(level: number, passed: boolean, attemptedAt: string): string {
-  if (!passed) return attemptedAt;
+  if (!passed) return new Date(Date.parse(attemptedAt) + 10 * 60_000).toISOString();
   const days = REVIEW_INTERVAL_DAYS[Math.min(level, REVIEW_INTERVAL_DAYS.length - 1)] ?? 35;
   return new Date(Date.parse(attemptedAt) + days * 86_400_000).toISOString();
 }

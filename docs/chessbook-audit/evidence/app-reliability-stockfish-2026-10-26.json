@@ -1,0 +1,157 @@
+{
+  "measuredAt": "2026-10-26T06:30:27.176Z",
+  "engine": "Stockfish 18",
+  "scope": "Curated regression cases, not a strength or parity benchmark.",
+  "results": [
+    {
+      "name": "History-aware repetition as white",
+      "passed": true,
+      "accuracy": 27.5,
+      "counts": {
+        "best": 0,
+        "good": 2,
+        "inaccuracy": 1,
+        "mistake": 0,
+        "blunder": 1
+      },
+      "finalBalance": 50
+    },
+    {
+      "name": "History-aware repetition as black",
+      "passed": true,
+      "accuracy": 23.7,
+      "counts": {
+        "best": 0,
+        "good": 3,
+        "inaccuracy": 0,
+        "mistake": 0,
+        "blunder": 1
+      },
+      "finalBalance": 50
+    },
+    {
+      "name": "Distinct bounded candidate set 1",
+      "passed": true,
+      "depth": 13,
+      "moves": [
+        "Bb5",
+        "d4",
+        "Bc4"
+      ]
+    },
+    {
+      "name": "Distinct bounded candidate set 2",
+      "passed": true,
+      "depth": 13,
+      "moves": [
+        "d6",
+        "Bg7",
+        "c6"
+      ]
+    },
+    {
+      "name": "Distinct bounded candidate set 3",
+      "passed": true,
+      "depth": 14,
+      "moves": [
+        "e4",
+        "d4",
+        "Nf3"
+      ]
+    },
+    {
+      "name": "Distinct bounded candidate set 4",
+      "passed": true,
+      "depth": 12,
+      "moves": [
+        "Bb5",
+        "d4",
+        "Nc3"
+      ]
+    },
+    {
+      "name": "Distinct bounded candidate set 5",
+      "passed": true,
+      "depth": 14,
+      "moves": [
+        "d6",
+        "Bg7",
+        "c6"
+      ]
+    },
+    {
+      "name": "Distinct bounded candidate set 6",
+      "passed": true,
+      "depth": 13,
+      "moves": [
+        "e4",
+        "d4",
+        "Nf3"
+      ]
+    },
+    {
+      "name": "Distinct bounded candidate set 7",
+      "passed": true,
+      "depth": 13,
+      "moves": [
+        "d4",
+        "Bb5",
+        "Bc4"
+      ]
+    },
+    {
+      "name": "Distinct bounded candidate set 8",
+      "passed": true,
+      "depth": 15,
+      "moves": [
+        "Bg7",
+        "d6",
+        "c6"
+      ]
+    },
+    {
+      "name": "Distinct bounded candidate set 9",
+      "passed": true,
+      "depth": 14,
+      "moves": [
+        "e4",
+        "Nf3",
+        "d4"
+      ]
+    },
+    {
+      "name": "Distinct bounded candidate set 10",
+      "passed": true,
+      "depth": 13,
+      "moves": [
+        "Bb5",
+        "d4",
+        "Bc4"
+      ]
+    },
+    {
+      "name": "Distinct bounded candidate set 11",
+      "passed": true,
+      "depth": 13,
+      "moves": [
+        "d6",
+        "Bg7",
+        "c6"
+      ]
+    },
+    {
+      "name": "Distinct bounded candidate set 12",
+      "passed": true,
+      "depth": 14,
+      "moves": [
+        "d4",
+        "e4",
+        "Nf3"
+      ]
+    },
+    {
+      "name": "Latest real-engine replay preserves the earlier snapshot",
+      "passed": true
+    }
+  ]
+}

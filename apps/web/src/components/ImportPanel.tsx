@@ -275,7 +275,7 @@ export function ImportPanel({ refreshToken, onAnalyzed, expanded = false, onExpa
             </button>
           ) : (
             <button disabled={lichessBusy || busy} onClick={() => void syncLichess()}>
-              {lichessBusy ? "Syncing…" : "Sync new games"}
+              {lichessBusy ? "Syncing…" : lichess.moreAvailable?"Continue syncing games":"Sync new games"}
             </button>
           )}
         </div>

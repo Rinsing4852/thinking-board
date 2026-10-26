@@ -126,7 +126,10 @@ export class GameReplayService {
     return ["A repertoire difference is not automatically a chess mistake.",note?.summary,...(note?.changes??[]),note?.resultingPlan,note?.tacticalWarning,note?.personalComment].filter(Boolean).join(" ");
   }
   get(gameId:string):GameReplayResponse {
-    if(!this.saved(gameId))this.db.transaction(()=>this.makeSnapshot(gameId))();
+    const saved=this.saved(gameId);
+    const unusedBeforeAnalysis=saved&&saved.version===0&&(JSON.parse(saved.content_json) as Snapshot).analysisPending
+      &&Boolean(this.revision(gameId).run)&&!(this.db.prepare("SELECT 1 FROM game_review_local_attempts WHERE snapshot_id=? LIMIT 1").get(saved.snapshot_id));
+    if(!saved||unusedBeforeAnalysis)this.db.transaction(()=>this.makeSnapshot(gameId))();
     return this.response(gameId,this.saved(gameId)!);
   }
   private response(gameId:string,saved:Saved):GameReplayResponse {
@@ -154,6 +157,11 @@ export class GameReplayService {
         const selected=pointId?content.points.find(point=>point.id===pointId&&point.ply===ply):content.points.find(point=>point.ply===ply);
         if(pointId&&!selected)throw new Error("This decision is not in the saved game review.");return initial(ply,selected);
       };
+      if(input.action==="latest") {
+        if(this.revision(gameId).revision!==saved.source_revision)this.makeSnapshot(gameId);
+        const latest=this.saved(gameId)!;
+        return this.act(gameId,{snapshotId:latest.snapshot_id,version:latest.version,action:"jump",ply:input.ply??0});
+      }
       if(input.action==="refresh") {this.makeSnapshot(gameId);return this.get(gameId);}
       if(input.action==="skip")state=at(Math.min(content.moves.length,state.ply+1));
       else if(input.action==="next") {

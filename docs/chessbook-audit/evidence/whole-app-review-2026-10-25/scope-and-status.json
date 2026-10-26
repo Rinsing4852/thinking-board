@@ -1,0 +1,17 @@
+{
+  "reviewedCommit": "f59802aa322ff9cbd4bd433c6deab31b0e619d3d",
+  "sourceFingerprint": "860537cfc68421427a2eb9106da5192de5736f0d8eb1ad8243e8f619f02b0198",
+  "applicationSourceUnchanged": true,
+  "installedLocalApp": {
+    "address": "http://127.0.0.1:8185",
+    "health": {
+      "status": "ok",
+      "version": "1.2.1"
+    }
+  },
+  "publication": {
+    "status": "success",
+    "url": "https://github.com/Rinsing4852/thinking-board/actions/runs/40238723776"
+  },
+  "reviewInstanceRemoved": true
+}

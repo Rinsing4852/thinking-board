@@ -16,6 +16,7 @@ import { now } from "../lib/ids.js";
 import { UciEngine, type EngineLine, type EngineScore } from "../analysis/uci-engine.js";
 import { activeProfileId } from "./profile.js";
 import { recordReview } from "./review-scheduler.js";
+import { practiceScope } from "./practice-scope.js";
 
 interface ExerciseRow {
   item_id: string;
@@ -101,16 +102,17 @@ export class CandidateTrainingService {
     this.engine = new UciEngine(config.stockfishBinary, config.stockfishThreads, config.stockfishHashMb);
   }
 
-  next(pool: string, itemId?: string): NextCandidateGenerationResponse {
+  next(pool: string, itemId?: string, gameDays: number | null = null): NextCandidateGenerationResponse {
     const profileId = activeProfileId(this.db);
-    if (!profileId) return this.emptyResponse();
+    if (!profileId) return this.emptyResponse(gameDays);
     const where = pool === "due"
       ? "AND rs.due_at <= ?"
       : pool === "mastered"
         ? "AND rs.mastery_level >= 4"
         : "";
     const order = pool === "random" ? "ORDER BY RANDOM()" : "ORDER BY rs.due_at, ti.created_at";
-    const params = [profileId, ...(itemId ? [itemId] : []), ...(pool === "due" ? [now()] : [])];
+    const scope = practiceScope(itemId ? null : gameDays);
+    const params = [...scope.params, profileId, ...(itemId ? [itemId] : []), ...(pool === "due" ? [now()] : [])];
     const itemWhere = itemId ? "AND ti.id = ?" : "";
     const row = this.db.prepare(`
       SELECT ti.id AS item_id, position.fen, game.player_color, move.move_number
@@ -120,11 +122,11 @@ export class CandidateTrainingService {
       JOIN games game ON game.id = ti.game_id
       JOIN moves move ON move.id = ti.source_move_id
       JOIN review_states rs ON rs.item_id = ti.id
-      WHERE ti.mode = 'candidate_generation' AND ti.active = 1 AND ti.profile_id = ? ${itemWhere} ${where}
+      WHERE ti.mode = 'candidate_generation' AND ti.active = 1 ${scope.sql} AND ti.profile_id = ? ${itemWhere} ${where}
       ${order}
       LIMIT 1
     `).get(...params) as ExerciseRow | undefined;
-    if (!row) return this.emptyResponse();
+    if (!row) return this.emptyResponse(gameDays);
     return this.createExercise(row);
   }
 
@@ -293,15 +295,16 @@ export class CandidateTrainingService {
     });
   }
 
-  private emptyResponse(): EmptyTrainingResponse {
+  private emptyResponse(gameDays: number | null = null): EmptyTrainingResponse {
+    const scope = practiceScope(gameDays);
     const counts = this.db.prepare(`
       SELECT SUM(CASE WHEN rs.due_at <= ? THEN 1 ELSE 0 END) AS due,
              COUNT(*) AS active,
              SUM(CASE WHEN rs.mastery_level >= 4 THEN 1 ELSE 0 END) AS mastered
       FROM review_states rs
       JOIN training_items ti ON ti.id = rs.item_id
-      WHERE ti.mode = 'candidate_generation' AND ti.active = 1 AND ti.profile_id = ?
-    `).get(now(), activeProfileId(this.db)) as { due: number | null; active: number; mastered: number | null };
+      WHERE ti.mode = 'candidate_generation' AND ti.active = 1 AND ti.profile_id = ? ${scope.sql}
+    `).get(now(), activeProfileId(this.db), ...scope.params) as { due: number | null; active: number; mastered: number | null };
     const options = [];
     if (counts.active > 0) options.push({ pool: "early", label: "Review early", count: counts.active });
     if ((counts.mastered ?? 0) > 0) options.push({ pool: "mastered", label: "Practise mastered positions", count: counts.mastered ?? 0 });

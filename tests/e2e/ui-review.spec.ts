@@ -80,10 +80,10 @@ test("keeps navigation history, keyboard access and first-run actions clear", as
   const dashboard = await (await page.request.get("/api/v1/dashboard")).json();
   await page.route("**/api/v1/dashboard", route => route.fulfill({ json: { ...dashboard,
     totals: { ...dashboard.totals, games: 0, trainingItems: 0, attempts: 0, gameAttempts: 0, due: 0 },
-    recurringProblems: [], recommendedSession: [],
+    practice: { gameDays: null, available: 0, nextDueAt: null }, recurringProblems: [], recommendedSession: [],
   } }));
   await page.goto("/#today");
-  await expect(page.getByRole("button", { name: "Start a 15-exercise session" })).toBeHidden();
+  await expect(page.getByRole("button", { name: /Start practice/ })).toBeHidden();
   expect(await page.locator(".mode-tabs").evaluate(element => getComputedStyle(element).position)).toBe("static");
   await page.getByRole("button", { name: "Openings", exact: true }).click();
   await expect(page.getByRole("button", { name: "Openings", exact: true })).toHaveAttribute("aria-current", "page");

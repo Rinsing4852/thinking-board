@@ -1,0 +1,80 @@
+{
+  "at": "2026-10-25T23:54:58.687Z",
+  "name": "Duplicate principal-variation roots in real Stockfish cached analysis",
+  "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
+  "engine": "Stockfish 18",
+  "depth": 13,
+  "nodes": 200000,
+  "lines": [
+    {
+      "rank": 1,
+      "depth": 13,
+      "moveUci": "f1b5",
+      "moveSan": "Bb5",
+      "pvSan": [
+        "Bb5",
+        "a6",
+        "Ba4",
+        "Be7",
+        "O-O",
+        "Nf6",
+        "Re1",
+        "b5",
+        "Bb3",
+        "O-O",
+        "h3",
+        "d5",
+        "exd5",
+        "Nxd5"
+      ],
+      "score": {
+        "kind": "centipawns",
+        "value": 47,
+        "perspective": "side_to_move"
+      }
+    },
+    {
+      "rank": 2,
+      "depth": 13,
+      "moveUci": "f1b5",
+      "moveSan": "Bb5",
+      "pvSan": [
+        "Bb5",
+        "a6"
+      ],
+      "score": {
+        "kind": "centipawns",
+        "value": 47,
+        "perspective": "side_to_move"
+      }
+    },
+    {
+      "rank": 3,
+      "depth": 13,
+      "moveUci": "d2d4",
+      "moveSan": "d4",
+      "pvSan": [
+        "d4",
+        "exd4",
+        "Nxd4",
+        "Nf6",
+        "Nxc6",
+        "bxc6",
+        "Bd3",
+        "d5",
+        "e5",
+        "Ng4",
+        "O-O",
+        "Qh4"
+      ],
+      "score": {
+        "kind": "centipawns",
+        "value": 44,
+        "perspective": "side_to_move"
+      }
+    }
+  ],
+  "uniqueRootCount": 2,
+  "returnedRootCount": 3,
+  "leadingRankSurvivesFrontendMerge": false
+}

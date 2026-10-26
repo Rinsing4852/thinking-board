@@ -29,7 +29,10 @@ input.on("line", (raw) => {
     return;
   }
   if (line.startsWith("position fen ")) {
-    fen = line.slice("position fen ".length);
+    const [initial,moves]=line.slice("position fen ".length).split(" moves ");
+    const board=new Chess(initial);
+    for(const value of moves?.split(" ")??[])board.move({from:value.slice(0,2),to:value.slice(2,4),...(value.length===5?{promotion:value[4]}:{})});
+    fen=board.fen();
     return;
   }
   if (line.startsWith("go ")) {

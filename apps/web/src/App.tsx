@@ -1,5 +1,5 @@
 import { GameQualityProgress } from "./components/GameQualityProgress";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { TrainingSessionResponse } from "../../../packages/contracts/src/api";
 import { APP_VERSION } from "../../../packages/contracts/src/version";
@@ -24,6 +24,9 @@ function initialView(): AppView {
 }
 
 export function App() {
+  const [build,setBuild]=useState<string|null>(null);
+  useEffect(()=>{void get<{build?:string|null}>("/api/v1/health").then(result=>setBuild(result.build??null)).catch(()=>undefined);},[]);
+  const [profileEpoch,setProfileEpoch]=useState(0);
   const [view, setView] = useState<AppView>(initialView);
   const [openingFocusActive, setOpeningFocusActive] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
@@ -31,6 +34,10 @@ export function App() {
   const [trainingRequest, setTrainingRequest] = useState<{ itemId: string; requestId: number } | null>(null);
   const [showGameImport, setShowGameImport] = useState(() => new URLSearchParams(window.location.hash.split("?")[1]).has("add"));
   const [activeMode, setActiveMode] = useState("blunder_check");
+  const [gameDays, setGameDays] = useState<number | null>(null);
+  const [sessionError, setSessionError] = useState("");
+  const [sessionAdvancing, setSessionAdvancing] = useState(false);
+  const sessionLoad = useRef<AbortController | null>(null);
   const [session, setSession] = useState<TrainingSessionResponse | null>(null);
 
   const navigate = (nextView: AppView): void => {
@@ -54,13 +61,18 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    void get<TrainingSessionResponse | null>("/api/v1/training/session/active")
+    const controller = new AbortController(); sessionLoad.current = controller;
+    void get<TrainingSessionResponse | null>("/api/v1/training/session/active", controller.signal)
       .then((activeSession) => {
+        if (controller.signal.aborted) return;
         setSession(activeSession);
-        if (activeSession?.currentItem) setActiveMode(activeSession.currentItem.mode);
-      })
-      .catch(() => setSession(null));
-  }, [refreshToken]);
+        if (activeSession?.currentItem) {
+          setActiveMode(activeSession.currentItem.mode);
+          setGameDays(activeSession.gameDays ?? null);
+        }
+      }).catch(() => undefined);
+    return () => controller.abort();
+  }, [profileEpoch]);
 
   const refresh = (): void => {
     setTrainingRequest(null);
@@ -97,18 +109,45 @@ export function App() {
     requestAnimationFrame(() => document.getElementById("trainer")?.scrollIntoView({ behavior: "smooth" }));
   };
   const startSession = (nextSession: TrainingSessionResponse): void => {
-    setSession(nextSession);
+    sessionLoad.current?.abort();
+    if (!nextSession.id) return;
+    setSession(nextSession); setSessionError("");
+    setGameDays(nextSession.gameDays ?? null);
     setTrainingRequest(null);
     if (nextSession.currentItem) setActiveMode(nextSession.currentItem.mode);
     navigate("today");
     requestAnimationFrame(() => document.getElementById("trainer")?.scrollIntoView({ behavior: "smooth" }));
   };
+  useEffect(() => {
+    if (!session?.id || session.status === "completed") return;
+    const sessionId = session.id;
+    let controller: AbortController | null = null;
+    const updateCount = (): void => {
+      controller?.abort(); controller = new AbortController();
+      const signal = controller.signal;
+      void get<TrainingSessionResponse>(`/api/v1/training/sessions/${sessionId}`, signal).then(updated => {
+        if (signal.aborted) return;
+        // Refresh counts without moving the board away from the answer feedback.
+        setSession(current => current?.id === sessionId ? { ...current,
+          completedCount: updated.completedCount ?? 0,
+          remainingCount: updated.remainingCount ?? updated.items.length - (updated.completedCount ?? 0),
+          remainingMix: updated.remainingMix ?? updated.mix,
+        } : current);
+      }).catch(() => undefined);
+    };
+    window.addEventListener("training-completed", updateCount);
+    return () => { controller?.abort(); window.removeEventListener("training-completed", updateCount); };
+  }, [session?.id, session?.status]);
   const continueSession = async (): Promise<void> => {
-    if (!session?.id) return;
-    const updated = await get<TrainingSessionResponse>(`/api/v1/training/sessions/${session.id}`);
-    setSession(updated);
-    if (updated.currentItem) setActiveMode(updated.currentItem.mode);
-    setRefreshToken((value) => value + 1);
+    if (!session?.id || sessionAdvancing) return;
+    setSessionAdvancing(true); setSessionError("");
+    try {
+      const updated = await get<TrainingSessionResponse>(`/api/v1/training/sessions/${session.id}`);
+      setSession(updated);
+      if (updated.currentItem) setActiveMode(updated.currentItem.mode);
+      setRefreshToken((value) => value + 1);
+    } catch (failure) { setSessionError(failure instanceof Error ? failure.message : "Could not continue your session"); }
+    finally { setSessionAdvancing(false); }
   };
   const requestedItemId = session?.currentItem?.itemId
     ?? (activeMode === "blunder_check" ? trainingRequest?.itemId : undefined);
@@ -144,8 +183,8 @@ export function App() {
                 </div>
               </div>
             </section>
-            <Dashboard compact onImport={() => openGamesAt("import")} refreshToken={refreshToken} onChooseMode={chooseMode} onStartSession={startSession} onProfileChanged={() => {
-              setSession(null); setTrainingRequest(null); setRefreshToken((value) => value + 1);
+            <Dashboard compact gameDays={gameDays} onGameDaysChanged={days => { setGameDays(days); setTrainingRequest(null); }} practiceActive={Boolean(session)} onChooseGames={() => navigate("games")} onImport={() => openGamesAt("import")} refreshToken={refreshToken} onChooseMode={chooseMode} onStartSession={startSession} onProfileChanged={() => {
+              setSession(null); setTrainingRequest(null); setProfileEpoch(value=>value+1);setRefreshToken((value) => value + 1);
             }} />
             <section className="trainer-hub" id="trainer">
               <details className="panel workflow-disclosure thinking-mode-picker"><summary>Choose a thinking exercise</summary>
@@ -166,15 +205,17 @@ export function App() {
               {session && session.status !== "completed" && (
                 <div className="session-progress" aria-live="polite">
                   <strong>Today’s session</strong>
-                  <span>Exercise {(session.completedCount ?? 0) + 1} of {session.items.length}</span>
+                  <span>{session.items.length - (session.completedCount ?? 0)} remaining · {session.completedCount ?? 0} completed</span>
                   <progress value={session.completedCount ?? 0} max={session.items.length} />
                 </div>
               )}
-              {session?.status !== "completed" && activeMode === "what_changed" && <WhatChangedPanel refreshToken={refreshToken} requestedItemId={requestedItemId} sessionId={session?.id ?? undefined} onCompleted={() => void continueSession()} />}
-              {session?.status !== "completed" && activeMode === "candidate_generation" && <CandidateGenerationPanel refreshToken={refreshToken} requestedItemId={requestedItemId} sessionId={session?.id ?? undefined} onCompleted={() => void continueSession()} />}
-              {session?.status !== "completed" && activeMode === "blunder_check" && <TrainingPanel refreshToken={refreshToken} requestedItemId={requestedItemId} sessionId={session?.id ?? undefined} onCompleted={() => void continueSession()} />}
-              {session?.status !== "completed" && activeMode === "punish_blunder" && <PunishBlunderPanel refreshToken={refreshToken} requestedItemId={requestedItemId} sessionId={session?.id ?? undefined} onCompleted={() => void continueSession()} />}
-              {session?.status !== "completed" && activeMode === "quiet_position" && <QuietPositionPanel refreshToken={refreshToken} requestedItemId={requestedItemId} sessionId={session?.id ?? undefined} onCompleted={() => void continueSession()} />}
+              {session?.status !== "completed" && activeMode === "what_changed" && <WhatChangedPanel gameDays={gameDays} refreshToken={refreshToken} requestedItemId={requestedItemId} sessionId={session?.id ?? undefined} onCompleted={() => void continueSession()} />}
+              {session?.status !== "completed" && activeMode === "candidate_generation" && <CandidateGenerationPanel gameDays={gameDays} refreshToken={refreshToken} requestedItemId={requestedItemId} sessionId={session?.id ?? undefined} onCompleted={() => void continueSession()} />}
+              {session?.status !== "completed" && activeMode === "blunder_check" && <TrainingPanel gameDays={gameDays} refreshToken={refreshToken} requestedItemId={requestedItemId} sessionId={session?.id ?? undefined} onCompleted={() => void continueSession()} />}
+              {session?.status !== "completed" && activeMode === "punish_blunder" && <PunishBlunderPanel gameDays={gameDays} refreshToken={refreshToken} requestedItemId={requestedItemId} sessionId={session?.id ?? undefined} onCompleted={() => void continueSession()} />}
+              {session?.status !== "completed" && activeMode === "quiet_position" && <QuietPositionPanel gameDays={gameDays} refreshToken={refreshToken} requestedItemId={requestedItemId} sessionId={session?.id ?? undefined} onCompleted={() => void continueSession()} />}
+              {sessionError && <div className="panel" role="alert">{sessionError} <button onClick={() => void continueSession()}>Retry continuing session</button></div>}
+              {sessionAdvancing && <p role="status">Updating your session…</p>}
               {session?.status === "completed" && <div className="panel session-complete"><h2>Session complete</h2><p>{session.message}</p><button onClick={() => setSession(null)}>Return to practice</button></div>}
             </section>
           </>
@@ -216,22 +257,22 @@ export function App() {
               <h1>Your progress</h1>
               <p>Use your real-game occurrences and practice results to choose the next thinking habit to strengthen.</p>
             </div>
-            <GameQualityProgress refreshToken={refreshToken} onOpenGames={()=>navigate("games")}/>
+            <GameQualityProgress key={profileEpoch} refreshToken={refreshToken} onOpenGames={()=>navigate("games")}/>
             <section className="panel opening-progress-link" aria-label="Opening progress">
               <div><h3>Preparation gaps</h3>
                 <p>Open a saved repertoire to inspect missing replies and choose what to prepare. The dashboard figures below cover thinking drills from your games.</p></div>
               <button className="secondary" onClick={() => navigate("openings")}>Open saved repertoires</button>
             </section>
-            <OpeningLearningMeasures />
-            <Dashboard onImport={() => openGamesAt("import")} refreshToken={refreshToken} onChooseMode={chooseMode} onStartSession={startSession} onProfileChanged={() => {
-              setSession(null); setTrainingRequest(null); setRefreshToken((value) => value + 1);
+            <OpeningLearningMeasures refreshToken={refreshToken} />
+            <Dashboard gameDays={gameDays} onGameDaysChanged={days => { setGameDays(days); setTrainingRequest(null); }} practiceActive={Boolean(session)} onChooseGames={() => navigate("games")} onImport={() => openGamesAt("import")} refreshToken={refreshToken} onChooseMode={chooseMode} onStartSession={startSession} onProfileChanged={() => {
+              setSession(null); setTrainingRequest(null); setProfileEpoch(value=>value+1);setRefreshToken((value) => value + 1);
             }} />
           </>
         )}
       </main>
 
       <footer>
-        <span>Thinking Board v{APP_VERSION}</span>
+        <span>Thinking Board v{APP_VERSION}{build&&` · build ${build.slice(0,7)}`}</span>
         <a href="/legal/index.html">Source &amp; licences</a>
       </footer>
     </>

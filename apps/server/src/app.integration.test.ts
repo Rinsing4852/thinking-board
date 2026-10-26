@@ -2564,25 +2564,23 @@ describe("vertical slice", () => {
       skills: expect.arrayContaining([expect.objectContaining({ conceptId: "tactic.allowed_mate" })]),
     });
     const session = await app.inject({ method: "POST", url: "/api/v1/training/session", payload: { size: 15 } });
-    expect(session.json()).toMatchObject({ items: expect.arrayContaining([
-      expect.objectContaining({ mode: "blunder_check" }),
-      expect.objectContaining({ mode: "punish_blunder" }),
-    ]) });
+    // The two successful answers above are scheduled for later, not reused to fill the session.
+    expect(session.json()).toMatchObject({ items: [expect.objectContaining({ mode: "candidate_generation" })] });
     const active = await app.inject({ method: "GET", url: "/api/v1/training/session/active" });
     expect(active.json()).toMatchObject({ status: "active", completedCount: 0, currentItem: expect.any(Object) });
     const activeSession = active.json() as {
       id: string; currentItem: { itemId: string; mode: string };
     };
-    expect(activeSession.currentItem.mode).toBe("blunder_check");
+    expect(activeSession.currentItem.mode).toBe("candidate_generation");
     const sessionStart = await app.inject({
       method: "POST",
       url: `/api/v1/training/items/${activeSession.currentItem.itemId}/start`,
       payload: { sessionId: activeSession.id },
     });
     const sessionAttempt = (sessionStart.json() as { attemptId: string }).attemptId;
-    await app.inject({ method: "POST", url: `/api/v1/training/attempts/${sessionAttempt}/reveal` });
+    await app.inject({ method: "POST", url: `/api/v1/training/candidates/attempts/${sessionAttempt}/reveal` });
     const progressed = await app.inject({ method: "GET", url: `/api/v1/training/sessions/${activeSession.id}` });
-    expect(progressed.json()).toMatchObject({ status: "active", completedCount: 1 });
+    expect(progressed.json()).toMatchObject({ status: "completed", completedCount: 1, remainingCount: 0 });
   });
   it("persists practice switches without changing pasted-game repertoire matching and validates batch boundaries", async () => {
     const appConfig = config(false, false);
@@ -2630,7 +2628,7 @@ describe("vertical slice", () => {
     expect(repeat.json()).toMatchObject({queued:0,alreadyQueued:1});
     await waitForCompleted(app,requested.json().id);
     const report=(await app.inject({method:"GET",url:`/api/v1/games/${gameId}/quality`})).json();
-    expect(report).toMatchObject({gameId,ruleVersion:"chances-v2",playerColor:"white",white:{moves:2},black:{moves:2}});
+    expect(report).toMatchObject({gameId,ruleVersion:"chances-v3",playerColor:"white",white:{moves:2},black:{moves:2}});
     expect(report.moves).toHaveLength(4);expect(report.white.counts.blunder).toBeGreaterThan(0);
     expect(report.moves.find((move:{san:string})=>move.san==="g4").verification).toMatchObject({reason:"mate",initialGrade:"blunder"});
     expect((await app.inject({method:"POST",url:"/api/v1/games/analysis",payload:{all:true}})).json()).toMatchObject({queued:0,alreadyAnalyzed:1});
@@ -2703,6 +2701,25 @@ describe("vertical slice", () => {
       await vi.waitFor(async()=>expect((await app.inject({method:"GET",url:`/api/v1/jobs/${next.id}`})).json().status).toBe("failed"),{timeout:4000});
       expect((await app.inject({method:"GET",url})).json()).toEqual(report);
     }finally{search.mockRestore();}
+  });
+
+  it("includes matching game history in baseline, played-move and verification searches",async()=>{
+    const calls:Parameters<UciEngine["analyze"]>[]=[];
+    const original=UciEngine.prototype.analyze;
+    const spy=vi.spyOn(UciEngine.prototype,"analyze").mockImplementation(async function(this:UciEngine,...args){calls.push(args);return original.apply(this,args);});
+    try{
+      const app=await buildApp(config(true,false));apps.push(app);
+      await app.inject({method:"POST",url:"/api/v1/imports/pgn",payload:{pgn:FOOLS_MATE,playerName:"Alice"}});
+      const job=await requestAllAnalysis(app);await waitForCompleted(app,job);
+      expect(calls.filter(args=>args[3]?.length)).not.toHaveLength(0);
+      expect(calls.filter(args=>args[5])).not.toHaveLength(0);
+      for(const [fen,,,,,,history] of calls){
+        expect(history).toBeDefined();const board=new Chess(history!.initialFen);
+        for(const uci of history!.moves)board.move({from:uci.slice(0,2),to:uci.slice(2,4),...(uci.length===5?{promotion:uci[4]}:{})});
+        expect(board.fen()).toBe(new Chess(fen).fen());
+      }
+      expect([...new Set(calls.map(args=>args[6]!.moves.length))].sort()).toEqual([0,1,2,3,4]);
+    }finally{spy.mockRestore();}
   });
 
 });

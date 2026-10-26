@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Chess } from "chess.js";
 
 import type {
@@ -16,12 +16,13 @@ import { ExerciseLoadState } from "./ExerciseLoadState";
 
 interface TrainingPanelProps {
   refreshToken: number;
+  gameDays?: number | null;
   requestedItemId?: string | undefined;
   sessionId?: string | undefined;
   onCompleted: () => void;
 }
 
-export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onCompleted }: TrainingPanelProps) {
+export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onCompleted, gameDays = null }: TrainingPanelProps) {
   const [exercise, setExercise] = useState<BlunderCheckExercise | null>(null);
   const [empty, setEmpty] = useState<EmptyTrainingResponse | null>(null);
   const [displayFen, setDisplayFen] = useState("");
@@ -33,13 +34,17 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
   const [feedback, setFeedback] = useState<TrainingAnswerResponse | null>(null);
   const [error, setError] = useState("");
 
+  const loadVersion = useRef(0);
   const loadNext = async (pool = "due"): Promise<void> => {
+    const version = ++loadVersion.current;
+    setExercise(null); setEmpty(null);
     setError("");
     setFeedback(null);
     setCategory(null);
     setMove(null);
     try {
-      const result = await post<NextTrainingResponse>("/api/v1/training/next", { pool: requestedItemId ? "early" : pool, itemId: requestedItemId });
+      const result = await post<NextTrainingResponse>("/api/v1/training/next", { pool: requestedItemId ? "early" : pool, itemId: requestedItemId, gameDays });
+      if (version !== loadVersion.current) return;
       if (result.kind === "empty") {
         setExercise(null);
         setEmpty(result);
@@ -52,13 +57,15 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
       setBoardOrientation(result.playerColor);
       setPhase("ready");
     } catch (loadError) {
+      if (version !== loadVersion.current) return;
       setError(loadError instanceof Error ? loadError.message : "Could not load exercise");
     }
   };
 
   useEffect(() => {
     void loadNext();
-  }, [refreshToken, requestedItemId]);
+    return () => { loadVersion.current++; };
+  }, [refreshToken, requestedItemId, gameDays]);
 
   const playCandidate = async (): Promise<void> => {
     if (!exercise) return;
@@ -138,7 +145,7 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
         <p>Pause before the move. Look for the opponent’s immediate checks, captures, and threats.</p>
       </div>
 
-      {empty && <TrainingEmptyState
+      {empty && <TrainingEmptyState gameDays={gameDays}
         empty={empty}
         onChoosePool={(pool) => void loadNext(pool)}
         noItemsHelp="Import a game containing a concrete mistake that the opponent could punish immediately."

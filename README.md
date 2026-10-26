@@ -619,3 +619,25 @@ separate from matching the historical move. On the repertoire home, expand
 **What am I remembering over time?** for delayed recall and played-game measures.
 Opening-specific puzzles remain deferred in the REA inventory (CB58). See
 [delivery details and limits](docs/chessbook-audit/NEXT_FOUR_DELIVERY.md).
+
+### Reliability update: v1.5.21
+
+Own-game imports distinguish game identity from matching moves. Incremental
+Lichess sync continues pending batches without skipping games at the batch
+boundary. Uploaded-game analysis includes prior moves for repetition context.
+Use **Review latest analysis** to open current mistake checkpoints while keeping
+earlier reviews. Today links saved games to explicit analysis requests.
+Previously skipped games may need a fresh PGN import; older accuracy reports
+remain available until you choose to analyse again. Published builds show their
+commit identifier in the footer. See the [repair delivery](docs/chessbook-audit/APP_RELIABILITY_DELIVERY_2026_10_26.md).
+
+Thinking practice now shows exercises **due now** separately from the saved
+library and reduces the remaining count as answers are recorded. Sessions use
+due exercises only. Missed or revealed answers return after ten minutes;
+successful answers keep their longer review intervals. Deliberate **Review
+early** remains available in individual exercise modes.
+
+Use **Practice games** on Today to choose all game dates or the last 1, 2, 7,
+30 or 90 days. The filter uses when the game was played; undated games appear
+under **All game dates**. A resumed session retains its original filter until
+finished. Opening repertoire practice is unchanged.

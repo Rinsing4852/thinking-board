@@ -87,7 +87,7 @@ export class OpeningAnalysisService {
     await this.engine.initialize();
     const nodes = this.config.openingAnalysisNodes ?? 200000;
     if (!Number.isSafeInteger(nodes) || nodes < 1000 || nodes > 5000000) throw new Error("Choose an opening analysis budget from 1,000 to 5,000,000 nodes");
-    const prefix = `opening-v4|${this.engine.name}|${this.config.stockfishBinary}|${nodes}|1|${Math.min(64, this.config.stockfishHashMb)}|`;
+    const prefix = `opening-v5|${this.engine.name}|${this.config.stockfishBinary}|${nodes}|1|${Math.min(64, this.config.stockfishHashMb)}|`;
     const read = (key: string): OpeningPositionAnalysisResponse | undefined => {
       const memory = this.cache.get(key); if (memory) return memory;
       const row = this.db?.prepare("SELECT response_json FROM opening_eval_cache WHERE cache_key = ?").get(prefix + key) as { response_json: string } | undefined;

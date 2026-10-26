@@ -125,7 +125,7 @@ describe("versioned game accuracy",()=>{
   expect(service.report(old,profile)).toMatchObject({ruleVersion:"chances-v1",white:{accuracy:100}});
   expect(service.trends(profile).cohorts.map(c=>c.ruleVersion).sort()).toEqual(["chances-v1","chances-v2"]);
   expect(service.trends(profile).recent.games).toBe(1);
-  expect(service.enqueue(profile,{all:true})).toMatchObject({queued:1,alreadyAnalyzed:1});
+  expect(service.enqueue(profile,{all:true})).toMatchObject({queued:2,alreadyAnalyzed:0});
   expect(db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
  });
 });

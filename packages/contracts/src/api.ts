@@ -419,6 +419,7 @@ export interface LichessConnectionResponse {
   username: string | null;
   lastSyncedAt: string | null;
   lastGameAt: string | null;
+  moreAvailable?:boolean;
   tokenConfigured: boolean;
 }
 
@@ -984,9 +985,11 @@ export interface SkillMetric {
 }
 
 export interface DashboardResponse {
+  practice?: { gameDays: number | null; available: number; nextDueAt: string | null };
   profile: { id: string; displayName: string } | null;
   totals: {
     games: number;
+    awaitingAnalysis?:number;
     trainingItems: number;
     due: number;
     attempts: number;
@@ -999,6 +1002,9 @@ export interface DashboardResponse {
 }
 
 export interface TrainingSessionResponse {
+  gameDays?: number | null;
+  remainingCount?: number;
+  remainingMix?: Array<{ mode: string; label: string; count: number }>;
   id: string | null;
   requestedSize: number;
   items: Array<{ itemId: string; mode: string; ordinal: number }>;
@@ -1070,7 +1076,7 @@ export interface GameReplayResponse {
 }
 export interface GameReplayAction {
   snapshotId:string; version:number;
-  action:"next"|"previous"|"jump"|"retry"|"answer"|"reveal"|"refresh"|"schedule"|"skip";
+  action:"latest"|"next"|"previous"|"jump"|"retry"|"answer"|"reveal"|"refresh"|"schedule"|"skip";
   ply?:number; checkpointId?:string; moveUci?:string;
 }
 

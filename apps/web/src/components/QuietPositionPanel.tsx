@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Chess } from "chess.js";
 
 import type {
@@ -15,12 +15,13 @@ import { ExerciseLoadState } from "./ExerciseLoadState";
 
 interface QuietPositionPanelProps {
   refreshToken: number;
+  gameDays?: number | null;
   requestedItemId?: string | undefined;
   sessionId?: string | undefined;
   onCompleted: () => void;
 }
 
-export function QuietPositionPanel({ refreshToken, requestedItemId, sessionId, onCompleted }: QuietPositionPanelProps) {
+export function QuietPositionPanel({ refreshToken, requestedItemId, sessionId, onCompleted, gameDays = null }: QuietPositionPanelProps) {
   const [exercise, setExercise] = useState<QuietPositionExercise | null>(null);
   const [empty, setEmpty] = useState<EmptyTrainingResponse | null>(null);
   const [phase, setPhase] = useState<"ready" | "piece" | "move" | "feedback">("ready");
@@ -32,16 +33,21 @@ export function QuietPositionPanel({ refreshToken, requestedItemId, sessionId, o
   const [feedback, setFeedback] = useState<QuietPositionAnswerResponse | null>(null);
   const [error, setError] = useState("");
 
+  const loadVersion = useRef(0);
   const loadNext = async (pool = "due"): Promise<void> => {
+    const version = ++loadVersion.current;
+    setExercise(null); setEmpty(null);
     setError(""); setPieceSquare(null); setMove(null); setFeedback(null);
     try {
-      const result = await post<NextQuietPositionResponse>("/api/v1/training/quiet/next", { pool: requestedItemId ? "early" : pool, itemId: requestedItemId });
+      const result = await post<NextQuietPositionResponse>("/api/v1/training/quiet/next", { pool: requestedItemId ? "early" : pool, itemId: requestedItemId, gameDays });
+      if (version !== loadVersion.current) return;
       if (result.kind === "empty") { setExercise(null); setEmpty(result); return; }
       setExercise(result); setEmpty(null); setDisplayFen(result.fen); setDisplayMove(null);
       setOrientation(result.playerColor); setPhase("ready");
-    } catch (loadError) { setError(loadError instanceof Error ? loadError.message : "Could not load quiet position"); }
+    } catch (loadError) {
+      if (version !== loadVersion.current) return; setError(loadError instanceof Error ? loadError.message : "Could not load quiet position"); }
   };
-  useEffect(() => { void loadNext(); }, [refreshToken, requestedItemId]);
+  useEffect(() => { void loadNext(); return () => { loadVersion.current++; }; }, [refreshToken, requestedItemId, gameDays]);
 
   const begin = async (): Promise<void> => {
     if (!exercise) return;
@@ -86,7 +92,7 @@ export function QuietPositionPanel({ refreshToken, requestedItemId, sessionId, o
         <p>After checks, captures, and threats are exhausted, find a piece whose role can be improved.</p>
       </div>
       {empty && (
-        <TrainingEmptyState
+        <TrainingEmptyState gameDays={gameDays}
           empty={empty}
           onChoosePool={(pool) => void loadNext(pool)}
           noItemsHelp="Import more games to find positions without an immediate tactic."

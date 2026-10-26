@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Chess } from "chess.js";
 
 import type {
@@ -15,12 +15,13 @@ import { ExerciseLoadState } from "./ExerciseLoadState";
 
 interface PunishBlunderPanelProps {
   refreshToken: number;
+  gameDays?: number | null;
   requestedItemId?: string | undefined;
   sessionId?: string | undefined;
   onCompleted: () => void;
 }
 
-export function PunishBlunderPanel({ refreshToken, requestedItemId, sessionId, onCompleted }: PunishBlunderPanelProps) {
+export function PunishBlunderPanel({ refreshToken, requestedItemId, sessionId, onCompleted, gameDays = null }: PunishBlunderPanelProps) {
   const [exercise, setExercise] = useState<PunishBlunderExercise | null>(null);
   const [empty, setEmpty] = useState<EmptyTrainingResponse | null>(null);
   const [phase, setPhase] = useState<"ready" | "answer" | "feedback">("ready");
@@ -31,16 +32,21 @@ export function PunishBlunderPanel({ refreshToken, requestedItemId, sessionId, o
   const [feedback, setFeedback] = useState<PunishBlunderAnswerResponse | null>(null);
   const [error, setError] = useState("");
 
+  const loadVersion = useRef(0);
   const loadNext = async (pool = "due"): Promise<void> => {
+    const version = ++loadVersion.current;
+    setExercise(null); setEmpty(null);
     setError(""); setMove(null); setFeedback(null);
     try {
-      const result = await post<NextPunishBlunderResponse>("/api/v1/training/punish/next", { pool: requestedItemId ? "early" : pool, itemId: requestedItemId });
+      const result = await post<NextPunishBlunderResponse>("/api/v1/training/punish/next", { pool: requestedItemId ? "early" : pool, itemId: requestedItemId, gameDays });
+      if (version !== loadVersion.current) return;
       if (result.kind === "empty") { setExercise(null); setEmpty(result); return; }
       setExercise(result); setEmpty(null); setDisplayFen(result.fen); setDisplayMove(null);
       setOrientation(result.opponentColor); setPhase("ready");
-    } catch (loadError) { setError(loadError instanceof Error ? loadError.message : "Could not load exercise"); }
+    } catch (loadError) {
+      if (version !== loadVersion.current) return; setError(loadError instanceof Error ? loadError.message : "Could not load exercise"); }
   };
-  useEffect(() => { void loadNext(); }, [refreshToken, requestedItemId]);
+  useEffect(() => { void loadNext(); return () => { loadVersion.current++; }; }, [refreshToken, requestedItemId, gameDays]);
   const blunderingColor = exercise?.opponentColor === "white" ? "black" : "white";
 
   const begin = async (): Promise<void> => {
@@ -86,7 +92,7 @@ export function PunishBlunderPanel({ refreshToken, requestedItemId, sessionId, o
         <p>Use the opponent’s pieces to exploit the same mistake immediately. Reverse-side practice turns prevention into a tactical pattern.</p>
       </div>
       {empty && (
-        <TrainingEmptyState
+        <TrainingEmptyState gameDays={gameDays}
           empty={empty}
           onChoosePool={(pool) => void loadNext(pool)}
           noItemsHelp="Import a game with an immediately punishable mistake to create this exercise."

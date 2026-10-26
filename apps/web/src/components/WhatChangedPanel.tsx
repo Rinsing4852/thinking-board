@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type {
   EmptyTrainingResponse,
@@ -15,12 +15,13 @@ import { ExerciseLoadState } from "./ExerciseLoadState";
 
 interface WhatChangedPanelProps {
   refreshToken: number;
+  gameDays?: number | null;
   requestedItemId?: string | undefined;
   sessionId?: string | undefined;
   onCompleted: () => void;
 }
 
-export function WhatChangedPanel({ refreshToken, requestedItemId, sessionId, onCompleted }: WhatChangedPanelProps) {
+export function WhatChangedPanel({ refreshToken, requestedItemId, sessionId, onCompleted, gameDays = null }: WhatChangedPanelProps) {
   const [exercise, setExercise] = useState<WhatChangedExercise | null>(null);
   const [empty, setEmpty] = useState<EmptyTrainingResponse | null>(null);
   const [displayFen, setDisplayFen] = useState("");
@@ -31,13 +32,17 @@ export function WhatChangedPanel({ refreshToken, requestedItemId, sessionId, onC
   const [feedback, setFeedback] = useState<WhatChangedAnswerResponse | null>(null);
   const [error, setError] = useState("");
 
+  const loadVersion = useRef(0);
   const loadNext = async (pool = "due"): Promise<void> => {
+    const version = ++loadVersion.current;
+    setExercise(null); setEmpty(null);
     setError("");
     setFeedback(null);
     setCategory(null);
     setSquare(null);
     try {
-      const result = await post<NextWhatChangedResponse>("/api/v1/training/what-changed/next", { pool: requestedItemId ? "early" : pool, itemId: requestedItemId });
+      const result = await post<NextWhatChangedResponse>("/api/v1/training/what-changed/next", { pool: requestedItemId ? "early" : pool, itemId: requestedItemId, gameDays });
+      if (version !== loadVersion.current) return;
       if (result.kind === "empty") {
         setExercise(null);
         setEmpty(result);
@@ -49,11 +54,12 @@ export function WhatChangedPanel({ refreshToken, requestedItemId, sessionId, onC
       setOrientation(result.playerColor);
       setPhase("observe");
     } catch (loadError) {
+      if (version !== loadVersion.current) return;
       setError(loadError instanceof Error ? loadError.message : "Could not load exercise");
     }
   };
 
-  useEffect(() => { void loadNext(); }, [refreshToken, requestedItemId]);
+  useEffect(() => { void loadNext(); return () => { loadVersion.current++; }; }, [refreshToken, requestedItemId, gameDays]);
 
   const opponentColor = exercise?.playerColor === "white" ? "black" : "white";
   const moveLabel = exercise
@@ -109,7 +115,7 @@ export function WhatChangedPanel({ refreshToken, requestedItemId, sessionId, onC
         <p>Watch their move first. Identify what it attacks, uncovers, removes, or threatens before generating candidates.</p>
       </div>
 
-      {empty && <TrainingEmptyState
+      {empty && <TrainingEmptyState gameDays={gameDays}
         empty={empty}
         onChoosePool={(pool) => void loadNext(pool)}
         noItemsHelp="Import another game to find positions where an opponent’s move created a clear new danger."

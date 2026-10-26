@@ -1,5 +1,5 @@
 import type { EngineScore } from "./uci-engine.js";
-export const QUALITY_VERSION = "chances-v2";
+export const QUALITY_VERSION = "chances-v3";
 export type MoveGrade = "best" | "good" | "inaccuracy" | "mistake" | "blunder";
 
 /** A documented evaluation transform, not a personal forecast or site-equivalent rating. */

@@ -48,9 +48,14 @@ export function useOpeningMoveEvidence(fen: string, rating: number, useExplorer:
       for (let offset = 0; offset < moves.length; offset += 12) {
         const analysis = await post<OpeningPositionAnalysisResponse>("/api/v1/openings/analysis", { fen, moveUcis: moves.slice(offset, offset + 12) }, controller.signal);
         if (controller.signal.aborted) return;
-        setState(current => ({ ...current, analysis: { ...analysis, lines: [...new Map([
-          ...(current.analysis?.fen === fen ? current.analysis.lines : []), ...analysis.lines,
-        ].map(line => [line.moveUci, line])).values()] }, analysisError: "" }));
+        setState(current => {
+          const byMove=new Map<string,OpeningPositionAnalysisResponse["lines"][number]>();
+          for(const line of [...(current.analysis?.fen===fen?current.analysis.lines:[]),...analysis.lines]) {
+            const existing=byMove.get(line.moveUci);
+            if(!existing||line.rank<=existing.rank)byMove.set(line.moveUci,line);
+          }
+          return {...current,analysis:{...analysis,lines:[...byMove.values()].sort((a,b)=>a.rank-b.rank)},analysisError:""};
+        });
       }
     })()
       .catch(error => { if (!controller.signal.aborted) setState(current => ({ ...current, analysisError: error instanceof Error ? error.message : "Move evaluations are unavailable" })); })

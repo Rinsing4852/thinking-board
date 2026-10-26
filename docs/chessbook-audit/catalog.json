@@ -2635,6 +2635,34 @@
           "id": "CB42.3",
           "requirement": "Token failures retain previous games and never expose credentials in client output.",
           "evidence": []
+        },
+        {
+          "id": "CB42.4",
+          "requirement": "Incremental sync drains bounded backlogs across restarts and equal timestamps without skipping unseen games or advancing after invalid data.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "drains a backlog over bounded batches and restarts without skipping equal-timestamp games"
+            },
+            {
+              "kind": "unit",
+              "title": "advances safely through games already pasted into the library before reaching unseen games"
+            },
+            {
+              "kind": "unit",
+              "title": "keeps the sync boundary and saved games unchanged after a partially invalid response"
+            }
+          ]
+        },
+        {
+          "id": "CB42.5",
+          "requirement": "A slow account connection remains associated with the player who requested it.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "keeps a slow account connection on the player who requested it"
+            }
+          ]
         }
       ],
       "implementationPaths": [
@@ -2645,7 +2673,8 @@
         "chessbookMeasuredResult": null,
         "ourMeasuredLatencyMs": null,
         "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
-      }
+      },
+      "limits": "Initial sync selects the latest requested games. Incremental sync drains oldest pending games with bounded timestamp overlap and lookahead; unusually large ambiguous boundaries stop explicitly. Previously skipped historical games are not silently reconstructed."
     },
     {
       "id": "CB43",
@@ -3245,10 +3274,91 @@
           "id": "CB54.3",
           "requirement": "Sending feedback is a deliberate user action.",
           "evidence": []
+        },
+        {
+          "id": "CB54.4",
+          "requirement": "Today routes saved unanalysed games to an explicit analysis request rather than asking the user to import again.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "takes saved games from Today to requested analysis and opens the latest replay in one action",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB54.5",
+          "requirement": "The footer exposes the installed build identifier when supplied by the deployment.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "shows the installed build identifier in the footer",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB54.6",
+          "requirement": "Thinking practice reduces the remaining count on answer, retains feedback through Continue, and selects only due exercises for the next session.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "reduces due work on success and reveal, preserves session progress and never fills with future reviews"
+            },
+            {
+              "kind": "browser",
+              "title": "reduces remaining practice, resumes its game filter and completes without repeating future reviews",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB54.7",
+          "requirement": "Practice game-date windows use the played date, exclude unknown dates only in bounded windows, and survive session resume.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "uses the game's played date for rolling windows, excludes unknown/future dates and preserves a session's scope"
+            },
+            {
+              "kind": "browser",
+              "title": "reduces remaining practice, resumes its game filter and completes without repeating future reviews",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB54.8",
+          "requirement": "An exercise response from a wider previous game filter cannot overwrite the current narrower selection.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "keeps a narrower game filter when an older exercise response arrives late",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
         }
       ],
       "implementationPaths": [
-        "README.md"
+        "README.md",
+        "apps/server/src/training/practice-scope.ts",
+        "apps/server/src/training/v1-training-service.ts",
+        "apps/web/src/components/Dashboard.tsx"
       ],
       "benchmark": {
         "task": "Find instructions from the relevant settings or empty state.",
@@ -3426,6 +3536,20 @@
               "title": "never draws an illegal move or fabricates a third reply from too few observations"
             }
           ]
+        },
+        {
+          "id": "CB57.4",
+          "requirement": "An interrupted same-depth engine update retains a complete candidate set with distinct moves and a leading score.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "retains a complete candidate set when same-depth reordering is interrupted"
+            },
+            {
+              "kind": "unit",
+              "title": "does not mix a new best line with older alternatives after a bounded search"
+            }
+          ]
         }
       ],
       "implementationPaths": [
@@ -3572,6 +3696,60 @@
               "title": "does not mix a new best line with older alternatives after a bounded search"
             }
           ]
+        },
+        {
+          "id": "CB59.6",
+          "requirement": "Distinct games with matching moves retain separate identities; repeated exports remain deduplicated within the intended player, and legacy game IDs are preserved.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "retains genuinely different games with identical moves while deduplicating annotated reexports"
+            },
+            {
+              "kind": "unit",
+              "title": "uses source game IDs and allows both learner profiles to retain the encounter"
+            },
+            {
+              "kind": "unit",
+              "title": "upgrades legacy identities without replacing game IDs and tolerates historical source collisions"
+            }
+          ]
+        },
+        {
+          "id": "CB59.7",
+          "requirement": "Uploaded-game baseline, played-move and verification searches retain matching initial-position and preceding-move history, including repetitions.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "includes matching game history in baseline, played-move and verification searches"
+            },
+            {
+              "kind": "unit",
+              "title": "keeps repetition history and rejects a history belonging to another board"
+            }
+          ]
+        },
+        {
+          "id": "CB59.8",
+          "requirement": "One action opens latest analysis checkpoints while preserving a previously used replay and its attempts; unused pre-analysis replays update safely.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "opens latest analysis in one action while retaining a used replay and its attempts"
+            },
+            {
+              "kind": "unit",
+              "title": "preserves custom starting positions and updates an unused pre-analysis replay when analysis finishes"
+            },
+            {
+              "kind": "browser",
+              "title": "takes saved games from Today to requested analysis and opens the latest replay in one action",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
         }
       ],
       "implementationPaths": [
@@ -3585,7 +3763,7 @@
         "apps/server/src/analysis/verify-move.ts",
         "migrations/043_game_quality_verification.sql"
       ],
-      "limits": "Finite searches and an independent chances transform; chances-v2 uses bounded adaptive verification and weighted/harmonic accuracy, not an exact Lichess or Chessigma score. Public cached-position and deeper-engine samples are diagnostics, not a measured whole-game parity claim. Older methods remain separate.",
+      "limits": "Finite, history-aware chances-v3 analysis; earlier methods remain readable in separate trend groups. Engine diagnostics are regression evidence, not a measured strength/parity score. Missing game metadata limits deduplication certainty; previously skipped games may require reimport.",
       "benchmark": {
         "task": "Import two games, analyse one, then select all while retaining its existing report, inspect a graded position and stop a queued batch.",
         "chessbookMeasuredResult": null,
@@ -3678,6 +3856,20 @@
             {
               "kind": "unit",
               "title": "keeps old reports readable and in separate comparison groups while allowing an explicit upgrade"
+            }
+          ]
+        },
+        {
+          "id": "CB60.7",
+          "requirement": "Expanded player-specific learning results and game-quality filters refresh on player changes and ignore late previous-player replies.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "refreshes expanded learning results on player changes and ignores a late previous-player response",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
             }
           ]
         }

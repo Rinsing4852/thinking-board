@@ -5,7 +5,7 @@ import { Chess } from "chess.js";
 import type { AppConfig } from "../config.js";
 import type { SqliteDatabase } from "../db/database.js";
 import { id, now } from "../lib/ids.js";
-import { UciEngine, type EngineLine, type EngineScore } from "./uci-engine.js";
+import { UciEngine, type EngineLine, type EngineScore, type EngineHistory } from "./uci-engine.js";
 import { CandidateGenerator } from "./candidate-generator.js";
 import { WhatChangedGenerator } from "./what-changed-generator.js";
 import { V1Generator } from "./v1-generator.js";
@@ -109,7 +109,7 @@ export class AnalysisService {
       INSERT INTO analysis_runs(
         id, game_id, engine_name, engine_version, depth, multipv, threads,
         hash_mb, analysis_version, status, started_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 4, 'running', ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 5, 'running', ?)
     `).run(
       runId, gameId, this.engine.name, this.engine.name, this.config.stockfishDepth,
       this.config.stockfishMultiPv, this.config.stockfishThreads,
@@ -120,12 +120,23 @@ export class AnalysisService {
       const positions = this.db.prepare(`
         SELECT id, ply_index, fen FROM positions WHERE game_id = ? ORDER BY ply_index
       `).all(gameId) as PositionRow[];
+      const moves = this.db.prepare(`
+        SELECT m.id, m.ply, m.move_number, m.mover_color, m.from_position_id,
+               m.to_position_id, m.uci, m.san, position.fen AS from_fen
+        FROM moves m JOIN positions position ON position.id = m.from_position_id
+        WHERE m.game_id = ? ORDER BY m.ply
+      `).all(gameId) as MoveRow[];
+      const initialFen=positions[0]?.fen;
+      if(!initialFen)throw new Error("Game has no positions");
+      const result=this.db.prepare("SELECT result FROM games WHERE id=?").pluck().get(gameId);
+      const histories=new Map(positions.map(position=>[position.id,{initialFen,moves:moves.slice(0,position.ply_index).map(move=>move.uci),
+        drawClaimed:result==="1/2-1/2"&&position.ply_index===moves.length}]));
       const scores = new Map<string, StoredScore>();
       for (const position of positions) {
         const analysis = await this.engine.analyze(
           position.fen,
           this.config.stockfishDepth,
-          this.config.stockfishMultiPv,
+          this.config.stockfishMultiPv,[],undefined,undefined,histories.get(position.id),
         );
         const best = analysis.lines[0];
         if (!best) throw new Error(`No engine line for position ${position.ply_index}`);
@@ -160,13 +171,7 @@ export class AnalysisService {
         });
       }
 
-      const moves = this.db.prepare(`
-        SELECT m.id, m.ply, m.move_number, m.mover_color, m.from_position_id,
-               m.to_position_id, m.uci, m.san, position.fen AS from_fen
-        FROM moves m JOIN positions position ON position.id = m.from_position_id
-        WHERE m.game_id = ? ORDER BY m.ply
-      `).all(gameId) as MoveRow[];
-      await this.storeAssessments(runId, moves, scores);
+      await this.storeAssessments(runId, moves, scores,histories);
       return this.db.transaction(() => {
         this.deactivateStaleGeneratedItems(gameId, runId);
         const blunderChecks = this.generateBlunderChecks(gameId, runId, moves, scores);
@@ -185,7 +190,7 @@ export class AnalysisService {
     }
   }
 
-  private async storeAssessments(runId: string, moves: MoveRow[], scores: Map<string, StoredScore>): Promise<void> {
+  private async storeAssessments(runId: string, moves: MoveRow[], scores: Map<string, StoredScore>,histories:Map<string,EngineHistory>): Promise<void> {
     const insert = this.db.prepare(`
       INSERT INTO move_assessments(
         id, run_id, move_id, eval_before_cp_white, eval_before_mate_white,
@@ -211,7 +216,7 @@ export class AnalysisService {
           move.from_fen,
           this.config.stockfishDepth,
           1,
-          [move.uci],
+          [move.uci],undefined,undefined,histories.get(move.from_position_id),
         )).lines[0];
         let played: EngineScore = storedLine
           ? { centipawnsWhite: storedLine.centipawns_white, mateInWhite: storedLine.mate_in_white }
@@ -221,7 +226,7 @@ export class AnalysisService {
         const reason=verificationReason(before,played,scores.get(move.to_position_id),move.mover_color);
         let verification:VerificationEvidence|null=null;
         if(reason) {
-          const checked=await verifyMove(this.engine,move.from_fen,move.uci,this.config.stockfishDepth,this.config.stockfishMultiPv);
+          const checked=await verifyMove(this.engine,move.from_fen,move.uci,this.config.stockfishDepth,this.config.stockfishMultiPv,histories.get(move.from_position_id));
           played=checked.played;
           before.centipawnsWhite=checked.best.centipawnsWhite;
           before.mateInWhite=checked.best.mateInWhite;

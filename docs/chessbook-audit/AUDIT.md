@@ -19,10 +19,10 @@ remain separate from the verified requirement counts below.
 
 - **60 feature descriptions**, each with explicit acceptance criteria and a repeatable comparison task.
 - Current inventory: 22 existing, 14 partial, 10 absent, 7 implemented, 1 improved, 5 enhanced, 1 not_targeted.
-- Acceptance checks: 119 passed, 0 failed, 0 flaky, 41 unknown, 30 unmet, 3 excluded.
-- Priority-weighted verified requirement coverage: **71.8%** (521/726 points). This is a conservative evidence measure, not “71.8% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
-- Like-for-like unit-evidence baseline: 22.7% → 41.2%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
-- Current validation records: 363 unit/integration tests and 186 browser journeys; 0 failures, 0 flaky results, 0 skipped.
+- Acceptance checks: 131 passed, 0 failed, 0 flaky, 41 unknown, 30 unmet, 3 excluded.
+- Priority-weighted verified requirement coverage: **73.2%** (561/766 points). This is a conservative evidence measure, not “73.2% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
+- Like-for-like unit-evidence baseline: 21.5% → 42.3%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
+- Current validation records: 378 unit/integration tests and 196 browser journeys; 0 failures, 0 flaky results, 0 skipped.
 
 ## Implemented from this audit
 
@@ -825,6 +825,8 @@ Acceptance criteria:
 - **passed** — Connected Lichess games are saved incrementally without automatically starting full-game engine work. Evidence: unit: connects and incrementally saves public Lichess games without starting engine analysis.
 - **unknown** — Connect or inspect an existing account and request game refresh without duplicates.
 - **unknown** — Token failures retain previous games and never expose credentials in client output.
+- **passed** — Incremental sync drains bounded backlogs across restarts and equal timestamps without skipping unseen games or advancing after invalid data. Evidence: unit: drains a backlog over bounded batches and restarts without skipping equal-timestamp games; unit: advances safely through games already pasted into the library before reaching unseen games; unit: keeps the sync boundary and saved games unchanged after a partially invalid response.
+- **passed** — A slow account connection remains associated with the player who requested it. Evidence: unit: keeps a slow account connection on the player who requested it.
 
 Implementation: `apps/server/src/imports/lichess-sync-service.ts`
 
@@ -1045,8 +1047,13 @@ Acceptance criteria:
 - **unknown** — Feature definitions and troubleshooting match shipped behaviour.
 - **unknown** — Find instructions from the relevant settings or empty state.
 - **unknown** — Sending feedback is a deliberate user action.
+- **passed** — Today routes saved unanalysed games to an explicit analysis request rather than asking the user to import again. Evidence: browser/chromium: takes saved games from Today to requested analysis and opens the latest replay in one action; browser/webkit: takes saved games from Today to requested analysis and opens the latest replay in one action.
+- **passed** — The footer exposes the installed build identifier when supplied by the deployment. Evidence: browser/chromium: shows the installed build identifier in the footer; browser/webkit: shows the installed build identifier in the footer.
+- **passed** — Thinking practice reduces the remaining count on answer, retains feedback through Continue, and selects only due exercises for the next session. Evidence: unit: reduces due work on success and reveal, preserves session progress and never fills with future reviews; browser/chromium: reduces remaining practice, resumes its game filter and completes without repeating future reviews; browser/webkit: reduces remaining practice, resumes its game filter and completes without repeating future reviews.
+- **passed** — Practice game-date windows use the played date, exclude unknown dates only in bounded windows, and survive session resume. Evidence: unit: uses the game's played date for rolling windows, excludes unknown/future dates and preserves a session's scope; browser/chromium: reduces remaining practice, resumes its game filter and completes without repeating future reviews; browser/webkit: reduces remaining practice, resumes its game filter and completes without repeating future reviews.
+- **passed** — An exercise response from a wider previous game filter cannot overwrite the current narrower selection. Evidence: browser/chromium: keeps a narrower game filter when an older exercise response arrives late; browser/webkit: keeps a narrower game filter when an older exercise response arrives late.
 
-Implementation: `README.md`
+Implementation: `README.md`, `apps/server/src/training/practice-scope.ts`, `apps/server/src/training/v1-training-service.ts`, `apps/web/src/components/Dashboard.tsx`
 
 Repeatable comparison task: Find instructions from the relevant settings or empty state. Competitor timing and our user-task timing remain unmeasured.
 
@@ -1099,6 +1106,7 @@ Acceptance criteria:
 - **passed** — Rank opponent replies by frequency, not engine strength, using the repertoire side. Evidence: unit: ranks three opponent replies by sample frequency rather than engine strength; unit: uses the repertoire side rather than fixed white and black roles.
 - **passed** — Draw, hide and restore arrows in a real builder, then remove them on leaving edit mode. Evidence: browser/chromium: draws our strongest move and the three most frequent opponent replies while building; browser/webkit: draws our strongest move and the three most frequent opponent replies while building.
 - **passed** — Reject stale, small, mismatched and illegal suggestions without inventing a third reply. Evidence: unit: rejects stale, small, wrong-position and wrong-rating samples; unit: never draws an illegal move or fabricates a third reply from too few observations.
+- **passed** — An interrupted same-depth engine update retains a complete candidate set with distinct moves and a leading score. Evidence: unit: retains a complete candidate set when same-depth reordering is interrupted; unit: does not mix a new best line with older alternatives after a bounded search.
 
 Implementation: `apps/web/src/opening-build-guidance.ts`, `apps/web/src/use-opening-move-evidence.ts`, `apps/web/src/components/ChessBoard.tsx`
 
@@ -1137,6 +1145,9 @@ Acceptance criteria:
 - **passed** — Stopping/restarting retains completed reports and progress; other profiles cannot inspect or stop the job. Evidence: unit: resumes unfinished games and preserves completed progress when stopped; unit: stops queued batches without losing games and prevents access across player profiles.
 - **passed** — Move-quality reports can inspect the existing board on desktop and mobile without adding a duplicate analysis board. Evidence: browser/chromium: requests individual and selected/all analysis, retains reports, and compares completed games; browser/webkit: requests individual and selected/all analysis, retains reports, and compares completed games.
 - **passed** — Potential errors, mate scores and search disagreements receive bounded extra verification; provisional grades can change and failed verification preserves a previous report. Evidence: unit: checks errors, near-threshold moves, mates and conflicting searches for either colour; unit: updates a provisional blunder after verification and retains that report if the next verification fails; unit: does not mix a new best line with older alternatives after a bounded search.
+- **passed** — Distinct games with matching moves retain separate identities; repeated exports remain deduplicated within the intended player, and legacy game IDs are preserved. Evidence: unit: retains genuinely different games with identical moves while deduplicating annotated reexports; unit: uses source game IDs and allows both learner profiles to retain the encounter; unit: upgrades legacy identities without replacing game IDs and tolerates historical source collisions.
+- **passed** — Uploaded-game baseline, played-move and verification searches retain matching initial-position and preceding-move history, including repetitions. Evidence: unit: includes matching game history in baseline, played-move and verification searches; unit: keeps repetition history and rejects a history belonging to another board.
+- **passed** — One action opens latest analysis checkpoints while preserving a previously used replay and its attempts; unused pre-analysis replays update safely. Evidence: unit: opens latest analysis in one action while retaining a used replay and its attempts; unit: preserves custom starting positions and updates an unused pre-analysis replay when analysis finishes; browser/chromium: takes saved games from Today to requested analysis and opens the latest replay in one action; browser/webkit: takes saved games from Today to requested analysis and opens the latest replay in one action.
 
 Implementation: `apps/server/src/analysis/move-quality.ts`, `apps/server/src/analysis/game-quality-service.ts`, `apps/server/src/analysis/analysis-service.ts`, `apps/server/src/jobs/job-worker.ts`, `apps/web/src/components/GameMoveReport.tsx`, `apps/web/src/components/GameLibrary.tsx`, `migrations/042_game_quality.sql`, `apps/server/src/analysis/verify-move.ts`, `migrations/043_game_quality_verification.sql`
 
@@ -1158,6 +1169,7 @@ Acceptance criteria:
 - **passed** — Show source counts, small samples, unavailable earlier comparisons and checkpoint limitations on mobile and desktop. Evidence: browser/chromium: requests individual and selected/all analysis, retains reports, and compares completed games; browser/webkit: requests individual and selected/all analysis, retains reports, and compares completed games.
 - **unknown** — Demonstrate that the measures reliably reflect stronger play in a matched human longitudinal study.
 - **passed** — Game accuracy gives serious errors more influence; progress averages completed game scores and preserves old reports in separate method groups. Evidence: unit: gives an isolated serious error more influence than a simple average, without inventing scores for empty games; unit: averages complete game scores in progress rather than letting long games dominate; unit: keeps old reports readable and in separate comparison groups while allowing an explicit upgrade.
+- **passed** — Expanded player-specific learning results and game-quality filters refresh on player changes and ignore late previous-player replies. Evidence: browser/chromium: refreshes expanded learning results on player changes and ignores a late previous-player response; browser/webkit: refreshes expanded learning results on player changes and ignores a late previous-player response.
 
 Implementation: `apps/server/src/analysis/game-quality-service.ts`, `apps/web/src/components/GameQualityProgress.tsx`, `apps/web/src/App.tsx`
 

@@ -17,6 +17,7 @@ import type { SqliteDatabase } from "../db/database.js";
 import { id, now } from "../lib/ids.js";
 import { activeProfileId } from "./profile.js";
 import { recordReview } from "./review-scheduler.js";
+import { parseGameDays, practiceScope } from "./practice-scope.js";
 
 const MODE_LABELS: Record<string, string> = {
   blunder_check: "Blunder checks",
@@ -71,7 +72,7 @@ function moveFromUci(uci: string): { from: string; to: string; promotion?: strin
 export class V1TrainingService {
   constructor(private readonly db: SqliteDatabase) {}
 
-  nextPunish(pool: string, itemId?: string): NextPunishBlunderResponse {
+  nextPunish(pool: string, itemId?: string, gameDays: number | null = null): NextPunishBlunderResponse {
     const row = this.nextRow("punish_blunder", pool, `
       SELECT ti.id AS item_id, position.fen, pbi.bad_move_san,
              CASE WHEN game.player_color = 'white' THEN 'black' ELSE 'white' END AS player_color,
@@ -82,8 +83,8 @@ export class V1TrainingService {
       JOIN games game ON game.id = ti.game_id
       JOIN moves move ON move.id = ti.source_move_id
       JOIN review_states rs ON rs.item_id = ti.id
-    `, itemId);
-    if (!row) return this.empty("punish_blunder");
+    `, itemId, gameDays);
+    if (!row) return this.empty("punish_blunder", gameDays);
     const exercise: PunishBlunderExercise = {
       kind: "exercise",
       attemptId: null,
@@ -98,7 +99,7 @@ export class V1TrainingService {
     return exercise;
   }
 
-  nextQuiet(pool: string, itemId?: string): NextQuietPositionResponse {
+  nextQuiet(pool: string, itemId?: string, gameDays: number | null = null): NextQuietPositionResponse {
     const row = this.nextRow("quiet_position", pool, `
       SELECT ti.id AS item_id, position.fen, game.player_color, move.move_number
       FROM training_items ti
@@ -107,8 +108,8 @@ export class V1TrainingService {
       JOIN games game ON game.id = ti.game_id
       JOIN moves move ON move.id = ti.source_move_id
       JOIN review_states rs ON rs.item_id = ti.id
-    `, itemId);
-    if (!row) return this.empty("quiet_position");
+    `, itemId, gameDays);
+    if (!row) return this.empty("quiet_position", gameDays);
     const exercise: QuietPositionExercise = {
       kind: "exercise",
       attemptId: null,
@@ -194,13 +195,14 @@ export class V1TrainingService {
     return feedback;
   }
 
-  dashboard(): DashboardResponse {
+  dashboard(gameDays: number | null = null): DashboardResponse {
+    const scope = practiceScope(gameDays);
     const selectedProfileId = activeProfileId(this.db);
     const profile = selectedProfileId ? this.db.prepare("SELECT id, display_name FROM player_profiles WHERE id = ?")
       .get(selectedProfileId) as { id: string; display_name: string } | undefined : undefined;
     if (!profile) {
       return {
-        profile: null,
+        profile: null, practice: { gameDays, available: 0, nextDueAt: null },
         totals: { games: 0, trainingItems: 0, due: 0, attempts: 0, gameAttempts: 0, openingAttempts: 0 },
         recurringProblems: [], skills: [], recommendedSession: [],
       };
@@ -210,7 +212,7 @@ export class V1TrainingService {
         (SELECT COUNT(*) FROM games WHERE profile_id = ?) AS games,
         (SELECT COUNT(*) FROM training_items WHERE profile_id = ? AND active = 1 AND mode != 'diagnosis_only') AS trainingItems,
         (SELECT COUNT(*) FROM review_states rs JOIN training_items ti ON ti.id = rs.item_id
-          WHERE ti.profile_id = ? AND ti.active = 1 AND rs.due_at <= ?) AS due,
+          WHERE ti.profile_id = ? AND ti.active = 1 AND ti.mode != 'diagnosis_only' AND rs.due_at <= ?) AS due,
         (SELECT COUNT(*) FROM training_attempts ta JOIN training_items ti ON ti.id = ta.item_id
           WHERE ti.profile_id = ? AND ta.answered_at IS NOT NULL) AS gameAttempts,
         ((SELECT COUNT(*) FROM opening_lesson_answers ola
@@ -239,6 +241,7 @@ export class V1TrainingService {
       profile.id,
       profile.id,
     ) as DashboardResponse["totals"];
+    totals.awaitingAnalysis=Number(this.db.prepare("SELECT COUNT(*) FROM games WHERE profile_id=? AND analyzed_at IS NULL").pluck().get(profile.id));
     const concepts = this.db.prepare(`
       SELECT c.id, c.family, c.label,
              COUNT(DISTINCT CASE WHEN tic.active = 1 THEN ti.source_move_id END) AS occurrences
@@ -255,13 +258,22 @@ export class V1TrainingService {
       const rightRate = right.successRate ?? 0;
       return (right.realGameOccurrences * (1 - rightRate)) - (left.realGameOccurrences * (1 - leftRate));
     }).slice(0, 6);
+    const practice = this.db.prepare(`
+      SELECT COALESCE(SUM(CASE WHEN rs.due_at <= ? THEN 1 ELSE 0 END), 0) AS available,
+             MIN(CASE WHEN rs.due_at > ? THEN rs.due_at END) AS nextDueAt
+      FROM training_items ti JOIN review_states rs ON rs.item_id = ti.id
+      WHERE ti.profile_id = ? AND ti.active = 1 AND ti.mode != 'diagnosis_only' ${scope.sql}
+    `).get(now(), now(), profile.id, ...scope.params) as { available: number; nextDueAt: string | null };
     return {
+      practice: { gameDays, ...practice },
       profile: { id: profile.id, displayName: profile.display_name }, totals,
-      recurringProblems, skills: tracked, recommendedSession: this.recommendedMix(15, profile.id),
+      recurringProblems, skills: tracked, recommendedSession: this.recommendedMix(15, profile.id, gameDays),
     };
   }
 
-  createSession(requestedSize = 15): TrainingSessionResponse {
+  createSession(requestedSize = 15, gameDays: number | null = null): TrainingSessionResponse {
+    gameDays = parseGameDays(gameDays);
+    const scope = practiceScope(gameDays);
     const size = Math.max(1, Math.min(50, Math.round(requestedSize)));
     const selectedProfileId = activeProfileId(this.db);
     const profile = selectedProfileId ? { id: selectedProfileId } : undefined;
@@ -270,8 +282,11 @@ export class V1TrainingService {
       SELECT id FROM training_sessions
       WHERE profile_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1
     `).get(profile.id) as { id: string } | undefined;
-    if (existing) return this.session(existing.id);
-    const mix = this.recommendedMix(size, profile.id);
+    if (existing) {
+      const resumed = this.session(existing.id);
+      if (resumed.status === "active") return resumed;
+    }
+    const mix = this.recommendedMix(size, profile.id, gameDays);
     const selected: Array<{ itemId: string; mode: string; ordinal: number }> = [];
     for (const allocation of mix) {
       const rows = this.db.prepare(`
@@ -287,25 +302,25 @@ export class V1TrainingService {
           WHERE tic2.active = 1 AND ti2.profile_id = ?
           GROUP BY tic2.concept_id
         ) concept_frequency ON concept_frequency.concept_id = tic.concept_id
-        WHERE ti.profile_id = ? AND ti.mode = ? AND ti.active = 1
+        WHERE ti.profile_id = ? AND ti.mode = ? AND ti.active = 1 AND rs.due_at <= ? ${scope.sql}
         GROUP BY ti.id
         ORDER BY CASE WHEN rs.due_at <= ? THEN 0 ELSE 1 END,
                  CASE WHEN rs.last_result IS NOT NULL AND rs.last_result != 'excellent' THEN 0 ELSE 1 END,
                  repeated_concepts DESC, (rs.attempts - rs.successes) DESC,
                  rs.average_response_ms DESC, ti.created_at DESC, RANDOM()
         LIMIT ?
-      `).all(profile.id, profile.id, allocation.mode, now(), allocation.count) as Array<{ id: string }>;
+      `).all(profile.id, profile.id, allocation.mode, now(), ...scope.params, now(), allocation.count) as Array<{ id: string }>;
       for (const row of rows) selected.push({ itemId: row.id, mode: allocation.mode, ordinal: selected.length + 1 });
     }
     if (selected.length === 0) {
-      return { id: null, requestedSize: size, items: [], mix: [], message: "No exercises exist yet. Import and analyse a game first." };
+      return { id: null, requestedSize: size, gameDays, remainingCount: 0, items: [], mix: [], message: "No exercises are due for this game filter. Choose another time range or return when your next review is due." };
     }
     const sessionId = id();
     this.db.transaction(() => {
       this.db.prepare(`
-        INSERT INTO training_sessions(id, profile_id, requested_size, status, created_at)
-        VALUES (?, ?, ?, 'active', ?)
-      `).run(sessionId, profile.id, size, now());
+        INSERT INTO training_sessions(id, profile_id, requested_size, status, created_at, game_days)
+        VALUES (?, ?, ?, 'active', ?, ?)
+      `).run(sessionId, profile.id, size, now(), gameDays);
       const insert = this.db.prepare(`
         INSERT INTO training_session_items(session_id, item_id, ordinal) VALUES (?, ?, ?)
       `);
@@ -316,7 +331,7 @@ export class V1TrainingService {
       return counts;
     }, {})).map(([mode, count]) => ({ mode, label: MODE_LABELS[mode] ?? mode, count }));
     return {
-      id: sessionId, requestedSize: size, items: selected, mix: actualMix,
+      id: sessionId, requestedSize: size, gameDays, items: selected, mix: actualMix, remainingMix: actualMix, remainingCount: selected.length,
       message: selected.length === size ? "Your weakness-weighted session is ready." : `Built ${selected.length} exercises from the positions available.`,
       status: "active", completedCount: 0, currentItem: selected[0] ?? null,
     };
@@ -329,16 +344,17 @@ export class V1TrainingService {
       SELECT id FROM training_sessions
       WHERE profile_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1
     `).get(profileId) as { id: string } | undefined;
-    return row ? this.session(row.id) : null;
+    const session = row ? this.session(row.id) : null;
+    return session?.status === "active" ? session : null;
   }
 
   session(sessionId: string): TrainingSessionResponse {
     const profileId = activeProfileId(this.db);
     const session = this.db.prepare(`
-      SELECT id, requested_size, status FROM training_sessions
+      SELECT id, requested_size, status, game_days FROM training_sessions
       WHERE id = ? AND profile_id = ?
     `).get(sessionId, profileId) as {
-      id: string; requested_size: number; status: "active" | "completed";
+      id: string; requested_size: number; status: "active" | "completed"; game_days: number | null;
     } | undefined;
     if (!session) throw new Error("Training session not found");
     this.db.prepare(`
@@ -369,6 +385,11 @@ export class V1TrainingService {
     }, {})).map(([mode, count]) => ({ mode, label: MODE_LABELS[mode] ?? mode, count }));
     return {
       id: session.id,
+      gameDays: session.game_days,
+      remainingCount: rows.length - completedCount,
+      remainingMix: Object.entries(rows.filter(row => row.completed === 0).reduce<Record<string, number>>((counts, row) => {
+        counts[row.mode] = (counts[row.mode] ?? 0) + 1; return counts;
+      }, {})).map(([mode, count]) => ({ mode, label: MODE_LABELS[mode] ?? mode, count })),
       requestedSize: session.requested_size,
       items,
       mix,
@@ -426,14 +447,15 @@ export class V1TrainingService {
     return chosen;
   }
 
-  private nextRow(mode: string, pool: string, select: string, itemId?: string): ExerciseRow | undefined {
+  private nextRow(mode: string, pool: string, select: string, itemId?: string, gameDays: number | null = null): ExerciseRow | undefined {
     const profileId = activeProfileId(this.db);
     if (!profileId) return undefined;
     const where = pool === "due" ? "AND rs.due_at <= ?" : pool === "mastered" ? "AND rs.mastery_level >= 4" : "";
-    const params = [mode, profileId, ...(itemId ? [itemId] : []), ...(pool === "due" ? [now()] : [])];
+    const scope = practiceScope(itemId ? null : gameDays);
+    const params = [...scope.params, mode, profileId, ...(itemId ? [itemId] : []), ...(pool === "due" ? [now()] : [])];
     const itemWhere = itemId ? "AND ti.id = ?" : "";
     const order = pool === "random" ? "ORDER BY RANDOM()" : "ORDER BY rs.due_at, ti.created_at";
-    return this.db.prepare(`${select} WHERE ti.mode = ? AND ti.active = 1 AND ti.profile_id = ? ${itemWhere} ${where} ${order} LIMIT 1`)
+    return this.db.prepare(`${select} WHERE 1=1 ${scope.sql} AND ti.mode = ? AND ti.active = 1 AND ti.profile_id = ? ${itemWhere} ${where} ${order} LIMIT 1`)
       .get(...params) as ExerciseRow | undefined;
   }
 
@@ -496,13 +518,14 @@ export class V1TrainingService {
     })();
   }
 
-  private empty(mode: "punish_blunder" | "quiet_position"): EmptyTrainingResponse {
+  private empty(mode: "punish_blunder" | "quiet_position", gameDays: number | null = null): EmptyTrainingResponse {
+    const scope = practiceScope(gameDays);
     const counts = this.db.prepare(`
       SELECT COUNT(*) AS active,
              SUM(CASE WHEN rs.mastery_level >= 4 THEN 1 ELSE 0 END) AS mastered
       FROM training_items ti JOIN review_states rs ON rs.item_id = ti.id
-      WHERE ti.mode = ? AND ti.active = 1 AND ti.profile_id = ?
-    `).get(mode, activeProfileId(this.db)) as { active: number; mastered: number | null };
+      WHERE ti.mode = ? AND ti.active = 1 AND ti.profile_id = ? ${scope.sql}
+    `).get(mode, activeProfileId(this.db), ...scope.params) as { active: number; mastered: number | null };
     const options = [];
     if (counts.active > 0) options.push({ pool: "early", label: "Review early", count: counts.active });
     if ((counts.mastered ?? 0) > 0) options.push({ pool: "mastered", label: "Practise mastered positions", count: counts.mastered ?? 0 });
@@ -555,11 +578,12 @@ export class V1TrainingService {
     };
   }
 
-  private recommendedMix(size: number, profileId: string): DashboardResponse["recommendedSession"] {
+  private recommendedMix(size: number, profileId: string, gameDays: number | null = null): DashboardResponse["recommendedSession"] {
+    const scope = practiceScope(gameDays);
     const available = this.db.prepare(`
-      SELECT mode, COUNT(*) AS count FROM training_items
-      WHERE active = 1 AND profile_id = ? GROUP BY mode
-    `).all(profileId) as Array<{ mode: string; count: number }>;
+      SELECT ti.mode, COUNT(*) AS count FROM training_items ti JOIN review_states rs ON rs.item_id = ti.id
+      WHERE ti.active = 1 AND ti.profile_id = ? AND rs.due_at <= ? ${scope.sql} GROUP BY ti.mode
+    `).all(profileId, now(), ...scope.params) as Array<{ mode: string; count: number }>;
     const counts = new Map(available.map((row) => [row.mode, row.count]));
     const baseTotal = Object.values(BASE_SESSION).reduce((sum, value) => sum + value, 0);
     const mix = Object.entries(BASE_SESSION)
@@ -576,6 +600,11 @@ export class V1TrainingService {
       target.count += 1;
       remaining -= 1;
     }
-    return mix;
+    while (remaining < 0) {
+      const target = [...mix].reverse().find(item => item.count > 0);
+      if (!target) break;
+      target.count -= 1; remaining += 1;
+    }
+    return mix.filter(item => item.count > 0);
   }
 }

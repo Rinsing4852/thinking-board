@@ -3,6 +3,8 @@ import readline from "node:readline";
 
 import { Chess } from "chess.js";
 
+export interface EngineHistory { initialFen:string; moves:string[]; drawClaimed?:boolean }
+
 export interface EngineScore {
   centipawnsWhite: number | null;
   mateInWhite: number | null;
@@ -118,14 +120,24 @@ export class UciEngine {
     searchMoves: string[] = [],
     nodes?: number,
     maxNodes?: number,
+    history?: EngineHistory,
   ): Promise<EngineAnalysis> {
     await this.initialize();
     if (this.analyzing) throw new Error("Stockfish analysis is already running");
-    const board = new Chess(fen);
-    if (board.isGameOver()) return this.terminalAnalysis(board, depth);
+    const board = new Chess(history?.initialFen??fen);
+    if(history) {
+      for(const move of history.moves)board.move(parseUciMove(move));
+      if(board.fen()!==new Chess(fen).fen())throw new Error("Game history does not match the requested position");
+    }
+    const terminal=history?board.isCheckmate()||board.isStalemate()||board.isInsufficientMaterial()
+      ||Boolean(history.drawClaimed&&board.isDraw()):board.isGameOver();
+    if (terminal) return this.terminalAnalysis(board, depth);
 
     this.analyzing = true;
-    const iterations = new Map<number, Map<number, ParsedInfo>>();
+    const legalRoots=new Set(board.moves({verbose:true}).map(move=>`${move.from}${move.to}${move.promotion??""}`));
+    const expected=Math.min(searchMoves.length?1:multiPv,searchMoves.length||legalRoots.size);
+    let pending:ParsedInfo[]=[];
+    let completed:ParsedInfo[]=[];
     try {
       const requestedMultiPv = searchMoves.length > 0 ? 1 : multiPv;
       this.send(`setoption name MultiPV value ${requestedMultiPv}`);
@@ -134,6 +146,7 @@ export class UciEngine {
 
       const restrictedMoves = searchMoves.map((move) => {
         parseUciMove(move);
+        if(!legalRoots.has(move))throw new Error(`Illegal search move: ${move}`);
         return move;
       });
       const completion = new Promise<void>((resolve, reject) => {
@@ -151,9 +164,15 @@ export class UciEngine {
         const listener = (line: string): void => {
           const info = parseInfoLine(line);
           if (info) {
-            const iteration=iterations.get(info.depth)??new Map<number,ParsedInfo>();
-            iteration.set(info.rank,info);
-            iterations.set(info.depth,iteration);
+            // Stockfish may publish several updates at one depth. Keep the
+            // last COMPLETE snapshot immutable while the next set is arriving.
+            if(info.rank===1)pending=[];
+            if(info.rank===pending.length+1&&(!pending.length||pending[0]!.depth===info.depth)) {
+              pending.push(info);
+              if(pending.length===expected&&new Set(pending.map(row=>row.pv[0])).size===expected
+                &&pending.every(row=>legalRoots.has(row.pv[0]!)&&(!searchMoves.length||searchMoves.includes(row.pv[0]!)))
+                &&(!completed.length||info.depth>=completed[0]!.depth))completed=[...pending];
+            } else pending=[];
           }
           if (line.startsWith("bestmove ")) {
             clearTimeout(timer);
@@ -165,17 +184,13 @@ export class UciEngine {
         this.listeners.add(listener);
         this.failureListeners.add(onFailure);
       });
-      this.send(`position fen ${fen}`);
+      this.send(`position fen ${history?.initialFen??fen}${history?.moves.length?` moves ${history.moves.join(" ")}`:""}`);
       this.send(`go ${nodes ? `nodes ${nodes}` : `depth ${depth}${maxNodes ? ` nodes ${maxNodes}` : ""}`}${restrictedMoves.length ? ` searchmoves ${restrictedMoves.join(" ")}` : ""}`);
       await completion;
 
-      const expected=Math.min(requestedMultiPv,restrictedMoves.length||board.moves().length);
-      const completed=[...iterations.entries()].filter(([,ranks])=>
-        Array.from({length:expected},(_,i)=>i+1).every(rank=>ranks.has(rank)))
-        .sort(([a],[b])=>b-a)[0];
-      if(!completed)throw new Error("Stockfish returned no complete search iteration");
+      if(!completed.length)throw new Error("Stockfish returned no complete search iteration");
       const whiteToMove = board.turn() === "w";
-      const lines = [...completed[1].values()]
+      const lines = completed
         .sort((left, right) => left.rank - right.rank)
         .map((info): EngineLine => {
           const pvSan = pvToSan(fen, info.pv);

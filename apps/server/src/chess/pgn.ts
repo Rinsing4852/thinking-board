@@ -24,6 +24,7 @@ export interface ParsedGame {
   playedAt: string | null;
   fingerprint: string;
   rawHash: string;
+  identityKey: string;
   moves: ParsedMove[];
 }
 
@@ -34,6 +35,25 @@ export interface ParseResult {
 
 function sha256(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+/** Content equality is not game identity. Source IDs survive export formatting. */
+export function gameIdentity(headers: Record<string,string>, contentFingerprint:string): string {
+  for(const value of [headers.Site,headers.Link]) {
+    if(!value)continue;
+    const lichess=/^https?:\/\/(?:www\.)?lichess\.org\/([A-Za-z0-9]{8})(?:[A-Za-z0-9]{4})?(?:[/?#].*)?$/.exec(value);
+    if(lichess)return `lichess:${lichess[1]}`;
+    const chesscom=/^https?:\/\/(?:www\.)?chess\.com\/(?:analysis\/)?(?:game\/(live|daily)|(live|daily)\/game)\/(\d+)(?:[/?#].*)?$/.exec(value);
+    if(chesscom)return `chesscom:${chesscom[1]??chesscom[2]}:${chesscom[3]}`;
+  }
+  // Missing metadata remains unknown. Identical undated, unidentified exports
+  // cannot reliably be distinguished; comments and annotation changes are ignored.
+  return `metadata:${sha256(JSON.stringify([contentFingerprint,
+    normalizePlayerName(headers.White??"Unknown"),normalizePlayerName(headers.Black??"Unknown"),
+    playedAt(headers),headers.TimeControl?.trim()??null,headers.Round?.trim()??null]))}`;
+}
+export function scopedGameFingerprint(profileId:string,identityKey:string):string {
+  return sha256(JSON.stringify(["game-identity-v2",profileId,identityKey]));
 }
 
 export function normalizePlayerName(value: string): string {
@@ -129,6 +149,7 @@ export function parsePgnText(text: string): ParseResult {
         result: headers.Result ?? "*",
         playedAt: playedAt(headers),
         fingerprint: sha256(canonical),
+        identityKey: gameIdentity(headers,sha256(canonical)),
         rawHash: sha256(chunk),
         moves,
       });

@@ -1,0 +1,388 @@
+{
+  "at": "2026-10-25T23:44:47.529Z",
+  "base": "http://127.0.0.1:8194",
+  "scope": "Isolated app with synthetic games; latest committed local code; real Stockfish. No live user data.",
+  "pages": [
+    {
+      "name": "empty-today",
+      "url": "http://127.0.0.1:8194/#today",
+      "headings": [
+        "What would you like to practise?",
+        "Blunder Check",
+        "No Blunder Check exercises have been generated yet."
+      ],
+      "visibleButtons": [
+        "Today",
+        "Openings",
+        "My games",
+        "Progress",
+        "Practise openings",
+        "Review a game"
+      ],
+      "body": "Skip to main content\n\u265e\nThinking Board\nToday\nOpenings\nMy games\nProgress\nWhat would you like to practise?\n\nChoose your openings, review a game, or work on a thinking exercise below.\n\nPractise openings\nReview a game\nChoose a thinking exercise\nHIGHEST PRIORITY DRILL\nBlunder Check\n\nPause before the move. Look for the opponent\u2019s immediate checks, captures, and threats.\n\nNo Blunder Check exercises have been generated yet.\n\nImport a game containing a concrete mistake that the opponent could punish immediately.\n\nPaste a game to find training positions\nThinking Board v1.5.20\nSource & licences",
+      "size": {
+        "height": 954,
+        "width": 1280,
+        "viewport": 1280
+      }
+    },
+    {
+      "name": "empty-openings",
+      "url": "http://127.0.0.1:8194/#openings",
+      "headings": [
+        "Your openings",
+        "Saved repertoires",
+        "Your opening library is empty",
+        "Which games should guide your repertoire?",
+        "Opening Practice",
+        "Recommended next steps",
+        "Your opening library is empty"
+      ],
+      "visibleButtons": [
+        "Today",
+        "Openings",
+        "My games",
+        "Progress",
+        "Practise my repertoire",
+        "Review my played game",
+        "Build on the board",
+        "Import repertoire lines"
+      ],
+      "body": "Skip to main content\n\u265e\nThinking Board\nToday\nOpenings\nMy games\nProgress\nYour openings\n\nPractise saved moves, build your repertoire, or follow a stronger player\u2019s game.\n\nPractise my repertoire\nReview my played game\nStudy a stronger player\u2019s game\nBuild on the board\nImport repertoire lines\nSaved repertoires\nYour opening library is empty\n\nChoose Build on the board to save your first moves, or import lines you already have.\n\nSettings and library management\nPractice plan\nThinking Board v1.5.20\nSource & licences",
+      "size": {
+        "height": 1049,
+        "width": 1280,
+        "viewport": 1280
+      }
+    },
+    {
+      "name": "empty-games",
+      "url": "http://127.0.0.1:8194/#games",
+      "headings": [
+        "My games",
+        "Paste a game (PGN)"
+      ],
+      "visibleButtons": [
+        "Today",
+        "Openings",
+        "My games",
+        "Progress"
+      ],
+      "body": "Skip to main content\n\u265e\nThinking Board\nToday\nOpenings\nMy games\nProgress\nYOUR GAMES\nMy games\n\nChoose a saved game to replay it and practise the moves you missed.\n\nAdd a game\n\nNo games imported yet. Choose Add a game to see your opening comparison and thinking mistakes.\n\nThinking Board v1.5.20\nSource & licences",
+      "size": {
+        "height": 906,
+        "width": 1280,
+        "viewport": 1280
+      }
+    },
+    {
+      "name": "empty-progress",
+      "url": "http://127.0.0.1:8194/#progress",
+      "headings": [
+        "Your progress",
+        "Are your game decisions improving?",
+        "Preparation gaps",
+        "Local learner\u2019s training profile",
+        "A weakness-weighted session"
+      ],
+      "visibleButtons": [
+        "Today",
+        "Openings",
+        "My games",
+        "Progress",
+        "Refresh saved results",
+        "Choose games to analyse",
+        "Open saved repertoires",
+        "Import a game to begin"
+      ],
+      "body": "Skip to main content\n\u265e\nThinking Board\nToday\nOpenings\nMy games\nProgress\nPATTERNS OVER TIME\nYour progress\n\nUse your real-game occurrences and practice results to choose the next thinking habit to strengthen.\n\nAre your game decisions improving?\n\nThese results come from games you chose to analyse. Practice answers are tracked separately.\n\n0 of 0 saved games have a move-quality report.\n\nNo comparable completed games yet. Analyse dated games from the normal starting position to begin tracking progress.\n\nOnly completed analyses appear here.\n\nRefresh saved results\nChoose games to analyse\nPreparation gaps\n\nOpen a saved repertoire to inspect missing replies and choose what to prepare. The dashboard figures below cover thinking drills from your games.\n\nOpen saved repertoires\nWhat am I remembering over time?\nWHAT TO TRAIN NEXT\nLocal learner\u2019s training profile\nPlayer\nLocal learner\nImport a game to begin\n0\nGAMES\n0\nEXERCISES\n0\nDUE NOW\n0\nATTEMPTS\n\nYour progress starts with a game. Import its PGN, choose your name, then request analysis for the games you want to practise.\n\nTRAINING PRIORITIES\n\nComplete a few drills and your recurring misses will appear here.\n\nTODAY\u2019S PRACTICE MIX\nA weakness-weighted session\n\nRecent failures, slow answers, due reviews, and repeated game mistakes get priority.\n\nThinking Board v1.5.20\nSource & licences",
+      "size": {
+        "height": 1467,
+        "width": 1280,
+        "viewport": 1280
+      }
+    },
+    {
+      "name": "saved-game-today",
+      "url": "http://127.0.0.1:8194/#today",
+      "headings": [
+        "What would you like to practise?",
+        "Blunder Check",
+        "No Blunder Check exercises have been generated yet."
+      ],
+      "visibleButtons": [
+        "Today",
+        "Openings",
+        "My games",
+        "Progress",
+        "Practise openings",
+        "Review a game"
+      ],
+      "body": "Skip to main content\n\u265e\nThinking Board\nToday\nOpenings\nMy games\nProgress\nWhat would you like to practise?\n\nChoose your openings, review a game, or work on a thinking exercise below.\n\nPractise openings\nReview a game\nChoose a thinking exercise\nHIGHEST PRIORITY DRILL\nBlunder Check\n\nPause before the move. Look for the opponent\u2019s immediate checks, captures, and threats.\n\nNo Blunder Check exercises have been generated yet.\n\nImport a game containing a concrete mistake that the opponent could punish immediately.\n\nPaste a game to find training positions\nThinking Board v1.5.20\nSource & licences",
+      "size": {
+        "height": 954,
+        "width": 1280,
+        "viewport": 1280
+      }
+    },
+    {
+      "name": "before-analysis-game",
+      "url": "http://127.0.0.1:8194/#games?game=a293918d-5035-4e3e-9019-d14476aaa86a",
+      "headings": [
+        "My games",
+        "Paste a game (PGN)",
+        "Inspect a complete game",
+        "How well did you play?",
+        "Review this game on the board",
+        "Review Ruy Lopez",
+        "Opening inbox",
+        "Recall e4 instead of f3"
+      ],
+      "visibleButtons": [
+        "Today",
+        "Openings",
+        "My games",
+        "Progress",
+        "Select games to analyse",
+        "Review learner \u2013 Review opponent A0-1 \u00b7 you played white \u00b7 10/20/2026",
+        "Analyse this game",
+        "Previous move",
+        "Next move",
+        "Next decision",
+        "Show answer",
+        "Continue without trying",
+        "1.f3 \u00b7 Repertoire difference",
+        "Show all 1",
+        "Inspect latest game",
+        "Practise e4",
+        "Mark reviewed"
+      ],
+      "body": "Skip to main content\n\u265e\nThinking Board\nToday\nOpenings\nMy games\nProgress\nYOUR GAMES\nMy games\n\nChoose a saved game to replay it and practise the moves you missed.\n\nAdd a game\nGAME DETAIL\nInspect a complete game\n\nOpening feedback and Stockfish mistakes remain separate: leaving preparation is not automatically a bad chess move.\n\nSelect games to analyse\nReview learner \u2013 Review opponent A\n0-1 \u00b7 You Played White \u00b7 10/20/2026\nHow well did you play?\n\nNo move-quality report yet. Your game and opening comparison are saved. Request engine analysis when you are ready.\n\nAnalyse this game\nREPLAY AND RECALL\nReview this game on the board\n\nPause at marked decisions, try the move yourself, then continue with the game as played.\n\nFeedback saved 10/25/2026\n\nThis saved review contains opening feedback. Engine analysis was not available when it was saved. Request analysis, then refresh saved feedback when it finishes.\n\n8\n7\n6\n5\n4\n3\n2\na\nb\nc\nd\ne\nf\ng\n1\nh\nSelect a piece, then its destination, or drag it. Arrow keys move focus; Enter or Space selects a square.\n\nGame as played \u00b7 Position 0 of 4\n\nPrevious move\nNext move\nNext decision\nGame position\nStarting position\n1.f3\n1...e5\n2.g4\n2...Qh4#\nREPERTOIRE DIFFERENCE\nRecall one of your saved repertoire responses.\n\nA different repertoire move is not automatically a chess mistake.\n\nPlay your answer on the board. The saved answers stay hidden until you recall one or ask to see them.\n\nShow answer\nContinue without trying\nMarked decisions \u00b7 1\n1.f3 \u00b7 Repertoire difference\n\nReplay and retries stay with this game. They do not change scheduled recall, practice totals or preparation coverage. Practise later makes an existing exercise available without adding a recall result.\n\nCurrent review notes and practice options\nFROM YOUR GAMES\nOpening inbox\n\nRecurring misses come first. Practise what you forgot, inspect surprises, and clear each pattern when you understand it.\n\nREVIEW\n1\nto review\n0\nrepeated patterns\nShow all 1\nREPERTOIRE MISS\nRecall e4 instead of f3\nSeen once \u00b7 1 new\n\nReview Ruy Lopez \u00b7 latest in Review learner \u2013 Review opponent A\n\nNo reason written yet. Add a learning note when you review this line.\n\nInspect latest game\nPractise e4\nMark reviewed\nThinking Board v1.5.20\nSource & licences",
+      "size": {
+        "height": 2552,
+        "width": 1280,
+        "viewport": 1280
+      }
+    },
+    {
+      "name": "populated-today",
+      "url": "http://127.0.0.1:8194/#today",
+      "headings": [
+        "What would you like to practise?",
+        "Your thinking practice",
+        "Blunder Check",
+        "You played 2. g4"
+      ],
+      "visibleButtons": [
+        "Today",
+        "Openings",
+        "My games",
+        "Progress",
+        "Practise openings",
+        "Review a game",
+        "Start a 15-exercise session",
+        "Flip board",
+        "Play my move on the board"
+      ],
+      "body": "Skip to main content\n\u265e\nThinking Board\nToday\nOpenings\nMy games\nProgress\nWhat would you like to practise?\n\nChoose your openings, review a game, or work on a thinking exercise below.\n\nPractise openings\nReview a game\nREADY TO PRACTISE\nYour thinking practice\nPlayer\nReview learner\nStart a 15-exercise session\n\n4 exercises due \u00b7 4 available. Detailed results are in Progress.\n\nChoose a thinking exercise\nHIGHEST PRIORITY DRILL\nBlunder Check\n\nPause before the move. Look for the opponent\u2019s immediate checks, captures, and threats.\n\nPosition before your move\nYou Are White. Your Side Is Nearest.\n2. g4\nYour move has not been shown yet\nFlip board\n8\n7\n6\n5\n4\n3\n2\na\nb\nc\nd\ne\nf\ng\n1\nh\n03\nYOUR MOVE\nYou played 2. g4\n\nYou were playing white. First study the position before your move, then show the move you actually made.\n\nPlay my move on the board\nThinking Board v1.5.20\nSource & licences",
+      "size": {
+        "height": 1643,
+        "width": 1280,
+        "viewport": 1280
+      }
+    },
+    {
+      "name": "populated-openings",
+      "url": "http://127.0.0.1:8194/#openings",
+      "headings": [
+        "Your openings",
+        "Saved repertoires",
+        "Which games should guide your repertoire?",
+        "Opening Practice",
+        "Recommended next steps",
+        "Review Ruy Lopez"
+      ],
+      "visibleButtons": [
+        "Today",
+        "Openings",
+        "My games",
+        "Progress",
+        "Practise my repertoire",
+        "Review my played game",
+        "Build on the board",
+        "Import repertoire lines"
+      ],
+      "body": "Skip to main content\n\u265e\nThinking Board\nToday\nOpenings\nMy games\nProgress\nYour openings\n\nPractise saved moves, build your repertoire, or follow a stronger player\u2019s game.\n\nPractise my repertoire\nReview my played game\nStudy a stronger player\u2019s game\nBuild on the board\nImport repertoire lines\nSaved repertoires\nReview Ruy Lopez\nPlay As White\n0/5 practised\n5 new\nReview Modern\nPlay As Black\n0/6 practised\n6 new\nSettings and library management\nPractice plan\nThinking Board v1.5.20\nSource & licences",
+      "size": {
+        "height": 1094,
+        "width": 1280,
+        "viewport": 1280
+      }
+    },
+    {
+      "name": "populated-games",
+      "url": "http://127.0.0.1:8194/#games",
+      "headings": [
+        "My games",
+        "Paste a game (PGN)",
+        "Inspect a complete game",
+        "How well did you play?",
+        "Review this game on the board",
+        "Review Ruy Lopez",
+        "Important middlegame and tactical mistakes",
+        "g4?",
+        "f3?",
+        "Opening inbox",
+        "Recall e4 instead of f3"
+      ],
+      "visibleButtons": [
+        "Today",
+        "Openings",
+        "My games",
+        "Progress",
+        "Select games to analyse",
+        "Review learner \u2013 Review opponent A0-1 \u00b7 you played white \u00b7 10/20/2026Saved review \u00b7 1 marked decisions",
+        "Review on the board",
+        "Refresh saved feedback",
+        "Previous move",
+        "Next move",
+        "Next decision",
+        "Show answer",
+        "Continue without trying",
+        "1.f3 \u00b7 Repertoire difference",
+        "Show all 1",
+        "Inspect latest game",
+        "Practise e4",
+        "Mark reviewed"
+      ],
+      "body": "Skip to main content\n\u265e\nThinking Board\nToday\nOpenings\nMy games\nProgress\nYOUR GAMES\nMy games\n\nChoose a saved game to replay it and practise the moves you missed.\n\nAdd a game\nGAME DETAIL\nInspect a complete game\n\nOpening feedback and Stockfish mistakes remain separate: leaving preparation is not automatically a bad chess move.\n\nSelect games to analyse\nReview learner \u2013 Review opponent A\n0-1 \u00b7 You Played White \u00b7 10/20/2026\nSaved Review \u00b7 1 Marked Decisions\nHow well did you play?\n\nYour moves as white \u00b7 2 moves analysed\n\n23.8%\nEngine accuracy\n1\nBlunders\nMove 1\nFirst mistake or blunder\n\nYour first blunder was on move 2.\n\nReview on the board\nPosition balance \u00b7 higher favours White, lower favours Black. This is an engine estimate.\n\nYour first move outside preparation: 1.f3 \u2014 Mistake. Compared with your current repertoire. Leaving preparation is not automatically a chess mistake.\n\nMove grades and positions\nOpponent\u2019s move quality\nHow this report is calculated\nREPLAY AND RECALL\nReview this game on the board\n\nPause at marked decisions, try the move yourself, then continue with the game as played.\n\nFeedback saved 10/25/2026\n\nYour analysis or repertoire has changed. This replay keeps the feedback you saved.\n\nRefresh saved feedback\n\nThis saved review contains opening feedback. Engine analysis was not available when it was saved. Request analysis, then refresh saved feedback when it finishes.\n\n8\n7\n6\n5\n4\n3\n2\na\nb\nc\nd\ne\nf\ng\n1\nh\nSelect a piece, then its destination, or drag it. Arrow keys move focus; Enter or Space selects a square.\n\nGame as played \u00b7 Position 0 of 4\n\nPrevious move\nNext move\nNext decision\nGame position\nStarting position\n1.f3\n1...e5\n2.g4\n2...Qh4#\nREPERTOIRE DIFFERENCE\nRecall one of your saved repertoire responses.\n\nA different repertoire move is not automatically a chess mistake.\n\nPlay your answer on the board. The saved answers stay hidden until you recall one or ask to see them.\n\nShow answer\nContinue without trying\nMarked decisions \u00b7 1\n1.f3 \u00b7 Repertoire difference\n\nReplay and retries stay with this game. They do not change scheduled recall, practice totals or preparation coverage. Practise later makes an existing exercise available without adding a recall result.\n\nCurrent review notes and practice options\nFROM YOUR GAMES\nOpening inbox\n\nRecurring misses come first. Practise what you forgot, inspect surprises, and clear each pattern when you understand it.\n\nREVIEW\n1\nto review\n0\nrepeated patterns\nShow all 1\nREPERTOIRE MISS\nRecall e4 instead of f3\nSeen once \u00b7 1 new\n\nReview Ruy Lopez \u00b7 latest in Review learner \u2013 Review opponent A\n\nNo reason written yet. Add a learning note when you review this line.\n\nInspect latest game\nPractise e4\nMark reviewed\nThinking Board v1.5.20\nSource & licences",
+      "size": {
+        "height": 3222,
+        "width": 1280,
+        "viewport": 1280
+      }
+    },
+    {
+      "name": "populated-progress",
+      "url": "http://127.0.0.1:8194/#progress",
+      "headings": [
+        "Your progress",
+        "Are your game decisions improving?",
+        "Preparation gaps",
+        "Review learner\u2019s training profile",
+        "A weakness-weighted session"
+      ],
+      "visibleButtons": [
+        "Today",
+        "Openings",
+        "My games",
+        "Progress",
+        "Refresh saved results",
+        "Choose games to analyse",
+        "Open saved repertoires",
+        "Start a 15-exercise session",
+        "Blunder checks1",
+        "Candidate generation2",
+        "Punish the blunder1"
+      ],
+      "body": "Skip to main content\n\u265e\nThinking Board\nToday\nOpenings\nMy games\nProgress\nPATTERNS OVER TIME\nYour progress\n\nUse your real-game occurrences and practice results to choose the next thinking habit to strengthen.\n\nAre your game decisions improving?\n\nThese results come from games you chose to analyse. Practice answers are tracked separately.\n\n1 of 1 saved games have a move-quality report.\n\nTime control\nrapid\n\nYour latest 1 eligible games by date played. Analyse more completed, dated games for an earlier comparison. Same time control, engine settings and grading method.\n\nSmall sample: treat these figures as a starting point, not a trend.\n\nMeasure\tRecent\tEarlier\nAverage game accuracy\t23.8%\tNot enough data\nBest or good moves\t0.0%\tNot enough data\nBlunders per game\t1.0\tNot enough data\nMistakes per game\t1.0\tNot enough data\nMistakes + blunders per 100 moves\t100.0\tNot enough data\nGames without a blunder\t0/1\tNot enough data\nHow far do you get before a blunder?\n\nOnly completed analyses appear here.\n\nRefresh saved results\nChoose games to analyse\nPreparation gaps\n\nOpen a saved repertoire to inspect missing replies and choose what to prepare. The dashboard figures below cover thinking drills from your games.\n\nOpen saved repertoires\nWhat am I remembering over time?\nWHAT TO TRAIN NEXT\nReview learner\u2019s training profile\nPlayer\nReview learner\nStart a 15-exercise session\n1\nGAMES\n4\nEXERCISES\n4\nDUE NOW\n0\nATTEMPTS\nTRAINING PRIORITIES\nCandidate generation\n2 Real-Game Occurrences\nNot trained\nFrom Your Games\nCheck\n1 Real-Game Occurrence\nNot trained\nFrom Your Games\nAllowed mate\n1 Real-Game Occurrence\nNot trained\nFrom Your Games\nBlunder check\n1 Real-Game Occurrence\nNot trained\nFrom Your Games\nMissed forcing move\n1 Real-Game Occurrence\nNot trained\nFrom Your Games\nPattern-recognition failure\n1 Real-Game Occurrence\nNot trained\nFrom Your Games\nTODAY\u2019S PRACTICE MIX\nA weakness-weighted session\nBlunder checks\n1\nCandidate generation\n2\nPunish the blunder\n1\n\nRecent failures, slow answers, due reviews, and repeated game mistakes get priority.\n\nThinking Board v1.5.20\nSource & licences",
+      "size": {
+        "height": 2178,
+        "width": 1280,
+        "viewport": 1280
+      }
+    },
+    {
+      "name": "opening-workspace",
+      "url": "http://127.0.0.1:8194/#openings?repertoire=undefined&line=repertoire.imported.8673d5f263da8005.white:review-ruy-1:line-1&ply=4",
+      "headings": [
+        "Your openings",
+        "Saved repertoires",
+        "Which games should guide your repertoire?",
+        "Opening Practice",
+        "Recommended next steps",
+        "Review Ruy Lopez"
+      ],
+      "visibleButtons": [
+        "Today",
+        "Openings",
+        "My games",
+        "Progress",
+        "Practise my repertoire",
+        "Review my played game",
+        "Build on the board",
+        "Import repertoire lines"
+      ],
+      "body": "Skip to main content\n\u265e\nThinking Board\nToday\nOpenings\nMy games\nProgress\nYour openings\n\nPractise saved moves, build your repertoire, or follow a stronger player\u2019s game.\n\nPractise my repertoire\nReview my played game\nStudy a stronger player\u2019s game\nBuild on the board\nImport repertoire lines\nSaved repertoires\nReview Ruy Lopez\nPlay As White\n0/5 practised\n5 new\nReview Modern\nPlay As Black\n0/6 practised\n6 new\nSettings and library management\nPractice plan\n\nThat saved repertoire is no longer available. Choose one from your library.\n\nThinking Board v1.5.20\nSource & licences",
+      "size": {
+        "height": 1128,
+        "width": 1280,
+        "viewport": 1280
+      }
+    }
+  ],
+  "checks": [
+    {
+      "name": "Today after saving an unanalysed game",
+      "analysisActions": 0,
+      "pasteLinks": 1
+    },
+    {
+      "name": "Different real-world game with identical moves",
+      "imported": 0,
+      "duplicates": 1,
+      "differentOpponent": true,
+      "differentDate": true,
+      "differentTimeControl": true
+    },
+    {
+      "name": "Analysis finishes after a replay was already saved",
+      "reportGrade": "blunder",
+      "replayBefore": {
+        "analysisPending": true,
+        "checkpoints": 1
+      },
+      "replayAfter": {
+        "analysisPending": true,
+        "updatesAvailable": true,
+        "checkpoints": 1
+      }
+    },
+    {
+      "name": "Mixed-root Modern",
+      "chapters": [
+        {
+          "lines": 1
+        },
+        {
+          "lines": 1
+        }
+      ]
+    },
+    {
+      "name": "Mobile WebKit today",
+      "overflow": false,
+      "pageHeight": 1958
+    },
+    {
+      "name": "Mobile WebKit openings",
+      "overflow": false,
+      "pageHeight": 1184
+    },
+    {
+      "name": "Mobile WebKit games",
+      "overflow": false,
+      "pageHeight": 898
+    },
+    {
+      "name": "Mobile WebKit progress",
+      "overflow": false,
+      "pageHeight": 3119
+    }
+  ],
+  "errors": [],
+  "captureNotes": [
+    "Initial opening-workspace capture used an invalid harness identifier; followup.json and the replacement screenshot contain the corrected saved-board route.",
+    "Initial mobile captures based on networkidle could show a loading state. Settled captures and overflow measurements in followup.json supersede those initial mobile measurements."
+  ]
+}

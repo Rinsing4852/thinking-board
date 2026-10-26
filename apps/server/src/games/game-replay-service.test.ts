@@ -96,16 +96,16 @@ describe("saved game replay and local recall",()=>{
     expect(state.checkpoints.find(p=>p.id===point.id)?.recalled).toBe(false);
     state=act(f.replay,state,"retry");expect(state.feedback).toBeNull();expect(state.phase).toBe("question");
   });
-  it("preserves custom starting positions and adds completed analysis only on an explicit refresh",()=>{
+  it("preserves custom starting positions and updates an unused pre-analysis replay when analysis finishes",()=>{
     const board=new Chess();board.move("e4");const fields=board.fen().split(" ");fields[5]="12";
     const f=setup("black",`[SetUp "1"]\n[FEN "${fields.join(" ")}"]\n\n12... e5 13. Nf3 Nc6 *`,"1. e4 e5 2. Nf3 Nc6 *");
     let state=f.replay.get(f.gameId);
     expect(state.initialFen).toBe(fields.join(" "));expect(state.moves[0]).toMatchObject({moveNumber:12,moverColor:"black",san:"e5"});
     expect(state.analysisPending).toBe(true);
     analysis(f,1,[["e7e5","e5",-100,null],["c7c5","c5",-80,null]]);
-    const old=state.snapshotId;state=f.replay.get(f.gameId);expect(state.snapshotId).toBe(old);expect(state.updatesAvailable).toBe(true);
-    expect(state.checkpoints.some(point=>point.kind==="engine")).toBe(false);
-    state=act(f.replay,state,"refresh");expect(state.analysisPending).toBe(false);expect(state.checkpoints.some(point=>point.kind==="engine")).toBe(true);
+    const old=state.snapshotId;state=f.replay.get(f.gameId);expect(state.snapshotId).not.toBe(old);expect(state.updatesAvailable).toBe(false);
+    expect(state.analysisPending).toBe(false);expect(state.checkpoints.some(point=>point.kind==="engine")).toBe(true);
+    expect(f.db.prepare("SELECT id FROM game_review_snapshots WHERE id=?").get(old)).toBeTruthy();
   });
   it("isolates games and profiles, rejects invalid positions and leaves illegal answers unsaved",()=>{
     const f=setup();const state=f.replay.get(f.gameId);
@@ -123,4 +123,16 @@ describe("saved game replay and local recall",()=>{
     f.db.prepare("UPDATE opening_repertoires SET name='Changed'").run();
     expect(()=>act(f.replay,state,"schedule")).toThrow(/Refresh saved feedback/);
   });
+  it("opens latest analysis in one action while retaining a used replay and its attempts",()=>{
+    const f=setup();let state=f.replay.get(f.gameId);state=act(f.replay,state,"reveal");
+    const old=state.snapshotId;analysis(f,3,[["g1f3","Nf3",40,null],["b1c3","Nc3",20,null]]);
+    expect(f.replay.get(f.gameId).snapshotId).toBe(old);
+    state=act(f.replay,state,"latest",{ply:2});
+    expect(state.snapshotId).not.toBe(old);expect(state.currentPly).toBe(2);
+    expect(state.analysisPending).toBe(false);expect(state.activeCheckpointId).toMatch(/^engine:/);
+    expect(f.db.prepare("SELECT COUNT(*) FROM game_review_local_attempts WHERE snapshot_id=?").pluck().get(old)).toBe(1);
+    expect(()=>act(f.replay,state,"latest",{ply:999})).toThrow("inside this game");
+    expect(f.replay.get(f.gameId).snapshotId).toBe(state.snapshotId);
+  });
+
 });

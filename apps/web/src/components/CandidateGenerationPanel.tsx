@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type {
   CandidateGenerationAnswerResponse,
@@ -20,12 +20,13 @@ interface EnteredCandidate extends CandidateSubmission {
 
 interface CandidateGenerationPanelProps {
   refreshToken: number;
+  gameDays?: number | null;
   requestedItemId?: string | undefined;
   sessionId?: string | undefined;
   onCompleted: () => void;
 }
 
-export function CandidateGenerationPanel({ refreshToken, requestedItemId, sessionId, onCompleted }: CandidateGenerationPanelProps) {
+export function CandidateGenerationPanel({ refreshToken, requestedItemId, sessionId, onCompleted, gameDays = null }: CandidateGenerationPanelProps) {
   const [exercise, setExercise] = useState<CandidateGenerationExercise | null>(null);
   const [empty, setEmpty] = useState<EmptyTrainingResponse | null>(null);
   const [phase, setPhase] = useState<"ready" | "generate" | "feedback">("ready");
@@ -36,13 +37,17 @@ export function CandidateGenerationPanel({ refreshToken, requestedItemId, sessio
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  const loadVersion = useRef(0);
   const loadNext = async (pool = "due"): Promise<void> => {
+    const version = ++loadVersion.current;
+    setExercise(null); setEmpty(null);
     setError("");
     setFeedback(null);
     setCandidates([]);
     setSelectedType("check");
     try {
-      const result = await post<NextCandidateGenerationResponse>("/api/v1/training/candidates/next", { pool: requestedItemId ? "early" : pool, itemId: requestedItemId });
+      const result = await post<NextCandidateGenerationResponse>("/api/v1/training/candidates/next", { pool: requestedItemId ? "early" : pool, itemId: requestedItemId, gameDays });
+      if (version !== loadVersion.current) return;
       if (result.kind === "empty") {
         setExercise(null);
         setEmpty(result);
@@ -53,11 +58,12 @@ export function CandidateGenerationPanel({ refreshToken, requestedItemId, sessio
       setOrientation(result.playerColor);
       setPhase("ready");
     } catch (loadError) {
+      if (version !== loadVersion.current) return;
       setError(loadError instanceof Error ? loadError.message : "Could not load exercise");
     }
   };
 
-  useEffect(() => { void loadNext(); }, [refreshToken, requestedItemId]);
+  useEffect(() => { void loadNext(); return () => { loadVersion.current++; }; }, [refreshToken, requestedItemId, gameDays]);
 
   const start = async (): Promise<void> => {
     if (!exercise) return;
@@ -117,7 +123,7 @@ export function CandidateGenerationPanel({ refreshToken, requestedItemId, sessio
         <p>Find up to three legal ideas in order: checks, captures, threats, then improve your weakest piece.</p>
       </div>
 
-      {empty && <TrainingEmptyState
+      {empty && <TrainingEmptyState gameDays={gameDays}
         empty={empty}
         onChoosePool={(pool) => void loadNext(pool)}
         noItemsHelp="Import and analyse another game to create candidate-generation positions."

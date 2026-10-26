@@ -44,7 +44,7 @@ export class GameQualityService {
   }
   private run(gameId:string):Run|undefined {
     return this.db.prepare(`SELECT ar.*, (SELECT rule_version FROM game_move_quality WHERE run_id=ar.id LIMIT 1) AS rule_version FROM analysis_runs ar WHERE ar.game_id=? AND ar.status='completed'
-      AND (SELECT COUNT(*) FROM game_move_quality q WHERE q.run_id=ar.id AND q.rule_version IN ('chances-v1','chances-v2'))=(SELECT COUNT(*) FROM moves m WHERE m.game_id=ar.game_id)
+      AND (SELECT COUNT(*) FROM game_move_quality q WHERE q.run_id=ar.id AND q.rule_version IN ('chances-v1','chances-v2','chances-v3'))=(SELECT COUNT(*) FROM moves m WHERE m.game_id=ar.game_id)
       AND (SELECT COUNT(DISTINCT rule_version) FROM game_move_quality q WHERE q.run_id=ar.id)=1
       AND EXISTS(SELECT 1 FROM game_move_quality q WHERE q.run_id=ar.id)
       ORDER BY ar.completed_at DESC,ar.rowid DESC LIMIT 1`).get(gameId) as Run|undefined;

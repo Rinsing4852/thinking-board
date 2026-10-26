@@ -1,0 +1,79 @@
+{
+  "at": "2026-10-25T23:50:52.107Z",
+  "checks": [
+    {
+      "name": "Builder guidance and editing entry",
+      "suggestions": 1,
+      "boardCount": 1,
+      "noOverflow": true
+    },
+    {
+      "name": "Contextual study entry from Ruy Lopez saved position",
+      "body": "UNDERSTAND THE CONTINUATION\nStudy a game from here\n\nFind a stronger player’s game that follows your moves or reaches the same position, then replay the continuation or guess their moves on your side.\n\nBack to saved position\nYour saved position\n8\n7\n6\n5\n4\n3\n2\na\nb\nc\nd\ne\nf\ng\n1\nh\nFind a stronger player’s game\n\nSearch the selected databases for this saved position. Online examples require a higher-rated player on your white side. Master examples come from the over-the-board database; its ratings are not compared with your Lichess rating.\n\nGame source\nStronger Lichess players\nOver-the-board masters\nBoth sources\nYour Lichess rating\n\nUse your Lichess rapid or classical rating. Ratings from other sites are not directly comparable.\n\nFind games\nSaved examples\n\n1 matching game in your 1-game study library. Up to three are shown.\n\nStudy white – Study black\n\n1/2-1/2 · Date unknown · ?\n\nRatings: White 2000 · Black 2000\n\nSource: Synthetic review example; no master-strength claim\n\nReaches this exact position after 2...Nc6 along your saved move order.\n\n13 further moves · 0 supplied notes in the next 20 moves.\nStudy this game\nWhy these games?\nImport study games\nManage study library · 1 games"
+    },
+    {
+      "name": "Open learning metrics after switching player",
+      "before": "What am I remembering over time?\n\nDaily activity counts completed practice. This view checks later recall without hints or immediate corrections.\n\n7–13 days since the previous recorded encounter: Not enough delayed practice yet\n14+ days since the previous recorded encounter: Not enough delayed practice yet\n\nPlayed-game comparison: 1 matched games; 1 left your preparation. 100 departures per 100 matched games.\n\nObserved results, not proof of learning improvement. Delayed recall uses unrehearsed scheduled encounters. A game departure is leaving a saved line, not necessarily a chess mistake. No data is unknown, not zero.\n\nStudy-game guesses are tracked separately. Matching a historical move does not prove it is the strongest move, and assisted completion does not prove long-term retention.",
+      "after": "What am I remembering over time?\n\nDaily activity counts completed practice. This view checks later recall without hints or immediate corrections.\n\n7–13 days since the previous recorded encounter: Not enough delayed practice yet\n14+ days since the previous recorded encounter: Not enough delayed practice yet\n\nPlayed-game comparison: 1 matched games; 1 left your preparation. 100 departures per 100 matched games.\n\nObserved results, not proof of learning improvement. Delayed recall uses unrehearsed scheduled encounters. A game departure is leaving a saved line, not necessarily a chess mistake. No data is unknown, not zero.\n\nStudy-game guesses are tracked separately. Matching a historical move does not prove it is the strongest move, and assisted completion does not prove long-term retention.",
+      "activePlayerEndpoint": {
+        "gamesMatched": 0,
+        "playerDepartures": 0,
+        "departuresPer100Games": null
+      },
+      "stale": true
+    },
+    {
+      "name": "Settled mobile WebKit today",
+      "overflow": false,
+      "pageHeight": 1958
+    },
+    {
+      "name": "Settled mobile WebKit openings",
+      "overflow": false,
+      "pageHeight": 1184
+    },
+    {
+      "name": "Settled mobile WebKit games",
+      "overflow": false,
+      "pageHeight": 3838,
+      "body": "Skip to main content\n♞\nThinking Board\nToday\nOpenings\nMy games\nProgress\nYOUR GAMES\nMy games\n\nChoose a saved game to replay it and practise the moves you missed.\n\nAdd a game\nGAME DETAIL\nInspect a complete game\n\nOpening feedback and Stockfish mistakes remain separate: leaving preparation is not automatically a bad chess move.\n\nSelect games to analyse\nFind a game\nReview learner – Matched opening sample\n1-0 · You Played White · 24/10/2026\nReview learner – Repetition sample\n1/2-1/2 · You Played White · 22/10/2026\nSaved Review · 0 Marked Decisions\nReview learner – Review opponent A\n0-1 · You Played White · 20/10/2026\nSaved Review · 1 Marked Decisions\nHow well did you play?\n\nNo move-quality report yet. Your game and opening comparison are saved. Request engine analysis when you are ready.\n\nAnalyse this game\nREPLAY AND RECALL\nReview this game on the board\n\nPause at marked decisions, try the move yourself, then continue with the game as played.\n\nFeedback saved 25/10/2026\n\nThis saved review contains opening feedback. Engine analysis was not available when it was saved. Request analysis, then refresh saved feedback when it finishes.\n\n8\n7\n6\n5\n4\n3\n2\na\nb\nc\nd\ne\nf\ng\n1h\n\nGame as played · Position 0 of 7\n\nPrevious move\nNext move\nNext decision\nGame position\nFollow the game\n\nUse Next move to play through the game. It pauses before a marked decision so you can recall a response.\n\nMarked decisions · 1\n3.Bc4 · Repertoire difference\n\nReplay and retries stay with this game. They do not change scheduled recall, practice totals or preparation coverage. Practise later makes an existing exercise available without adding a recall result.\n\nCurrent review notes and practice options\nFROM YOUR GAMES\nOpening inbox\n\nRecurring misses come first. Practise what you forgot, inspect surprises, and clear each pattern when you understand it.\n\nREVIEW\n2\nto review\n0\nrepeated patterns\nShow all 2\nREPERTOIRE MISS\nRecall Bb5 instead of Bc4\nSeen once · 1 new\n\nReview Ruy Lopez · latest in Review learner – Matched open"
+    },
+    {
+      "name": "Settled mobile WebKit progress",
+      "overflow": false,
+      "pageHeight": 3207
+    }
+  ],
+  "screens": [
+    {
+      "name": "opening-workspace",
+      "url": "http://127.0.0.1:8194/#openings?repertoire=repertoire.imported.8673d5f263da8005.white&ply=4&line=repertoire.imported.8673d5f263da8005.white%3Areview-ruy-1%3Aline-1",
+      "visibleActions": [
+        "Find repertoire gaps",
+        "Study a game from here",
+        "Edit lines",
+        "Back to repertoires",
+        "Practise this line",
+        "Main line1.e4 1...e5 2.Nf35 moves to learnNew · 0/5",
+        "Start",
+        "Previous",
+        "Next",
+        "End",
+        "1.e4",
+        "1...e5",
+        "2.Nf3",
+        "2...Nc6",
+        "3.Bb5",
+        "3...a6",
+        "4.Ba4",
+        "4...Nf6",
+        "5.O-O",
+        "5...Be7",
+        "3.Bb5Selected line · 1 line",
+        "Add comment",
+        "Edit explanation"
+      ]
+    }
+  ],
+  "errors": []
+}

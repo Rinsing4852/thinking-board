@@ -1,0 +1,49 @@
+{
+  "at": "2026-10-25T23:46:21.373Z",
+  "sync": {
+    "name": "More new games than sync limit",
+    "initial": 1,
+    "newGamesAvailable": 3,
+    "limitedBatchImported": 2,
+    "nextSyncImported": 0,
+    "savedGames": 3,
+    "expectedGames": 4,
+    "requests": [
+      "https://lichess.org/api/games/user/ReviewLearner?max=2&moves=true&tags=true&opening=true&finished=true&sort=dateDesc",
+      "https://lichess.org/api/games/user/ReviewLearner?max=2&moves=true&tags=true&opening=true&finished=true&sort=dateDesc&since=1792497599000",
+      "https://lichess.org/api/games/user/ReviewLearner?max=100&moves=true&tags=true&opening=true&finished=true&sort=dateDesc&since=1792497779000"
+    ]
+  },
+  "repetition": {
+    "name": "Repetition history",
+    "threefoldWithHistory": true,
+    "drawWithHistory": true,
+    "sameFenWithoutHistoryIsDraw": false,
+    "finalWhiteBalance": 100,
+    "whiteAccuracy": 100,
+    "whiteCounts": {
+      "best": 0,
+      "good": 4,
+      "inaccuracy": 0,
+      "mistake": 0,
+      "blunder": 0
+    },
+    "finalMove": {
+      "ply": 8,
+      "moveNumber": 4,
+      "color": "black",
+      "san": "Kg8",
+      "grade": "good",
+      "accuracy": 100,
+      "chanceLoss": 0,
+      "chancesBefore": 0,
+      "chancesAfter": 0,
+      "bestSan": "Kg6",
+      "verification": {
+        "reason": "mate",
+        "initialGrade": "good",
+        "depth": 18
+      }
+    }
+  }
+}

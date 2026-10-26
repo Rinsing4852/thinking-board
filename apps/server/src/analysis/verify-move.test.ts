@@ -16,7 +16,7 @@ describe("adaptive move verification",()=>{
   const analyze=vi.fn().mockResolvedValueOnce({depth:18,lines:[line("d2d4",0)]})
    .mockResolvedValueOnce({depth:18,lines:[line("e2e4",50)]});
   const checked=await verifyMove({analyze},fen,"e2e4",14,3);
-  expect(analyze.mock.calls).toEqual([[fen,18,3,[],undefined,VERIFICATION_NODES],[fen,18,1,["e2e4"],undefined,VERIFICATION_NODES]]);
+  expect(analyze.mock.calls).toEqual([[fen,18,3,[],undefined,VERIFICATION_NODES,undefined],[fen,18,1,["e2e4"],undefined,VERIFICATION_NODES,undefined]]);
   expect(checked.best.moveUci).toBe("e2e4");expect(checked.analysis.lines.map(l=>l.moveUci)).toEqual(["e2e4","d2d4"]);
  });
  it("reuses the played candidate and rejects a recheck that did not reach the baseline depth",async()=>{

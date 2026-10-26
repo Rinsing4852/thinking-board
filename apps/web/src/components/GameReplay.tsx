@@ -30,7 +30,7 @@ export function GameReplay({gameId,onRefreshed,requestedPosition}:{gameId:string
   useEffect(()=>{
     if(!requestedPosition||!data||busy||needsReload||consumedPosition.current===requestedPosition.requestId)return;
     consumedPosition.current=requestedPosition.requestId;
-    act("jump",{ply:requestedPosition.ply},true);
+    act("latest",{ply:requestedPosition.ply},true);
   },[requestedPosition,data,busy,needsReload]);
   const point=data?.checkpoints.find(point=>point.id===data.activeCheckpointId);
   const blocked=busy||needsReload;

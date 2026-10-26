@@ -25,7 +25,7 @@ export function GameMoveReport({gameId,refreshToken,onInspect}:{gameId:string;re
         <div><strong>{own.firstMistake===null?"None":`Move ${own.firstMistake}`}</strong><span>First mistake or blunder</span></div>
       </div>
       {own.firstBlunder===null?<p>No blunders in your {own.moves} moves.</p>:<p>Your first blunder was on move {own.firstBlunder}.</p>}
-      <button onClick={()=>onInspect(firstReviewMove?firstReviewMove.ply-1:0)}>Review on the board</button>
+      <button onClick={()=>onInspect(firstReviewMove?firstReviewMove.ply-1:0)}>Review latest analysis</button>
       <svg className="quality-chart" viewBox="0 0 600 100" role="img" aria-label="Position balance through the game, White’s perspective">
         <line x1="0" y1="50" x2="600" y2="50" stroke="currentColor" opacity=".3"/>
         <polyline fill="none" stroke="currentColor" strokeWidth="2" points={report.moves.map((m,i)=>`${report.moves.length>1?i*600/(report.moves.length-1):0},${100-(m.color==="white"?m.chancesAfter:100-m.chancesAfter)}`).join(" ")}/>
@@ -42,7 +42,7 @@ export function GameMoveReport({gameId,refreshToken,onInspect}:{gameId:string;re
       <details><summary>Opponent’s move quality</summary><p>{Object.entries(report[report.playerColor==="white"?"black":"white"].counts).map(([grade,count])=>`${gradeName[grade as keyof typeof gradeName]}: ${count}`).join(" · ")}</p></details>
       <details><summary>How this report is calculated</summary>
         <p>Best is the engine’s leading move with less than 0.5 percentage points lost. Inaccuracy: at least 5 points lost; mistake: at least 10; blunder: at least 20. Other moves are Good. Mate outcomes are handled separately from pawn scores.</p>
-        <p>{report.ruleVersion==="chances-v1"?"This older report uses a simple average of your move accuracies. Analyse again to use the improved method.":"Accuracy combines a weighted average with a calculation that gives low-accuracy moves more influence. Potential errors and conflicting evaluations receive an extra engine check."} Forced moves are included. Scores can differ from other sites and are not a rating.</p>
+        <p>{report.ruleVersion==="chances-v1"?"This older report uses a simple average of your move accuracies. Analyse again to use the improved method.":"Accuracy combines a weighted average with a calculation that gives low-accuracy moves more influence. Potential errors and conflicting evaluations receive an extra engine check."} {report.ruleVersion==="chances-v3"&&" Game history is included when checking repetition and drawing opportunities."} Forced moves are included. Scores can differ from other sites and are not a rating.</p>
         <p>{report.engine} · depth {report.depth} · method {report.ruleVersion} · analysed {new Date(report.analyzedAt).toLocaleString()}. A limited search can miss a stronger defence. Older saved reports remain available if a new analysis fails.</p>
         <GameAnalysisRequest gameId={gameId} hasReport/>
       </details>
