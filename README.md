@@ -641,3 +641,23 @@ Use **Practice games** on Today to choose all game dates or the last 1, 2, 7,
 30 or 90 days. The filter uses when the game was played; undated games appear
 under **All game dates**. A resumed session retains its original filter until
 finished. Opening repertoire practice is unchanged.
+
+### Tactical exercise correction: v1.5.22
+
+Blunder checks and **Punish a tactical mistake** now require a significant move
+error plus saved engine evidence of retained material gain or forced mate. An
+attack on a piece, a normal developing move or a fair recapture is insufficient.
+Feedback includes the engine continuation behind the tactic.
+
+At startup, saved tactical exercises are checked against the latest available
+analysis. Unsupported cards leave future practice; their attempts and review
+history remain. This does not launch new engine analysis. Older move-quality
+reports can be refreshed through an explicit analysis request in My games.
+
+Blunder Check also asks for a winning capture or forced mate missed **before**
+your move. Opponent punishments remain separate exercises on the position
+**after** your move. What Changed accepts matching capture, attack and opened-line
+observations; Candidates accepts one excellent move without a breadth penalty.
+Quiet Plan accepts saved improvements from different pieces and labels unlisted
+legal alternatives as unverified. See the [whole-thinking review](docs/chessbook-audit/THINKING_EXERCISE_REVIEW_2026_10_27.md)
+for the supplied queen-capture example, remaining gaps and verification.

@@ -1,0 +1,65 @@
+{
+  "measuredAt": "2026-10-27T07:58:57.126Z",
+  "engine": "Stockfish 18",
+  "scope": "Curated tactical regression cases, not an engine-strength benchmark",
+  "results": [
+    {
+      "name": "Ruy Lopez Bb5 is not punished by a6",
+      "passed": true,
+      "grade": "best",
+      "chanceLoss": 0,
+      "exercises": 0,
+      "responses": []
+    },
+    {
+      "name": "A routine Modern a6 is not a tactical blunder",
+      "passed": true,
+      "grade": "good",
+      "chanceLoss": 2.350213208596621,
+      "exercises": 0,
+      "responses": []
+    },
+    {
+      "name": "Ruy Lopez equal exchange is not winning material",
+      "passed": true,
+      "grade": "good",
+      "chanceLoss": 2.2945742716370177,
+      "exercises": 0,
+      "responses": []
+    },
+    {
+      "name": "Black can still deliver the actual mate after g4",
+      "passed": true,
+      "grade": "blunder",
+      "chanceLoss": 43.410803346015385,
+      "exercises": 2,
+      "responses": [
+        "Qh4#"
+      ]
+    },
+    {
+      "name": "White can still deliver the actual mate after g5",
+      "passed": true,
+      "grade": "blunder",
+      "chanceLoss": 37.39071449024025,
+      "exercises": 2,
+      "responses": [
+        "Qh5#"
+      ]
+    },
+    {
+      "name": "A queen genuinely left en prise retains its capture tactic",
+      "passed": true,
+      "grade": "blunder",
+      "chanceLoss": 37.64898404484565,
+      "exercises": 2,
+      "responses": [
+        "Nxe5"
+      ]
+    },
+    {
+      "name": "Saved-analysis revalidation is idempotent and creates no engine job",
+      "passed": true
+    }
+  ]
+}

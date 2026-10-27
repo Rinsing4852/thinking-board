@@ -88,8 +88,8 @@ export function PunishBlunderPanel({ refreshToken, requestedItemId, sessionId, o
     <section className="training-section" id="punish-blunder">
       <div className="training-copy">
         <span className="eyebrow">See it from the other side</span>
-        <h2>Punish the Blunder</h2>
-        <p>Use the opponent’s pieces to exploit the same mistake immediately. Reverse-side practice turns prevention into a tactical pattern.</p>
+        <h2>Punish a tactical mistake</h2>
+        <p>Use the other side’s pieces to find a material-winning tactic or forced mate. A normal developing move or attack on a piece is not enough.</p>
       </div>
       {empty && (
         <TrainingEmptyState gameDays={gameDays}
@@ -104,13 +104,13 @@ export function PunishBlunderPanel({ refreshToken, requestedItemId, sessionId, o
           <div className="board-column">
             <div className="candidate-banner">
               <div>
-                <span>Position after the blunder</span>
+                <span>Position after the mistake</span>
                 <small>You are now playing {exercise.opponentColor}</small>
               </div>
               <strong>{formatMoveLabel(exercise.moveNumber, blunderingColor, exercise.badMoveSan)}?</strong>
             </div>
             <div className="board-toolbar">
-              <span>{feedback ? "Best punishment shown" : `${exercise.opponentColor} to move`}</span>
+              <span>{feedback ? "Engine-supported tactic shown" : `${exercise.opponentColor} to move`}</span>
               <button className="text-button" onClick={() => setOrientation(orientation === "white" ? "black" : "white")}>Flip board</button>
             </div>
             <ChessBoard

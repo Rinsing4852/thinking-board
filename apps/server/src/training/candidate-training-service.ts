@@ -13,7 +13,7 @@ import type {
 import type { AppConfig } from "../config.js";
 import type { SqliteDatabase } from "../db/database.js";
 import { now } from "../lib/ids.js";
-import { UciEngine, type EngineLine, type EngineScore } from "../analysis/uci-engine.js";
+import { UciEngine, type EngineLine, type EngineScore, type EngineHistory } from "../analysis/uci-engine.js";
 import { activeProfileId } from "./profile.js";
 import { recordReview } from "./review-scheduler.js";
 import { practiceScope } from "./practice-scope.js";
@@ -34,6 +34,9 @@ interface AttemptRow {
   player_color: "white" | "black";
   explanation: string;
   reference_lines_json: string;
+  game_id: string;
+  ply: number;
+  initial_fen: string;
 }
 
 interface ReferenceLine {
@@ -193,11 +196,13 @@ export class CandidateTrainingService {
       throw new Error("Choose a candidate type for every move");
     }
     const attempt = this.attempt(attemptId);
+    const history: EngineHistory = {initialFen:attempt.initial_fen,moves:(this.db.prepare('SELECT uci FROM moves WHERE game_id=? AND ply<? ORDER BY ply').all(attempt.game_id,attempt.ply) as Array<{uci:string}>).map(move=>move.uci)};
     const depth = Math.max(10, this.config.stockfishDepth - 2);
-    const initial = await this.engine.analyze(attempt.fen, depth, 3);
-    const bestLine = initial.lines[0];
+    const initial = await this.engine.analyze(attempt.fen, depth, 3, [], undefined, undefined, history);
+    let bestLine = initial.lines[0];
     if (!bestLine) throw new Error("Stockfish returned no reference line");
     const results: CandidateGradeResult[] = [];
+    const evaluated: Array<{moveUci:string;moveSan:string;declaredType:CandidateType;detectedTypes:CandidateType[];typeCorrect:boolean|null;line:EngineLine}> = [];
 
     for (const submission of submissions) {
       const board = new Chess(attempt.fen);
@@ -209,29 +214,29 @@ export class CandidateTrainingService {
       const typeCorrect = submission.declaredType === "threat" || submission.declaredType === "improve"
         ? null
         : detectedTypes.includes(submission.declaredType);
-      const searched = await this.engine.analyze(attempt.fen, depth, 1, [submission.moveUci]);
+      const searched = await this.engine.analyze(attempt.fen, depth, 1, [submission.moveUci], undefined, undefined, history);
       const candidateLine = searched.lines[0];
       if (!candidateLine) throw new Error(`Stockfish could not assess ${applied.san}`);
-      const loss = lossFromBest(lineScore(bestLine), lineScore(candidateLine), attempt.player_color);
-      results.push({
-        moveUci: submission.moveUci,
-        moveSan: applied.san,
-        declaredType: submission.declaredType,
-        detectedTypes,
-        typeCorrect,
-        centipawnLoss: loss,
-        grade: grade(loss, this.config.acceptableToleranceCp),
-      });
+      evaluated.push({moveUci:submission.moveUci,moveSan:applied.san,declaredType:submission.declaredType,detectedTypes,typeCorrect,line:candidateLine});
+      const direction = attempt.player_color === 'white' ? 1 : -1;
+      if(direction*utilityWhite(lineScore(candidateLine))>direction*utilityWhite(lineScore(bestLine)))bestLine=candidateLine;
+    }
+    for(const entry of evaluated) {
+      const loss=lossFromBest(lineScore(bestLine),lineScore(entry.line),attempt.player_color);
+      const {line,...candidate}=entry;
+      results.push({...candidate,centipawnLoss:loss,grade:grade(loss,this.config.acceptableToleranceCp)});
     }
 
     const quality = results.reduce((sum, result) => sum + GRADE_POINTS[result.grade], 0) / results.length;
-    const breadth = results.length === 1 ? 0.7 : results.length === 2 ? 0.9 : 1;
     const typeOrder: Record<CandidateType, number> = { check: 1, capture: 2, threat: 3, improve: 4 };
     const ordered = submissions.every((candidate, index) => index === 0
       || typeOrder[submissions[index - 1]!.declaredType] <= typeOrder[candidate.declaredType]);
-    const score = Math.max(0, quality * breadth - (ordered ? 0 : 0.15));
+    const score = Math.max(0, quality - (ordered ? 0 : 0.1));
     const outcome = score >= 0.8 ? "excellent" : score >= 0.4 ? "partial" : "incorrect";
-    const engineCandidates = initial.lines.slice(0, 3).map((line) => {
+    const direction=attempt.player_color==='white'?1:-1;
+    const referenceLines=[...new Map([...initial.lines,...evaluated.map(entry=>entry.line)].map(line=>[line.moveUci,line])).values()]
+      .sort((a,b)=>direction*(utilityWhite(lineScore(b))-utilityWhite(lineScore(a))));
+    const engineCandidates = referenceLines.slice(0, 3).map((line) => {
       const loss = lossFromBest(lineScore(bestLine), lineScore(line), attempt.player_color);
       return {
         moveUci: line.moveUci,
@@ -248,7 +253,7 @@ export class CandidateTrainingService {
       score,
       candidates: results,
       engineCandidates,
-      explanation: attempt.explanation,
+      explanation: attempt.explanation + ` Strongest verified candidate in this check: ${bestLine.moveSan}.`,
       checklistPoint: "Generate candidates in order: checks, captures, threats, then improve the weakest piece.",
     };
     this.db.transaction(() => {
@@ -268,14 +273,15 @@ export class CandidateTrainingService {
   private attempt(attemptId: string): AttemptRow {
     const attempt = this.db.prepare(`
       SELECT ta.id, ta.item_id, ta.started_at, ta.answered_at,
-             position.fen, game.player_color, cgi.explanation, cgi.reference_lines_json
+             position.fen, game.player_color, cgi.explanation, cgi.reference_lines_json, game.id AS game_id, game.initial_fen, source.ply
       FROM training_attempts ta
       JOIN training_items ti ON ti.id = ta.item_id AND ti.mode = 'candidate_generation'
       JOIN candidate_generation_items cgi ON cgi.item_id = ti.id
       JOIN positions position ON position.id = cgi.position_id
       JOIN games game ON game.id = ti.game_id
-      WHERE ta.id = ?
-    `).get(attemptId) as AttemptRow | undefined;
+      JOIN moves source ON source.id=cgi.played_move_id
+      WHERE ta.id = ? AND ta.abandoned_at IS NULL AND ti.active=1 AND ti.profile_id=?
+    `).get(attemptId, activeProfileId(this.db)) as AttemptRow | undefined;
     if (!attempt) throw new Error("Attempt not found");
     if (attempt.answered_at) throw new Error("Attempt has already been answered");
     return attempt;

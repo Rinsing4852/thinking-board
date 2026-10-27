@@ -34,6 +34,8 @@ jobs:
         run: |
           docker run --rm --network none thinking-board:ci node scripts/smoke-opening-stockfish.mjs > stockfish-smoke.json
           docker run --rm --network none thinking-board:ci node scripts/smoke-app-reliability.mjs > app-reliability-smoke.json
+          docker run --rm --network none thinking-board:ci node scripts/smoke-tactical-training.mjs > tactical-training-smoke.json
+          docker run --rm --network none thinking-board:ci node scripts/smoke-thinking-exercises.mjs > thinking-exercises-smoke.json
           docker volume create thinking-board-ci-data
           docker run -d --name thinking-board-ci -p 127.0.0.1:18000:8000 -v thinking-board-ci-data:/app/data thinking-board:ci
           node scripts/container-smoke.mjs http://127.0.0.1:18000
@@ -49,6 +51,8 @@ jobs:
           path: |
             stockfish-smoke.json
             app-reliability-smoke.json
+            tactical-training-smoke.json
+            thinking-exercises-smoke.json
           retention-days: 7
       - name: Container diagnostics and cleanup
         if: always()

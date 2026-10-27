@@ -1,0 +1,661 @@
+{
+  "engine": "Stockfish 18",
+  "results": [
+    {
+      "move": "28.g5",
+      "best": [
+        {
+          "move": "dxe5",
+          "cp": -360,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "dxe5",
+            "Nxe5",
+            "Nf5",
+            "gxf5",
+            "Bc2",
+            "Qd6",
+            "gxf5",
+            "Rac8",
+            "Bb1",
+            "Kh8",
+            "Kh1",
+            "d4",
+            "Bg5",
+            "Nf3",
+            "f6",
+            "Nxg5",
+            "fxg7+",
+            "Kxg7",
+            "Rg1",
+            "Qd5+",
+            "f3"
+          ]
+        },
+        {
+          "move": "Bxh6",
+          "cp": -379,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "Bxh6",
+            "Bxh6",
+            "f4",
+            "exf4",
+            "Rxf4",
+            "Qe6",
+            "Kg2",
+            "Kg7",
+            "Rf5",
+            "Nxd4",
+            "Bxd5",
+            "Qe3",
+            "Qh4",
+            "Nxf5",
+            "gxf5",
+            "Qd2+",
+            "Kh3"
+          ]
+        },
+        {
+          "move": "Nf5",
+          "cp": -381,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "Nf5",
+            "gxf5",
+            "gxf5",
+            "Nxd4",
+            "Bxd4",
+            "exd4",
+            "Bc2",
+            "Kh8",
+            "Bd3",
+            "Rg8",
+            "Kh1",
+            "Qd6",
+            "Rg1",
+            "Rae8",
+            "Rg4"
+          ]
+        }
+      ],
+      "played": {
+        "cp": -696,
+        "mate": null,
+        "depth": 18
+      }
+    },
+    {
+      "move": "28...exd4",
+      "best": [
+        {
+          "move": "Qxh3",
+          "cp": -698,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "Qxh3",
+            "dxe5",
+            "Nxe5",
+            "f3",
+            "Rad8",
+            "gxh6",
+            "Bf6",
+            "Bb6",
+            "Kh8",
+            "Kh1",
+            "Qxh6",
+            "Bxd8",
+            "Bxd8",
+            "Bxd5"
+          ]
+        },
+        {
+          "move": "Rad8",
+          "cp": -392,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "Rad8",
+            "Qh4",
+            "exd4",
+            "gxh6",
+            "Bh8",
+            "Bg5",
+            "f6",
+            "Bf4",
+            "d3",
+            "Be3",
+            "f5",
+            "Rc1"
+          ]
+        },
+        {
+          "move": "Rfd8",
+          "cp": -358,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "Rfd8",
+            "Qh4",
+            "Nxd4",
+            "Bxd4",
+            "exd4",
+            "gxh6",
+            "Bh8",
+            "Bc2",
+            "d3",
+            "Bxd3",
+            "Bxb2",
+            "f4",
+            "Kh8",
+            "f5",
+            "Rg8",
+            "fxg6",
+            "fxg6"
+          ]
+        }
+      ],
+      "played": {
+        "cp": 425,
+        "mate": null,
+        "depth": 18
+      }
+    },
+    {
+      "move": "29.Bf4",
+      "best": [
+        {
+          "move": "Qxd7",
+          "cp": 419,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "Qxd7",
+            "Ne5",
+            "Qxd5",
+            "Rad8",
+            "Qe4",
+            "dxe3",
+            "gxh6",
+            "f5",
+            "hxg7",
+            "fxe4",
+            "gxf8=R",
+            "Rxf8",
+            "fxe3",
+            "Nf3+",
+            "Kh1",
+            "Kg7",
+            "Nxe4",
+            "g5",
+            "h4",
+            "g4",
+            "h5"
+          ]
+        },
+        {
+          "move": "Qg2",
+          "cp": -484,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "Qg2",
+            "dxe3",
+            "gxh6",
+            "exf2+",
+            "Kh1",
+            "Bd4",
+            "Bxd5",
+            "Qg4",
+            "Bxc6",
+            "Rad8",
+            "Bf3",
+            "Qh4",
+            "Ne4",
+            "Kxh6",
+            "Be2"
+          ]
+        },
+        {
+          "move": "Qh4",
+          "cp": -517,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "Qh4",
+            "dxe3",
+            "fxe3",
+            "Qe7",
+            "Bxd5",
+            "Qxe3+",
+            "Rf2",
+            "Qxg5",
+            "Qxg5",
+            "hxg5",
+            "Ne4",
+            "Kh6",
+            "Nxg5",
+            "Bd4"
+          ]
+        }
+      ],
+      "played": {
+        "cp": -702,
+        "mate": null,
+        "depth": 18
+      }
+    },
+    {
+      "move": "29...d3",
+      "best": [
+        {
+          "move": "Qxh3",
+          "cp": -715,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "Qxh3",
+            "Bxd5",
+            "Qd7",
+            "Bg2",
+            "Rae8",
+            "Bd2",
+            "Kh8",
+            "Ne4",
+            "h5",
+            "Nf6",
+            "Bxf6",
+            "gxf6",
+            "Rg8",
+            "Bh6"
+          ]
+        },
+        {
+          "move": "Rad8",
+          "cp": -407,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "Rad8",
+            "Qh4",
+            "d3",
+            "gxh6",
+            "Bh8",
+            "Be3",
+            "Ne5",
+            "f4",
+            "Nc4",
+            "Bc5",
+            "Rg8",
+            "f5",
+            "d2",
+            "fxg6+",
+            "fxg6"
+          ]
+        },
+        {
+          "move": "Qe6",
+          "cp": -388,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "Qe6",
+            "Qg2",
+            "Rad8",
+            "gxh6",
+            "Bf6",
+            "Rd1",
+            "Qg4",
+            "Bc7",
+            "Rd7",
+            "h3",
+            "Qg5",
+            "f4",
+            "Qh4",
+            "Bxd5",
+            "Rxc7"
+          ]
+        }
+      ],
+      "played": {
+        "cp": 534,
+        "mate": null,
+        "depth": 18
+      }
+    },
+    {
+      "move": "30.gxh6",
+      "best": [
+        {
+          "move": "Qxd7",
+          "cp": 552,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "Qxd7",
+            "hxg5",
+            "Bxg5",
+            "Ne5",
+            "Qh3+",
+            "Kg8",
+            "Kh1",
+            "Rfe8",
+            "Bxd5",
+            "Rad8",
+            "Bxd8",
+            "Rxd8",
+            "Ne4",
+            "d2",
+            "Nxd2",
+            "Rxd5"
+          ]
+        },
+        {
+          "move": "Qh4",
+          "cp": -432,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "Qh4",
+            "Nd4",
+            "Bd1",
+            "Rae8",
+            "Bg4",
+            "Qe7",
+            "Be3",
+            "Qe5",
+            "Rd1",
+            "Ne6",
+            "Nh5",
+            "gxh5",
+            "Bxh5"
+          ]
+        },
+        {
+          "move": "Qg2",
+          "cp": -434,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "Qg2",
+            "Nd4",
+            "gxh6",
+            "Bh8",
+            "Bd1",
+            "Rae8",
+            "Kh1",
+            "Qe6",
+            "Bd2",
+            "f5",
+            "Rg1",
+            "f4"
+          ]
+        }
+      ],
+      "played": {
+        "cp": -657,
+        "mate": null,
+        "depth": 18
+      }
+    },
+    {
+      "move": "30...Bxb2",
+      "best": [
+        {
+          "move": "Qxh3",
+          "cp": -684,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "Qxh3",
+            "hxg7",
+            "Rfd8",
+            "f3",
+            "Kxg7",
+            "Re1",
+            "Qh4",
+            "Bc1",
+            "Kg8",
+            "Kh1",
+            "d2",
+            "Bxd2"
+          ]
+        },
+        {
+          "move": "Qe6",
+          "cp": -126,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "Qe6",
+            "Qg2",
+            "Bxh6",
+            "Bxd5",
+            "Qg4",
+            "Bxc6",
+            "Rac8",
+            "Bxh6",
+            "Kxh6",
+            "Bf3",
+            "Qd4",
+            "Rd1",
+            "Rfd8",
+            "Nf1",
+            "Qxb2",
+            "Ne3"
+          ]
+        },
+        {
+          "move": "Rfd8",
+          "cp": -35,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "Rfd8",
+            "Qxd7",
+            "Rxd7",
+            "hxg7",
+            "Nd4",
+            "Bd1",
+            "Re8",
+            "Be3",
+            "Ne6",
+            "Re1",
+            "Kxg7",
+            "h4",
+            "Rc7",
+            "h5",
+            "d4",
+            "Bd2",
+            "Rc2",
+            "Bxc2",
+            "dxc2",
+            "hxg6",
+            "Kxg6"
+          ]
+        }
+      ],
+      "played": {
+        "cp": 550,
+        "mate": null,
+        "depth": 18
+      }
+    },
+    {
+      "move": "31.Re1",
+      "best": [
+        {
+          "move": "Qxd7",
+          "cp": 559,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "Qxd7",
+            "Be5",
+            "Bg5",
+            "Nd4",
+            "Qxd5",
+            "Ra7",
+            "Kh1",
+            "Nxb3",
+            "Qxe5",
+            "f6",
+            "Bxf6",
+            "Rxf6",
+            "Qxf6",
+            "Nd2",
+            "Rd1",
+            "b3",
+            "Rxd2",
+            "b2",
+            "Rxb2"
+          ]
+        },
+        {
+          "move": "Kg2",
+          "cp": -489,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "Kg2",
+            "Qxh3+",
+            "Kxh3",
+            "Rad8",
+            "Bg5",
+            "f6",
+            "Be3",
+            "f5",
+            "Bc5",
+            "Rfe8",
+            "Bb6",
+            "f4",
+            "Rb1",
+            "fxg3",
+            "Bxd8",
+            "Rxd8",
+            "Rxb2",
+            "gxf2"
+          ]
+        },
+        {
+          "move": "Qg2",
+          "cp": -491,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "Qg2",
+            "Nd4",
+            "Bd1",
+            "Rae8",
+            "Be3",
+            "Bc3",
+            "Kh1",
+            "d2",
+            "Nh5",
+            "Qf5",
+            "Nf4",
+            "Qe4",
+            "Nxd5",
+            "Qxg2+",
+            "Kxg2",
+            "Nf5"
+          ]
+        }
+      ],
+      "played": {
+        "cp": -825,
+        "mate": null,
+        "depth": 18
+      }
+    },
+    {
+      "move": "31...Qxh3",
+      "best": [
+        {
+          "move": "Qxh3",
+          "cp": -827,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "Qxh3",
+            "Bxd5",
+            "Rae8",
+            "Rf1",
+            "Nd4",
+            "Bg2",
+            "Qg4",
+            "Bd6",
+            "Rg8",
+            "h3",
+            "Qe6",
+            "Rd1",
+            "Qxd6",
+            "Ne4",
+            "Rxe4",
+            "Bxe4",
+            "d2",
+            "Rxd2"
+          ]
+        },
+        {
+          "move": "d2",
+          "cp": -654,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "d2",
+            "Qxd7",
+            "dxe1=Q+",
+            "Kg2",
+            "Bd4",
+            "Be3",
+            "Bxe3",
+            "fxe3",
+            "Qd2+",
+            "Kh3",
+            "Qxe3",
+            "Bxd5",
+            "Qxh6+",
+            "Kg2",
+            "Rad8",
+            "Qxc6",
+            "Qd2+",
+            "Kf1",
+            "Qd1+",
+            "Kf2",
+            "Qxd5"
+          ]
+        },
+        {
+          "move": "Rad8",
+          "cp": -470,
+          "mate": null,
+          "depth": 18,
+          "pv": [
+            "Rad8",
+            "Qh4",
+            "Nd4",
+            "Kg2",
+            "f6",
+            "Bd1",
+            "Rde8",
+            "Rxe8",
+            "Qxe8",
+            "Bd6",
+            "Rf7",
+            "Qg4"
+          ]
+        }
+      ],
+      "played": {
+        "cp": -827,
+        "mate": null,
+        "depth": 18
+      }
+    }
+  ]
+}

@@ -3750,6 +3750,102 @@
               ]
             }
           ]
+        },
+        {
+          "id": "CB59.9",
+          "requirement": "Tactical training requires significant evaluation loss and retained material gain or forced mate; a routine bishop attack or equal exchange is insufficient.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "rejects the Ruy Lopez bishop attack and an ordinary equal recapture"
+            },
+            {
+              "kind": "unit",
+              "title": "requires an actual significant evaluation loss rather than trusting a stale blunder label"
+            },
+            {
+              "kind": "unit",
+              "title": "keeps real retained material gains for either colour"
+            },
+            {
+              "kind": "browser",
+              "title": "keeps a normal Ruy Lopez line out of tactical practice and explains a genuine mate",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB59.10",
+          "requirement": "Saved tactical cards are revalidated without automatic engine work; unsupported cards leave future/resumed practice while attempts and genuine mating cards retain their learning state.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "retires a legacy Ruy Lopez false positive without deleting attempts or leaving it in a resumed session"
+            },
+            {
+              "kind": "unit",
+              "title": "reuses genuine mating exercises and preserves their learning state across repeated revalidation"
+            }
+          ]
+        },
+        {
+          "id": "CB59.11",
+          "requirement": "Distinguish the learner\u2019s missed winning capture before their move from the opponent\u2019s punishment after it; preserve history when regenerated.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "asks for Black's missed Qxh3 before exd4 while independently training White's Qxd7 punishment"
+            },
+            {
+              "kind": "unit",
+              "title": "invalidates an open attempt when the exercise changes perspective without deleting past answers"
+            },
+            {
+              "kind": "unit",
+              "title": "recognises a queen lost when its protecting rook moves away"
+            },
+            {
+              "kind": "browser",
+              "title": "plays a missed winning capture from the learner's side before the game move",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB59.12",
+          "requirement": "Accept different true observations about an opponent\u2019s move while matching each observation to the correct square.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "accepts the winning capture, opened diagonal and danger to Black's queen as distinct correct observations"
+            }
+          ]
+        },
+        {
+          "id": "CB59.13",
+          "requirement": "Grade one excellent candidate without a breadth penalty, retain game history, and accept a stronger verified restricted-search alternative.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "generates a position and grades a legal candidate"
+            }
+          ]
+        },
+        {
+          "id": "CB59.14",
+          "requirement": "Accept supported quiet improvements from different pieces; explain that unlisted legal alternatives remain unverified.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "generates a quiet improvement, scores it, and exposes it in the player model"
+            }
+          ]
         }
       ],
       "implementationPaths": [
@@ -3761,9 +3857,11 @@
         "apps/web/src/components/GameLibrary.tsx",
         "migrations/042_game_quality.sql",
         "apps/server/src/analysis/verify-move.ts",
-        "migrations/043_game_quality_verification.sql"
+        "migrations/043_game_quality_verification.sql",
+        "apps/server/src/analysis/tactical-punishment.ts",
+        "apps/server/src/analysis/v1-generator.ts"
       ],
-      "limits": "Finite, history-aware chances-v3 analysis; earlier methods remain readable in separate trend groups. Engine diagnostics are regression evidence, not a measured strength/parity score. Missing game metadata limits deduplication certainty; previously skipped games may require reimport.",
+      "limits": "Finite, history-aware chances-v3 analysis; earlier methods remain readable in separate trend groups. Engine diagnostics are regression evidence, not a measured strength/parity score. Missing game metadata limits deduplication certainty; previously skipped games may require reimport. Thinking drills use finite saved engine continuations; tactical proof trees and human learning effectiveness remain unmeasured. Quiet alternatives outside saved examples are unverified; motif diversity is not yet enforced.",
       "benchmark": {
         "task": "Import two games, analyse one, then select all while retaining its existing report, inspect a graded position and stop a queued batch.",
         "chessbookMeasuredResult": null,

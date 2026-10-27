@@ -61,6 +61,7 @@ describe("Quiet Position training flow", () => {
     insertLine.run(id(), positionAnalysisId, 1, "b1c3", "Nc3", 20, '["b1c3"]', '["Nc3"]');
     insertLine.run(id(), positionAnalysisId, 2, "b1a3", "Na3", 0, '["b1a3"]', '["Na3"]');
 
+    insertLine.run(id(), positionAnalysisId, 3, "a2a3", "a3", 10, '["a2a3"]', '["a3"]');
     expect(new V1Generator(database.connection).generateForGame(game.id, runId)).toBe(1);
     const training = new V1TrainingService(database.connection);
     const next = training.nextQuiet("due");
@@ -74,6 +75,11 @@ describe("Quiet Position training flow", () => {
       totals: { games: 1, attempts: 1 },
       skills: expect.arrayContaining([expect.objectContaining({ conceptId: "process.weakest_piece", successRate: 1 })]),
     });
+    const alternative = training.answerQuiet(new AttemptLifecycle(database.connection).start(next.itemId).attemptId, "a2", "a2a3");
+    expect(alternative).toMatchObject({ outcome: "excellent", pieceCorrect: true, moveCorrect: true });
+    const unlisted=training.answerQuiet(new AttemptLifecycle(database.connection).start(next.itemId).attemptId,"e2","e2e3");
+    expect(unlisted.moveVerified).toBe(false);
+    expect(unlisted.explanation).toContain("unverified, rather than proven wrong");
     database.close();
   });
 });

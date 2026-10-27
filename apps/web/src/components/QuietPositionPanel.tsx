@@ -133,7 +133,7 @@ export function QuietPositionPanel({ refreshToken, requestedItemId, sessionId, o
             )}
             {phase === "piece" && (
               <>
-                <h3>Which piece could improve its role most?</h3>
+                <h3>Which piece has a useful improvement?</h3>
                 <p className="instruction">Click one of your pieces. A piece may need improving if it is undeveloped, blocked, exposed, or has few useful squares. More than one plan can be reasonable.</p>
                 <div className="selected-answer">{pieceSquare ? <>Selected piece: <strong>{pieceSquare}</strong></> : "Select one of your pieces."}</div>
                 <div className="answer-actions">
@@ -164,8 +164,8 @@ export function QuietPositionPanel({ refreshToken, requestedItemId, sessionId, o
             )}
             {feedback && (
               <div className={`feedback ${feedback.outcome}`} role="status">
-                <span className="feedback-label">{feedback.outcome === "excellent" ? "Useful plan" : feedback.outcome === "partial" ? "Partly seen" : "Compare plans"}</span>
-                <h3>{feedback.pieceCorrect && feedback.moveCorrect
+                <span className="feedback-label">{feedback.moveVerified === false ? "Unverified alternative" : feedback.outcome === "excellent" ? "Useful plan" : feedback.outcome === "partial" ? "Partly seen" : "Compare plans"}</span>
+                <h3>{feedback.moveVerified === false ? "Compare with the saved engine examples" : feedback.pieceCorrect && feedback.moveCorrect
                   ? "You found an engine-supported improvement"
                   : feedback.pieceCorrect
                     ? "Useful piece, different move"

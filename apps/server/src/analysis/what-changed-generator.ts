@@ -1,4 +1,6 @@
-import { Chess } from "chess.js";
+import type { WhatChangedCategory } from "../../../../packages/contracts/src/api.js";
+import { tacticalPunishment } from "./tactical-punishment.js";
+import { Chess, type Square } from "chess.js";
 
 import type { SqliteDatabase } from "../db/database.js";
 import { id, now } from "../lib/ids.js";
@@ -27,6 +29,7 @@ interface CandidateRow {
   fen_before: string;
   fen_after: string;
   player_color: "white" | "black";
+  position_analysis_id: string;
 }
 
 export function detectNewlyAttackedPieces(
@@ -89,12 +92,13 @@ export class WhatChangedGenerator {
              previous.from_position_id AS before_position_id,
              previous.to_position_id AS after_position_id,
              before_position.fen AS fen_before,
-             after_position.fen AS fen_after
+             after_position.fen AS fen_after, analysis.id AS position_analysis_id
       FROM moves m
       JOIN games g ON g.id = m.game_id
       JOIN move_assessments assessment
         ON assessment.move_id = m.id AND assessment.run_id = ? AND assessment.meaningful = 1
       JOIN moves previous ON previous.game_id = m.game_id AND previous.ply = m.ply - 1
+      LEFT JOIN position_analyses analysis ON analysis.position_id=m.from_position_id AND analysis.run_id=assessment.run_id
       JOIN positions before_position ON before_position.id = previous.from_position_id
       JOIN positions after_position ON after_position.id = previous.to_position_id
       WHERE m.game_id = ? AND m.mover_color = g.player_color
@@ -110,16 +114,40 @@ export class WhatChangedGenerator {
         candidate.fen_after,
         candidate.player_color,
       );
-      if (changes.length === 0) continue;
-      if (this.insertItem(gameId, candidate, changes)) generated += 1;
+      const after = new Chess(candidate.fen_after), before = new Chess(candidate.fen_before);
+      const player = candidate.player_color === 'white' ? 'w' : 'b';
+      const undefended = after.board().flat().filter(piece => piece && piece.color===player && TRAINABLE_PIECES.has(piece.type)
+        && before.get(piece.square)?.type===piece.type && before.attackers(piece.square,player).length>0 && after.attackers(piece.square,player).length===0)
+        .map(piece=>({square:piece!.square,piece:piece!.type}));
+      const best = this.db.prepare('SELECT move_uci,pv_uci_json,mate_in_white FROM engine_lines WHERE position_analysis_id=? AND rank=1')
+        .get(candidate.position_analysis_id ?? null) as {move_uci:string;pv_uci_json:string;mate_in_white:number|null}|undefined;
+      let target: string | null = null;
+      if(best && tacticalPunishment(candidate.fen_before,candidate.fen_after,best.move_uci,best.pv_uci_json,best.mate_in_white)) {
+        try {const applied = new Chess(candidate.fen_after).move({from:best.move_uci.slice(0,2),to:best.move_uci.slice(2,4),...(best.move_uci[4]?{promotion:best.move_uci[4]}:{})});
+          if(applied.captured)target=applied.to;} catch { /* no verified capture */ }
+      }
+      if (!changes.length && !undefended.length && !target) continue;
+      const category: WhatChangedCategory = target ? 'available_capture' : undefended.length ? 'undefended_piece' : 'attacked_piece';
+      const primary = target ? [{square:target,piece:after.get(target as Square)!.type}] : undefended.length ? undefended : changes;
+      const answers: Array<{category:WhatChangedCategory;squares:string[]}> = [{category,squares:primary.map(p=>p.square)}];
+      if(changes.length)answers.push({category:'attacked_piece',squares:changes.map(p=>p.square)});
+      if(undefended.length)answers.push({category:'undefended_piece',squares:undefended.map(p=>p.square)});
+      if(target && best) {
+        const origin=best.move_uci.slice(0,2),attacker=after.get(origin as Square);
+        if(attacker && ['b','r','q'].includes(attacker.type) && before.get(origin as Square)?.type===attacker.type && !before.isAttacked(target as Square,player))
+          answers.push({category:'opened_line',squares:[origin,target]});
+      }
+      const explanation = target ? `After ${candidate.opponent_move_san}, ${best!.move_uci.slice(0,2)} can capture the piece on ${target}. Stockfish's continuation wins material. Check both sides: ${changes.length ? joinPieceNames(changes)+' is also attacked.' : 'a capture can be an opportunity, not just a threat.'}`
+        : undefended.length ? `After ${candidate.opponent_move_san}, ${joinPieceNames(undefended)} lost its last defender. Being undefended is not automatically a blunder; check the engine continuation.` : undefined;
+      if (this.insertItem(gameId, candidate, primary, category, answers, explanation)) generated += 1;
     }
     return generated;
   }
 
-  private insertItem(gameId: string, candidate: CandidateRow, changes: AttackedPieceChange[]): boolean {
+  private insertItem(gameId: string, candidate: CandidateRow, changes: AttackedPieceChange[], category:WhatChangedCategory, answers:Array<{category:WhatChangedCategory;squares:string[]}>, detail?:string): boolean {
     const itemId = id();
     const verb = changes.length === 1 ? "was" : "were";
-    const explanation = `After ${candidate.opponent_move_san}, ${joinPieceNames(changes)} ${verb} newly attacked.`;
+    const explanation = detail ?? `After ${candidate.opponent_move_san}, ${joinPieceNames(changes)} ${verb} newly attacked.`;
     let inserted = false;
     this.db.transaction(() => {
       const result = this.db.prepare(`
@@ -130,14 +158,14 @@ export class WhatChangedGenerator {
       const stored = this.db.prepare(`
         SELECT id FROM training_items WHERE mode = 'what_changed' AND source_move_id = ?
       `).get(candidate.source_move_id) as { id: string };
-      this.db.prepare("UPDATE training_items SET active = 1, prompt_version = 2 WHERE id = ?").run(stored.id);
+      this.db.prepare("UPDATE training_items SET active = 1, prompt_version = 3 WHERE id = ?").run(stored.id);
       inserted = result.changes > 0;
       this.db.prepare(`
         INSERT INTO what_changed_items(
           item_id, opponent_move_id, before_opponent_position_id,
           after_opponent_position_id, opponent_move_uci, opponent_move_san,
           answer_category, answer_squares_json, explanation, evidence_json
-        ) VALUES (?, ?, ?, ?, ?, ?, 'attacked_piece', ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(item_id) DO UPDATE SET
           opponent_move_id = excluded.opponent_move_id,
           before_opponent_position_id = excluded.before_opponent_position_id,
@@ -155,9 +183,10 @@ export class WhatChangedGenerator {
         candidate.after_position_id,
         candidate.opponent_move_uci,
         candidate.opponent_move_san,
+        category,
         JSON.stringify(changes.map((change) => change.square)),
         explanation,
-        JSON.stringify({ detector: "newly-attacked-piece-v2", changes }),
+        JSON.stringify({ detector: "board-changes-v3", changes, answers }),
       );
       this.db.prepare(`
         INSERT INTO training_item_concepts(item_id, concept_id, source, confidence, is_primary)

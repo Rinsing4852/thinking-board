@@ -1,0 +1,76 @@
+{
+  "run": {
+    "measuredAt": "2026-10-27T08:46:37.452Z",
+    "sourceFingerprint": "1b18f0701ac3367642cd2bcac8a4c21bcc0bcf259e80103fbd3a275d265a03ec",
+    "sourceUnchangedDuringRun": true,
+    "steps": [
+      {
+        "name": "typecheck",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      },
+      {
+        "name": "unit and integration tests",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      },
+      {
+        "name": "tracker assessment tests",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      },
+      {
+        "name": "production build",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      },
+      {
+        "name": "full browser suite",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      }
+    ],
+    "commit": "aac0012994b93d4119b2078637d656b047013447"
+  },
+  "unit": {
+    "passed": 389,
+    "failed": 0
+  },
+  "browser": {
+    "startTime": "2026-10-27T08:40:48.728Z",
+    "duration": 348668.868,
+    "expected": 200,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "trackerAssessmentTests": 6,
+  "realStockfish": {
+    "engine": "Stockfish 18",
+    "scripts": 4,
+    "regressionCases": 41,
+    "exitCodes": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "evidencePackaging": "Current compiled source mounted read-only into isolated Stockfish container; final application container build separately passed."
+  },
+  "containerBuild": {
+    "tag": "thinking-board-audit:1.5.22",
+    "passed": true,
+    "liveContainerRestarted": false
+  },
+  "publication": {
+    "committed": false,
+    "pushed": false,
+    "deployed": false
+  },
+  "limits": "Local acceptance cases, not a measured tactical precision/recall percentage or competitor parity score."
+}

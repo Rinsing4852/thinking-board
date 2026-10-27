@@ -25,6 +25,7 @@ interface ExerciseRow {
   candidate_move_san: string;
   player_color: "white" | "black";
   move_number: number;
+  exercise_kind?: "safety" | "missed_opportunity";
 }
 
 interface AttemptRow {
@@ -50,6 +51,7 @@ interface WhatChangedRow {
   opponent_move_san: string;
   player_color: "white" | "black";
   move_number: number;
+  exercise_kind?: "safety" | "missed_opportunity";
 }
 
 interface WhatChangedAttemptRow {
@@ -58,6 +60,7 @@ interface WhatChangedAttemptRow {
   started_at: string | null;
   answered_at: string | null;
   answer_category: WhatChangedCategory;
+  evidence_json: string;
   answer_squares_json: string;
   explanation: string;
 }
@@ -89,7 +92,8 @@ export class TrainingService {
     const row = this.db.prepare(`
       SELECT ti.id AS item_id, before_pos.fen AS fen_before,
              after_pos.fen AS fen_after, bci.candidate_move_uci,
-             bci.candidate_move_san, g.player_color, m.move_number
+             bci.candidate_move_san, g.player_color, m.move_number,
+             json_extract(bci.evidence_json,'$.exerciseKind') AS exercise_kind
       FROM training_items ti
       JOIN blunder_check_items bci ON bci.item_id = ti.id
       JOIN positions before_pos ON before_pos.id = bci.before_position_id
@@ -144,13 +148,14 @@ export class TrainingService {
       attemptId: null,
       itemId: row.item_id,
       mode: "blunder_check",
+      exerciseKind: row.exercise_kind ?? "safety",
       fenBefore: row.fen_before,
       fenAfterCandidate: row.fen_after,
       candidateMoveUci: row.candidate_move_uci,
       candidateMoveSan: row.candidate_move_san,
       playerColor: row.player_color,
       moveNumber: row.move_number,
-      prompt: "Before making this move, what can the opponent do immediately?",
+      prompt: row.exercise_kind === "missed_opportunity" ? "What winning capture or forcing move did you miss?" : "Before making this move, what can the opponent do immediately?",
     };
     return response;
   }
@@ -167,7 +172,7 @@ export class TrainingService {
       opponentMoveSan: row.opponent_move_san,
       playerColor: row.player_color,
       moveNumber: row.move_number,
-      prompt: "What did their last move change?",
+      prompt: "What did their move change, or leave available to capture?",
     };
   }
 
@@ -177,12 +182,14 @@ export class TrainingService {
     }
     const attempt = this.db.prepare(`
       SELECT ta.id, ta.item_id, ta.started_at, ta.answered_at,
-             p.fen AS fen_after, bci.explanation
+             CASE WHEN json_extract(bci.evidence_json,'$.exerciseKind')='missed_opportunity' THEN before_pos.fen ELSE p.fen END AS fen_after, bci.explanation
       FROM training_attempts ta
       JOIN blunder_check_items bci ON bci.item_id = ta.item_id
+      JOIN training_items ti ON ti.id = ta.item_id AND ti.active = 1
       JOIN positions p ON p.id = bci.after_candidate_position_id
-      WHERE ta.id = ?
-    `).get(attemptId) as AttemptRow | undefined;
+      JOIN positions before_pos ON before_pos.id=bci.before_position_id
+      WHERE ta.id = ? AND ta.abandoned_at IS NULL AND ti.profile_id = ?
+    `).get(attemptId, activeProfileId(this.db)) as AttemptRow | undefined;
     if (!attempt) throw new Error("Attempt not found");
     if (attempt.answered_at) throw new Error("Attempt has already been answered");
 
@@ -216,7 +223,7 @@ export class TrainingService {
     const feedback = {
       acceptableMoves: acceptable,
       explanation: attempt.explanation,
-      checklistPoint: "After my move, can they immediately check, capture, or threaten something important?",
+      checklistPoint: "Check both sides: what can I win now, and what can they take after my move?",
     };
 
     this.db.transaction(() => {
@@ -247,12 +254,14 @@ export class TrainingService {
   reveal(attemptId: string): TrainingAnswerResponse {
     const attempt = this.db.prepare(`
       SELECT ta.id, ta.item_id, ta.started_at, ta.answered_at,
-             p.fen AS fen_after, bci.explanation
+             CASE WHEN json_extract(bci.evidence_json,'$.exerciseKind')='missed_opportunity' THEN before_pos.fen ELSE p.fen END AS fen_after, bci.explanation
       FROM training_attempts ta
       JOIN blunder_check_items bci ON bci.item_id = ta.item_id
+      JOIN training_items ti ON ti.id = ta.item_id AND ti.active = 1
       JOIN positions p ON p.id = bci.after_candidate_position_id
-      WHERE ta.id = ?
-    `).get(attemptId) as AttemptRow | undefined;
+      JOIN positions before_pos ON before_pos.id=bci.before_position_id
+      WHERE ta.id = ? AND ta.abandoned_at IS NULL AND ti.profile_id = ?
+    `).get(attemptId, activeProfileId(this.db)) as AttemptRow | undefined;
     if (!attempt || attempt.answered_at) throw new Error("Attempt not found or already completed");
     const responses = this.db.prepare(`
       SELECT move_uci, move_san, categories_json
@@ -282,7 +291,7 @@ export class TrainingService {
       playedMoveSan: null,
       acceptableMoves,
       explanation: attempt.explanation,
-      checklistPoint: "After my move, can they immediately check, capture, or threaten something important?",
+      checklistPoint: "Check both sides: what can I win now, and what can they take after my move?",
     };
   }
 
@@ -292,15 +301,17 @@ export class TrainingService {
     square: string,
   ): WhatChangedAnswerResponse {
     const validCategories: WhatChangedCategory[] = [
-      "attacked_piece", "undefended_piece", "opened_line", "closed_line",
+      "available_capture", "attacked_piece", "undefended_piece", "opened_line", "closed_line",
       "removed_defender", "created_threat", "king_safety", "nothing_urgent",
     ];
     if (!validCategories.includes(category)) throw new Error("Choose what changed");
     if (square && !/^[a-h][1-8]$/.test(square)) throw new Error("Choose a board square");
     const attempt = this.whatChangedAttempt(attemptId);
     const correctSquares = JSON.parse(attempt.answer_squares_json) as string[];
-    const categoryCorrect = category === attempt.answer_category;
-    const squareCorrect = correctSquares.includes(square);
+    const alternatives = (JSON.parse(attempt.evidence_json) as {answers?:Array<{category:WhatChangedCategory;squares:string[]}>}).answers
+      ?? [{category:attempt.answer_category,squares:correctSquares}];
+    const categoryCorrect = alternatives.some(answer=>answer.category===category);
+    const squareCorrect = categoryCorrect ? alternatives.some(answer=>answer.category===category && answer.squares.includes(square)) : correctSquares.includes(square);
     const score = (categoryCorrect ? 0.5 : 0) + (squareCorrect ? 0.5 : 0);
     const outcome = score === 1 ? "excellent" : score > 0 ? "partial" : "incorrect";
     const answeredAt = now();
@@ -354,7 +365,7 @@ export class TrainingService {
   private whatChangedAttempt(attemptId: string): WhatChangedAttemptRow {
     const attempt = this.db.prepare(`
       SELECT ta.id, ta.item_id, ta.started_at, ta.answered_at,
-             wci.answer_category, wci.answer_squares_json, wci.explanation
+             wci.answer_category, wci.answer_squares_json, wci.explanation, wci.evidence_json
       FROM training_attempts ta
       JOIN training_items ti ON ti.id = ta.item_id AND ti.mode = 'what_changed'
       JOIN what_changed_items wci ON wci.item_id = ta.item_id

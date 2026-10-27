@@ -1,6 +1,7 @@
 import { Chess } from "chess.js";
 
 import type { SqliteDatabase } from "../db/database.js";
+import { tacticalPunishment } from "./tactical-punishment.js";
 import { id, now } from "../lib/ids.js";
 
 interface QuietRow {
@@ -20,6 +21,7 @@ interface LineRow {
   move_san: string;
   centipawns_white: number | null;
   mate_in_white: number | null;
+  pv_uci_json: string;
 }
 
 function utility(line: LineRow): number {
@@ -65,8 +67,9 @@ export class V1Generator {
       ORDER BY completed_at DESC LIMIT 1
     `).get(gameId) as { id: string } | undefined)?.id;
     if (!selectedRun) return 0;
-    const generated = this.generatePunishments(gameId) + this.generateQuietPositions(gameId, selectedRun);
+    const generated = this.generateQuietPositions(gameId, selectedRun);
     this.ensureEditableDiagnoses(gameId, selectedRun);
+    for (const row of this.db.prepare("SELECT DISTINCT source_move_id FROM training_items WHERE game_id=? AND active=1 AND mode IN ('blunder_check','punish_blunder')").all(gameId) as Array<{source_move_id:string}>)this.enrichBlunderConcepts(row.source_move_id);
     return generated;
   }
 
@@ -102,91 +105,13 @@ export class V1Generator {
     })();
   }
 
-  private generatePunishments(gameId: string): number {
-    const sources = this.db.prepare(`
-      SELECT ti.source_move_id, ti.profile_id, bci.after_candidate_position_id,
-             bci.candidate_move_uci, bci.candidate_move_san, bci.explanation,
-             bci.evidence_json
-      FROM training_items ti
-      JOIN blunder_check_items bci ON bci.item_id = ti.id
-      WHERE ti.game_id = ? AND ti.mode = 'blunder_check' AND ti.active = 1
-    `).all(gameId) as Array<{
-      source_move_id: string; profile_id: string; after_candidate_position_id: string;
-      candidate_move_uci: string; candidate_move_san: string; explanation: string;
-      evidence_json: string;
-    }>;
-    let generated = 0;
-    for (const source of sources) {
-      const existing = this.db.prepare(
-        "SELECT id FROM training_items WHERE mode = 'punish_blunder' AND source_move_id = ?",
-      ).get(source.source_move_id) as { id: string } | undefined;
-      const original = this.db.prepare(`
-        SELECT ti.id FROM training_items ti
-        WHERE ti.mode = 'blunder_check' AND ti.source_move_id = ?
-      `).get(source.source_move_id) as { id: string };
-      const responses = this.db.prepare(`
-        SELECT move_uci, move_san, categories_json, engine_rank, loss_from_best_cp
-        FROM acceptable_responses WHERE item_id = ? ORDER BY engine_rank
-      `).all(original.id) as Array<{
-        move_uci: string; move_san: string; categories_json: string;
-        engine_rank: number; loss_from_best_cp: number;
-      }>;
-      if (responses.length === 0) continue;
-      const itemId = existing?.id ?? id();
-      this.db.transaction(() => {
-        this.db.prepare(`
-          INSERT OR IGNORE INTO training_items(
-            id, profile_id, game_id, source_move_id, mode, prompt_version, created_at
-          ) VALUES (?, ?, ?, ?, 'punish_blunder', 2, ?)
-        `).run(itemId, source.profile_id, gameId, source.source_move_id, now());
-        this.db.prepare("UPDATE training_items SET active = 1, prompt_version = 2 WHERE id = ?").run(itemId);
-        this.db.prepare(`
-          INSERT INTO punish_blunder_items(
-            item_id, position_id, bad_move_uci, bad_move_san, explanation, evidence_json
-          ) VALUES (?, ?, ?, ?, ?, ?)
-          ON CONFLICT(item_id) DO UPDATE SET
-            position_id = excluded.position_id,
-            bad_move_uci = excluded.bad_move_uci,
-            bad_move_san = excluded.bad_move_san,
-            explanation = excluded.explanation,
-            evidence_json = excluded.evidence_json
-        `).run(
-          itemId, source.after_candidate_position_id, source.candidate_move_uci,
-          source.candidate_move_san, source.explanation, source.evidence_json,
-        );
-        const insert = this.db.prepare(`
-          INSERT INTO acceptable_responses(
-            id, item_id, move_uci, move_san, categories_json, engine_rank, loss_from_best_cp
-          ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        `);
-        this.db.prepare("DELETE FROM acceptable_responses WHERE item_id = ?").run(itemId);
-        for (const response of responses) {
-          insert.run(
-            id(), itemId, response.move_uci, response.move_san, response.categories_json,
-            response.engine_rank, response.loss_from_best_cp,
-          );
-        }
-        this.db.prepare(`
-          INSERT INTO training_item_concepts(item_id, concept_id, source, confidence, is_primary)
-          VALUES (?, 'process.pattern_failure', 'automatic', 0.8, 1)
-          ON CONFLICT(item_id, concept_id, source) DO UPDATE SET active = 1, confidence = excluded.confidence
-        `).run(itemId);
-        this.db.prepare("INSERT OR IGNORE INTO review_states(item_id, mastery_level, due_at) VALUES (?, 0, ?)")
-          .run(itemId, now());
-      })();
-      this.enrichBlunderConcepts(source.source_move_id);
-      if (!existing) generated += 1;
-    }
-    return generated;
-  }
-
   private enrichBlunderConcepts(sourceMoveId: string): void {
     const items = this.db.prepare(`
       SELECT ti.id, ti.mode, p.fen
       FROM training_items ti
       LEFT JOIN blunder_check_items bci ON bci.item_id = ti.id
       LEFT JOIN punish_blunder_items pbi ON pbi.item_id = ti.id
-      JOIN positions p ON p.id = COALESCE(bci.after_candidate_position_id, pbi.position_id)
+      JOIN positions p ON p.id = CASE WHEN json_extract(bci.evidence_json,'$.exerciseKind')='missed_opportunity' THEN bci.before_position_id ELSE COALESCE(bci.after_candidate_position_id,pbi.position_id) END
       WHERE ti.source_move_id = ? AND ti.mode IN ('blunder_check', 'punish_blunder')
     `).all(sourceMoveId) as Array<{ id: string; mode: string; fen: string }>;
     for (const item of items) {
@@ -196,6 +121,9 @@ export class V1Generator {
       `).get(item.id) as { move_uci: string; move_san: string; categories_json: string } | undefined;
       if (!response) continue;
       const categories = JSON.parse(response.categories_json) as string[];
+      const evidence = this.db.prepare("SELECT evidence_json FROM blunder_check_items WHERE item_id=? UNION ALL SELECT evidence_json FROM punish_blunder_items WHERE item_id=?").pluck().get(item.id,item.id) as string | undefined;
+      const savedEvidence = evidence ? JSON.parse(evidence) as { exerciseKind?:string; proof?: { kind?: string } } : undefined;
+      const proof = savedEvidence?.proof;
       let tactic = categories.includes("capture") ? "tactic.missed_capture" : "tactic.hanging_piece";
       try {
         const board = new Chess(item.fen);
@@ -213,12 +141,13 @@ export class V1Generator {
                 && board.attackers(piece.square, attacker).includes(applied.to)) valuableTargets += 1;
             }
           }
-          if (valuableTargets >= 2) tactic = "tactic.fork";
+          if (valuableTargets >= 2 && proof?.kind === "material") tactic = "tactic.fork";
         }
-        if (board.isCheckmate() || response.move_san.includes("#")) tactic = "tactic.allowed_mate";
+        if (proof?.kind === "forced_mate" || board.isCheckmate() || response.move_san.includes("#")) tactic = "tactic.allowed_mate";
       } catch {
         // Stored engine moves were legal when generated; retain the conservative label if old data is malformed.
       }
+      if(savedEvidence?.exerciseKind==='missed_opportunity')tactic=proof?.kind==='forced_mate'?'tactic.missed_mate':'tactic.missed_capture';
       this.db.prepare(`
         DELETE FROM training_item_concepts
         WHERE item_id = ? AND source = 'automatic'
@@ -260,7 +189,7 @@ export class V1Generator {
       const board = new Chess(row.fen);
       if (board.inCheck() || board.isGameOver()) continue;
       const lines = this.db.prepare(`
-        SELECT rank, move_uci, move_san, centipawns_white, mate_in_white
+        SELECT rank, move_uci, move_san, centipawns_white, mate_in_white, pv_uci_json
         FROM engine_lines WHERE position_analysis_id = ? AND move_uci != '(none)'
         ORDER BY rank LIMIT 3
       `).all(row.position_analysis_id) as LineRow[];
@@ -268,10 +197,15 @@ export class V1Generator {
       if (!best) continue;
       let applied;
       try { applied = new Chess(row.fen).move(uciMove(best.move_uci)); } catch { continue; }
-      if (!applied || applied.captured || applied.san.includes("+") || ["p", "k"].includes(applied.piece)) continue;
+      if (!applied || applied.captured || applied.san.includes("+")) continue;
+      const forcingAlternative = lines.some(line => {
+        if(lineLoss(best,line,row.player_color)>75)return false;
+        try {const reply=new Chess(row.fen).move(uciMove(line.move_uci));return Boolean(reply.captured || reply.san.includes('+'));}catch{return true;}
+      });
+      if(forcingAlternative || lines.some(line=>lineLoss(best,line,row.player_color)<=75 && tacticalPunishment(row.fen,row.fen,line.move_uci,line.pv_uci_json,line.mate_in_white)))continue;
       const weakestSquare = best.move_uci.slice(0, 2);
       const acceptable = lines.filter((line) => {
-        if (line.move_uci.slice(0, 2) !== weakestSquare || lineLoss(best, line, row.player_color) > 100) return false;
+        if (lineLoss(best, line, row.player_color) > 75) return false;
         try {
           const move = new Chess(row.fen).move(uciMove(line.move_uci));
           return Boolean(move && !move.captured && !move.san.includes("+"));
@@ -283,7 +217,7 @@ export class V1Generator {
       }));
       if (acceptable.length === 0) continue;
       const itemId = existing?.id ?? id();
-      const pieceName = ({ n: "knight", b: "bishop", r: "rook", q: "queen" } as Record<string, string>)[applied.piece] ?? "piece";
+      const pieceName = ({ p: "pawn", k: "king", n: "knight", b: "bishop", r: "rook", q: "queen" } as Record<string, string>)[applied.piece] ?? "piece";
       this.db.transaction(() => {
         this.db.prepare(`
           INSERT OR IGNORE INTO training_items(
@@ -303,8 +237,8 @@ export class V1Generator {
             explanation = excluded.explanation,
             evidence_json = excluded.evidence_json
         `).run(
-          itemId, row.position_id, JSON.stringify([weakestSquare]), JSON.stringify(acceptable),
-          `Stockfish supports a useful quiet improvement for the ${pieceName} on ${weakestSquare}. In your game you played ${row.played_move_san}.`,
+          itemId, row.position_id, JSON.stringify([...new Set(acceptable.map(move=>move.moveUci.slice(0,2)))]), JSON.stringify(acceptable),
+          `Stockfish supports quiet improvement choices here, including the ${pieceName} on ${weakestSquare}. This does not prove that it is the weakest piece. In your game you played ${row.played_move_san}.`,
           JSON.stringify({ detector: "quiet-engine-improvement-v2", engineRank: best.rank }),
         );
         this.db.prepare(`

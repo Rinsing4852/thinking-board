@@ -2,7 +2,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { Chess } from "chess.js";
+import { UciEngine, type EngineLine } from "../analysis/uci-engine.js";
 
 import { CandidateGenerator } from "../analysis/candidate-generator.js";
 import type { AppConfig } from "../config.js";
@@ -89,9 +91,22 @@ describe("Candidate Generation training flow", () => {
     const started = new AttemptLifecycle(database.connection).start(next.itemId);
     const feedback = await training.answer(started.attemptId, [{ moveUci: "a4c4", declaredType: "threat" }]);
     expect(feedback).toMatchObject({
-      outcome: "partial",
+      outcome: "excellent",
       candidates: [{ moveSan: "Rc4", grade: "excellent", centipawnLoss: 0 }],
     });
+    const line=(moveUci:string,moveSan:string,cp:number):EngineLine=>({rank:1,depth:12,moveUci,moveSan,centipawnsWhite:cp,mateInWhite:null,pvUci:[moveUci],pvSan:[moveSan]});
+    const spy=vi.spyOn(UciEngine.prototype,"analyze")
+      .mockResolvedValueOnce({depth:12,lines:[line("a4c4","Rc4",0)]})
+      .mockResolvedValueOnce({depth:12,lines:[line("b6a7","Ba7",-300)]});
+    try {
+      const stronger=await training.answer(new AttemptLifecycle(database.connection).start(next.itemId).attemptId,[{moveUci:"b6a7",declaredType:"improve"}]);
+      expect(stronger).toMatchObject({outcome:"excellent",candidates:[{moveSan:"Ba7",centipawnLoss:0,grade:"excellent"}],engineCandidates:[{moveSan:"Ba7"},{moveSan:"Rc4"}]});
+      for(const call of spy.mock.calls) {
+        const history=call[6]!;expect(history).toBeTruthy();const board=new Chess(history.initialFen);
+        for(const uci of history.moves)board.move({from:uci.slice(0,2),to:uci.slice(2,4)});
+        expect(board.fen()).toBe(call[0]);
+      }
+    } finally {spy.mockRestore();}
     await training.close();
     database.close();
   });

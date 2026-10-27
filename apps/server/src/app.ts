@@ -136,6 +136,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     catch(error){return reply.code(400).send({error:error instanceof Error?error.message:"Could not load progress"});}
   });
   const analysis = new AnalysisService(database.connection, config);
+  analysis.backfillBlunderChecks();
   analysis.backfillWhatChanged();
   analysis.backfillCandidates();
   analysis.backfillV1();
@@ -766,7 +767,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       FROM moves m
       JOIN analysis_runs ar ON ar.game_id = m.game_id AND ar.status = 'completed'
       JOIN move_assessments ma ON ma.run_id = ar.id AND ma.move_id = m.id
-      LEFT JOIN training_items ti ON ti.source_move_id = m.id AND ti.mode = 'blunder_check'
+      LEFT JOIN training_items ti ON ti.source_move_id = m.id AND ti.mode = 'blunder_check' AND ti.active = 1
       LEFT JOIN blunder_check_items bci ON bci.item_id = ti.id
       WHERE m.game_id = ? AND ma.meaningful = 1
         AND m.mover_color = (SELECT player_color FROM games WHERE id = ?)

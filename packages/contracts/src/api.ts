@@ -1,6 +1,7 @@
 export type Color = "white" | "black";
 export type ResponseCategory = "check" | "capture" | "threat";
 export type WhatChangedCategory =
+  | "available_capture"
   | "attacked_piece"
   | "undefended_piece"
   | "opened_line"
@@ -820,6 +821,7 @@ export interface EmptyTrainingResponse {
 }
 
 export interface BlunderCheckExercise {
+  exerciseKind?: "safety" | "missed_opportunity";
   kind: "exercise";
   attemptId: string | null;
   itemId: string;
@@ -961,6 +963,7 @@ export interface QuietPositionExercise {
 export type NextQuietPositionResponse = EmptyTrainingResponse | QuietPositionExercise;
 
 export interface QuietPositionAnswerResponse {
+  moveVerified?: boolean;
   outcome: "excellent" | "partial" | "incorrect";
   score: number;
   pieceCorrect: boolean;

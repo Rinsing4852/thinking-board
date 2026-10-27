@@ -67,13 +67,15 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
     return () => { loadVersion.current++; };
   }, [refreshToken, requestedItemId, gameDays]);
 
+  const missed = exercise?.exerciseKind === "missed_opportunity";
+  const answerFen = exercise ? missed ? exercise.fenBefore : exercise.fenAfterCandidate : "";
   const playCandidate = async (): Promise<void> => {
     if (!exercise) return;
     try {
       const started = await post<{ attemptId: string }>(`/api/v1/training/items/${exercise.itemId}/start`, { sessionId });
       setExercise({ ...exercise, attemptId: started.attemptId });
-      setDisplayFen(exercise.fenAfterCandidate);
-      setDisplayMove(exercise.candidateMoveUci);
+      setDisplayFen(exercise.exerciseKind === "missed_opportunity" ? exercise.fenBefore : exercise.fenAfterCandidate);
+      setDisplayMove(exercise.exerciseKind === "missed_opportunity" ? null : exercise.candidateMoveUci);
       setPhase("answer");
     } catch (startError) {
       setError(startError instanceof Error ? startError.message : "Could not start exercise");
@@ -82,7 +84,7 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
 
   const previewReply = (uci: string, san: string): void => {
     if (!exercise) return;
-    const board = new Chess(exercise.fenAfterCandidate);
+    const board = new Chess(answerFen);
     const applied = board.move({
       from: uci.slice(0, 2),
       to: uci.slice(2, 4),
@@ -97,8 +99,8 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
   const changeReply = (): void => {
     if (!exercise) return;
     setMove(null);
-    setDisplayFen(exercise.fenAfterCandidate);
-    setDisplayMove(exercise.candidateMoveUci);
+    setDisplayFen(exercise.exerciseKind === "missed_opportunity" ? exercise.fenBefore : exercise.fenAfterCandidate);
+    setDisplayMove(exercise.exerciseKind === "missed_opportunity" ? null : exercise.candidateMoveUci);
   };
 
   const showFeedback = (result: TrainingAnswerResponse): void => {
@@ -107,7 +109,7 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
     window.dispatchEvent(new Event("training-completed"));
     const answer = result.acceptableMoves[0];
     if (!exercise || !answer) return;
-    const board = new Chess(exercise.fenAfterCandidate);
+    const board = new Chess(answerFen);
     const applied = board.move({
       from: answer.moveUci.slice(0, 2),
       to: answer.moveUci.slice(2, 4),
@@ -142,13 +144,13 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
       <div className="training-copy">
         <span className="eyebrow">Highest priority drill</span>
         <h2>Blunder Check</h2>
-        <p>Pause before the move. Look for the opponent’s immediate checks, captures, and threats.</p>
+        <p>Check both sides: spot your winning opportunities and the danger your move could allow.</p>
       </div>
 
       {empty && <TrainingEmptyState gameDays={gameDays}
         empty={empty}
         onChoosePool={(pool) => void loadNext(pool)}
-        noItemsHelp="Import a game containing a concrete mistake that the opponent could punish immediately."
+        noItemsHelp="Analyse an imported game to find missed winning opportunities and moves that allowed a concrete punishment."
       />}
 
       {!exercise && !empty && <ExerciseLoadState error={error} onRetry={() => void loadNext()} />}
@@ -157,7 +159,7 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
           <div className="board-column">
             <div className="candidate-banner">
               <div>
-                <span>{phase === "ready" ? "Position before your move" : phase === "answer" ? "Position after your move" : "Opponent’s punishment"}</span>
+                <span>{missed ? "Find your missed opportunity" : phase === "ready" ? "Position before your move" : phase === "answer" ? "Position after your move" : "Opponent’s punishment"}</span>
                 <small>You are {exercise.playerColor}. {boardOrientation === exercise.playerColor ? "Your side is nearest." : "Board flipped."}</small>
               </div>
               <strong>{phase === "feedback" && feedback
@@ -165,7 +167,7 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
                 : formatMoveLabel(exercise.moveNumber, exercise.playerColor, exercise.candidateMoveSan)}</strong>
             </div>
             <div className="board-toolbar">
-              <span>{phase === "ready" ? "Your move has not been shown yet" : phase === "answer" ? `${exercise.playerColor === "white" ? "Black" : "White"} to move` : "Correct reply shown on board"}</span>
+              <span>{phase === "ready" ? "Your move has not been shown yet" : phase === "answer" ? `${missed ? exercise.playerColor : exercise.playerColor === "white" ? "Black" : "White"} to move` : "Engine move shown on board"}</span>
               <button className="text-button" onClick={() => setBoardOrientation(boardOrientation === "white" ? "black" : "white")}>Flip board</button>
             </div>
             <ChessBoard
@@ -184,18 +186,18 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
               <div className="ready-step">
                 <h3>You played {formatMoveLabel(exercise.moveNumber, exercise.playerColor, exercise.candidateMoveSan)}</h3>
                 <p className="instruction">
-                  You were playing <strong>{exercise.playerColor}</strong>. First study the position before your move, then show the move you actually made.
+                  You were playing <strong>{exercise.playerColor}</strong>. {missed ? "Look for the winning move you missed before playing your game move." : "First study the position before your move, then show the move you actually made."}
                 </p>
-                <button onClick={() => void playCandidate()}>Play my move on the board</button>
+                <button onClick={() => void playCandidate()}>{missed ? "Find my missed opportunity" : "Play my move on the board"}</button>
               </div>
             )}
             {phase === "answer" && !feedback && (
               <>
                 <h3>{exercise.prompt}</h3>
                 <p className="move-context">
-                  You just played <strong>{exercise.candidateMoveSan}</strong>. It is now <strong>{exercise.playerColor === "white" ? "Black" : "White"} to move</strong>.
+                  {missed ? <>Instead of {exercise.candidateMoveSan}, find your stronger move. You are {exercise.playerColor}.</> : <>You just played <strong>{exercise.candidateMoveSan}</strong>. It is now <strong>{exercise.playerColor === "white" ? "Black" : "White"} to move</strong>.</>}
                 </p>
-                <p className="instruction">First choose the kind of danger. Then play the opponent’s reply by clicking its start and destination squares. You do not need to type chess notation.</p>
+                <p className="instruction">{missed ? "Choose check, capture or threat, then play your winning move on the board." : "First choose the kind of danger. Then play the opponent’s reply by clicking its start and destination squares. You do not need to type chess notation."}</p>
                 <div className="category-grid">
                   {RESPONSE_CATEGORIES.map((option) => (
                     <button
@@ -208,9 +210,9 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
                     </button>
                   ))}
                 </div>
-                {category && <p className="term-help">{RESPONSE_CATEGORIES.find((option) => option.value === category)?.description}</p>}
+                {category && <p className="term-help">{missed ? "Classify your own move: check, capture, or threat." : RESPONSE_CATEGORIES.find((option) => option.value === category)?.description}</p>}
                 <div className="selected-answer">
-                  {move ? <>Your selected reply: <strong>{move.san}</strong> <button className="inline-link" onClick={changeReply}>Change</button></> : "Select the opponent’s piece, then select its destination square."}
+                  {move ? <>Your selected reply: <strong>{move.san}</strong> <button className="inline-link" onClick={changeReply}>Change</button></> : missed ? "Select your piece, then its destination square." : "Select the opponent’s piece, then select its destination square."}
                 </div>
                 <div className="answer-actions">
                   <button disabled={!category || !move} onClick={() => void submit()}>Check my answer</button>
@@ -223,7 +225,7 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
               <div className={`feedback ${feedback.outcome}`} role="status">
                 <span className="feedback-label">{feedback.outcome === "excellent" ? "Seen" : feedback.outcome === "partial" ? "Partly seen" : "Missed"}</span>
                 <h3>{feedback.outcome === "excellent"
-                  ? "You caught the danger"
+                  ? missed ? "You found the missed opportunity" : "You caught the danger"
                   : feedback.categoryCorrect
                     ? "Right danger, wrong reply"
                     : feedback.moveCorrect
@@ -234,10 +236,10 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
                   {!feedback.categoryCorrect && <> The reply is a <strong>{categoryLabel(feedback.acceptableMoves[0]?.categories[0] ?? "threat")}</strong>.</>}
                 </p>}
                 <p className="failure-summary">
-                  Your move <strong>{exercise.candidateMoveSan}</strong> allowed <strong>{feedback.acceptableMoves.map((answer) => answer.moveSan).join(" or ")}</strong> immediately.
+                  {missed ? <>You played <strong>{exercise.candidateMoveSan}</strong>. You could have played <strong>{feedback.acceptableMoves.map(answer => answer.moveSan).join(" or ")}</strong>.</> : <>Your move <strong>{exercise.candidateMoveSan}</strong> allowed <strong>{feedback.acceptableMoves.map(answer => answer.moveSan).join(" or ")}</strong> immediately.</>}
                 </p>
                 <p>{feedback.explanation}</p>
-                <p className="board-result-note">The board now shows the opponent’s punishment; the highlighted squares show their move.</p>
+                <p className="board-result-note">{missed ? "The board shows your missed winning move." : "The board now shows the opponent’s punishment; the highlighted squares show their move."}</p>
                 <div className="checklist-feedback">
                   <span>Thinking-process failure: Blunder check</span>
                   <p>{feedback.checklistPoint}</p>

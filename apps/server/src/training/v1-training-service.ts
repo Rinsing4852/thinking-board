@@ -23,7 +23,7 @@ const MODE_LABELS: Record<string, string> = {
   blunder_check: "Blunder checks",
   what_changed: "What changed",
   candidate_generation: "Candidate generation",
-  punish_blunder: "Punish the blunder",
+  punish_blunder: "Punish a tactical mistake",
   quiet_position: "Quiet positions",
 };
 
@@ -118,7 +118,7 @@ export class V1TrainingService {
       fen: row.fen,
       playerColor: row.player_color,
       moveNumber: row.move_number,
-      prompt: "Which piece can improve its role most, and which quiet move does that?",
+      prompt: "Choose a piece and play a useful quiet improvement.",
     };
     return exercise;
   }
@@ -164,15 +164,15 @@ export class V1TrainingService {
     const weakestSquares = JSON.parse(attempt.weakest_squares_json ?? "[]") as string[];
     const acceptableMoves = JSON.parse(attempt.acceptable_moves_json ?? "[]") as AcceptableMove[];
     const pieceCorrect = weakestSquares.includes(square);
-    const moveCorrect = acceptableMoves.some((move) => move.moveUci === moveUci);
+    const moveCorrect = acceptableMoves.some((move) => move.moveUci === moveUci && move.moveUci.slice(0,2) === square);
     let selectedMoveSan: string | null = null;
     try { selectedMoveSan = new Chess(attempt.fen).move(moveFromUci(moveUci))?.san ?? null; } catch { /* handled below */ }
     if (!selectedMoveSan) throw new Error("Choose a legal improving move on the board");
     const score = (pieceCorrect ? 0.45 : 0) + (moveCorrect ? 0.55 : 0);
     const outcome = score === 1 ? "excellent" : score > 0 ? "partial" : "incorrect";
     const feedback: QuietPositionAnswerResponse = {
-      outcome, score, pieceCorrect, moveCorrect, selectedMoveSan, weakestSquares,
-      acceptableMoves, explanation: attempt.explanation,
+      outcome, score, pieceCorrect, moveCorrect, moveVerified: moveCorrect, selectedMoveSan, weakestSquares,
+      acceptableMoves, explanation: attempt.explanation + (moveCorrect ? "" : " This legal move is not one of the saved engine examples; its chess quality is unverified, rather than proven wrong."),
       checklistPoint: "When there is no forcing move, find a piece whose role can be improved.",
     };
     const answeredAt = now();
@@ -483,7 +483,7 @@ export class V1TrainingService {
   }
 
   private attempt(attemptId: string, mode: string, select: string): AttemptRow {
-    const attempt = this.db.prepare(`${select} WHERE ta.id = ? AND ti.mode = ?`).get(attemptId, mode) as AttemptRow | undefined;
+    const attempt = this.db.prepare(`${select} WHERE ta.id = ? AND ta.abandoned_at IS NULL AND ti.mode = ? AND ti.active=1 AND ti.profile_id=?`).get(attemptId, mode, activeProfileId(this.db)) as AttemptRow | undefined;
     if (!attempt) throw new Error("Attempt not found");
     if (attempt.answered_at) throw new Error("Attempt has already been answered");
     return attempt;
@@ -532,7 +532,9 @@ export class V1TrainingService {
     if (counts.active > 0) options.push({ pool: "random", label: "Random practice", count: counts.active });
     return {
       kind: "empty",
-      message: counts.active ? "Nothing is due right now." : `No ${MODE_LABELS[mode]} exercises have been generated yet.`,
+      message: counts.active ? "Nothing is due right now." : mode === "punish_blunder"
+        ? "No verified tactical mistakes are ready to practise."
+        : `No ${MODE_LABELS[mode]} exercises have been generated yet.`,
       options,
     };
   }

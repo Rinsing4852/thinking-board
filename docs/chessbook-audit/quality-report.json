@@ -1,10 +1,10 @@
 {
   "auditDate": "2026-10-17",
-  "generatedAt": "2026-10-26T23:15:15.408Z",
+  "generatedAt": "2026-10-27T08:46:37.484Z",
   "stale": false,
   "verification": {
-    "measuredAt": "2026-10-26T19:36:42.362Z",
-    "sourceFingerprint": "45977b7f27f075b87658c2ef7a0eeb0e4a521eca74136ec95dfd3fc9ea36c645",
+    "measuredAt": "2026-10-27T08:46:37.452Z",
+    "sourceFingerprint": "1b18f0701ac3367642cd2bcac8a4c21bcc0bcf259e80103fbd3a275d265a03ec",
     "sourceUnchangedDuringRun": true,
     "steps": [
       {
@@ -38,7 +38,7 @@
         "error": null
       }
     ],
-    "commit": "f59802aa322ff9cbd4bd433c6deab31b0e619d3d"
+    "commit": "aac0012994b93d4119b2078637d656b047013447"
   },
   "baselineUnitOnly": {
     "available": true,
@@ -47,34 +47,34 @@
       "failed": 0,
       "flaky": 0,
       "unknown": 87,
-      "unmet": 80,
+      "unmet": 86,
       "excluded": 3
     },
-    "verifiedPercent": 21.5
+    "verifiedPercent": 20.7
   },
   "currentUnitOnly": {
     "counts": {
-      "passed": 72,
+      "passed": 76,
       "failed": 0,
       "flaky": 0,
-      "unknown": 100,
+      "unknown": 102,
       "unmet": 30,
       "excluded": 3
     },
-    "verifiedPercent": 42.3
+    "verifiedPercent": 43.2
   },
   "counts": {
-    "passed": 131,
+    "passed": 137,
     "failed": 0,
     "flaky": 0,
     "unknown": 41,
     "unmet": 30,
     "excluded": 3
   },
-  "verifiedPercent": 73.2,
+  "verifiedPercent": 74.2,
   "weightedPoints": {
-    "earned": 561,
-    "possible": 766
+    "earned": 591,
+    "possible": 796
   },
   "release": {
     "status": "not_checked",
@@ -82,8 +82,8 @@
   },
   "measurement": "Verified requirements, not an overall product-quality score or a Chessbook parity percentage.",
   "tests": {
-    "unit": 378,
-    "browser": 196,
+    "unit": 389,
+    "browser": 200,
     "failed": [],
     "flaky": [],
     "skipped": []
@@ -152,7 +152,7 @@
               "title": "previews and imports both sides as private, deduplicated repertoires",
               "file": "apps/server/src/openings/opening-pgn-import.test.ts",
               "status": "passed",
-              "durationMs": 59.82820899999996
+              "durationMs": 60.160458000000006
             }
           ],
           "status": "passed"
@@ -167,7 +167,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 901
+              "durationMs": 890
             },
             {
               "kind": "browser",
@@ -175,7 +175,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 1406
+              "durationMs": 1451
             }
           ],
           "status": "passed"
@@ -256,7 +256,7 @@
               "title": "builds and practises different first moves while preserving original moves and export paths",
               "file": "apps/server/src/openings/opening-update-service.test.ts",
               "status": "passed",
-              "durationMs": 76.455083
+              "durationMs": 113.97529199999997
             }
           ],
           "status": "passed"
@@ -271,7 +271,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 435
+              "durationMs": 394
             },
             {
               "kind": "browser",
@@ -279,7 +279,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 613
+              "durationMs": 652
             }
           ],
           "status": "passed"
@@ -293,7 +293,7 @@
               "title": "builds and practises different first moves while preserving original moves and export paths",
               "file": "apps/server/src/openings/opening-update-service.test.ts",
               "status": "passed",
-              "durationMs": 76.455083
+              "durationMs": 113.97529199999997
             }
           ],
           "status": "passed"
@@ -368,7 +368,7 @@
               "title": "recalls all enabled shared responses without requiring them in one fixed order",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 248.800833
+              "durationMs": 148.49120900000003
             }
           ],
           "status": "passed"
@@ -383,7 +383,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 4394
+              "durationMs": 4355
             },
             {
               "kind": "browser",
@@ -391,7 +391,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 4796
+              "durationMs": 4362
             }
           ],
           "status": "passed"
@@ -405,7 +405,7 @@
               "title": "does not add paused alternatives to shared-response practice",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 71.58950000000004
+              "durationMs": 117.90891599999986
             }
           ],
           "status": "passed"
@@ -476,7 +476,7 @@
               "title": "rejects illegal moves with their authored location",
               "file": "apps/server/src/openings/opening-content.test.ts",
               "status": "passed",
-              "durationMs": 0.740458000000018
+              "durationMs": 0.8629580000000203
             }
           ],
           "status": "passed"
@@ -491,7 +491,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 901
+              "durationMs": 890
             },
             {
               "kind": "browser",
@@ -499,7 +499,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 1406
+              "durationMs": 1451
             }
           ],
           "status": "passed"
@@ -582,7 +582,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 1241
+              "durationMs": 1223
             },
             {
               "kind": "browser",
@@ -590,7 +590,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 1588
+              "durationMs": 1621
             }
           ],
           "status": "passed"
@@ -666,7 +666,7 @@
               "title": "compiles authored lines into a graph and merges transpositions",
               "file": "apps/server/src/openings/opening-content.test.ts",
               "status": "passed",
-              "durationMs": 7.128208000000001
+              "durationMs": 7.340208999999987
             }
           ],
           "status": "passed"
@@ -681,7 +681,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 508
+              "durationMs": 516
             },
             {
               "kind": "browser",
@@ -689,7 +689,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 1125
+              "durationMs": 1138
             }
           ],
           "status": "passed"
@@ -766,7 +766,7 @@
               "title": "keeps chapter-specific reasons and marks with shared memory, including updates and export/reimport",
               "file": "apps/server/src/openings/opening-update-service.test.ts",
               "status": "passed",
-              "durationMs": 104.94316700000002
+              "durationMs": 197.4257500000001
             }
           ],
           "status": "passed"
@@ -781,7 +781,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 4031
+              "durationMs": 4028
             },
             {
               "kind": "browser",
@@ -789,7 +789,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 3978
+              "durationMs": 3980
             }
           ],
           "status": "passed"
@@ -861,7 +861,7 @@
               "title": "preserves a main line, side variation, and comments",
               "file": "apps/server/src/openings/opening-pgn-import.test.ts",
               "status": "passed",
-              "durationMs": 6.889583000000016
+              "durationMs": 4.254625000000004
             }
           ],
           "status": "passed"
@@ -881,7 +881,7 @@
               "title": "gives useful errors for illegal moves and custom positions",
               "file": "apps/server/src/openings/opening-pgn-import.test.ts",
               "status": "passed",
-              "durationMs": 0.9664999999999964
+              "durationMs": 0.8117500000000177
             }
           ],
           "status": "passed"
@@ -951,7 +951,7 @@
               "title": "authenticates, previews, and imports a private multi-chapter Lichess Study",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 47.07825000000048
+              "durationMs": 60.51887499999975
             }
           ],
           "status": "passed"
@@ -966,7 +966,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 552
+              "durationMs": 569
             },
             {
               "kind": "browser",
@@ -974,7 +974,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 952
+              "durationMs": 932
             }
           ],
           "status": "passed"
@@ -1046,7 +1046,7 @@
               "title": "preserves a shorter saved path when exporting a chapter with longer continuations",
               "file": "apps/server/src/openings/opening-update-service.test.ts",
               "status": "passed",
-              "durationMs": 81.93925000000002
+              "durationMs": 128.95775000000003
             }
           ],
           "status": "passed"
@@ -1066,7 +1066,7 @@
               "title": "round trips the supplied Ruy Lopez study's nested variations and source highlight",
               "file": "apps/server/src/openings/opening-update-service.test.ts",
               "status": "passed",
-              "durationMs": 202.22750000000002
+              "durationMs": 218.34829100000002
             }
           ],
           "status": "passed"
@@ -1141,7 +1141,7 @@
               "title": "merges nested variations, extends a source line and preserves cards, notes, names and archives",
               "file": "apps/server/src/openings/opening-update-service.test.ts",
               "status": "passed",
-              "durationMs": 217.29708299999993
+              "durationMs": 47.77395799999999
             }
           ],
           "status": "passed"
@@ -1156,7 +1156,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 552
+              "durationMs": 569
             },
             {
               "kind": "browser",
@@ -1164,7 +1164,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 952
+              "durationMs": 932
             }
           ],
           "status": "passed"
@@ -1178,7 +1178,7 @@
               "title": "rejects stale, expired, wrong-target and unconfirmed previews without changing the graph",
               "file": "apps/server/src/openings/opening-update-service.test.ts",
               "status": "passed",
-              "durationMs": 93.82475
+              "durationMs": 59.20158300000003
             }
           ],
           "status": "passed"
@@ -1253,7 +1253,7 @@
               "title": "defaults on, pauses a branch without hiding it, keeps shared moves and excludes unique paused moves",
               "file": "apps/server/src/openings/opening-practice-selection-service.test.ts",
               "status": "passed",
-              "durationMs": 81.93175000000002
+              "durationMs": 102.21758299999999
             }
           ],
           "status": "passed"
@@ -1268,7 +1268,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 785
+              "durationMs": 944
             },
             {
               "kind": "browser",
@@ -1276,7 +1276,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 1305
+              "durationMs": 1063
             }
           ],
           "status": "passed"
@@ -1290,7 +1290,7 @@
               "title": "isolates player choices and preserves them through archive/restore and source import",
               "file": "apps/server/src/openings/opening-practice-selection-service.test.ts",
               "status": "passed",
-              "durationMs": 53.567916999999966
+              "durationMs": 65.07495799999992
             }
           ],
           "status": "passed"
@@ -1360,7 +1360,7 @@
               "title": "keeps ideas and deliberate omissions separate, without renormalising",
               "file": "apps/server/src/openings/opening-coverage-model.test.ts",
               "status": "passed",
-              "durationMs": 0.19104200000001015
+              "durationMs": 0.10604200000000219
             }
           ],
           "status": "passed"
@@ -1375,7 +1375,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 1833
+              "durationMs": 1883
             },
             {
               "kind": "browser",
@@ -1383,7 +1383,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 2061
+              "durationMs": 2278
             }
           ],
           "status": "passed"
@@ -1517,7 +1517,7 @@
               "title": "rolls back every repertoire deletion if clearing the library fails part-way through",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 47.44250000000011
+              "durationMs": 56.394542
             }
           ],
           "status": "passed"
@@ -1532,7 +1532,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 1013
+              "durationMs": 1059
             },
             {
               "kind": "browser",
@@ -1540,7 +1540,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 1748
+              "durationMs": 2003
             }
           ],
           "status": "passed"
@@ -1607,7 +1607,7 @@
               "title": "stores the player's practical opening context",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 42.738666000000194
+              "durationMs": 63.04429099999925
             }
           ],
           "status": "passed"
@@ -1683,7 +1683,7 @@
               "title": "keeps blitz and rapid samples separate across fetches and cache reads",
               "file": "apps/server/src/openings/opening-explorer-service.test.ts",
               "status": "passed",
-              "durationMs": 83.90941700000002
+              "durationMs": 60.393708000000004
             }
           ],
           "status": "passed"
@@ -1845,21 +1845,21 @@
               "title": "multiplies successive opponent probabilities rather than pooling sample counts",
               "file": "apps/server/src/openings/opening-coverage-model.test.ts",
               "status": "passed",
-              "durationMs": 2.787916999999993
+              "durationMs": 1.323082999999997
             },
             {
               "kind": "unit",
               "title": "checks both Black first-move responses together and keeps White alternatives separate",
               "file": "apps/server/src/openings/opening-repertoire-goal-service.test.ts",
               "status": "passed",
-              "durationMs": 65.07879099999997
+              "durationMs": 95.82008300000007
             },
             {
               "kind": "unit",
               "title": "combines variable-length transpositions before deciding a reply is rare",
               "file": "apps/server/src/openings/opening-repertoire-goal.test.ts",
               "status": "passed",
-              "durationMs": 0.3966250000000002
+              "durationMs": 0.3935830000000067
             }
           ],
           "status": "passed"
@@ -1873,7 +1873,7 @@
               "title": "changes relevant gaps at the exact encounter threshold using unrounded probabilities",
               "file": "apps/server/src/openings/opening-personal-coverage.test.ts",
               "status": "passed",
-              "durationMs": 38.07095800000002
+              "durationMs": 76.3125
             },
             {
               "kind": "browser",
@@ -1881,7 +1881,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 2806
+              "durationMs": 2770
             },
             {
               "kind": "browser",
@@ -1889,14 +1889,14 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 3286
+              "durationMs": 3193
             },
             {
               "kind": "unit",
               "title": "uses the encounter threshold without letting a skipped task count as preparation",
               "file": "apps/server/src/openings/opening-repertoire-goal-service.test.ts",
               "status": "passed",
-              "durationMs": 33.30341699999997
+              "durationMs": 43.85466599999995
             }
           ],
           "status": "passed"
@@ -1910,21 +1910,21 @@
               "title": "considers a useful thirteenth repertoire and does not confirm an unknown coverage goal",
               "file": "apps/server/src/openings/opening-personal-coverage.test.ts",
               "status": "passed",
-              "durationMs": 397.782375
+              "durationMs": 350.126
             },
             {
               "kind": "unit",
               "title": "never turns a safety cap or missing/stale/mismatched samples into completion",
               "file": "apps/server/src/openings/opening-repertoire-goal-service.test.ts",
               "status": "passed",
-              "durationMs": 34.21170799999993
+              "durationMs": 32.808250000000044
             },
             {
               "kind": "unit",
               "title": "does not turn unassessed plans into a whole-repertoire success",
               "file": "apps/server/src/openings/opening-repertoire-goal-service.test.ts",
               "status": "passed",
-              "durationMs": 683.730708
+              "durationMs": 539.2811670000001
             },
             {
               "kind": "browser",
@@ -1932,7 +1932,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 2437
+              "durationMs": 2464
             },
             {
               "kind": "browser",
@@ -1940,7 +1940,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 1397
+              "durationMs": 1445
             },
             {
               "kind": "browser",
@@ -1948,7 +1948,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 1997
+              "durationMs": 2156
             },
             {
               "kind": "browser",
@@ -1956,28 +1956,28 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 1086
+              "durationMs": 1009
             },
             {
               "kind": "unit",
               "title": "confirms the repertoire only after every contiguous saved-plan batch",
               "file": "apps/web/src/opening-goal-pages.test.ts",
               "status": "passed",
-              "durationMs": 4.434459000000004
+              "durationMs": 2.9490000000000123
             },
             {
               "kind": "unit",
               "title": "rejects changed evidence, settings, out-of-order, duplicate and truncated batches",
               "file": "apps/web/src/opening-goal-pages.test.ts",
               "status": "passed",
-              "durationMs": 2.002291000000014
+              "durationMs": 0.6067500000000052
             },
             {
               "kind": "unit",
               "title": "binds continuation to sample content and freshness rather than cache delivery metadata",
               "file": "apps/server/src/openings/opening-repertoire-goal-service.test.ts",
               "status": "passed",
-              "durationMs": 119.974583
+              "durationMs": 113.82120799999996
             },
             {
               "kind": "browser",
@@ -1985,7 +1985,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 2326
+              "durationMs": 2333
             },
             {
               "kind": "browser",
@@ -1993,7 +1993,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 1210
+              "durationMs": 1387
             },
             {
               "kind": "browser",
@@ -2001,7 +2001,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 4333
+              "durationMs": 4299
             },
             {
               "kind": "browser",
@@ -2009,7 +2009,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 3086
+              "durationMs": 2967
             }
           ],
           "status": "passed"
@@ -2084,7 +2084,7 @@
               "title": "retains independent Lichess denominators when both sources exist",
               "file": "apps/server/src/openings/opening-personal-coverage.test.ts",
               "status": "passed",
-              "durationMs": 40.225874999999974
+              "durationMs": 64.88008300000001
             }
           ],
           "status": "passed"
@@ -2099,7 +2099,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 1833
+              "durationMs": 1883
             },
             {
               "kind": "browser",
@@ -2107,7 +2107,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 2061
+              "durationMs": 2278
             }
           ],
           "status": "passed"
@@ -2121,7 +2121,7 @@
               "title": "does not count a saved opponent move without our response",
               "file": "apps/server/src/openings/opening-coverage-model.test.ts",
               "status": "passed",
-              "durationMs": 0.22179199999999355
+              "durationMs": 0.10750000000001592
             }
           ],
           "status": "passed"
@@ -2191,7 +2191,7 @@
               "title": "finds a game-based preparation gap independently of a different recommended practice repertoire",
               "file": "apps/server/src/openings/opening-personal-coverage.test.ts",
               "status": "passed",
-              "durationMs": 62.11233400000003
+              "durationMs": 63.590832999999975
             }
           ],
           "status": "passed"
@@ -2206,7 +2206,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 295
+              "durationMs": 311
             },
             {
               "kind": "browser",
@@ -2214,7 +2214,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 406
+              "durationMs": 459
             }
           ],
           "status": "passed"
@@ -2290,7 +2290,7 @@
               "title": "serves cached local analysis and current-position practical moves for the opening studio",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 118.98425000000134
+              "durationMs": 142.7797499999997
             }
           ],
           "status": "passed"
@@ -2305,7 +2305,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 901
+              "durationMs": 890
             },
             {
               "kind": "browser",
@@ -2313,7 +2313,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 1406
+              "durationMs": 1451
             }
           ],
           "status": "passed"
@@ -2396,7 +2396,7 @@
               "title": "keeps master counts and caches separate from practical data and returns honest empty samples",
               "file": "apps/server/src/openings/opening-master-service.test.ts",
               "status": "passed",
-              "durationMs": 77.76233299999998
+              "durationMs": 89.73575
             }
           ],
           "status": "passed"
@@ -2411,7 +2411,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 307
+              "durationMs": 298
             },
             {
               "kind": "browser",
@@ -2419,7 +2419,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 386
+              "durationMs": 372
             }
           ],
           "status": "passed"
@@ -2433,7 +2433,7 @@
               "title": "keeps master counts and caches separate from practical data and returns honest empty samples",
               "file": "apps/server/src/openings/opening-master-service.test.ts",
               "status": "passed",
-              "durationMs": 77.76233299999998
+              "durationMs": 89.73575
             }
           ],
           "status": "passed"
@@ -2503,7 +2503,7 @@
               "title": "serves cached local analysis and current-position practical moves for the opening studio",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 118.98425000000134
+              "durationMs": 142.7797499999997
             }
           ],
           "status": "passed"
@@ -2526,7 +2526,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 1740
+              "durationMs": 1744
             }
           ],
           "status": "passed"
@@ -2718,7 +2718,7 @@
               "title": "counts first encounters and includes corrected full runs in the recall denominator",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 113.94620799999984
+              "durationMs": 159.7607079999998
             }
           ],
           "status": "passed"
@@ -2733,7 +2733,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 785
+              "durationMs": 944
             },
             {
               "kind": "browser",
@@ -2741,7 +2741,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 1305
+              "durationMs": 1063
             }
           ],
           "status": "passed"
@@ -2811,7 +2811,7 @@
               "title": "creates and removes a gap branch while preserving authored lines and notes",
               "file": "apps/server/src/openings/opening-gap-draft-service.test.ts",
               "status": "passed",
-              "durationMs": 47.052458
+              "durationMs": 59.95083299999999
             }
           ],
           "status": "passed"
@@ -2967,7 +2967,7 @@
               "title": "previews without writes to preparation, applies once and undoes only its new moves for either colour",
               "file": "apps/server/src/openings/opening-gap-draft-service.test.ts",
               "status": "passed",
-              "durationMs": 100.69012499999997
+              "durationMs": 116.73058300000002
             }
           ],
           "status": "passed"
@@ -2981,7 +2981,7 @@
               "title": "previews without writes to preparation, applies once and undoes only its new moves for either colour",
               "file": "apps/server/src/openings/opening-gap-draft-service.test.ts",
               "status": "passed",
-              "durationMs": 100.69012499999997
+              "durationMs": 116.73058300000002
             },
             {
               "kind": "browser",
@@ -2989,7 +2989,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 429
+              "durationMs": 396
             },
             {
               "kind": "browser",
@@ -2997,7 +2997,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 485
+              "durationMs": 487
             }
           ],
           "status": "passed"
@@ -3011,14 +3011,14 @@
               "title": "rejects existing replies, weak evidence, changed previews and later edits without losing preparation",
               "file": "apps/server/src/openings/opening-gap-draft-service.test.ts",
               "status": "passed",
-              "durationMs": 42.38212500000003
+              "durationMs": 66.69966599999998
             },
             {
               "kind": "unit",
               "title": "protects another player's notes before undoing shared generated content",
               "file": "apps/server/src/openings/opening-gap-draft-service.test.ts",
               "status": "passed",
-              "durationMs": 39.422708
+              "durationMs": 43.331916000000035
             }
           ],
           "status": "passed"
@@ -3101,7 +3101,7 @@
               "title": "schedules a first successful recall for the next day",
               "file": "apps/server/src/openings/opening-review-scheduler.test.ts",
               "status": "passed",
-              "durationMs": 1.9090830000000096
+              "durationMs": 4.702499999999986
             }
           ],
           "status": "passed"
@@ -3116,7 +3116,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 520
+              "durationMs": 553
             },
             {
               "kind": "browser",
@@ -3124,21 +3124,21 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 798
+              "durationMs": 767
             },
             {
               "kind": "unit",
               "title": "keeps the scheduled review and activity unchanged after an extra retry (correct=true)",
               "file": "apps/server/src/openings/opening-first-exposure.test.ts",
               "status": "passed",
-              "durationMs": 50.90866599999998
+              "durationMs": 64.91083300000003
             },
             {
               "kind": "unit",
               "title": "keeps the scheduled review and activity unchanged after an extra retry (correct=false)",
               "file": "apps/server/src/openings/opening-first-exposure.test.ts",
               "status": "passed",
-              "durationMs": 41.931415999999956
+              "durationMs": 48.77966700000002
             }
           ],
           "status": "passed"
@@ -3152,7 +3152,7 @@
               "title": "merges nested variations, extends a source line and preserves cards, notes, names and archives",
               "file": "apps/server/src/openings/opening-update-service.test.ts",
               "status": "passed",
-              "durationMs": 217.29708299999993
+              "durationMs": 47.77395799999999
             }
           ],
           "status": "passed"
@@ -3282,7 +3282,7 @@
               "title": "distinguishes full-line unaided runs from partial drills, hints and shared move recall",
               "file": "apps/server/src/openings/opening-practice-selection-service.test.ts",
               "status": "passed",
-              "durationMs": 82.22358300000019
+              "durationMs": 111.45462499999985
             }
           ],
           "status": "passed"
@@ -3297,7 +3297,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 7950
+              "durationMs": 7932
             },
             {
               "kind": "browser",
@@ -3305,7 +3305,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 7804
+              "durationMs": 7355
             }
           ],
           "status": "passed"
@@ -3414,7 +3414,7 @@
               "title": "records an unassisted off-repertoire move as a lapse",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 45.83416699999907
+              "durationMs": 55.847874999999476
             }
           ],
           "status": "passed"
@@ -3429,7 +3429,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 1872
+              "durationMs": 1864
             },
             {
               "kind": "browser",
@@ -3437,21 +3437,21 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 2105
+              "durationMs": 2106
             },
             {
               "kind": "unit",
               "title": "compares restricted scores for the white mover and reuses evidence",
               "file": "apps/server/src/openings/opening-analysis-service.test.ts",
               "status": "passed",
-              "durationMs": 2.9445840000000203
+              "durationMs": 4.139415999999983
             },
             {
               "kind": "unit",
               "title": "compares restricted scores for the black mover and reuses evidence",
               "file": "apps/server/src/openings/opening-analysis-service.test.ts",
               "status": "passed",
-              "durationMs": 2.9984589999999685
+              "durationMs": 1.1533749999999827
             }
           ],
           "status": "passed"
@@ -3465,21 +3465,21 @@
               "title": "keeps shallow analysis unverified",
               "file": "apps/server/src/openings/opening-analysis-service.test.ts",
               "status": "passed",
-              "durationMs": 3.6887080000000196
+              "durationMs": 0.5862920000000145
             },
             {
               "kind": "unit",
               "title": "keeps failure analysis unverified",
               "file": "apps/server/src/openings/opening-analysis-service.test.ts",
               "status": "passed",
-              "durationMs": 2.1962919999999713
+              "durationMs": 0.6738330000000019
             },
             {
               "kind": "unit",
               "title": "does not treat a score bound or an unsupported score as exact",
               "file": "apps/server/src/analysis/uci-engine.test.ts",
               "status": "passed",
-              "durationMs": 0.12745899999998755
+              "durationMs": 0.13904200000001765
             },
             {
               "kind": "browser",
@@ -3487,7 +3487,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 1872
+              "durationMs": 1864
             },
             {
               "kind": "browser",
@@ -3495,7 +3495,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 2105
+              "durationMs": 2106
             }
           ],
           "status": "passed"
@@ -3622,35 +3622,35 @@
               "title": "persists practice preferences and idea help without claiming an independent recall",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 193.86574999999993
+              "durationMs": 382.020167
             },
             {
               "kind": "unit",
               "title": "persists three demonstrations before recall without earning review or activity credit",
               "file": "apps/server/src/openings/opening-first-exposure.test.ts",
               "status": "passed",
-              "durationMs": 55.91066699999999
+              "durationMs": 85.21124999999995
             },
             {
               "kind": "unit",
               "title": "keeps recalled help separate from the earlier demonstration after reload",
               "file": "apps/server/src/openings/opening-first-exposure.test.ts",
               "status": "passed",
-              "durationMs": 53.750999999999976
+              "durationMs": 65.64216699999997
             },
             {
               "kind": "unit",
               "title": "teaches bounded exact alternatives and keeps untaught responses available after the position is reviewed",
               "file": "apps/server/src/openings/opening-first-exposure.test.ts",
               "status": "passed",
-              "durationMs": 47.717291000000046
+              "durationMs": 85.80708400000003
             },
             {
               "kind": "unit",
               "title": "deduplicates shared responses and excludes paused and archived alternatives from teaching",
               "file": "apps/server/src/openings/opening-first-exposure.test.ts",
               "status": "passed",
-              "durationMs": 62.908165999999994
+              "durationMs": 47.961167000000046
             }
           ],
           "status": "passed"
@@ -3665,7 +3665,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 3440
+              "durationMs": 3396
             },
             {
               "kind": "browser",
@@ -3673,7 +3673,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 3539
+              "durationMs": 3584
             },
             {
               "kind": "browser",
@@ -3681,7 +3681,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 2285
+              "durationMs": 2249
             },
             {
               "kind": "browser",
@@ -3689,7 +3689,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 2982
+              "durationMs": 2946
             },
             {
               "kind": "browser",
@@ -3697,7 +3697,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 4453
+              "durationMs": 4486
             },
             {
               "kind": "browser",
@@ -3705,7 +3705,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 4885
+              "durationMs": 4828
             }
           ],
           "status": "passed"
@@ -3719,35 +3719,35 @@
               "title": "teaches new opening decisions without counting assisted moves as remembered",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 54.87304199999926
+              "durationMs": 64.09449999999924
             },
             {
               "kind": "unit",
               "title": "rejects wrong demonstrations and recall/help bypasses without mutating memory",
               "file": "apps/server/src/openings/opening-first-exposure.test.ts",
               "status": "passed",
-              "durationMs": 32.82733399999995
+              "durationMs": 60.98479199999997
             },
             {
               "kind": "unit",
               "title": "retries an acknowledged demonstration without advancing a second move",
               "file": "apps/server/src/openings/opening-first-exposure.test.ts",
               "status": "passed",
-              "durationMs": 43.87495899999999
+              "durationMs": 96.634458
             },
             {
               "kind": "unit",
               "title": "isolates exposure stages by player and rejects replaced sessions",
               "file": "apps/server/src/openings/opening-first-exposure.test.ts",
               "status": "passed",
-              "durationMs": 32.83045900000002
+              "durationMs": 50.44775000000004
             },
             {
               "kind": "unit",
               "title": "identifies taught alternatives by order without revealing the recall answer",
               "file": "apps/server/src/openings/opening-first-exposure.test.ts",
               "status": "passed",
-              "durationMs": 87.21587499999998
+              "durationMs": 91.82420799999994
             }
           ],
           "status": "passed"
@@ -3817,7 +3817,7 @@
               "title": "records active recall time and rejects stale or invalid timed attempts",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 46.07429199999933
+              "durationMs": 56.20729200000096
             }
           ],
           "status": "passed"
@@ -3832,7 +3832,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 2174
+              "durationMs": 2182
             },
             {
               "kind": "browser",
@@ -3840,7 +3840,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 2409
+              "durationMs": 1923
             }
           ],
           "status": "passed"
@@ -3933,14 +3933,14 @@
               "title": "sizes recommended batches to the remaining goal and leaves extra practice available",
               "file": "apps/server/src/openings/opening-activity-service.test.ts",
               "status": "passed",
-              "durationMs": 54.981291999999996
+              "durationMs": 45.78920800000003
             },
             {
               "kind": "unit",
               "title": "offers recommended teaching within the remaining goal and keeps urgent reviews first",
               "file": "apps/server/src/openings/opening-first-exposure.test.ts",
               "status": "passed",
-              "durationMs": 54.490792
+              "durationMs": 77.82395899999995
             }
           ],
           "status": "passed"
@@ -3955,7 +3955,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 2321
+              "durationMs": 2314
             },
             {
               "kind": "browser",
@@ -3963,7 +3963,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 2581
+              "durationMs": 2609
             },
             {
               "kind": "browser",
@@ -3971,7 +3971,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 557
+              "durationMs": 566
             },
             {
               "kind": "browser",
@@ -3979,7 +3979,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 708
+              "durationMs": 662
             }
           ],
           "status": "passed"
@@ -3993,7 +3993,7 @@
               "title": "does not add paused alternatives to shared-response practice",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 71.58950000000004
+              "durationMs": 117.90891599999986
             }
           ],
           "status": "passed"
@@ -4068,7 +4068,7 @@
               "title": "persists goal and time zone, preserves omitted settings, and rejects invalid input without changes",
               "file": "apps/server/src/openings/opening-activity-service.test.ts",
               "status": "passed",
-              "durationMs": 40.57362499999999
+              "durationMs": 37.478415999999925
             }
           ],
           "status": "passed"
@@ -4083,7 +4083,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 2321
+              "durationMs": 2314
             },
             {
               "kind": "browser",
@@ -4091,7 +4091,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 2581
+              "durationMs": 2609
             }
           ],
           "status": "passed"
@@ -4105,7 +4105,7 @@
               "title": "uses local calendar days across midnight, daylight saving and fractional-hour zones",
               "file": "apps/server/src/openings/opening-activity-service.test.ts",
               "status": "passed",
-              "durationMs": 45.414041999999995
+              "durationMs": 84.391166
             }
           ],
           "status": "passed"
@@ -4180,7 +4180,7 @@
               "title": "keeps yesterday's streak available today and resets it after a missed day",
               "file": "apps/server/src/openings/opening-activity-service.test.ts",
               "status": "passed",
-              "durationMs": 41.734375
+              "durationMs": 84.03941599999996
             }
           ],
           "status": "passed"
@@ -4195,7 +4195,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 2321
+              "durationMs": 2314
             },
             {
               "kind": "browser",
@@ -4203,7 +4203,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 2581
+              "durationMs": 2609
             }
           ],
           "status": "passed"
@@ -4217,7 +4217,7 @@
               "title": "counts completed scheduled encounters once and keeps assistance separate from recall",
               "file": "apps/server/src/openings/opening-activity-service.test.ts",
               "status": "passed",
-              "durationMs": 87.86737500000001
+              "durationMs": 68.034458
             }
           ],
           "status": "passed"
@@ -4292,7 +4292,7 @@
               "title": "counts completed scheduled encounters once and keeps assistance separate from recall",
               "file": "apps/server/src/openings/opening-activity-service.test.ts",
               "status": "passed",
-              "durationMs": 87.86737500000001
+              "durationMs": 68.034458
             }
           ],
           "status": "passed"
@@ -4307,7 +4307,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 2321
+              "durationMs": 2314
             },
             {
               "kind": "browser",
@@ -4315,7 +4315,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 2581
+              "durationMs": 2609
             }
           ],
           "status": "passed"
@@ -4329,7 +4329,7 @@
               "title": "isolates practice activity and daily targets for each player",
               "file": "apps/server/src/openings/opening-activity-service.test.ts",
               "status": "passed",
-              "durationMs": 45.922500000000014
+              "durationMs": 42.42008299999998
             }
           ],
           "status": "passed"
@@ -4547,21 +4547,21 @@
               "title": "matches exact positions and transpositions for both colours without relying on opening names",
               "file": "apps/server/src/openings/opening-study-service.test.ts",
               "status": "passed",
-              "durationMs": 76.21587499999998
+              "durationMs": 94.30154199999993
             },
             {
               "kind": "unit",
               "title": "imports atomically, deduplicates by legal mainline and rejects malformed or unfinished games",
               "file": "apps/server/src/openings/opening-study-service.test.ts",
               "status": "passed",
-              "durationMs": 31.22745800000007
+              "durationMs": 49.11783300000002
             },
             {
               "kind": "unit",
               "title": "labels Black-to-move custom games correctly including earlier local imports",
               "file": "apps/server/src/openings/opening-study-service.test.ts",
               "status": "passed",
-              "durationMs": 50.16766700000005
+              "durationMs": 60.601084000000014
             }
           ],
           "status": "passed"
@@ -4575,14 +4575,14 @@
               "title": "isolates profiles, invalidates changed saved positions, and leaves practice and played games untouched",
               "file": "apps/server/src/openings/opening-study-service.test.ts",
               "status": "passed",
-              "durationMs": 62.760167000000024
+              "durationMs": 94.90025000000003
             },
             {
               "kind": "unit",
               "title": "rejects an old browser position even when the same game matches its replacement",
               "file": "apps/server/src/openings/opening-study-service.test.ts",
               "status": "passed",
-              "durationMs": 85.69033400000001
+              "durationMs": 77.29149999999998
             },
             {
               "kind": "browser",
@@ -4590,7 +4590,7 @@
               "file": "opening-model-games.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 1180
+              "durationMs": 1146
             },
             {
               "kind": "browser",
@@ -4598,7 +4598,7 @@
               "file": "opening-model-games.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 1319
+              "durationMs": 1297
             },
             {
               "kind": "browser",
@@ -4606,7 +4606,7 @@
               "file": "opening-model-games.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 1107
+              "durationMs": 1250
             },
             {
               "kind": "browser",
@@ -4614,7 +4614,7 @@
               "file": "opening-model-games.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 2044
+              "durationMs": 2012
             }
           ],
           "status": "passed"
@@ -4629,7 +4629,7 @@
               "file": "opening-model-games.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 1477
+              "durationMs": 1533
             },
             {
               "kind": "browser",
@@ -4637,14 +4637,14 @@
               "file": "opening-model-games.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 1782
+              "durationMs": 933
             },
             {
               "kind": "unit",
               "title": "reports missing samples, provider failures and partial downloads without discarding saved study",
               "file": "apps/server/src/openings/opening-study-discovery.test.ts",
               "status": "passed",
-              "durationMs": 40.38129099999992
+              "durationMs": 48.85570800000005
             },
             {
               "kind": "browser",
@@ -4652,7 +4652,7 @@
               "file": "opening-model-games.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 1571
+              "durationMs": 1533
             },
             {
               "kind": "browser",
@@ -4660,7 +4660,7 @@
               "file": "opening-model-games.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 1847
+              "durationMs": 1877
             }
           ],
           "status": "passed"
@@ -4674,14 +4674,14 @@
               "title": "verifies both colours and exact transpositions, ranks direct routes, and starts a replay without changing recall",
               "file": "apps/server/src/openings/opening-study-discovery.test.ts",
               "status": "passed",
-              "durationMs": 98.94587499999994
+              "durationMs": 153.39579199999997
             },
             {
               "kind": "unit",
               "title": "checks the player on the learner side rather than the opponent, and rejects unknown, unfinished and mismatched games",
               "file": "apps/server/src/openings/opening-study-discovery.test.ts",
               "status": "passed",
-              "durationMs": 42.16208300000005
+              "durationMs": 64.72075000000007
             },
             {
               "kind": "browser",
@@ -4689,7 +4689,7 @@
               "file": "opening-model-games.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 1571
+              "durationMs": 1533
             },
             {
               "kind": "browser",
@@ -4697,7 +4697,7 @@
               "file": "opening-model-games.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 1847
+              "durationMs": 1877
             }
           ],
           "status": "passed"
@@ -4711,14 +4711,14 @@
               "title": "asks only the white side and hides future moves and annotations until a guess",
               "file": "apps/server/src/openings/opening-study-service.test.ts",
               "status": "passed",
-              "durationMs": 50.976583000000005
+              "durationMs": 59.315833
             },
             {
               "kind": "unit",
               "title": "asks only the black side and hides future moves and annotations until a guess",
               "file": "apps/server/src/openings/opening-study-service.test.ts",
               "status": "passed",
-              "durationMs": 56.345459000000005
+              "durationMs": 95.18608299999983
             },
             {
               "kind": "browser",
@@ -4726,7 +4726,7 @@
               "file": "opening-model-games.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 1883
+              "durationMs": 1944
             },
             {
               "kind": "browser",
@@ -4734,7 +4734,7 @@
               "file": "opening-model-games.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 2312
+              "durationMs": 2388
             },
             {
               "kind": "browser",
@@ -4742,7 +4742,7 @@
               "file": "opening-model-games.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 713
+              "durationMs": 703
             },
             {
               "kind": "browser",
@@ -4750,7 +4750,7 @@
               "file": "opening-model-games.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 879
+              "durationMs": 933
             }
           ],
           "status": "passed"
@@ -4764,14 +4764,14 @@
               "title": "labels different guesses as ungraded and keeps first attempts across hints, retries, exit and resume",
               "file": "apps/server/src/openings/opening-study-service.test.ts",
               "status": "passed",
-              "durationMs": 77.247208
+              "durationMs": 68.05208400000015
             },
             {
               "kind": "unit",
               "title": "saves helped first attempts and completion without touching memory, practice or the repertoire",
               "file": "apps/server/src/openings/opening-study-service.test.ts",
               "status": "passed",
-              "durationMs": 181.04441599999996
+              "durationMs": 72.73083400000019
             },
             {
               "kind": "browser",
@@ -4779,7 +4779,7 @@
               "file": "opening-model-games.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 1883
+              "durationMs": 1944
             },
             {
               "kind": "browser",
@@ -4787,7 +4787,7 @@
               "file": "opening-model-games.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 2312
+              "durationMs": 2388
             }
           ],
           "status": "passed"
@@ -4801,14 +4801,14 @@
               "title": "rejects stale tabs, duplicate answers and illegal guesses without changing saved state",
               "file": "apps/server/src/openings/opening-study-service.test.ts",
               "status": "passed",
-              "durationMs": 45.469540999999936
+              "durationMs": 30.51879199999985
             },
             {
               "kind": "unit",
               "title": "isolates profiles and removes guess history with its source game",
               "file": "apps/server/src/openings/opening-study-service.test.ts",
               "status": "passed",
-              "durationMs": 35.04608300000018
+              "durationMs": 40.36650000000009
             },
             {
               "kind": "browser",
@@ -4816,7 +4816,7 @@
               "file": "opening-model-games.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 1883
+              "durationMs": 1944
             },
             {
               "kind": "browser",
@@ -4824,7 +4824,7 @@
               "file": "opening-model-games.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 2312
+              "durationMs": 2388
             }
           ],
           "status": "passed"
@@ -4917,7 +4917,7 @@
               "title": "selects master and combined pools without comparing master ratings to Lichess or losing saved study",
               "file": "apps/server/src/openings/opening-study-discovery.test.ts",
               "status": "passed",
-              "durationMs": 122.12983400000002
+              "durationMs": 116.04870899999997
             },
             {
               "kind": "browser",
@@ -4933,7 +4933,7 @@
               "file": "opening-model-games.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 1573
+              "durationMs": 1597
             }
           ],
           "status": "passed"
@@ -4947,7 +4947,7 @@
               "title": "selects master and combined pools without comparing master ratings to Lichess or losing saved study",
               "file": "apps/server/src/openings/opening-study-discovery.test.ts",
               "status": "passed",
-              "durationMs": 122.12983400000002
+              "durationMs": 116.04870899999997
             },
             {
               "kind": "browser",
@@ -4963,7 +4963,7 @@
               "file": "opening-model-games.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 1573
+              "durationMs": 1597
             }
           ],
           "status": "passed"
@@ -4977,14 +4977,14 @@
               "title": "checks the player on the learner side rather than the opponent, and rejects unknown, unfinished and mismatched games",
               "file": "apps/server/src/openings/opening-study-discovery.test.ts",
               "status": "passed",
-              "durationMs": 42.16208300000005
+              "durationMs": 64.72075000000007
             },
             {
               "kind": "unit",
               "title": "reports missing samples, provider failures and partial downloads without discarding saved study",
               "file": "apps/server/src/openings/opening-study-discovery.test.ts",
               "status": "passed",
-              "durationMs": 40.38129099999992
+              "durationMs": 48.85570800000005
             }
           ],
           "status": "passed"
@@ -5074,7 +5074,7 @@
               "title": "connects and incrementally saves public Lichess games without starting engine analysis",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 46.47350000000006
+              "durationMs": 55.984375
             }
           ],
           "status": "passed"
@@ -5100,21 +5100,21 @@
               "title": "drains a backlog over bounded batches and restarts without skipping equal-timestamp games",
               "file": "apps/server/src/imports/game-identity-and-sync.test.ts",
               "status": "passed",
-              "durationMs": 88.28779100000003
+              "durationMs": 153.48979199999997
             },
             {
               "kind": "unit",
               "title": "advances safely through games already pasted into the library before reaching unseen games",
               "file": "apps/server/src/imports/game-identity-and-sync.test.ts",
               "status": "passed",
-              "durationMs": 55.94633399999998
+              "durationMs": 48.92604200000005
             },
             {
               "kind": "unit",
               "title": "keeps the sync boundary and saved games unchanged after a partially invalid response",
               "file": "apps/server/src/imports/game-identity-and-sync.test.ts",
               "status": "passed",
-              "durationMs": 32.54483399999998
+              "durationMs": 42.44150000000002
             }
           ],
           "status": "passed"
@@ -5128,7 +5128,7 @@
               "title": "keeps a slow account connection on the player who requested it",
               "file": "apps/server/src/imports/game-identity-and-sync.test.ts",
               "status": "passed",
-              "durationMs": 31.85575
+              "durationMs": 37.794083
             }
           ],
           "status": "passed"
@@ -5381,7 +5381,7 @@
               "title": "connects a game deviation to its exact repertoire review position",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 49.38483300000007
+              "durationMs": 56.69633299999987
             }
           ],
           "status": "passed"
@@ -5396,7 +5396,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 1265
+              "durationMs": 1282
             },
             {
               "kind": "browser",
@@ -5404,7 +5404,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 1511
+              "durationMs": 1561
             }
           ],
           "status": "passed"
@@ -5418,7 +5418,7 @@
               "title": "does not blame the player when the opponent leaves the repertoire first",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 42.703125
+              "durationMs": 52.71087500000067
             }
           ],
           "status": "passed"
@@ -5432,7 +5432,7 @@
               "title": "saves a full replay with hidden answers and local retries without changing scheduled recall or coverage data",
               "file": "apps/server/src/games/game-replay-service.test.ts",
               "status": "passed",
-              "durationMs": 55.549083000000024
+              "durationMs": 75.761708
             },
             {
               "kind": "browser",
@@ -5440,7 +5440,7 @@
               "file": "game-replay.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 1370
+              "durationMs": 1359
             },
             {
               "kind": "browser",
@@ -5448,7 +5448,7 @@
               "file": "game-replay.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 2781
+              "durationMs": 2736
             },
             {
               "kind": "browser",
@@ -5456,7 +5456,7 @@
               "file": "game-replay.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 1614
+              "durationMs": 1606
             },
             {
               "kind": "browser",
@@ -5464,7 +5464,7 @@
               "file": "game-replay.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 4180
+              "durationMs": 4203
             }
           ],
           "status": "passed"
@@ -5478,21 +5478,21 @@
               "title": "accepts saved alternatives, retains feedback after repertoire changes, and rejects stale tabs",
               "file": "apps/server/src/games/game-replay-service.test.ts",
               "status": "passed",
-              "durationMs": 61.86445800000001
+              "durationMs": 50.80120800000003
             },
             {
               "kind": "unit",
               "title": "uses the player's side when accepting multiple engine candidates and treats unlisted moves as unverified",
               "file": "apps/server/src/games/game-replay-service.test.ts",
               "status": "passed",
-              "durationMs": 28.377250000000004
+              "durationMs": 69.31166700000006
             },
             {
               "kind": "unit",
               "title": "keeps mate scores distinct from pawn scores and records reveals as helped local practice",
               "file": "apps/server/src/games/game-replay-service.test.ts",
               "status": "passed",
-              "durationMs": 50.050625000000025
+              "durationMs": 54.16162499999996
             }
           ],
           "status": "passed"
@@ -5506,14 +5506,14 @@
               "title": "schedules an existing repertoire position without recording recall and prevents scheduling changed feedback",
               "file": "apps/server/src/games/game-replay-service.test.ts",
               "status": "passed",
-              "durationMs": 28.77662500000008
+              "durationMs": 47.54895899999997
             },
             {
               "kind": "unit",
               "title": "uses the player's side when accepting multiple engine candidates and treats unlisted moves as unverified",
               "file": "apps/server/src/games/game-replay-service.test.ts",
               "status": "passed",
-              "durationMs": 28.377250000000004
+              "durationMs": 69.31166700000006
             }
           ],
           "status": "passed"
@@ -5692,7 +5692,7 @@
               "title": "persists practice preferences and idea help without claiming an independent recall",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 193.86574999999993
+              "durationMs": 382.020167
             }
           ],
           "status": "passed"
@@ -5776,7 +5776,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 2318
+              "durationMs": 2312
             },
             {
               "kind": "browser",
@@ -5784,7 +5784,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 2752
+              "durationMs": 2798
             }
           ],
           "status": "passed"
@@ -5912,7 +5912,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 435
+              "durationMs": 394
             },
             {
               "kind": "browser",
@@ -5920,7 +5920,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 613
+              "durationMs": 652
             }
           ],
           "status": "passed"
@@ -5935,7 +5935,7 @@
               "file": "ui-review.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 430
+              "durationMs": 421
             },
             {
               "kind": "browser",
@@ -5943,7 +5943,7 @@
               "file": "ui-review.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 546
+              "durationMs": 543
             }
           ],
           "status": "passed"
@@ -5958,7 +5958,7 @@
               "file": "ui-review.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 461
+              "durationMs": 439
             },
             {
               "kind": "browser",
@@ -5966,7 +5966,7 @@
               "file": "ui-review.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 565
+              "durationMs": 580
             },
             {
               "kind": "browser",
@@ -5974,7 +5974,7 @@
               "file": "ui-review.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 430
+              "durationMs": 421
             },
             {
               "kind": "browser",
@@ -5982,7 +5982,7 @@
               "file": "ui-review.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 546
+              "durationMs": 543
             },
             {
               "kind": "browser",
@@ -5990,7 +5990,7 @@
               "file": "ui-review.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 360
+              "durationMs": 326
             },
             {
               "kind": "browser",
@@ -5998,7 +5998,7 @@
               "file": "ui-review.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 397
+              "durationMs": 401
             },
             {
               "kind": "browser",
@@ -6006,7 +6006,7 @@
               "file": "ui-review.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 364
+              "durationMs": 362
             },
             {
               "kind": "browser",
@@ -6014,7 +6014,7 @@
               "file": "ui-review.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 483
+              "durationMs": 469
             }
           ],
           "status": "passed"
@@ -6344,7 +6344,7 @@
               "file": "game-analysis.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 2485
+              "durationMs": 2493
             },
             {
               "kind": "browser",
@@ -6352,7 +6352,7 @@
               "file": "game-analysis.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 2846
+              "durationMs": 1876
             }
           ],
           "status": "passed"
@@ -6367,7 +6367,7 @@
               "file": "game-analysis.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 171
+              "durationMs": 181
             },
             {
               "kind": "browser",
@@ -6375,7 +6375,7 @@
               "file": "game-analysis.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 233
+              "durationMs": 238
             }
           ],
           "status": "passed"
@@ -6389,7 +6389,7 @@
               "title": "reduces due work on success and reveal, preserves session progress and never fills with future reviews",
               "file": "apps/server/src/training/practice-session.test.ts",
               "status": "passed",
-              "durationMs": 63.70679200000001
+              "durationMs": 46.470417
             },
             {
               "kind": "browser",
@@ -6397,7 +6397,7 @@
               "file": "thinking-practice.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 2394
+              "durationMs": 3471
             },
             {
               "kind": "browser",
@@ -6405,7 +6405,7 @@
               "file": "thinking-practice.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 2064
+              "durationMs": 3064
             }
           ],
           "status": "passed"
@@ -6419,7 +6419,7 @@
               "title": "uses the game's played date for rolling windows, excludes unknown/future dates and preserves a session's scope",
               "file": "apps/server/src/training/practice-session.test.ts",
               "status": "passed",
-              "durationMs": 45.351
+              "durationMs": 63.50525000000002
             },
             {
               "kind": "browser",
@@ -6427,7 +6427,7 @@
               "file": "thinking-practice.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 2394
+              "durationMs": 3471
             },
             {
               "kind": "browser",
@@ -6435,7 +6435,7 @@
               "file": "thinking-practice.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 2064
+              "durationMs": 3064
             }
           ],
           "status": "passed"
@@ -6450,7 +6450,7 @@
               "file": "thinking-practice.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 2213
+              "durationMs": 1222
             },
             {
               "kind": "browser",
@@ -6458,7 +6458,7 @@
               "file": "thinking-practice.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 772
+              "durationMs": 2345
             }
           ],
           "status": "passed"
@@ -6537,7 +6537,7 @@
               "title": "starts with an empty opening library without silently restoring starter repertoires",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 41.754459000000224
+              "durationMs": 49.571750000000065
             }
           ],
           "status": "passed"
@@ -6552,7 +6552,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 387
+              "durationMs": 397
             },
             {
               "kind": "browser",
@@ -6560,7 +6560,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 571
+              "durationMs": 604
             }
           ],
           "status": "passed"
@@ -6583,7 +6583,7 @@
               "file": "ui-review.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 356
+              "durationMs": 353
             }
           ],
           "status": "passed"
@@ -6653,7 +6653,7 @@
               "title": "teaches new opening decisions without counting assisted moves as remembered",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 54.87304199999926
+              "durationMs": 64.09449999999924
             }
           ],
           "status": "passed"
@@ -6668,7 +6668,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 7950
+              "durationMs": 7932
             },
             {
               "kind": "browser",
@@ -6676,7 +6676,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 7804
+              "durationMs": 7355
             }
           ],
           "status": "passed"
@@ -6781,14 +6781,14 @@
               "title": "ranks three opponent replies by sample frequency rather than engine strength",
               "file": "apps/web/src/opening-build-guidance.test.ts",
               "status": "passed",
-              "durationMs": 11.786875000000009
+              "durationMs": 49.026666000000034
             },
             {
               "kind": "unit",
               "title": "uses the repertoire side rather than fixed white and black roles",
               "file": "apps/web/src/opening-build-guidance.test.ts",
               "status": "passed",
-              "durationMs": 1.093874999999997
+              "durationMs": 7.930542000000003
             }
           ],
           "status": "passed"
@@ -6803,7 +6803,7 @@
               "file": "opening-quality.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 2191
+              "durationMs": 2197
             },
             {
               "kind": "browser",
@@ -6811,7 +6811,7 @@
               "file": "opening-quality.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 2522
+              "durationMs": 2565
             }
           ],
           "status": "passed"
@@ -6825,14 +6825,14 @@
               "title": "rejects stale, small, wrong-position and wrong-rating samples",
               "file": "apps/web/src/opening-build-guidance.test.ts",
               "status": "passed",
-              "durationMs": 4.4950000000000045
+              "durationMs": 10.801040999999998
             },
             {
               "kind": "unit",
               "title": "never draws an illegal move or fabricates a third reply from too few observations",
               "file": "apps/web/src/opening-build-guidance.test.ts",
               "status": "passed",
-              "durationMs": 0.7040000000000077
+              "durationMs": 1.4196250000000532
             }
           ],
           "status": "passed"
@@ -6846,14 +6846,14 @@
               "title": "retains a complete candidate set when same-depth reordering is interrupted",
               "file": "apps/server/src/analysis/uci-engine.test.ts",
               "status": "passed",
-              "durationMs": 88.48616699999991
+              "durationMs": 98.22129100000006
             },
             {
               "kind": "unit",
               "title": "does not mix a new best line with older alternatives after a bounded search",
               "file": "apps/server/src/analysis/uci-engine.test.ts",
               "status": "passed",
-              "durationMs": 93.46462500000007
+              "durationMs": 124.67645800000003
             }
           ],
           "status": "passed"
@@ -7067,6 +7067,102 @@
               ]
             }
           ]
+        },
+        {
+          "id": "CB59.9",
+          "requirement": "Tactical training requires significant evaluation loss and retained material gain or forced mate; a routine bishop attack or equal exchange is insufficient.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "rejects the Ruy Lopez bishop attack and an ordinary equal recapture"
+            },
+            {
+              "kind": "unit",
+              "title": "requires an actual significant evaluation loss rather than trusting a stale blunder label"
+            },
+            {
+              "kind": "unit",
+              "title": "keeps real retained material gains for either colour"
+            },
+            {
+              "kind": "browser",
+              "title": "keeps a normal Ruy Lopez line out of tactical practice and explains a genuine mate",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB59.10",
+          "requirement": "Saved tactical cards are revalidated without automatic engine work; unsupported cards leave future/resumed practice while attempts and genuine mating cards retain their learning state.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "retires a legacy Ruy Lopez false positive without deleting attempts or leaving it in a resumed session"
+            },
+            {
+              "kind": "unit",
+              "title": "reuses genuine mating exercises and preserves their learning state across repeated revalidation"
+            }
+          ]
+        },
+        {
+          "id": "CB59.11",
+          "requirement": "Distinguish the learner’s missed winning capture before their move from the opponent’s punishment after it; preserve history when regenerated.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "asks for Black's missed Qxh3 before exd4 while independently training White's Qxd7 punishment"
+            },
+            {
+              "kind": "unit",
+              "title": "invalidates an open attempt when the exercise changes perspective without deleting past answers"
+            },
+            {
+              "kind": "unit",
+              "title": "recognises a queen lost when its protecting rook moves away"
+            },
+            {
+              "kind": "browser",
+              "title": "plays a missed winning capture from the learner's side before the game move",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB59.12",
+          "requirement": "Accept different true observations about an opponent’s move while matching each observation to the correct square.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "accepts the winning capture, opened diagonal and danger to Black's queen as distinct correct observations"
+            }
+          ]
+        },
+        {
+          "id": "CB59.13",
+          "requirement": "Grade one excellent candidate without a breadth penalty, retain game history, and accept a stronger verified restricted-search alternative.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "generates a position and grades a legal candidate"
+            }
+          ]
+        },
+        {
+          "id": "CB59.14",
+          "requirement": "Accept supported quiet improvements from different pieces; explain that unlisted legal alternatives remain unverified.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "generates a quiet improvement, scores it, and exposes it in the player model"
+            }
+          ]
         }
       ],
       "implementationPaths": [
@@ -7078,9 +7174,11 @@
         "apps/web/src/components/GameLibrary.tsx",
         "migrations/042_game_quality.sql",
         "apps/server/src/analysis/verify-move.ts",
-        "migrations/043_game_quality_verification.sql"
+        "migrations/043_game_quality_verification.sql",
+        "apps/server/src/analysis/tactical-punishment.ts",
+        "apps/server/src/analysis/v1-generator.ts"
       ],
-      "limits": "Finite, history-aware chances-v3 analysis; earlier methods remain readable in separate trend groups. Engine diagnostics are regression evidence, not a measured strength/parity score. Missing game metadata limits deduplication certainty; previously skipped games may require reimport.",
+      "limits": "Finite, history-aware chances-v3 analysis; earlier methods remain readable in separate trend groups. Engine diagnostics are regression evidence, not a measured strength/parity score. Missing game metadata limits deduplication certainty; previously skipped games may require reimport. Thinking drills use finite saved engine continuations; tactical proof trees and human learning effectiveness remain unmeasured. Quiet alternatives outside saved examples are unverified; motif diversity is not yet enforced.",
       "benchmark": {
         "task": "Import two games, analyse one, then select all while retaining its existing report, inspect a graded position and stop a queued batch.",
         "chessbookMeasuredResult": null,
@@ -7098,14 +7196,14 @@
               "title": "saves imports without starting analysis, scopes all/selected requests and deduplicates pending work atomically",
               "file": "apps/server/src/analysis/game-quality.test.ts",
               "status": "passed",
-              "durationMs": 49.032250000000005
+              "durationMs": 48.84183300000001
             },
             {
               "kind": "unit",
               "title": "analyses only selected games on request and serves complete reports and comparable progress",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 2236.8274170000004
+              "durationMs": 2219.077125
             },
             {
               "kind": "browser",
@@ -7113,7 +7211,7 @@
               "file": "game-analysis.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 4787
+              "durationMs": 4738
             },
             {
               "kind": "browser",
@@ -7121,7 +7219,7 @@
               "file": "game-analysis.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 7025
+              "durationMs": 6010
             }
           ],
           "status": "passed"
@@ -7135,14 +7233,14 @@
               "title": "uses the mover's perspective and treats equal losses differently in settled positions",
               "file": "apps/server/src/analysis/game-quality.test.ts",
               "status": "passed",
-              "durationMs": 1.3620420000000024
+              "durationMs": 3.2703329999999937
             },
             {
               "kind": "unit",
               "title": "handles mate outcomes without inventing centipawn differences or penalising a slower forced mate",
               "file": "apps/server/src/analysis/game-quality.test.ts",
               "status": "passed",
-              "durationMs": 0.47820899999999256
+              "durationMs": 1.610749999999996
             }
           ],
           "status": "passed"
@@ -7156,14 +7254,14 @@
               "title": "resumes unfinished games and preserves completed progress when stopped",
               "file": "apps/server/src/jobs/job-worker.test.ts",
               "status": "passed",
-              "durationMs": 35.65329199999999
+              "durationMs": 25.079125000000005
             },
             {
               "kind": "unit",
               "title": "stops queued batches without losing games and prevents access across player profiles",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 34.63287500000115
+              "durationMs": 38.22770800000035
             }
           ],
           "status": "passed"
@@ -7178,7 +7276,7 @@
               "file": "game-analysis.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 4787
+              "durationMs": 4738
             },
             {
               "kind": "browser",
@@ -7186,7 +7284,7 @@
               "file": "game-analysis.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 7025
+              "durationMs": 6010
             }
           ],
           "status": "passed"
@@ -7200,21 +7298,21 @@
               "title": "checks errors, near-threshold moves, mates and conflicting searches for either colour",
               "file": "apps/server/src/analysis/verify-move.test.ts",
               "status": "passed",
-              "durationMs": 0.9410420000000101
+              "durationMs": 5.219124999999991
             },
             {
               "kind": "unit",
               "title": "updates a provisional blunder after verification and retains that report if the next verification fails",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 2170.9167500000003
+              "durationMs": 2167.0861670000013
             },
             {
               "kind": "unit",
               "title": "does not mix a new best line with older alternatives after a bounded search",
               "file": "apps/server/src/analysis/uci-engine.test.ts",
               "status": "passed",
-              "durationMs": 93.46462500000007
+              "durationMs": 124.67645800000003
             }
           ],
           "status": "passed"
@@ -7228,21 +7326,21 @@
               "title": "retains genuinely different games with identical moves while deduplicating annotated reexports",
               "file": "apps/server/src/imports/game-identity-and-sync.test.ts",
               "status": "passed",
-              "durationMs": 56.442959
+              "durationMs": 54.95524999999998
             },
             {
               "kind": "unit",
               "title": "uses source game IDs and allows both learner profiles to retain the encounter",
               "file": "apps/server/src/imports/game-identity-and-sync.test.ts",
               "status": "passed",
-              "durationMs": 34.97599999999997
+              "durationMs": 31.2885
             },
             {
               "kind": "unit",
               "title": "upgrades legacy identities without replacing game IDs and tolerates historical source collisions",
               "file": "apps/server/src/imports/game-identity-and-sync.test.ts",
               "status": "passed",
-              "durationMs": 29.718208000000004
+              "durationMs": 69.36900000000003
             }
           ],
           "status": "passed"
@@ -7256,14 +7354,14 @@
               "title": "includes matching game history in baseline, played-move and verification searches",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 1289.5399169999982
+              "durationMs": 1345.1293330000008
             },
             {
               "kind": "unit",
               "title": "keeps repetition history and rejects a history belonging to another board",
               "file": "apps/server/src/analysis/uci-engine.test.ts",
               "status": "passed",
-              "durationMs": 432.01645800000006
+              "durationMs": 463.69904199999996
             }
           ],
           "status": "passed"
@@ -7277,14 +7375,14 @@
               "title": "opens latest analysis in one action while retaining a used replay and its attempts",
               "file": "apps/server/src/games/game-replay-service.test.ts",
               "status": "passed",
-              "durationMs": 32.488833
+              "durationMs": 41.23187500000006
             },
             {
               "kind": "unit",
               "title": "preserves custom starting positions and updates an unused pre-analysis replay when analysis finishes",
               "file": "apps/server/src/games/game-replay-service.test.ts",
               "status": "passed",
-              "durationMs": 44.53479200000004
+              "durationMs": 36.854917
             },
             {
               "kind": "browser",
@@ -7292,7 +7390,7 @@
               "file": "game-analysis.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 2485
+              "durationMs": 2493
             },
             {
               "kind": "browser",
@@ -7300,7 +7398,158 @@
               "file": "game-analysis.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 2846
+              "durationMs": 1876
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "id": "CB59.9",
+          "requirement": "Tactical training requires significant evaluation loss and retained material gain or forced mate; a routine bishop attack or equal exchange is insufficient.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "rejects the Ruy Lopez bishop attack and an ordinary equal recapture",
+              "file": "apps/server/src/analysis/tactical-punishment.test.ts",
+              "status": "passed",
+              "durationMs": 8.451042000000001
+            },
+            {
+              "kind": "unit",
+              "title": "requires an actual significant evaluation loss rather than trusting a stale blunder label",
+              "file": "apps/server/src/analysis/tactical-punishment.test.ts",
+              "status": "passed",
+              "durationMs": 0.3610000000000184
+            },
+            {
+              "kind": "unit",
+              "title": "keeps real retained material gains for either colour",
+              "file": "apps/server/src/analysis/tactical-punishment.test.ts",
+              "status": "passed",
+              "durationMs": 4.3450420000000065
+            },
+            {
+              "kind": "browser",
+              "title": "keeps a normal Ruy Lopez line out of tactical practice and explains a genuine mate",
+              "file": "thinking-practice.spec.ts",
+              "project": "chromium",
+              "status": "passed",
+              "durationMs": 1913
+            },
+            {
+              "kind": "browser",
+              "title": "keeps a normal Ruy Lopez line out of tactical practice and explains a genuine mate",
+              "file": "thinking-practice.spec.ts",
+              "project": "webkit",
+              "status": "passed",
+              "durationMs": 3664
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "id": "CB59.10",
+          "requirement": "Saved tactical cards are revalidated without automatic engine work; unsupported cards leave future/resumed practice while attempts and genuine mating cards retain their learning state.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "retires a legacy Ruy Lopez false positive without deleting attempts or leaving it in a resumed session",
+              "file": "apps/server/src/analysis/blunder-training-revalidation.test.ts",
+              "status": "passed",
+              "durationMs": 70.648167
+            },
+            {
+              "kind": "unit",
+              "title": "reuses genuine mating exercises and preserves their learning state across repeated revalidation",
+              "file": "apps/server/src/analysis/blunder-training-revalidation.test.ts",
+              "status": "passed",
+              "durationMs": 35.289208
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "id": "CB59.11",
+          "requirement": "Distinguish the learner’s missed winning capture before their move from the opponent’s punishment after it; preserve history when regenerated.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "asks for Black's missed Qxh3 before exd4 while independently training White's Qxd7 punishment",
+              "file": "apps/server/src/analysis/missed-queens-training.test.ts",
+              "status": "passed",
+              "durationMs": 69.531958
+            },
+            {
+              "kind": "unit",
+              "title": "invalidates an open attempt when the exercise changes perspective without deleting past answers",
+              "file": "apps/server/src/analysis/missed-queens-training.test.ts",
+              "status": "passed",
+              "durationMs": 121.42025000000001
+            },
+            {
+              "kind": "unit",
+              "title": "recognises a queen lost when its protecting rook moves away",
+              "file": "apps/server/src/analysis/tactical-punishment.test.ts",
+              "status": "passed",
+              "durationMs": 1.1676669999999945
+            },
+            {
+              "kind": "browser",
+              "title": "plays a missed winning capture from the learner's side before the game move",
+              "file": "thinking-practice.spec.ts",
+              "project": "chromium",
+              "status": "passed",
+              "durationMs": 396
+            },
+            {
+              "kind": "browser",
+              "title": "plays a missed winning capture from the learner's side before the game move",
+              "file": "thinking-practice.spec.ts",
+              "project": "webkit",
+              "status": "passed",
+              "durationMs": 528
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "id": "CB59.12",
+          "requirement": "Accept different true observations about an opponent’s move while matching each observation to the correct square.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "accepts the winning capture, opened diagonal and danger to Black's queen as distinct correct observations",
+              "file": "apps/server/src/analysis/missed-queens-training.test.ts",
+              "status": "passed",
+              "durationMs": 119.25200000000001
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "id": "CB59.13",
+          "requirement": "Grade one excellent candidate without a breadth penalty, retain game history, and accept a stronger verified restricted-search alternative.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "generates a position and grades a legal candidate",
+              "file": "apps/server/src/training/candidate-generation-flow.test.ts",
+              "status": "passed",
+              "durationMs": 595.2075
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "id": "CB59.14",
+          "requirement": "Accept supported quiet improvements from different pieces; explain that unlisted legal alternatives remain unverified.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "generates a quiet improvement, scores it, and exposes it in the player model",
+              "file": "apps/server/src/training/quiet-position-flow.test.ts",
+              "status": "passed",
+              "durationMs": 79.931083
             }
           ],
           "status": "passed"
@@ -7433,14 +7682,14 @@
               "title": "counts only complete reports once and separates settings, date eligibility and playing speed",
               "file": "apps/server/src/analysis/game-quality.test.ts",
               "status": "passed",
-              "durationMs": 41.28579099999999
+              "durationMs": 50.618667000000016
             },
             {
               "kind": "unit",
               "title": "analyses only selected games on request and serves complete reports and comparable progress",
               "file": "apps/server/src/app.integration.test.ts",
               "status": "passed",
-              "durationMs": 2236.8274170000004
+              "durationMs": 2219.077125
             }
           ],
           "status": "passed"
@@ -7454,7 +7703,7 @@
               "title": "compares the latest twenty played games with the preceding twenty rather than import order",
               "file": "apps/server/src/analysis/game-quality.test.ts",
               "status": "passed",
-              "durationMs": 414.959041
+              "durationMs": 505.61429100000004
             }
           ],
           "status": "passed"
@@ -7468,14 +7717,14 @@
               "title": "normalises loss rates by the player's moves and keeps time controls distinct",
               "file": "apps/server/src/analysis/game-quality.test.ts",
               "status": "passed",
-              "durationMs": 0.22212500000000546
+              "durationMs": 0.4800419999999974
             },
             {
               "kind": "unit",
               "title": "does not give blunder-free games a fake first-error move or treat unobserved endings as success",
               "file": "apps/server/src/analysis/game-quality.test.ts",
               "status": "passed",
-              "durationMs": 0.5703750000000127
+              "durationMs": 1.7220419999999876
             }
           ],
           "status": "passed"
@@ -7490,7 +7739,7 @@
               "file": "game-analysis.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 4787
+              "durationMs": 4738
             },
             {
               "kind": "browser",
@@ -7498,7 +7747,7 @@
               "file": "game-analysis.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 7025
+              "durationMs": 6010
             }
           ],
           "status": "passed"
@@ -7518,21 +7767,21 @@
               "title": "gives an isolated serious error more influence than a simple average, without inventing scores for empty games",
               "file": "apps/server/src/analysis/game-quality.test.ts",
               "status": "passed",
-              "durationMs": 0.26483299999995324
+              "durationMs": 0.2994580000000724
             },
             {
               "kind": "unit",
               "title": "averages complete game scores in progress rather than letting long games dominate",
               "file": "apps/server/src/analysis/game-quality.test.ts",
               "status": "passed",
-              "durationMs": 0.2821249999999509
+              "durationMs": 0.3505410000000211
             },
             {
               "kind": "unit",
               "title": "keeps old reports readable and in separate comparison groups while allowing an explicit upgrade",
               "file": "apps/server/src/analysis/game-quality.test.ts",
               "status": "passed",
-              "durationMs": 25.98666700000001
+              "durationMs": 44.91816700000004
             }
           ],
           "status": "passed"
@@ -7547,7 +7796,7 @@
               "file": "game-analysis.spec.ts",
               "project": "chromium",
               "status": "passed",
-              "durationMs": 2224
+              "durationMs": 692
             },
             {
               "kind": "browser",
@@ -7555,7 +7804,7 @@
               "file": "game-analysis.spec.ts",
               "project": "webkit",
               "status": "passed",
-              "durationMs": 1262
+              "durationMs": 2282
             }
           ],
           "status": "passed"

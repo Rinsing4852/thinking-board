@@ -22,6 +22,7 @@ export const WHAT_CHANGED_OPTIONS: Array<{
   label: string;
   description: string;
 }> = [
+  { value: "available_capture", label: "Available capture", description: "A winning capture is available after their move." },
   { value: "attacked_piece", label: "Attacked piece", description: "One of your pieces can now be taken." },
   { value: "undefended_piece", label: "Undefended piece", description: "A piece lost its last defender." },
   { value: "opened_line", label: "Opened line", description: "A rook, bishop, or queen now sees through squares that were blocked." },

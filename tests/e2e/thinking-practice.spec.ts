@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import fs from "node:fs";
+import { Chess } from "chess.js";
 
 test.use({ baseURL: "http://127.0.0.1:8192" });
 
@@ -100,4 +102,54 @@ test("keeps a narrower game filter when an older exercise response arrives late"
     expect((await page.request.post(`/api/v1/training/${path}`, { data: { gameDays: 3 } })).status()).toBe(400);
   }
   expect((await page.request.get("/api/v1/dashboard?gameDays=3")).status()).toBe(400);
+});
+
+test("keeps a normal Ruy Lopez line out of tactical practice and explains a genuine mate", async ({ page }, info) => {
+  const learner = `Tactical selection ${info.project.name}`;
+  const saved = await (await page.request.post("/api/v1/imports/pgn", { data: { playerName: learner,
+    pgn: `[White "${learner}"]\n[Black "Ruy opponent"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 *`,
+  } })).json();
+  await page.request.post(`/api/v1/profiles/${saved.profileId}/activate`);
+  await analyse(page);
+  expect((await (await page.request.post("/api/v1/training/punish/next", { data: { pool: "early" } })).json()).kind).toBe("empty");
+  await page.goto("/#today");
+  await page.locator(".thinking-mode-picker > summary").click();
+  await page.getByRole("button", { name: "4 · Punish", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Punish a tactical mistake", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Find the punishment", exact: true })).toBeHidden();
+  await saveGame(page, learner, 2); await analyse(page); await page.reload();
+  await page.locator(".thinking-mode-picker > summary").click();
+  await page.getByRole("button", { name: "4 · Punish", exact: true }).click();
+  await page.getByRole("button", { name: "Find the punishment", exact: true }).click();
+  await page.getByRole("button", { name: "Show answer", exact: true }).click();
+  const feedback = page.locator("#punish-blunder .feedback");
+  await expect(feedback).toContainText("forced mate in 1");
+  await expect(feedback).toContainText("Qh4#");
+  await expect(feedback).not.toContainText("After Bb5");
+  await page.screenshot({ path: info.outputPath("verified-tactical-feedback.png") });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test("plays a missed winning capture from the learner's side before the game move",async({page},info)=>{
+  const board=new Chess();board.loadPgn(fs.readFileSync('scripts/fixtures/missed-queens.pgn','utf8'));
+  const source=board.history({verbose:true}).find(move=>move.color==='b'&&move.san==='exd4')!;
+  await page.route('**/api/v1/training/session/active',route=>route.fulfill({json:null}));
+  await page.route('**/api/v1/training/next',route=>route.fulfill({json:{kind:'exercise',attemptId:null,itemId:'missed-queen',mode:'blunder_check',exerciseKind:'missed_opportunity',
+    fenBefore:source.before,fenAfterCandidate:source.after,candidateMoveUci:'e5d4',candidateMoveSan:'exd4',playerColor:'black',moveNumber:28,prompt:'What winning capture did you miss?'}}));
+  await page.route('**/api/v1/training/items/missed-queen/start',route=>route.fulfill({json:{attemptId:'missed-attempt'}}));
+  await page.route('**/api/v1/training/attempts/missed-attempt/answer',async route=>{
+    expect(route.request().postDataJSON()).toEqual({category:'capture',moveUci:'d7h3'});
+    await route.fulfill({json:{outcome:'excellent',score:1,categoryCorrect:true,moveCorrect:true,playedMoveSan:'Qxh3',acceptableMoves:[{moveUci:'d7h3',moveSan:'Qxh3',categories:['capture']}],explanation:'Before exd4, you could win the queen with Qxh3.',checklistPoint:'Check both sides before choosing your move.'}});
+  });
+  await page.goto('/#today');
+  await page.getByRole('button',{name:'Find my missed opportunity',exact:true}).click();
+  await page.getByRole('button',{name:'× Capture',exact:true}).click();
+  const grid=page.getByRole('grid',{name:'Chess position'});
+  await grid.getByRole('gridcell',{name:'d7 black queen',exact:true}).click();
+  await grid.getByRole('gridcell',{name:'h3 white queen',exact:true}).click();
+  await page.getByRole('button',{name:'Check my answer',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'You found the missed opportunity',exact:true})).toBeVisible();
+  await expect(page.locator('#training .failure-summary')).toContainText('You could have played Qxh3');
+  await expect(grid.getByRole('gridcell',{name:'h3 black queen',exact:true})).toBeVisible();
+  await page.screenshot({path:info.outputPath('missed-queen-capture.png'),animations:'disabled'});
 });

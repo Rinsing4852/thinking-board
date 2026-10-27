@@ -1,0 +1,52 @@
+{
+  "run": {
+    "measuredAt": "2026-10-27T08:03:23.969Z",
+    "sourceFingerprint": "52e1a5094f8e1500f303d3b48dd62f993c626ac9dc443a35e9b1482ad44cde90",
+    "sourceUnchangedDuringRun": true,
+    "steps": [
+      {
+        "name": "typecheck",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      },
+      {
+        "name": "unit and integration tests",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      },
+      {
+        "name": "tracker assessment tests",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      },
+      {
+        "name": "production build",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      },
+      {
+        "name": "full browser suite",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      }
+    ],
+    "commit": "aac0012994b93d4119b2078637d656b047013447"
+  },
+  "browser": {
+    "startTime": "2026-10-27T07:57:40.406Z",
+    "duration": 343511.29,
+    "expected": 198,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "unit": {
+    "passed": 385,
+    "failed": 0
+  }
+}
