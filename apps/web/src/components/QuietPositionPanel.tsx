@@ -32,11 +32,12 @@ export function QuietPositionPanel({ refreshToken, requestedItemId, sessionId, o
   const [displayMove, setDisplayMove] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<QuietPositionAnswerResponse | null>(null);
   const [error, setError] = useState("");
+  const [checking, setChecking] = useState(false);
 
   const loadVersion = useRef(0);
   const loadNext = async (pool = "due"): Promise<void> => {
     const version = ++loadVersion.current;
-    setExercise(null); setEmpty(null);
+    setExercise(null); setEmpty(null); setChecking(false);
     setError(""); setPieceSquare(null); setMove(null); setFeedback(null);
     try {
       const result = await post<NextQuietPositionResponse>("/api/v1/training/quiet/next", { pool: requestedItemId ? "early" : pool, itemId: requestedItemId, gameDays });
@@ -66,7 +67,7 @@ export function QuietPositionPanel({ refreshToken, requestedItemId, sessionId, o
   };
   const show = (result: QuietPositionAnswerResponse): void => {
     setFeedback(result); setPhase("feedback");
-    window.dispatchEvent(new Event("training-completed"));
+    if (!result.attemptOpen) window.dispatchEvent(new Event("training-completed"));
     const answer = result.acceptableMoves[0];
     if (!exercise || !answer) return;
     const board = new Chess(exercise.fen);
@@ -74,9 +75,15 @@ export function QuietPositionPanel({ refreshToken, requestedItemId, sessionId, o
     setDisplayFen(board.fen()); setDisplayMove(answer.moveUci);
   };
   const submit = async (): Promise<void> => {
-    if (!exercise?.attemptId || !pieceSquare || !move) return;
-    try { show(await post<QuietPositionAnswerResponse>(`/api/v1/training/quiet/attempts/${exercise.attemptId}/answer`, { square: pieceSquare, moveUci: move.uci })); }
-    catch (submitError) { setError(submitError instanceof Error ? submitError.message : "Could not submit answer"); }
+    if (!exercise?.attemptId || !pieceSquare || !move || checking) return;
+    const version = loadVersion.current;
+    setChecking(true); setError("");
+    try {
+      const result = await post<QuietPositionAnswerResponse>(`/api/v1/training/quiet/attempts/${exercise.attemptId}/answer`, { square: pieceSquare, moveUci: move.uci, verifyEngine: true });
+      if (version === loadVersion.current) show(result);
+    } catch (submitError) {
+      if (version === loadVersion.current) setError(submitError instanceof Error ? submitError.message : "Could not submit answer");
+    } finally { if (version === loadVersion.current) setChecking(false); }
   };
   const reveal = async (): Promise<void> => {
     if (!exercise?.attemptId) return;
@@ -113,7 +120,7 @@ export function QuietPositionPanel({ refreshToken, requestedItemId, sessionId, o
             <ChessBoard
               fen={displayFen}
               orientation={orientation}
-              interactive={phase === "piece" || (phase === "move" && !move)}
+              interactive={!checking && (phase === "piece" || (phase === "move" && !move))}
               selectedSquare={pieceSquare}
               highlightedSquares={feedback?.weakestSquares ?? []}
               lastMove={displayMove}
@@ -138,7 +145,7 @@ export function QuietPositionPanel({ refreshToken, requestedItemId, sessionId, o
                 <div className="selected-answer">{pieceSquare ? <>Selected piece: <strong>{pieceSquare}</strong></> : "Select one of your pieces."}</div>
                 <div className="answer-actions">
                   <button disabled={!pieceSquare} onClick={() => setPhase("move")}>Choose an improvement</button>
-                  <button className="text-button" onClick={() => void reveal()}>Show an example</button>
+                  <button className="text-button" disabled={checking} onClick={() => void reveal()}>Show an example</button>
                 </div>
               </>
             )}
@@ -149,23 +156,24 @@ export function QuietPositionPanel({ refreshToken, requestedItemId, sessionId, o
                 <div className="selected-answer">
                   {move ? <>
                     Your candidate: <strong>{move.san}</strong>{" "}
-                    <button className="inline-link" onClick={() => {
+                    <button className="inline-link" disabled={checking} onClick={() => {
                       setMove(null);
                       setDisplayFen(exercise.fen);
                       setDisplayMove(null);
                     }}>Change</button>
                   </> : `Improve the piece you selected on ${pieceSquare}.`}
                 </div>
+                <p className="instruction">Checking requests Stockfish analysis for alternatives outside the saved examples.</p>
                 <div className="answer-actions">
-                  <button disabled={!move} onClick={() => void submit()}>Check improvement</button>
-                  <button className="text-button" onClick={() => void reveal()}>Show an example</button>
+                  <button disabled={!move || checking} aria-busy={checking} onClick={() => void submit()}>{checking ? "Checking your move…" : "Check improvement"}</button>
+                  <button className="text-button" disabled={checking} onClick={() => void reveal()}>Show an example</button>
                 </div>
               </>
             )}
             {feedback && (
               <div className={`feedback ${feedback.outcome}`} role="status">
-                <span className="feedback-label">{feedback.moveVerified === false ? "Unverified alternative" : feedback.outcome === "excellent" ? "Useful plan" : feedback.outcome === "partial" ? "Partly seen" : "Compare plans"}</span>
-                <h3>{feedback.moveVerified === false ? "Compare with the saved engine examples" : feedback.pieceCorrect && feedback.moveCorrect
+                <span className="feedback-label">{feedback.moveVerified === false ? "Unverified alternative" : feedback.engineCheck?.status === "forcing" ? "Forcing move" : feedback.outcome === "excellent" ? "Useful plan" : feedback.outcome === "partial" ? "Partly seen" : "Compare plans"}</span>
+                <h3>{feedback.moveVerified === false ? "Compare with the saved engine examples" : feedback.engineCheck?.status === "forcing" ? "A forcing move rather than a quiet plan" : feedback.pieceCorrect && feedback.moveCorrect
                   ? "You found an engine-supported improvement"
                   : feedback.pieceCorrect
                     ? "Useful piece, different move"
@@ -176,12 +184,25 @@ export function QuietPositionPanel({ refreshToken, requestedItemId, sessionId, o
                   You selected <strong>{pieceSquare}</strong>{move ? <> and played <strong>{move.san}</strong></> : null}. One supported plan starts from <strong>{feedback.weakestSquares.join(" or ")}</strong> and plays <strong>{feedback.acceptableMoves.map((answer) => answer.moveSan).join(" or ")}</strong>.
                 </p>}
                 <p>{feedback.explanation}</p>
+                {feedback.engineCheck && feedback.engineCheck.status !== "unavailable" && <details>
+                  <summary>See the engine check</summary>
+                  <p>Stockfish search depth: {feedback.engineCheck.depth}. Leading move: {feedback.engineCheck.bestMoveSan}.</p>
+                  {feedback.engineCheck.continuationSan.length > 0 && <p>Example after your move: {feedback.engineCheck.continuationSan.join(" ")}</p>}
+                  <p>This is a limited search, not a guarantee that every continuation is best.</p>
+                </details>}
                 <p className="board-result-note">The board shows one engine-supported example. It is not claiming that every other plan is wrong.</p>
                 <div className="checklist-feedback">
                   <span>Thinking-process skill: Quiet improvement</span>
                   <p>{feedback.checklistPoint}</p>
                 </div>
-                <button onClick={() => sessionId ? onCompleted() : void loadNext()}>{sessionId ? "Continue session" : "Next quiet position"}</button>
+                {feedback.attemptOpen ? <div className="answer-actions">
+                  <p>Your answer has not been graded and your review progress has not changed.</p>
+                  <button onClick={() => {
+                    setFeedback(null);setPhase("move");
+                    if(exercise && move){const board=new Chess(exercise.fen);board.move({from:move.uci.slice(0,2),to:move.uci.slice(2,4),...(move.uci[4]?{promotion:move.uci[4]}:{})});setDisplayFen(board.fen());setDisplayMove(move.uci);}
+                  }}>Try checking again</button>
+                  <button className="text-button" onClick={() => void reveal()}>Show an example</button>
+                </div> : <button onClick={() => sessionId ? onCompleted() : void loadNext()}>{sessionId ? "Continue session" : "Next quiet position"}</button>}
               </div>
             )}
             {error && <p className="error">{error}</p>}

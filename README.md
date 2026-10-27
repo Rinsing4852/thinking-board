@@ -661,3 +661,23 @@ observations; Candidates accepts one excellent move without a breadth penalty.
 Quiet Plan accepts saved improvements from different pieces and labels unlisted
 legal alternatives as unverified. See the [whole-thinking review](docs/chessbook-audit/THINKING_EXERCISE_REVIEW_2026_10_27.md)
 for the supplied queen-capture example, remaining gaps and verification.
+
+### Thinking practice follow-up: v1.5.23
+
+Recommended sessions choose one example when the same tactical answer persists
+across consecutive turns in one game. They show how many similar positions are
+kept for later. Each position retains its own due date and review history; no
+unseen exercise is marked completed. Different exercise perspectives remain
+separate.
+
+In Quiet Plan, **Check improvement** requests Stockfish verification for moves
+outside the saved examples. A supported quiet alternative from another piece
+can receive full credit. Failed or timed-out checks stay unverified, leave the
+attempt open for retry, and do not change review progress. A check
+uses the game history, searches to depth 12–16 with at most 500,000 nodes per
+search (at most two searches), and stops after twenty seconds. Saved examples
+and **Show an example** need no new search. Existing Stockfish configuration is
+used; no new API credentials or settings are required.
+
+See the [follow-up review](docs/chessbook-audit/THINKING_PRACTICE_FOLLOWUP_2026_10_27.md)
+for scope, limits and validation.

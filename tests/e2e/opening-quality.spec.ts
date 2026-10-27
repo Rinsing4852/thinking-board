@@ -1593,7 +1593,11 @@ test("draws our strongest move and the three most frequent opponent replies whil
   await expect(choices.getByLabel("Evaluation for e6", { exact: true })).toHaveText("+0.60");
   await expect(page.locator(".cg-shapes line[stroke='#003088']")).toHaveCount(3);
   await expect(page.locator(".opening-arrow-rank")).toHaveText(["1", "2", "3"]);
-  await choices.getByRole("button").filter({hasText:"c5"}).focus();
+  const focusedReply = choices.getByRole("button").filter({hasText:"c5"});
+  await focusedReply.focus();
+  await expect(focusedReply).toBeFocused();
+  // Pointer leave during focus-induced scrolling must preserve keyboard preview.
+  await focusedReply.dispatchEvent("mouseout");
   await expect(page.locator(".cg-shapes line[stroke='#003088']")).toHaveCount(1);
   await guide.getByRole("button", { name: "Hide suggestion arrows", exact: true }).focus();
   await guide.getByRole("button", { name: "Hide suggestion arrows", exact: true }).click();

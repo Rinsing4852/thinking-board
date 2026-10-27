@@ -1,0 +1,115 @@
+{
+  "measuredAt": "2026-10-27T21:54:37.720Z",
+  "engine": "Stockfish 18",
+  "platform": "linux",
+  "architecture": "arm64",
+  "nodes": 200000,
+  "toleranceCp": 40,
+  "results": [
+    {
+      "name": "Whole-game move quality and progress with real Stockfish",
+      "engine": "Stockfish 18",
+      "firstBlunder": 2,
+      "passed": true
+    },
+    {
+      "name": "White sound opening alternative",
+      "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "move": "d2d4",
+      "verdict": "playable",
+      "lossCp": 11,
+      "depth": 15,
+      "message": "The engine regards this as playable within the assessment tolerance. It is not the saved response requested here, so it does not earn repertoire recall credit.",
+      "elapsedMs": 2
+    },
+    {
+      "name": "White developing move after e4 e5",
+      "fen": "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+      "move": "g1f3",
+      "verdict": "playable",
+      "lossCp": 0,
+      "depth": 14,
+      "message": "The engine regards this as playable within the assessment tolerance. It is not the saved response requested here, so it does not earn repertoire recall credit.",
+      "elapsedMs": 368
+    },
+    {
+      "name": "Black sound opening alternative",
+      "fen": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
+      "move": "e7e5",
+      "verdict": "playable",
+      "lossCp": 0,
+      "depth": 13,
+      "message": "The engine regards this as playable within the assessment tolerance. It is not the saved response requested here, so it does not earn repertoire recall credit.",
+      "elapsedMs": 433
+    },
+    {
+      "name": "White misses a free queen",
+      "fen": "6k1/8/8/8/8/8/1q6/1R4K1 w - - 0 1",
+      "move": "b1a1",
+      "verdict": "weaker",
+      "lossCp": 957,
+      "depth": 17,
+      "message": "The engine estimates this move gives up 9.57 pawns compared with its leading move. Chess quality and repertoire recall are assessed separately.",
+      "elapsedMs": 203
+    },
+    {
+      "name": "Black misses a free queen",
+      "fen": "1r4k1/1Q6/8/8/8/8/8/6K1 b - - 0 1",
+      "move": "b8a8",
+      "verdict": "weaker",
+      "lossCp": 942,
+      "depth": 16,
+      "message": "The engine estimates this move gives up 9.42 pawns compared with its leading move. Chess quality and repertoire recall are assessed separately.",
+      "elapsedMs": 177
+    },
+    {
+      "name": "White forced mate",
+      "fen": "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1",
+      "move": "e1e8",
+      "verdict": "playable",
+      "depth": 15,
+      "message": "The engine finds a forced mate after your move. This still differs from the requested saved response.",
+      "elapsedMs": 73
+    },
+    {
+      "name": "Black forced mate",
+      "fen": "4r1k1/5ppp/8/8/8/8/5PPP/6K1 b - - 0 1",
+      "move": "e8e1",
+      "verdict": "playable",
+      "depth": 15,
+      "message": "The engine finds a forced mate after your move. This still differs from the requested saved response.",
+      "elapsedMs": 91
+    },
+    {
+      "name": "Finished position stays unverified",
+      "fen": "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1",
+      "move": "h8h7",
+      "verdict": "uncertain",
+      "message": "Chess quality is unverified. The engine could not provide sufficiently reliable analysis. Your recall result is unchanged.",
+      "elapsedMs": 0
+    },
+    {
+      "name": "Compatible persisted cache after service restart",
+      "passed": true
+    },
+    {
+      "name": "Engine failure followed by real-engine recovery",
+      "passed": true
+    },
+    {
+      "name": "Real HTTP quality route preserves original recall and practice credit",
+      "passed": true
+    },
+    {
+      "name": "Real-engine missing-response preview, atomic apply and undo",
+      "passed": true,
+      "source": "Stockfish 18 · depth 14 · one missing response",
+      "moves": [
+        {
+          "uci": "g1f3",
+          "san": "Nf3"
+        }
+      ]
+    }
+  ]
+}

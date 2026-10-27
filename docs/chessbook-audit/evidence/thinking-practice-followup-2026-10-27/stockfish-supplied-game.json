@@ -1,0 +1,42 @@
+{
+  "measuredAt": "2026-10-27T21:54:58.106Z",
+  "engine": "Stockfish 18",
+  "depth": 12,
+  "scope": "Anonymised full-game regression, not site-equivalent centipawn scores",
+  "results": [
+    {
+      "name": "The repeated queen opportunity forms one session group per perspective without deleting positions",
+      "passed": true
+    },
+    {
+      "name": "28...exd4: missed Qxh3 and allowed Qxd7",
+      "passed": true,
+      "grade": "blunder",
+      "chance_loss": 73.72372033781728
+    },
+    {
+      "name": "29...d3: missed Qxh3 and allowed Qxd7",
+      "passed": true,
+      "grade": "blunder",
+      "chance_loss": 79.2879199866132
+    },
+    {
+      "name": "30...Bxb2: missed Qxh3 and allowed Qxd7",
+      "passed": true,
+      "grade": "blunder",
+      "chance_loss": 80.31944858349266
+    },
+    {
+      "name": "After g5, capture opportunity and danger on the opened queen diagonal are both valid observations",
+      "passed": true
+    },
+    {
+      "name": "A single winning queen capture receives full candidate credit",
+      "passed": true
+    },
+    {
+      "name": "Taking the queen on move 31 is correct; tactical errors are not quiet-plan exercises",
+      "passed": true
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import { expect,test } from "@playwright/test";
+import { APP_VERSION } from "../../packages/contracts/src/version";
 test.use({baseURL:"http://127.0.0.1:8192"});
 test("requests individual and selected/all analysis, retains reports, and compares completed games",async({page},testInfo)=>{
   const learner=`Quality learner ${testInfo.project.name}`;
@@ -110,7 +111,7 @@ test("refreshes expanded learning results on player changes and ignores a late p
 });
 
 test("shows the installed build identifier in the footer",async({page})=>{
-  await page.route('**/api/v1/health',route=>route.fulfill({json:{status:'ok',version:'1.5.22',build:'abcdef1234567890'}}));
+  await page.route('**/api/v1/health',route=>route.fulfill({json:{status:'ok',version:APP_VERSION,build:'abcdef1234567890'}}));
   await page.goto('/#games');
-  await expect(page.locator('footer')).toContainText('Thinking Board v1.5.22 · build abcdef1');
+  await expect(page.locator('footer')).toContainText(`Thinking Board v${APP_VERSION} · build abcdef1`);
 });

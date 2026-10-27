@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Chess } from "chess.js";
 
 import type {
@@ -53,7 +53,8 @@ export function OpeningMoveSuggestions({
   const { analysis, explorer, analysisBusy, explorerBusy, analysisError, explorerError } = evidence ?? ownEvidence;
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [showAllMoves, setShowAllMoves] = useState(false);
-  useEffect(() => setShowAllMoves(false), [fen]);
+  const focusedMove = useRef<string | null>(null);
+  useEffect(() => { setShowAllMoves(false); focusedMove.current = null; onFocusMove?.(null); }, [fen, onFocusMove]);
   const ownTurn = fen.split(" ")[1] === (learnerColor === "white" ? "w" : "b");
 
   const candidates = useMemo(() => {
@@ -120,8 +121,10 @@ export function OpeningMoveSuggestions({
             className={candidate.saved ? "saved" : ""}
             disabled={disabled}
             key={candidate.moveUci}
-            onFocus={() => onFocusMove?.(candidate.moveUci)} onBlur={() => onFocusMove?.(null)}
-            onMouseEnter={() => onFocusMove?.(candidate.moveUci)} onMouseLeave={() => onFocusMove?.(null)}
+            onFocus={() => { focusedMove.current = candidate.moveUci; onFocusMove?.(candidate.moveUci); }}
+            onBlur={() => { focusedMove.current = null; onFocusMove?.(null); }}
+            onMouseEnter={() => onFocusMove?.(candidate.moveUci)}
+            onMouseLeave={() => onFocusMove?.(focusedMove.current)}
             onClick={() => onChooseMove(candidate.moveUci, candidate.moveSan)}
           >
             <span>

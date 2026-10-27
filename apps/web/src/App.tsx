@@ -207,6 +207,7 @@ export function App() {
                   <strong>Today’s session</strong>
                   <span>{session.items.length - (session.completedCount ?? 0)} remaining · {session.completedCount ?? 0} completed</span>
                   <progress value={session.completedCount ?? 0} max={session.items.length} />
+                  {Boolean(session.similarDeferredCount) && <span>{session.similarDeferredCount} similar tactical positions kept for later.</span>}
                 </div>
               )}
               {session?.status !== "completed" && activeMode === "what_changed" && <WhatChangedPanel gameDays={gameDays} refreshToken={refreshToken} requestedItemId={requestedItemId} sessionId={session?.id ?? undefined} onCompleted={() => void continueSession()} />}

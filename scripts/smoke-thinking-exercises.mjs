@@ -8,6 +8,7 @@ import {AnalysisService} from '../dist/apps/server/src/analysis/analysis-service
 import {TrainingService} from '../dist/apps/server/src/training/training-service.js';
 import {V1TrainingService} from '../dist/apps/server/src/training/v1-training-service.js';
 import {CandidateTrainingService} from '../dist/apps/server/src/training/candidate-training-service.js';
+import {tacticalSessionGroups} from '../dist/apps/server/src/training/practice-diversity.js';
 import {AttemptLifecycle} from '../dist/apps/server/src/training/attempt-lifecycle.js';
 const config={...loadConfig(),stockfishDepth:12},database=new Database(':memory:',config.migrationsDir),db=database.connection;
 const analysis=new AnalysisService(db,config),training=new TrainingService(db),v1=new V1TrainingService(db),candidates=new CandidateTrainingService(db,config),attempts=new AttemptLifecycle(db),results=[];
@@ -16,6 +17,12 @@ try{
  const game=db.prepare('SELECT id FROM games WHERE import_batch_id=?').pluck().get(saved.batchId);
  await analysis.analyzeGames([game],()=>{});
  assert(db.prepare('SELECT engine_name FROM analysis_runs LIMIT 1').pluck().get().startsWith('Stockfish '));
+ for(const mode of ['blunder_check','punish_blunder']){
+  const items=db.prepare("SELECT ti.id FROM training_items ti JOIN moves m ON m.id=ti.source_move_id WHERE ti.game_id=? AND ti.mode=? AND ti.active=1 AND m.move_number BETWEEN 28 AND 30").pluck().all(game,mode);
+  assert.equal(items.length,3);const groups=tacticalSessionGroups(db,items);
+  assert.equal(new Set(items.map(item=>groups.get(item))).size,1);
+ }
+ results.push({name:'The repeated queen opportunity forms one session group per perspective without deleting positions',passed:true});
  for(const number of [28,29,30]){
   const move=db.prepare("SELECT id,san FROM moves WHERE game_id=? AND move_number=? AND mover_color='black'").get(game,number);
   const item=db.prepare("SELECT id FROM training_items WHERE source_move_id=? AND mode='blunder_check' AND active=1").pluck().get(move.id);

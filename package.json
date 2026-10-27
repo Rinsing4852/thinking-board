@@ -1,6 +1,6 @@
 {
   "name": "chess-thinking-trainer",
-  "version": "1.5.22",
+  "version": "1.5.23",
   "private": true,
   "type": "module",
   "engines": {
@@ -26,6 +26,7 @@
     "benchmark:openings": "node scripts/benchmark-opening-quality.mjs",
     "smoke:stockfish": "node scripts/smoke-opening-stockfish.mjs",
     "benchmark:game-quality": "node scripts/benchmark-game-quality.mjs",
+    "smoke:quiet": "node scripts/smoke-quiet-practice.mjs",
     "smoke:thinking": "node scripts/smoke-thinking-exercises.mjs",
     "smoke:tactics": "node scripts/smoke-tactical-training.mjs",
     "smoke:reliability": "node scripts/smoke-app-reliability.mjs"

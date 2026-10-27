@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Database } from "../db/database.js";
 import { ImportService } from "../imports/import-service.js";
@@ -76,6 +77,32 @@ describe("recommended thinking practice", () => {
     expect(service.dashboard()).toMatchObject({ practice: { available: 3 }, totals: { due: 3 } });
     expect(service.createSession(1).items).toHaveLength(1);
     expect(service.createSession(1).items.some(item => [inactive, diagnostic].includes(item.itemId))).toBe(false);
+  });
+
+  it("selects one example per persistent queen opportunity and keeps deferred positions and history due", () => {
+    const db=database.connection;
+    new ImportService(db).import(fs.readFileSync('scripts/fixtures/missed-queens.pgn','utf8'),'Opportunity learner');
+    const game=db.prepare('SELECT id,profile_id FROM games').get() as {id:string;profile_id:string};
+    for(const number of [28,29,30]) {
+      const move=db.prepare("SELECT id,from_position_id,to_position_id FROM moves WHERE game_id=? AND move_number=? AND mover_color='black'").get(game.id,number) as {id:string;from_position_id:string;to_position_id:string};
+      for(const mode of ['blunder_check','punish_blunder']) {
+        const item=`${mode}-${number}`;
+        db.prepare("INSERT INTO training_items(id,profile_id,game_id,source_move_id,mode,prompt_version,created_at) VALUES (?,?,?,?,?,4,'2026-10-26')").run(item,game.profile_id,game.id,move.id,mode);
+        const evidence=JSON.stringify({exerciseKind:mode==='blunder_check'?'missed_opportunity':'safety',proof:{kind:'material'}});
+        if(mode==='blunder_check')db.prepare("INSERT INTO blunder_check_items(item_id,before_position_id,after_candidate_position_id,candidate_move_uci,candidate_move_san,explanation,evidence_json) VALUES (?,?,?,'e5d4','exd4','Missed queen',?)").run(item,move.from_position_id,move.to_position_id,evidence);
+        else db.prepare("INSERT INTO punish_blunder_items(item_id,position_id,bad_move_uci,bad_move_san,explanation,evidence_json) VALUES (?,?,'e5d4','exd4','Exposed queen',?)").run(item,move.to_position_id,evidence);
+        db.prepare("INSERT INTO acceptable_responses(id,item_id,move_uci,move_san,categories_json,engine_rank,loss_from_best_cp) VALUES (?,?,?,?,'[\"capture\"]',1,0)")
+          .run(`response-${item}`,item,mode==='blunder_check'?'d7h3':'h3d7',mode==='blunder_check'?'Qxh3':'Qxd7');
+        db.prepare("INSERT INTO review_states(item_id,due_at) VALUES (?,'2020-01-01')").run(item);
+      }
+    }
+    const service=new V1TrainingService(db),session=service.createSession(15);
+    expect(session.items).toHaveLength(2);expect(session.similarDeferredCount).toBe(4);
+    expect(session.message).toContain('4 similar tactical positions remain due for later');
+    expect(new V1TrainingService(db).activeSession()).toMatchObject({id:session.id,similarDeferredCount:4,remainingCount:2});
+    expect(service.dashboard().practice?.available).toBe(6);
+    expect(db.prepare('SELECT COUNT(*) FROM training_attempts').pluck().get()).toBe(0);
+    expect(db.prepare('SELECT COUNT(*) FROM review_states WHERE attempts=0').pluck().get()).toBe(6);
   });
 
   it("validates game windows instead of silently widening them", () => {

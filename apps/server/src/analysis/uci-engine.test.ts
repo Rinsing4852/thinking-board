@@ -103,3 +103,23 @@ describe("history and same-depth engine updates",()=>{
   }finally{await engine.close();}
  });
 });
+
+
+it("cancels an active search on close and allows a clean retry",async()=>{
+  const engine=new UciEngine(path.resolve("tests/fake-stockfish.mjs"),1,16);
+  const fen=new Chess().fen();
+  await engine.initialize();
+  const protocol=engine as unknown as {send:(command:string)=>void};
+  const original=protocol.send.bind(engine);
+  let searchStarted!:()=>void;const started=new Promise<void>(resolve=>{searchStarted=resolve;});
+  const send=vi.spyOn(protocol,'send').mockImplementation(command=>{
+    if(command.startsWith('go ')){searchStarted();return;}
+    original(command);
+  });
+  try{
+    const pending=engine.analyze(fen,10,1);
+    const rejected=expect(pending).rejects.toThrow('Stockfish was closed');
+    await started;await engine.close();await rejected;send.mockRestore();
+    expect((await engine.analyze(fen,10,1)).lines).toHaveLength(1);
+  }finally{send.mockRestore();await engine.close();}
+});

@@ -224,6 +224,9 @@ export class UciEngine {
   async close(): Promise<void> {
     const child = this.process;
     if (!child) return;
+    // Reject active searches and protocol waits so cancellation does not leave
+    // their timers or the analyzing flag alive until the ordinary timeout.
+    this.fail(new Error("Stockfish was closed"));
     this.process = null;
     try {
       if (child.stdin.writable) child.stdin.write("quit\n");

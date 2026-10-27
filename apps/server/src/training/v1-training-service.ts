@@ -1,3 +1,7 @@
+import type { AppConfig } from "../config.js";
+import { UciEngine, type EngineHistory } from "../analysis/uci-engine.js";
+import { checkQuietMove, type QuietMoveCheck } from "./quiet-move-verifier.js";
+import { tacticalSessionGroups } from "./practice-diversity.js";
 import { Chess } from "chess.js";
 
 import type {
@@ -70,7 +74,47 @@ function moveFromUci(uci: string): { from: string; to: string; promotion?: strin
 }
 
 export class V1TrainingService {
-  constructor(private readonly db: SqliteDatabase) {}
+  private quietEngine: UciEngine | null = null;
+  constructor(private readonly db: SqliteDatabase, private readonly config?: AppConfig) {}
+
+  async close(): Promise<void> { await this.quietEngine?.close(); }
+
+  async answerQuietChecked(attemptId: string, square: string, moveUci: string): Promise<QuietPositionAnswerResponse> {
+    const attempt = this.quietAttempt(attemptId);
+    // Validate before starting an engine, including selected-piece consistency.
+    const board = new Chess(attempt.fen);
+    board.move(moveFromUci(moveUci));
+    if (square !== moveUci.slice(0,2)) throw new Error("Play the piece you selected, or change your piece choice");
+    const saved = JSON.parse(attempt.acceptable_moves_json ?? "[]") as AcceptableMove[];
+    if (saved.some(move => move.moveUci === moveUci)) return this.answerQuiet(attemptId, square, moveUci);
+    let check: QuietMoveCheck;
+    try {
+      if (!this.config) throw new Error("Engine is not configured");
+      const source = this.db.prepare(`SELECT ti.game_id,m.ply,g.initial_fen FROM training_items ti
+        JOIN moves m ON m.id=ti.source_move_id JOIN games g ON g.id=ti.game_id WHERE ti.id=?`)
+        .get(attempt.item_id) as {game_id:string;ply:number;initial_fen:string};
+      const history: EngineHistory = {initialFen:source.initial_fen,moves:(this.db.prepare(
+        'SELECT uci FROM moves WHERE game_id=? AND ply<? ORDER BY ply').all(source.game_id,source.ply) as Array<{uci:string}>).map(move=>move.uci)};
+      this.quietEngine ??= new UciEngine(this.config.stockfishBinary,this.config.stockfishThreads,this.config.stockfishHashMb);
+      const engine = this.quietEngine;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        check = await Promise.race([
+          checkQuietMove(engine,attempt.fen,moveUci,this.config.stockfishDepth,history),
+          new Promise<never>((_, reject) => { timer = setTimeout(() => {
+            void engine.close(); reject(new Error("Quiet-move check timed out"));
+          }, 20_000); }),
+        ]);
+      } finally { clearTimeout(timer); }
+    } catch {
+      check = {status:"unavailable",depth:null,lossCp:null,bestMoveSan:null,continuationSan:[]};
+    }
+    // Re-read scope and lifecycle after the async search. A switched player,
+    // changed exercise, reveal or another answer cannot earn duplicate credit.
+    const current = this.quietAttempt(attemptId);
+    if (current.fen !== attempt.fen || current.acceptable_moves_json !== attempt.acceptable_moves_json) throw new Error("This exercise changed; reload it before answering");
+    return this.answerQuiet(attemptId,square,moveUci,check);
+  }
 
   nextPunish(pool: string, itemId?: string, gameDays: number | null = null): NextPunishBlunderResponse {
     const row = this.nextRow("punish_blunder", pool, `
@@ -158,25 +202,37 @@ export class V1TrainingService {
     return feedback;
   }
 
-  answerQuiet(attemptId: string, square: string, moveUci: string): QuietPositionAnswerResponse {
+  answerQuiet(attemptId: string, square: string, moveUci: string, check?: QuietMoveCheck): QuietPositionAnswerResponse {
     if (!/^[a-h][1-8]$/.test(square)) throw new Error("Choose the piece that is doing the least");
     const attempt = this.quietAttempt(attemptId);
     const weakestSquares = JSON.parse(attempt.weakest_squares_json ?? "[]") as string[];
     const acceptableMoves = JSON.parse(attempt.acceptable_moves_json ?? "[]") as AcceptableMove[];
-    const pieceCorrect = weakestSquares.includes(square);
-    const moveCorrect = acceptableMoves.some((move) => move.moveUci === moveUci && move.moveUci.slice(0,2) === square);
+    let pieceCorrect = weakestSquares.includes(square);
+    let moveCorrect = acceptableMoves.some((move) => move.moveUci === moveUci && move.moveUci.slice(0,2) === square);
     let selectedMoveSan: string | null = null;
     try { selectedMoveSan = new Chess(attempt.fen).move(moveFromUci(moveUci))?.san ?? null; } catch { /* handled below */ }
     if (!selectedMoveSan) throw new Error("Choose a legal improving move on the board");
+    if (check?.status === "useful") {
+      moveCorrect = square === moveUci.slice(0,2); pieceCorrect = moveCorrect;
+      if (!weakestSquares.includes(square)) weakestSquares.push(square);
+      acceptableMoves.unshift({moveUci,moveSan:selectedMoveSan,centipawnLoss:check.lossCp ?? 0});
+    }
     const score = (pieceCorrect ? 0.45 : 0) + (moveCorrect ? 0.55 : 0);
     const outcome = score === 1 ? "excellent" : score > 0 ? "partial" : "incorrect";
     const feedback: QuietPositionAnswerResponse = {
-      outcome, score, pieceCorrect, moveCorrect, moveVerified: moveCorrect, selectedMoveSan, weakestSquares,
-      acceptableMoves, explanation: attempt.explanation + (moveCorrect ? "" : " This legal move is not one of the saved engine examples; its chess quality is unverified, rather than proven wrong."),
+      outcome, score, ...(check?.status === "unavailable" ? {attemptOpen:true} : {}), pieceCorrect, moveCorrect, moveVerified: moveCorrect || Boolean(check && check.status !== "unavailable"), ...(check ? {engineCheck:check} : {}), selectedMoveSan, weakestSquares,
+      acceptableMoves, explanation: attempt.explanation + (check ? check.status === "useful"
+        ? " Stockfish checked your alternative and supports it as a useful quiet move."
+        : check.status === "weaker" ? check.lossCp === null
+          ? ` Stockfish finds a worse result than ${check.bestMoveSan} in a position with a forced mate.`
+          : ` The bounded Stockfish check estimates your move is ${(check.lossCp/100).toFixed(2)} pawns below ${check.bestMoveSan}.`
+        : check.status === "forcing" ? " Your move is supported by the engine, but is a forcing move rather than a quiet improvement."
+        : " Stockfish could not verify this alternative within the check; its chess quality remains unverified."
+        : moveCorrect ? "" : " This legal move is not one of the saved engine examples; its chess quality is unverified, rather than proven wrong."),
       checklistPoint: "When there is no forcing move, find a piece whose role can be improved.",
     };
     const answeredAt = now();
-    this.finish(attempt, answeredAt, this.duration(attempt.started_at, answeredAt), outcome, score, { square, moveUci }, feedback, outcome === "excellent");
+    if (check?.status !== "unavailable") this.finish(attempt, answeredAt, this.duration(attempt.started_at, answeredAt), outcome, score, { square, moveUci }, feedback, outcome === "excellent");
     return feedback;
   }
 
@@ -288,6 +344,7 @@ export class V1TrainingService {
     }
     const mix = this.recommendedMix(size, profile.id, gameDays);
     const selected: Array<{ itemId: string; mode: string; ordinal: number }> = [];
+    let similarDeferredCount = 0;
     for (const allocation of mix) {
       const rows = this.db.prepare(`
         SELECT ti.id,
@@ -308,9 +365,17 @@ export class V1TrainingService {
                  CASE WHEN rs.last_result IS NOT NULL AND rs.last_result != 'excellent' THEN 0 ELSE 1 END,
                  repeated_concepts DESC, (rs.attempts - rs.successes) DESC,
                  rs.average_response_ms DESC, ti.created_at DESC, RANDOM()
-        LIMIT ?
-      `).all(profile.id, profile.id, allocation.mode, now(), ...scope.params, now(), allocation.count) as Array<{ id: string }>;
-      for (const row of rows) selected.push({ itemId: row.id, mode: allocation.mode, ordinal: selected.length + 1 });
+      `).all(profile.id, profile.id, allocation.mode, now(), ...scope.params, now()) as Array<{ id: string }>;
+      const groups = tacticalSessionGroups(this.db, rows.map(row=>row.id));
+      const represented = new Set<string>();
+      const chosen = new Set<string>();
+      for (const row of rows) {
+        const group = groups.get(row.id)!;
+        if (represented.has(group) || chosen.size >= allocation.count) continue;
+        represented.add(group); chosen.add(row.id);
+        selected.push({itemId:row.id,mode:allocation.mode,ordinal:selected.length+1});
+      }
+      similarDeferredCount += rows.filter(row=>!chosen.has(row.id) && represented.has(groups.get(row.id)!)).length;
     }
     if (selected.length === 0) {
       return { id: null, requestedSize: size, gameDays, remainingCount: 0, items: [], mix: [], message: "No exercises are due for this game filter. Choose another time range or return when your next review is due." };
@@ -318,9 +383,9 @@ export class V1TrainingService {
     const sessionId = id();
     this.db.transaction(() => {
       this.db.prepare(`
-        INSERT INTO training_sessions(id, profile_id, requested_size, status, created_at, game_days)
-        VALUES (?, ?, ?, 'active', ?, ?)
-      `).run(sessionId, profile.id, size, now(), gameDays);
+        INSERT INTO training_sessions(id, profile_id, requested_size, status, created_at, game_days, similar_deferred_count)
+        VALUES (?, ?, ?, 'active', ?, ?, ?)
+      `).run(sessionId, profile.id, size, now(), gameDays, similarDeferredCount);
       const insert = this.db.prepare(`
         INSERT INTO training_session_items(session_id, item_id, ordinal) VALUES (?, ?, ?)
       `);
@@ -331,8 +396,8 @@ export class V1TrainingService {
       return counts;
     }, {})).map(([mode, count]) => ({ mode, label: MODE_LABELS[mode] ?? mode, count }));
     return {
-      id: sessionId, requestedSize: size, gameDays, items: selected, mix: actualMix, remainingMix: actualMix, remainingCount: selected.length,
-      message: selected.length === size ? "Your weakness-weighted session is ready." : `Built ${selected.length} exercises from the positions available.`,
+      id: sessionId, requestedSize: size, gameDays, similarDeferredCount, items: selected, mix: actualMix, remainingMix: actualMix, remainingCount: selected.length,
+      message: this.sessionMessage(selected.length === size ? "Your weakness-weighted session is ready." : `Built ${selected.length} exercises from the positions available.`, similarDeferredCount),
       status: "active", completedCount: 0, currentItem: selected[0] ?? null,
     };
   }
@@ -351,10 +416,10 @@ export class V1TrainingService {
   session(sessionId: string): TrainingSessionResponse {
     const profileId = activeProfileId(this.db);
     const session = this.db.prepare(`
-      SELECT id, requested_size, status, game_days FROM training_sessions
+      SELECT id, requested_size, status, game_days, similar_deferred_count FROM training_sessions
       WHERE id = ? AND profile_id = ?
     `).get(sessionId, profileId) as {
-      id: string; requested_size: number; status: "active" | "completed"; game_days: number | null;
+      id: string; requested_size: number; status: "active" | "completed"; game_days: number | null; similar_deferred_count: number;
     } | undefined;
     if (!session) throw new Error("Training session not found");
     this.db.prepare(`
@@ -386,6 +451,7 @@ export class V1TrainingService {
     return {
       id: session.id,
       gameDays: session.game_days,
+      similarDeferredCount: session.similar_deferred_count,
       remainingCount: rows.length - completedCount,
       remainingMix: Object.entries(rows.filter(row => row.completed === 0).reduce<Record<string, number>>((counts, row) => {
         counts[row.mode] = (counts[row.mode] ?? 0) + 1; return counts;
@@ -393,9 +459,9 @@ export class V1TrainingService {
       requestedSize: session.requested_size,
       items,
       mix,
-      message: session.status === "completed"
+      message: this.sessionMessage(session.status === "completed"
         ? "Session complete. The prevention habit gets stronger through repetition."
-        : completedCount > 0 ? "Continue today’s session." : "Your weakness-weighted session is ready.",
+        : completedCount > 0 ? "Continue today’s session." : "Your weakness-weighted session is ready.", session.similar_deferred_count),
       status: session.status,
       completedCount,
       currentItem: current ? { itemId: current.itemId, mode: current.mode, ordinal: current.ordinal } : null,
@@ -578,6 +644,10 @@ export class V1TrainingService {
       averageResponseMs: summary.average_response_ms === null ? null : Math.round(summary.average_response_ms),
       recentTrend: trend, realGameOccurrences: concept.occurrences,
     };
+  }
+
+  private sessionMessage(message: string, deferred: number): string {
+    return message + (deferred ? ` ${deferred} similar tactical ${deferred===1 ? "position remains" : "positions remain"} due for later; each opportunity appears once in this session.` : "");
   }
 
   private recommendedMix(size: number, profileId: string, gameDays: number | null = null): DashboardResponse["recommendedSession"] {

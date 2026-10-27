@@ -87,7 +87,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   const lichessSync = new LichessSyncService(database.connection, imports, config.lichessApiToken);
   const training = new TrainingService(database.connection);
   const candidateTraining = new CandidateTrainingService(database.connection, config);
-  const v1Training = new V1TrainingService(database.connection);
+  const v1Training = new V1TrainingService(database.connection, config);
   const attempts = new AttemptLifecycle(database.connection);
   const openingContent = new OpeningContentService(database.connection);
   const openingStudy=new OpeningStudyService(database.connection);
@@ -1009,8 +1009,10 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   app.post("/api/v1/training/quiet/attempts/:attemptId/answer", async (request, reply) => {
     try {
       const { attemptId } = request.params as { attemptId: string };
-      const body = request.body as { square?: unknown; moveUci?: unknown };
-      return v1Training.answerQuiet(
+      const body = request.body as { square?: unknown; moveUci?: unknown; verifyEngine?: unknown };
+      if (body?.verifyEngine !== undefined && typeof body.verifyEngine !== "boolean") throw new Error("Choose whether to check the move with Stockfish");
+      const answer = body?.verifyEngine === true ? v1Training.answerQuietChecked.bind(v1Training) : v1Training.answerQuiet.bind(v1Training);
+      return await answer(
         attemptId,
         requiredString(body?.square, "Piece"),
         requiredString(body?.moveUci, "Move"),
@@ -1041,6 +1043,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     if (config.runWorker) await worker.close();
     else await analysis.close();
     await candidateTraining.close();
+    await v1Training.close();
     await openingAnalysis.close();
     database.close();
   });

@@ -3846,6 +3846,46 @@
               "title": "generates a quiet improvement, scores it, and exposes it in the player model"
             }
           ]
+        },
+        {
+          "id": "CB59.15",
+          "requirement": "Choose one representative of the same tactical answer persisting across consecutive learner turns in a game; show deferred counts on resumed sessions without deleting positions or fabricating completed reviews.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "selects one example per persistent queen opportunity and keeps deferred positions and history due"
+            }
+          ]
+        },
+        {
+          "id": "CB59.16",
+          "requirement": "On request, verify an unlisted quiet move with bounded history-aware Stockfish searches; accept a useful alternative from another piece, retain engine evidence, prevent duplicate submissions and reject stale results.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "gives a checked alternative from another piece full credit and saves engine evidence once"
+            },
+            {
+              "kind": "unit",
+              "title": "checks an unlisted quiet alternative with full history and explicit search limits"
+            },
+            {
+              "kind": "unit",
+              "title": "ends a stalled engine check without inventing a move grade"
+            },
+            {
+              "kind": "browser",
+              "title": "checks a quiet alternative on request, prevents duplicate submissions and gives another piece full credit",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            },
+            {
+              "kind": "unit",
+              "title": "cancels an active search on close and allows a clean retry"
+            }
+          ]
         }
       ],
       "implementationPaths": [
@@ -3859,9 +3899,12 @@
         "apps/server/src/analysis/verify-move.ts",
         "migrations/043_game_quality_verification.sql",
         "apps/server/src/analysis/tactical-punishment.ts",
-        "apps/server/src/analysis/v1-generator.ts"
+        "apps/server/src/analysis/v1-generator.ts",
+        "apps/server/src/training/practice-diversity.ts",
+        "apps/server/src/training/quiet-move-verifier.ts",
+        "migrations/046_practice_diversity.sql"
       ],
-      "limits": "Finite, history-aware chances-v3 analysis; earlier methods remain readable in separate trend groups. Engine diagnostics are regression evidence, not a measured strength/parity score. Missing game metadata limits deduplication certainty; previously skipped games may require reimport. Thinking drills use finite saved engine continuations; tactical proof trees and human learning effectiveness remain unmeasured. Quiet alternatives outside saved examples are unverified; motif diversity is not yet enforced.",
+      "limits": "Finite, history-aware chances-v3 analysis; earlier methods remain readable in separate trend groups. Engine diagnostics are regression evidence, not a measured strength/parity score. Missing game metadata limits deduplication certainty; previously skipped games may require reimport. Thinking drills use finite saved engine continuations; tactical proof trees and human learning effectiveness remain unmeasured. Quiet alternatives outside saved examples can be checked on request, with depth/node/time limits. Repeated tactical answers are grouped only within the same game, perspective and consecutive learner turns; deferred positions remain due, not mastered.",
       "benchmark": {
         "task": "Import two games, analyse one, then select all while retaining its existing report, inspect a graded position and stop a queued batch.",
         "chessbookMeasuredResult": null,

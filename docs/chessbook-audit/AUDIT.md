@@ -19,10 +19,10 @@ remain separate from the verified requirement counts below.
 
 - **60 feature descriptions**, each with explicit acceptance criteria and a repeatable comparison task.
 - Current inventory: 22 existing, 14 partial, 10 absent, 7 implemented, 1 improved, 5 enhanced, 1 not_targeted.
-- Acceptance checks: 137 passed, 0 failed, 0 flaky, 41 unknown, 30 unmet, 3 excluded.
-- Priority-weighted verified requirement coverage: **74.2%** (591/796 points). This is a conservative evidence measure, not “74.2% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
-- Like-for-like unit-evidence baseline: 20.7% → 43.2%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
-- Current validation records: 389 unit/integration tests and 200 browser journeys; 0 failures, 0 flaky results, 0 skipped.
+- Acceptance checks: 139 passed, 0 failed, 0 flaky, 41 unknown, 30 unmet, 3 excluded.
+- Priority-weighted verified requirement coverage: **74.6%** (601/806 points). This is a conservative evidence measure, not “74.6% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
+- Like-for-like unit-evidence baseline: 20.5% → 43.3%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
+- Current validation records: 402 unit/integration tests and 202 browser journeys; 0 failures, 0 flaky results, 0 skipped.
 
 ## Implemented from this audit
 
@@ -1154,8 +1154,10 @@ Acceptance criteria:
 - **passed** — Accept different true observations about an opponent’s move while matching each observation to the correct square. Evidence: unit: accepts the winning capture, opened diagonal and danger to Black's queen as distinct correct observations.
 - **passed** — Grade one excellent candidate without a breadth penalty, retain game history, and accept a stronger verified restricted-search alternative. Evidence: unit: generates a position and grades a legal candidate.
 - **passed** — Accept supported quiet improvements from different pieces; explain that unlisted legal alternatives remain unverified. Evidence: unit: generates a quiet improvement, scores it, and exposes it in the player model.
+- **passed** — Choose one representative of the same tactical answer persisting across consecutive learner turns in a game; show deferred counts on resumed sessions without deleting positions or fabricating completed reviews. Evidence: unit: selects one example per persistent queen opportunity and keeps deferred positions and history due.
+- **passed** — On request, verify an unlisted quiet move with bounded history-aware Stockfish searches; accept a useful alternative from another piece, retain engine evidence, prevent duplicate submissions and reject stale results. Evidence: unit: gives a checked alternative from another piece full credit and saves engine evidence once; unit: checks an unlisted quiet alternative with full history and explicit search limits; unit: ends a stalled engine check without inventing a move grade; browser/chromium: checks a quiet alternative on request, prevents duplicate submissions and gives another piece full credit; browser/webkit: checks a quiet alternative on request, prevents duplicate submissions and gives another piece full credit; unit: cancels an active search on close and allows a clean retry.
 
-Implementation: `apps/server/src/analysis/move-quality.ts`, `apps/server/src/analysis/game-quality-service.ts`, `apps/server/src/analysis/analysis-service.ts`, `apps/server/src/jobs/job-worker.ts`, `apps/web/src/components/GameMoveReport.tsx`, `apps/web/src/components/GameLibrary.tsx`, `migrations/042_game_quality.sql`, `apps/server/src/analysis/verify-move.ts`, `migrations/043_game_quality_verification.sql`, `apps/server/src/analysis/tactical-punishment.ts`, `apps/server/src/analysis/v1-generator.ts`
+Implementation: `apps/server/src/analysis/move-quality.ts`, `apps/server/src/analysis/game-quality-service.ts`, `apps/server/src/analysis/analysis-service.ts`, `apps/server/src/jobs/job-worker.ts`, `apps/web/src/components/GameMoveReport.tsx`, `apps/web/src/components/GameLibrary.tsx`, `migrations/042_game_quality.sql`, `apps/server/src/analysis/verify-move.ts`, `migrations/043_game_quality_verification.sql`, `apps/server/src/analysis/tactical-punishment.ts`, `apps/server/src/analysis/v1-generator.ts`, `apps/server/src/training/practice-diversity.ts`, `apps/server/src/training/quiet-move-verifier.ts`, `migrations/046_practice_diversity.sql`
 
 Repeatable comparison task: Import two games, analyse one, then select all while retaining its existing report, inspect a graded position and stop a queued batch. Competitor timing and our user-task timing remain unmeasured.
 

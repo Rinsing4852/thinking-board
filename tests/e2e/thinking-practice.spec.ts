@@ -153,3 +153,39 @@ test("plays a missed winning capture from the learner's side before the game mov
   await expect(grid.getByRole('gridcell',{name:'h3 black queen',exact:true})).toBeVisible();
   await page.screenshot({path:info.outputPath('missed-queen-capture.png'),animations:'disabled'});
 });
+
+test("checks a quiet alternative on request, prevents duplicate submissions and gives another piece full credit",async({page},info)=>{
+  const board=new Chess();board.move('e4');board.move('e5');
+  await page.route('**/api/v1/training/session/active',route=>route.fulfill({json:null}));
+  await page.route('**/api/v1/training/quiet/next',route=>route.fulfill({json:{kind:'exercise',attemptId:null,itemId:'quiet-alternative',mode:'quiet_position',fen:board.fen(),playerColor:'white',moveNumber:2,prompt:'Choose a piece and a useful quiet move.'}}));
+  await page.route('**/api/v1/training/items/quiet-alternative/start',route=>route.fulfill({json:{attemptId:'quiet-check'}}));
+  let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});let checks=0;
+  await page.route('**/api/v1/training/quiet/attempts/quiet-check/answer',async route=>{
+    expect(route.request().postDataJSON()).toEqual({square:'f1',moveUci:'f1c4',verifyEngine:true});await gate;
+    if(checks++===0){await route.fulfill({json:{attemptOpen:true,outcome:'incorrect',score:0,pieceCorrect:false,moveCorrect:false,moveVerified:false,selectedMoveSan:'Bc4',weakestSquares:['g1'],acceptableMoves:[{moveUci:'g1f3',moveSan:'Nf3',centipawnLoss:0}],engineCheck:{status:'unavailable',depth:null,lossCp:null,bestMoveSan:null,continuationSan:[]},explanation:'This move remains unverified.',checklistPoint:'Try the check again.'}});return;}
+    await route.fulfill({json:{outcome:'excellent',score:1,pieceCorrect:true,moveCorrect:true,moveVerified:true,selectedMoveSan:'Bc4',weakestSquares:['g1','f1'],acceptableMoves:[{moveUci:'f1c4',moveSan:'Bc4',centipawnLoss:10}],engineCheck:{status:'useful',depth:14,lossCp:10,bestMoveSan:'Nf3',continuationSan:['Bc4','Nf6']},explanation:'Stockfish checked your alternative and supports it as a useful quiet move.',checklistPoint:'Find a useful role for your piece.'}});
+  });
+  try{
+    await page.goto('/#today');await page.locator('.thinking-mode-picker > summary').click();
+    await page.getByRole('button',{name:'5 · Quiet plan',exact:true}).click();
+    await page.getByRole('button',{name:'Assess my pieces',exact:true}).click();
+    const grid=page.getByRole('grid',{name:'Chess position'});
+    await grid.getByRole('gridcell',{name:'f1 white bishop',exact:true}).click();
+    await page.getByRole('button',{name:'Choose an improvement',exact:true}).click();
+    await grid.getByRole('gridcell',{name:'f1 white bishop',exact:true}).click();
+    await grid.getByRole('gridcell',{name:'c4 empty',exact:true}).click();
+    await page.getByRole('button',{name:'Check improvement',exact:true}).click();
+    await expect(page.getByRole('button',{name:'Checking your move…',exact:true})).toBeDisabled();
+    await expect(page.getByRole('button',{name:'Show an example',exact:true})).toBeDisabled();
+    release();
+    await expect(page.locator('#quiet-position .feedback')).toContainText('Your answer has not been graded and your review progress has not changed.');
+    await expect(page.getByRole('button',{name:'Next quiet position',exact:true})).toBeHidden();
+    await page.getByRole('button',{name:'Try checking again',exact:true}).click();
+    await page.getByRole('button',{name:'Check improvement',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'You found an engine-supported improvement',exact:true})).toBeVisible();
+    await expect(page.locator('#quiet-position .feedback')).toContainText('Stockfish checked your alternative');
+    await page.getByText('See the engine check',{exact:true}).click();
+    await expect(page.locator('#quiet-position .feedback')).toContainText('Example after your move: Bc4 Nf6');
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  }finally{release();}
+});

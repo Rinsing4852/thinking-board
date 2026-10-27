@@ -963,6 +963,14 @@ export interface QuietPositionExercise {
 export type NextQuietPositionResponse = EmptyTrainingResponse | QuietPositionExercise;
 
 export interface QuietPositionAnswerResponse {
+  attemptOpen?: boolean;
+  engineCheck?: {
+    status: "useful" | "weaker" | "forcing" | "unavailable";
+    depth: number | null;
+    lossCp: number | null;
+    bestMoveSan: string | null;
+    continuationSan: string[];
+  };
   moveVerified?: boolean;
   outcome: "excellent" | "partial" | "incorrect";
   score: number;
@@ -1005,6 +1013,7 @@ export interface DashboardResponse {
 }
 
 export interface TrainingSessionResponse {
+  similarDeferredCount?: number;
   gameDays?: number | null;
   remainingCount?: number;
   remainingMix?: Array<{ mode: string; label: string; count: number }>;

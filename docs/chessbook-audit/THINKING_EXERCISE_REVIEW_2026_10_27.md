@@ -79,3 +79,10 @@ regression set, correct answers and side-to-move for the supplied queen game,
 acceptance of documented alternatives, and clean attempt/history handling.
 Larger labelled sets are needed before giving precision/recall percentages;
 a small passing fixture set must not be presented as general tactical accuracy.
+
+## Follow-up implementation
+
+The first two recommendations above are implemented in v1.5.23. See the
+[follow-up review](THINKING_PRACTICE_FOLLOWUP_2026_10_27.md) for grouping rules,
+on-request quiet alternatives and separate verification evidence. The broader
+curated corpus and delayed-recall teaching work remain the next priorities.

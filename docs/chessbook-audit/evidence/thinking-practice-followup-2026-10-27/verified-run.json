@@ -1,0 +1,83 @@
+{
+  "run": {
+    "measuredAt": "2026-10-27T22:04:30.777Z",
+    "sourceFingerprint": "c9d3201a01c858b008af653be7c9d1e1bc17f7bfb7e0424c5eecaa2cdbbf67f4",
+    "sourceUnchangedDuringRun": true,
+    "steps": [
+      {
+        "name": "typecheck",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      },
+      {
+        "name": "unit and integration tests",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      },
+      {
+        "name": "tracker assessment tests",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      },
+      {
+        "name": "production build",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      },
+      {
+        "name": "full browser suite",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      }
+    ],
+    "commit": "219f8ba4ecce8a015758c49538d6b7575d31bc65"
+  },
+  "unit": {
+    "passed": 402,
+    "failed": 0
+  },
+  "browser": {
+    "startTime": "2026-10-27T21:58:40.530Z",
+    "duration": 350193.889,
+    "expected": 202,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "trackerAssessmentTests": 6,
+  "realStockfish": {
+    "engine": "Stockfish 18",
+    "regressionCases": 44,
+    "scripts": 5,
+    "exitCodes": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "packaging": "Real engine cases ran in the packaged v1.5.23 container. After the subsequent UI-only Safari focus fix, the container was rebuilt and its quiet-answer smoke test passed again."
+  },
+  "webkitFocusRegression": {
+    "repetitions": 10,
+    "passed": 10,
+    "failed": 0,
+    "durationSeconds": 30.6
+  },
+  "containerBuild": {
+    "tag": "thinking-board-audit:1.5.23",
+    "passed": true,
+    "liveContainerRestarted": false
+  },
+  "precedingPublication": {
+    "commit": "219f8ba",
+    "workflow": "https://github.com/Rinsing4852/thinking-board/actions/runs/40588390127",
+    "blockedBy": "One Linux WebKit arrow-focus test passed only on retry. Flaky-test rejection was retained; focused preview now survives pointer leave."
+  },
+  "limits": "Acceptance regressions, not a measured human learning benefit or general tactical precision/recall percentage."
+}
