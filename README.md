@@ -681,3 +681,28 @@ used; no new API credentials or settings are required.
 
 See the [follow-up review](docs/chessbook-audit/THINKING_PRACTICE_FOLLOWUP_2026_10_27.md)
 for scope, limits and validation.
+
+### Daily practice and game teaching: v1.5.24
+
+Today offers a short **Start daily practice** routine: up to five opening
+responses followed by up to five exercises from analysed games. Existing
+opening recall, guided lessons and thinking sessions are resumed rather than replaced; a plan and its original game filter
+survive reload and midnight. Opening recall and game practice keep separate
+scores. A completed short plan does not mean every due position or the full
+opening goal is finished. Manual thinking boards open only after choosing a
+mode or starting/resuming practice.
+
+In My games, **Review key decisions** selects up to three decisions from saved
+analysis and repertoire differences. Try or reveal a move, then expand
+**Understand this decision on the board** to play short saved engine examples
+on the existing board. **Practise tomorrow** adds an engine decision to later
+Candidates practice, at least 24 hours after scheduling, even if only one legal
+answer is saved. Repeated scheduling creates no duplicate or recall credit.
+Opening follow-ups retain their existing repertoire scheduling.
+
+The Safari preparation-task regression now waits for the restored workspace,
+uses a unique repertoire per retry, and restores the selected task by identity.
+Postponed/skipped suggestions also include line context and are deduplicated.
+No new API credentials or automatic whole-game analysis are introduced.
+
+See the [delivery notes and evidence](docs/chessbook-audit/DAILY_PRACTICE_AND_TEACHING_2026_10_27.md).

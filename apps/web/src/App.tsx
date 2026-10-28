@@ -1,3 +1,4 @@
+import { DailyPracticePlan } from "./components/DailyPracticePlan";
 import { GameQualityProgress } from "./components/GameQualityProgress";
 import { useEffect, useRef, useState } from "react";
 
@@ -24,6 +25,7 @@ function initialView(): AppView {
 }
 
 export function App() {
+  const [dailyPlanActive,setDailyPlanActive]=useState(false);
   const [build,setBuild]=useState<string|null>(null);
   useEffect(()=>{void get<{build?:string|null}>("/api/v1/health").then(result=>setBuild(result.build??null)).catch(()=>undefined);},[]);
   const [profileEpoch,setProfileEpoch]=useState(0);
@@ -33,6 +35,7 @@ export function App() {
   const [gameReviewFocusToken, setGameReviewFocusToken] = useState(0);
   const [trainingRequest, setTrainingRequest] = useState<{ itemId: string; requestId: number } | null>(null);
   const [showGameImport, setShowGameImport] = useState(() => new URLSearchParams(window.location.hash.split("?")[1]).has("add"));
+  const [manualPractice,setManualPractice]=useState(false);
   const [activeMode, setActiveMode] = useState("blunder_check");
   const [gameDays, setGameDays] = useState<number | null>(null);
   const [sessionError, setSessionError] = useState("");
@@ -71,6 +74,7 @@ export function App() {
           setGameDays(activeSession.gameDays ?? null);
         }
       }).catch(() => undefined);
+    void get<{status:string}>("/api/v1/practice/daily",controller.signal).then(plan=>{if(!controller.signal.aborted)setDailyPlanActive(plan.status==='active');}).catch(()=>undefined);
     return () => controller.abort();
   }, [profileEpoch]);
 
@@ -102,6 +106,7 @@ export function App() {
     navigate("openings");
   };
   const chooseMode = (mode: string): void => {
+    setManualPractice(true);
     setSession(null);
     setTrainingRequest(null);
     setActiveMode(mode);
@@ -176,15 +181,18 @@ export function App() {
         {view === "today" && (
           <>
             <section className="hero hero-compact">
-              <div><h1>What would you like to practise?</h1><p>Choose your openings, review a game, or work on a thinking exercise below.</p>
+              <div><DailyPracticePlan key={profileEpoch} refreshToken={refreshToken} gameDays={gameDays}
+                  onOpening={()=>navigate("openings")} onThinking={startSession} onGames={()=>navigate("games")}
+                  onBuild={()=>navigate("openings")} onStateChange={setDailyPlanActive}/>
+                <p>Or choose your own practice below.</p>
                 <div className="workflow-actions">
-                  <button onClick={() => navigate("openings")}>Practise openings</button>
+                  <button className="secondary" onClick={() => navigate("openings")}>Practise openings</button>
                   <button className="secondary" onClick={() => navigate("games")}>Review a game</button>
                 </div>
               </div>
             </section>
             <Dashboard compact gameDays={gameDays} onGameDaysChanged={days => { setGameDays(days); setTrainingRequest(null); }} practiceActive={Boolean(session)} onChooseGames={() => navigate("games")} onImport={() => openGamesAt("import")} refreshToken={refreshToken} onChooseMode={chooseMode} onStartSession={startSession} onProfileChanged={() => {
-              setSession(null); setTrainingRequest(null); setProfileEpoch(value=>value+1);setRefreshToken((value) => value + 1);
+              setSession(null); setDailyPlanActive(false); setTrainingRequest(null); setProfileEpoch(value=>value+1);setRefreshToken((value) => value + 1);
             }} />
             <section className="trainer-hub" id="trainer">
               <details className="panel workflow-disclosure thinking-mode-picker"><summary>Choose a thinking exercise</summary>
@@ -210,11 +218,11 @@ export function App() {
                   {Boolean(session.similarDeferredCount) && <span>{session.similarDeferredCount} similar tactical positions kept for later.</span>}
                 </div>
               )}
-              {session?.status !== "completed" && activeMode === "what_changed" && <WhatChangedPanel gameDays={gameDays} refreshToken={refreshToken} requestedItemId={requestedItemId} sessionId={session?.id ?? undefined} onCompleted={() => void continueSession()} />}
-              {session?.status !== "completed" && activeMode === "candidate_generation" && <CandidateGenerationPanel gameDays={gameDays} refreshToken={refreshToken} requestedItemId={requestedItemId} sessionId={session?.id ?? undefined} onCompleted={() => void continueSession()} />}
-              {session?.status !== "completed" && activeMode === "blunder_check" && <TrainingPanel gameDays={gameDays} refreshToken={refreshToken} requestedItemId={requestedItemId} sessionId={session?.id ?? undefined} onCompleted={() => void continueSession()} />}
-              {session?.status !== "completed" && activeMode === "punish_blunder" && <PunishBlunderPanel gameDays={gameDays} refreshToken={refreshToken} requestedItemId={requestedItemId} sessionId={session?.id ?? undefined} onCompleted={() => void continueSession()} />}
-              {session?.status !== "completed" && activeMode === "quiet_position" && <QuietPositionPanel gameDays={gameDays} refreshToken={refreshToken} requestedItemId={requestedItemId} sessionId={session?.id ?? undefined} onCompleted={() => void continueSession()} />}
+              {(session || trainingRequest || manualPractice) && session?.status !== "completed" && activeMode === "what_changed" && <WhatChangedPanel gameDays={gameDays} refreshToken={refreshToken} requestedItemId={requestedItemId} sessionId={session?.id ?? undefined} onCompleted={() => void continueSession()} />}
+              {(session || trainingRequest || manualPractice) && session?.status !== "completed" && activeMode === "candidate_generation" && <CandidateGenerationPanel gameDays={gameDays} refreshToken={refreshToken} requestedItemId={requestedItemId} sessionId={session?.id ?? undefined} onCompleted={() => void continueSession()} />}
+              {(session || trainingRequest || manualPractice) && session?.status !== "completed" && activeMode === "blunder_check" && <TrainingPanel gameDays={gameDays} refreshToken={refreshToken} requestedItemId={requestedItemId} sessionId={session?.id ?? undefined} onCompleted={() => void continueSession()} />}
+              {(session || trainingRequest || manualPractice) && session?.status !== "completed" && activeMode === "punish_blunder" && <PunishBlunderPanel gameDays={gameDays} refreshToken={refreshToken} requestedItemId={requestedItemId} sessionId={session?.id ?? undefined} onCompleted={() => void continueSession()} />}
+              {(session || trainingRequest || manualPractice) && session?.status !== "completed" && activeMode === "quiet_position" && <QuietPositionPanel gameDays={gameDays} refreshToken={refreshToken} requestedItemId={requestedItemId} sessionId={session?.id ?? undefined} onCompleted={() => void continueSession()} />}
               {sessionError && <div className="panel" role="alert">{sessionError} <button onClick={() => void continueSession()}>Retry continuing session</button></div>}
               {sessionAdvancing && <p role="status">Updating your session…</p>}
               {session?.status === "completed" && <div className="panel session-complete"><h2>Session complete</h2><p>{session.message}</p><button onClick={() => setSession(null)}>Return to practice</button></div>}
@@ -222,6 +230,7 @@ export function App() {
           </>
         )}
 
+        {view === "openings" && dailyPlanActive && <div className="panel daily-plan-return"><span>Opening practice · part of your daily plan</span><button className="secondary" onClick={()=>{setRefreshToken(value=>value+1);navigate("today");}}>Back to daily plan</button></div>}
         {view === "openings" && <OpeningPractice
           refreshToken={refreshToken}
           onOpenGames={() => openGamesAt("opening-inbox")}
@@ -266,7 +275,7 @@ export function App() {
             </section>
             <OpeningLearningMeasures refreshToken={refreshToken} />
             <Dashboard gameDays={gameDays} onGameDaysChanged={days => { setGameDays(days); setTrainingRequest(null); }} practiceActive={Boolean(session)} onChooseGames={() => navigate("games")} onImport={() => openGamesAt("import")} refreshToken={refreshToken} onChooseMode={chooseMode} onStartSession={startSession} onProfileChanged={() => {
-              setSession(null); setTrainingRequest(null); setProfileEpoch(value=>value+1);setRefreshToken((value) => value + 1);
+              setSession(null); setDailyPlanActive(false); setTrainingRequest(null); setProfileEpoch(value=>value+1);setRefreshToken((value) => value + 1);
             }} />
           </>
         )}

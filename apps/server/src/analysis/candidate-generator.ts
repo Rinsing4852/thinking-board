@@ -45,7 +45,37 @@ export class CandidateGenerator {
     `).get(gameId) as { id: string } | undefined)?.id;
     if (!selectedRun) return 0;
 
-    const candidates = this.db.prepare(`
+    const candidates = this.candidates(gameId,selectedRun);
+    let generated = 0;
+    for (const candidate of candidates) {
+      const board = new Chess(candidate.fen);
+      if (board.isGameOver() || board.inCheck()) continue;
+      const lines = this.lines(candidate);
+      if (lines.length < 2) continue;
+      if (this.insertItem(gameId, candidate, lines)) generated += 1;
+    }
+    return generated;
+  }
+
+  /** Explicit game-review follow-up also supports a single saved answer and forced defence. */
+  ensureForMove(gameId:string,runId:string,moveId:string):string {
+    const candidate=this.candidates(gameId,runId).find(row=>row.source_move_id===moveId);
+    if(!candidate || new Chess(candidate.fen).isGameOver())throw new Error("No saved analysis is available for later practice.");
+    const lines=this.lines(candidate).filter(line=>{try{new Chess(candidate.fen).move({from:line.move_uci.slice(0,2),to:line.move_uci.slice(2,4),...(line.move_uci[4]?{promotion:line.move_uci[4]}:{})});return line.centipawns_white!==null||line.mate_in_white!==null;}catch{return false;}});
+    if(!lines.length)throw new Error("No legal saved answer is available for later practice.");
+    const existing=this.db.prepare("SELECT id FROM training_items WHERE source_move_id=? AND mode='candidate_generation' AND active=1").pluck().get(moveId) as string|undefined;
+    if(existing)return existing;
+    this.insertItem(gameId,candidate,lines);
+    return this.db.prepare("SELECT id FROM training_items WHERE source_move_id=? AND mode='candidate_generation'").pluck().get(moveId) as string;
+  }
+
+  private lines(candidate:CandidateRow):LineRow[] {
+    return this.db.prepare(`SELECT rank,move_uci,move_san,centipawns_white,mate_in_white
+      FROM engine_lines WHERE position_analysis_id=? AND move_uci!='(none)' ORDER BY rank LIMIT 3`).all(candidate.position_analysis_id) as LineRow[];
+  }
+
+  private candidates(gameId:string,selectedRun:string):CandidateRow[] {
+    return this.db.prepare(`
       SELECT m.id AS source_move_id, g.profile_id,
              m.from_position_id AS position_id, position.fen,
              m.san AS played_move_san, analysis.id AS position_analysis_id,
@@ -61,20 +91,6 @@ export class CandidateGenerator {
       ORDER BY m.ply
     `).all(selectedRun, selectedRun, gameId) as CandidateRow[];
 
-    let generated = 0;
-    for (const candidate of candidates) {
-      const board = new Chess(candidate.fen);
-      if (board.isGameOver() || board.inCheck()) continue;
-      const lines = this.db.prepare(`
-        SELECT rank, move_uci, move_san, centipawns_white, mate_in_white
-        FROM engine_lines
-        WHERE position_analysis_id = ? AND move_uci != '(none)'
-        ORDER BY rank LIMIT 3
-      `).all(candidate.position_analysis_id) as LineRow[];
-      if (lines.length < 2) continue;
-      if (this.insertItem(gameId, candidate, lines)) generated += 1;
-    }
-    return generated;
   }
 
   private insertItem(gameId: string, candidate: CandidateRow, lines: LineRow[]): boolean {

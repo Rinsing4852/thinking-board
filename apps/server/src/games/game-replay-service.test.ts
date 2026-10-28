@@ -1,6 +1,6 @@
 import path from "node:path";
 import { Chess } from "chess.js";
-import { afterEach,describe,expect,it } from "vitest";
+import { afterEach,describe,expect,it,vi } from "vitest";
 import { Database } from "../db/database.js";
 import { ImportService } from "../imports/import-service.js";
 import { OpeningContentService } from "../openings/opening-content-service.js";
@@ -13,7 +13,7 @@ import { setActiveProfile } from "../training/profile.js";
 import { CandidateGenerator } from "../analysis/candidate-generator.js";
 
 const databases:Database[]=[];
-afterEach(()=>databases.splice(0).forEach(db=>db.close()));
+afterEach(()=>{databases.splice(0).forEach(db=>db.close());vi.useRealTimers();});
 function setup(color:"white"|"black"="white",moves="1. f3 e5 2. e4 Nf6 3. Nc3 Nc6 *",line="1. e4 e5 2. Nf3 Nc6 *") {
   const database=new Database(":memory:",path.resolve("migrations"));databases.push(database);const db=database.connection;
   new ImportService(db).import(`[White "${color==="white"?"Learner":"Opponent"}"]\n[Black "${color==="black"?"Learner":"Opponent"}"]\n[Result "*"]\n\n${moves}`,"Learner");
@@ -135,4 +135,62 @@ describe("saved game replay and local recall",()=>{
     expect(f.replay.get(f.gameId).snapshotId).toBe(state.snapshotId);
   });
 
+});
+
+
+it("schedules a one-answer game decision tomorrow exactly once without recording recall or analysis",()=>{
+  vi.useFakeTimers();vi.setSystemTime(new Date('2026-10-28T12:00:00Z'));
+  const f=setup('black','1. e4 f6 2. d4 e5 *','1. e4 e5 *');
+  analysis(f,2,[['e7e5','e5',-100,null]]);
+  expect(new CandidateGenerator(f.db).generateForGame(f.gameId)).toBe(0);
+  let state=f.replay.get(f.gameId);const point=state.checkpoints.find(point=>point.kind==='engine')!;
+  expect(point.canSchedule).toBe(true);
+  state=act(f.replay,state,'jump',{ply:point.ply,checkpointId:point.id});state=act(f.replay,state,'reveal');
+  state=act(f.replay,state,'schedule');
+  expect(f.db.prepare('SELECT due_at,attempts,successes FROM review_states').get()).toMatchObject({due_at:'2026-10-29T12:00:00.000Z',attempts:0,successes:0});
+  const item=f.db.prepare('SELECT item_id FROM game_review_practice_followups').pluck().get();
+  vi.advanceTimersByTime(2*60*60_000);state=act(f.replay,state,'schedule');
+  expect(state.feedback?.message).toContain('already in Candidates practice');
+  expect(f.db.prepare('SELECT COUNT(*) FROM training_items').pluck().get()).toBe(1);
+  expect(f.db.prepare('SELECT due_at FROM review_states WHERE item_id=?').pluck().get(item)).toBe('2026-10-29T12:00:00.000Z');
+  expect(f.db.prepare('SELECT COUNT(*) FROM training_attempts').pluck().get()).toBe(0);
+  expect(f.db.prepare('SELECT COUNT(*) FROM jobs').pluck().get()).toBe(0);
+});
+
+it("offers at most three key decisions with hidden answers and persists completion of the short review",()=>{
+  const f=setup('white','1. f3 e5 2. e4 Nf6 3. Nc3 Nc6 4. d3 d6 *','1. e4 e5 *');
+  const cases:Array<[number,string,string,number]>=[[1,'d2d4','d4',100],[3,'b1c3','Nc3',400],[5,'g1e2','Ne2',300],[7,'g1h3','Nh3',200]];
+  for(const [ply,uci,san,loss] of cases){
+    const move=analysis(f,ply,[[uci,san,50,null]],`run-${ply}`);
+    f.db.prepare('UPDATE move_assessments SET comparison_loss=? WHERE move_id=?').run(loss,move.id);
+  }
+  f.db.prepare("UPDATE move_assessments SET run_id='run-7'").run();f.db.prepare("UPDATE position_analyses SET run_id='run-7'").run();
+  f.db.prepare("DELETE FROM analysis_runs WHERE id!='run-7'").run();
+  let state=f.replay.get(f.gameId);const keys=state.checkpoints.filter(point=>point.keyDecision);
+  expect(keys).toHaveLength(3);expect(keys.map(point=>point.ply)).toEqual([2,4,6]);
+  expect(state.feedback).toBeNull();expect(keys.every(point=>!('teachingLines' in point))).toBe(true);
+  state=act(f.replay,state,'jump',{ply:keys[2]!.ply,checkpointId:keys[2]!.id});
+  state=act(f.replay,state,'reveal');state=act(f.replay,state,'next_key');
+  expect(state.keyStudyComplete).toBe(false);expect(state.currentPly).toBe(keys[0]!.ply);
+  state=act(f.replay,state,'key_study');expect(state.currentPly).toBe(2);
+  expect(()=>act(f.replay,state,'next_key')).toThrow('Try the decision');
+  for(let i=0;i<3;i++){state=act(f.replay,state,'reveal');expect(state.feedback?.teachingLines?.[0]?.steps).toHaveLength(1);state=act(f.replay,state,'next_key');}
+  expect(state.keyStudyComplete).toBe(true);expect(f.replay.get(f.gameId).keyStudyComplete).toBe(true);
+  state=act(f.replay,state,'jump',{ply:0});expect(state.keyStudyComplete).toBe(true);
+  state=act(f.replay,state,'key_study');expect(state.keyStudyComplete).toBe(false);
+  expect(f.db.prepare('SELECT COUNT(*) FROM training_attempts').pluck().get()).toBe(0);
+});
+
+it("shows legal defensive replies to the game move only after the answer is revealed",()=>{
+  const f=setup('white','1. f3 e5 2. g4 Qh4# 0-1','1. e4 e5 *');const move=analysis(f,3,[['g2g3','g3',0,null]]);
+  f.db.prepare('UPDATE engine_lines SET pv_uci_json=?').run(JSON.stringify(['g2g3','d7d5']));
+  const after=f.db.prepare('SELECT to_position_id FROM moves WHERE id=?').pluck().get(move.id);
+  f.db.prepare("INSERT INTO position_analyses(id,run_id,position_id,mate_in_white,depth) VALUES ('after','analysis-1',?,-1,14)").run(after);
+  f.db.prepare("INSERT INTO engine_lines(id,position_analysis_id,rank,move_uci,move_san,mate_in_white,pv_uci_json,pv_san_json) VALUES ('mate','after',1,'d8h4','Qh4#',-1,'[\"d8h4\"]','[\"Qh4#\"]')").run();
+  let state=f.replay.get(f.gameId);const point=state.checkpoints.find(point=>point.kind==='engine')!;
+  state=act(f.replay,state,'jump',{ply:point.ply,checkpointId:point.id});expect(state.feedback).toBeNull();
+  state=act(f.replay,state,'reveal');const lines=state.feedback!.teachingLines!;
+  expect(lines[0]!.steps.map(step=>step.san)).toEqual(['g3','d5']);
+  expect(lines[1]!.steps.map(step=>step.san)).toEqual(['g4','Qh4#']);
+  expect(new Chess(lines[1]!.steps.at(-1)!.fen).isCheckmate()).toBe(true);
 });

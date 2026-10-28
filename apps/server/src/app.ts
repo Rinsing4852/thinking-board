@@ -1,3 +1,4 @@
+import { DailyPracticeService } from "./training/daily-practice-service.js";
 import { GameQualityService } from "./analysis/game-quality-service.js";
 import { GameReplayService } from "./games/game-replay-service.js";
 import { openingQualityMetrics } from "./openings/opening-quality-metrics.js";
@@ -96,6 +97,16 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   registerOpeningUpdateRoutes(app, new OpeningUpdateService(database.connection, openingLichessImports));
   const openingTraining = new OpeningTrainingService(database.connection);
   const openingReviews = new OpeningReviewService(database.connection);
+  const dailyPractice = new DailyPracticeService(database.connection,openingReviews,v1Training);
+  app.get("/api/v1/practice/daily",async(request,reply)=>{
+    try{return dailyPractice.get(parseGameDays((request.query as {gameDays?:unknown}).gameDays));}
+    catch(error){return reply.code(400).send({error:error instanceof Error?error.message:"Could not load your plan"});}
+  });
+  app.post("/api/v1/practice/daily/start",async(request,reply)=>{
+    try{const body=request.body as {profileId?:unknown;gameDays?:unknown};
+      return dailyPractice.start(requiredString(body?.profileId,"Player"),parseGameDays(body?.gameDays));}
+    catch(error){return reply.code(400).send({error:error instanceof Error?error.message:"Could not start your plan"});}
+  });
   const openingWorkspace = new OpeningWorkspaceService(database.connection);
   const openingAnalysis = new OpeningAnalysisService(config, database.connection);
   registerOpeningStudyRoutes(app, openingStudy, new OpeningStudyDiscoveryService(database.connection,openingStudy,config.lichessApiToken),openingAnalysis);
@@ -113,7 +124,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   });
   app.post("/api/v1/games/:gameId/replay",{schema:{body:{type:"object",additionalProperties:false,
     required:["snapshotId","version","action"],properties:{snapshotId:{type:"string",minLength:1,maxLength:100},version:{type:"integer",minimum:0},
-      action:{enum:["latest","next","previous","jump","retry","answer","reveal","refresh","schedule","skip"]},ply:{type:"integer",minimum:0,maximum:10000},
+      action:{enum:["latest","next","previous","jump","retry","answer","reveal","refresh","schedule","skip","key_study","next_key"]},ply:{type:"integer",minimum:0,maximum:10000},
       checkpointId:{type:"string",minLength:1,maxLength:200},moveUci:{type:"string",pattern:"^[a-h][1-8][a-h][1-8][qrbn]?$"}}}}},async(request,reply)=>{
     try {return gameReplay.act((request.params as {gameId:string}).gameId,request.body as import("../../../packages/contracts/src/api.js").GameReplayAction);}
     catch(error) {return reply.code(400).send({error:error instanceof Error?error.message:"Could not save game review."});}

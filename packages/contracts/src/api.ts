@@ -1076,7 +1076,7 @@ export interface GameReplayMove {
 }
 export interface GameReplayCheckpoint {
   id:string; ply:number; kind:"opening"|"engine"|"opponent"|"gap";
-  label:string; question:string; canRecall:boolean; canSchedule:boolean;
+  label:string; question:string; canRecall:boolean; canSchedule:boolean; keyDecision?:boolean;
   attempts:number; recalled:boolean;
 }
 export interface GameReplayResponse {
@@ -1084,11 +1084,13 @@ export interface GameReplayResponse {
   initialFen:string; moves:GameReplayMove[]; checkpoints:GameReplayCheckpoint[];
   currentPly:number; activeCheckpointId:string|null; phase:"replay"|"question"|"feedback";
   displayFen:string; displayMove:string|null; updatesAvailable:boolean; analysisPending:boolean;
-  feedback:null|{message:string; outcome:string; answers:Array<{uci:string;san:string}>; explanation:string};
+  keyStudyComplete?:boolean;
+  feedback:null|{message:string; outcome:string; answers:Array<{uci:string;san:string}>; explanation:string;
+    teachingLines?:GameReviewTeachingLine[]};
 }
 export interface GameReplayAction {
   snapshotId:string; version:number;
-  action:"latest"|"next"|"previous"|"jump"|"retry"|"answer"|"reveal"|"refresh"|"schedule"|"skip";
+  action:"latest"|"next"|"previous"|"jump"|"retry"|"answer"|"reveal"|"refresh"|"schedule"|"skip"|"key_study"|"next_key";
   ply?:number; checkpointId?:string; moveUci?:string;
 }
 
@@ -1140,4 +1142,27 @@ export interface GameQualityTrends {
   totalGames:number; analyzedGames:number; excludedGames:number;
   cohorts:Array<{id:string;engine:string;depth:number;ruleVersion:string}>; cohort:string|null;
   timeControls:string[]; timeControl:string|null; recent:GameQualityWindow; previous:GameQualityWindow;
+}
+
+
+/** A short routine links existing schedulers without merging memory scores. */
+export interface DailyPracticePlan {
+  openingKind?: "recall" | "lesson";
+  profileId: string;
+  id: string | null;
+  date: string;
+  gameDays: number | null;
+  status: "ready" | "active" | "completed" | "empty";
+  next: "opening" | "thinking" | "games" | "build" | null;
+  openingCount: number;
+  thinkingCount: number;
+  openingDone: boolean;
+  thinkingDone: boolean;
+  message: string;
+  thinkingSession?: TrainingSessionResponse;
+}
+
+export interface GameReviewTeachingLine {
+  label: string;
+  steps: Array<{fen:string;uci:string;san:string}>;
 }

@@ -1165,3 +1165,11 @@ button.quality-move { display: grid; gap: .3rem; text-align: left; min-height: 7
 .quality-trends-table th,.quality-trends-table td { padding: .7rem .4rem; border-bottom: 1px solid var(--line); }
 .quality-trends-table td { font-variant-numeric: tabular-nums; }
 @media(max-width:600px) { .quality-summary { gap: .4rem; } .quality-summary>div { padding: .5rem; } .quality-summary strong { font-size: 1.1rem; } .quality-trends-table { font-size: .8rem; } }
+
+.daily-practice-steps { padding-left:1.5rem; margin:.8rem 0; }
+.daily-practice-steps li { margin:.35rem 0; }
+.hero .daily-practice-steps + button { margin:.5rem 0; }
+.hero section[aria-label="Your daily practice plan"] small { display:block; margin-top:.6rem; }
+.daily-plan-return { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
+.game-key-decisions { padding:1rem 0; border-bottom:1px solid var(--border); margin-bottom:1rem; }
+.game-teaching-lines { margin:1rem 0; }

@@ -167,6 +167,8 @@ for (const reduce of [false, true]) {
     } }));
     await page.route("**/api/v1/training/items/board-regression/start", route => route.fulfill({ json: { attemptId: "board-attempt" } }));
     await page.goto("/#today");
+    await page.locator(".thinking-mode-picker > summary").click();
+    await page.getByRole("button", { name: "3 · Blunder check", exact: true }).click();
     const board = page.getByRole("grid", { name: "Chess position" });
     await expectPiece(board, "e2", "white pawn");
     expect(await board.locator(".board-square-layer").evaluate(element => getComputedStyle(element).touchAction)).toBe("auto");

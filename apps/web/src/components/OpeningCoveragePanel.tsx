@@ -44,6 +44,7 @@ export function OpeningCoveragePanel({ coverage, busy, disabled, useExplorer, no
   const toFinish = candidates.filter(gap => gap.status === "idea_only").length;
   const toAdd = candidates.length - toPractise - toFinish;
   const tasks = showAll ? candidates : candidates.slice(0, 3);
+  const history = [...new Map((coverage?.taskHistory??[]).map(gap=>[openingTask(gap).id,gap])).values()];
   const responseTitles = new Map(lines.map(line => [line.id, line.title]));
   const matchesFilter = (branch: OpeningCoverageBranch) => filter === "all" || branch.status === filter
     || filter === "actionable" && !["prepared", "unprepared"].includes(branch.status);
@@ -99,7 +100,7 @@ export function OpeningCoveragePanel({ coverage, busy, disabled, useExplorer, no
         {toAdd > 0 && <li><strong>{toAdd}</strong> opponent {toAdd === 1 ? "reply" : "replies"} without a saved answer</li>}
         {toFinish > 0 && <li><strong>{toFinish}</strong> {toFinish === 1 ? "idea" : "ideas"} to review</li>}
       </ul>
-      <div className="opening-coverage-tasks">{tasks.map(gap => <article key={`${gap.positionId}:${gap.moveUci}`}>
+      <div className="opening-coverage-tasks">{tasks.map(gap => <article key={openingTask(gap).id} data-task-id={openingTask(gap).id}>
         <strong>{gap.status === "needs_practice" ? "Practise your response to" : gap.status === "idea_only" ? "Review your idea for" : "Consider a response to"} {gap.moveSan}</strong>
         <p>{gap.responseLineId && responseTitles.get(gap.responseLineId) || `${gap.chapterTitle} · ${gap.lineTitle}`}</p>
         <p>{gap.status === "needs_practice"
@@ -116,8 +117,8 @@ export function OpeningCoveragePanel({ coverage, busy, disabled, useExplorer, no
         </div>
       </article>)}</div>
       {!tasks.length && <p>No next step found in the checked games and positions. You can still practise a saved line or check another line.</p>}
-      {!!coverage.taskHistory?.length && <details><summary>Postponed and skipped suggestions ({coverage.taskHistory.length})</summary>
-        {coverage.taskHistory.map(gap => <article key={openingTask(gap).id}><p>{gap.moveSan} · {gap.taskChoice?.choice === "later" ? `postponed until ${gap.taskChoice.untilAt?.slice(0, 10)}` : "skipped"}</p>
+      {!!history.length && <details><summary>Postponed and skipped suggestions ({history.length})</summary>
+        {history.map(gap => <article key={openingTask(gap).id} data-task-id={openingTask(gap).id}><p>{gap.responseLineId && responseTitles.get(gap.responseLineId) || `${gap.chapterTitle} · ${gap.lineTitle}`} · {gap.moveSan} · {gap.taskChoice?.choice === "later" ? `postponed until ${gap.taskChoice.untilAt?.slice(0, 10)}` : "skipped"}</p>
           <button className="text-button" disabled={locked} onClick={() => onTaskChoice?.(openingTask(gap).id,"restore")}>Restore suggestion</button></article>)}
       </details>}
       {candidates.length > 3 && <button className="text-button" onClick={() => setShowAll(!showAll)}>{showAll ? "Show just three tasks" : `See all ${candidates.length} practice and preparation tasks`}</button>}

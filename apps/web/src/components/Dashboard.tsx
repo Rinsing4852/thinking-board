@@ -115,7 +115,7 @@ export function Dashboard({ refreshToken, onChooseMode, onStartSession, onProfil
               {[1, 2, 7, 30, 90].map(days => <option key={days} value={days}>Last {days} {days === 1 ? "day" : "days"}</option>)}
             </select>
           </label>
-          <button disabled={busy || loading || (dashboard.totals.trainingItems > 0 && !session && (available === 0 || practiceActive))} onClick={() => dashboard.totals.trainingItems === 0 ? onImport() : session ? onStartSession(session) : void createSession()}>
+          <button className={compact ? "secondary" : undefined} disabled={busy || loading || (dashboard.totals.trainingItems > 0 && !session && (available === 0 || practiceActive))} onClick={() => dashboard.totals.trainingItems === 0 ? onImport() : session ? onStartSession(session) : void createSession()}>
             {busy ? "Please wait…" : dashboard.totals.trainingItems === 0 ? "Import a game to begin" : session ? `Continue session · ${remaining} remaining` : practiceActive ? "Finish session below" : available > 0 ? `Start practice · ${Math.min(15, available)} exercises` : "Nothing due now"}
           </button>
         </div>

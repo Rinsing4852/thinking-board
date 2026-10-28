@@ -1099,6 +1099,20 @@
               ]
             }
           ]
+        },
+        {
+          "id": "CB18.4",
+          "requirement": "Postpone, skip and restore the intended preparation task across reload without ambiguous controls or branching on transient page layout.",
+          "evidence": [
+            {
+              "kind": "browser",
+              "title": "persists preparation goals and allows postponing, skipping and restoring tasks",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
         }
       ],
       "implementationPaths": [
@@ -2140,10 +2154,43 @@
               "title": "does not add paused alternatives to shared-response practice"
             }
           ]
+        },
+        {
+          "id": "CB36.4",
+          "requirement": "Offer a short daily plan linking opening recall and game practice while retaining queue identity, date/filter scope, profile isolation and separate learning credit.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "links opening recall then game decisions and resumes the same queues without duplicate credit"
+            },
+            {
+              "kind": "unit",
+              "title": "resumes existing thinking practice first and retains its game filter across a restart and midnight"
+            },
+            {
+              "kind": "unit",
+              "title": "prioritises opening misses from saved games without visiting the opening page first"
+            },
+            {
+              "kind": "browser",
+              "title": "starts a short daily plan, resumes its opening queue and continues to completed game practice",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            },
+            {
+              "kind": "unit",
+              "title": "resumes a guided lesson with its pending answer instead of abandoning it for a new recall session"
+            }
+          ]
         }
       ],
       "implementationPaths": [
-        "apps/server/src/openings/opening-review-service.ts"
+        "apps/server/src/openings/opening-review-service.ts",
+        "apps/server/src/training/daily-practice-service.ts",
+        "apps/web/src/components/DailyPracticePlan.tsx",
+        "migrations/047_daily_practice_and_game_followup.sql"
       ],
       "benchmark": {
         "task": "Start a session after setting a goal and complete only the remaining practice.",
@@ -2854,6 +2901,32 @@
               "title": "uses the player's side when accepting multiple engine candidates and treats unlisted moves as unverified"
             }
           ]
+        },
+        {
+          "id": "CB45.7",
+          "requirement": "Offer at most three key decisions, keep engine continuations hidden until feedback, demonstrate a defensive reply on the same board, and schedule even a one-answer engine decision for next-day practice idempotently.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "schedules a one-answer game decision tomorrow exactly once without recording recall or analysis"
+            },
+            {
+              "kind": "unit",
+              "title": "offers at most three key decisions with hidden answers and persists completion of the short review"
+            },
+            {
+              "kind": "unit",
+              "title": "shows legal defensive replies to the game move only after the answer is revealed"
+            },
+            {
+              "kind": "browser",
+              "title": "reviews key decisions with one board, plays the defensive reply and schedules next-day recall",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
         }
       ],
       "implementationPaths": [
@@ -2868,7 +2941,7 @@
         "ourMeasuredLatencyMs": null,
         "target": "Task succeeds without data loss; keyboard and touch usable; optional services do not block saved work."
       },
-      "limits": "Saved per-game feedback/replay and local recall. Engine answers use stored legal lines within the configured tolerance; unlisted moves are unverified. Later practice reuses repertoire or existing candidate exercises; positions without a suitable candidate exercise remain retryable in the game. Older snapshots remain in storage; no version-history selector or measured learning benefit."
+      "limits": "Saved per-game feedback/replay and local recall remain separate from scheduled recall. Engine answers use stored legal lines within tolerance; unlisted moves are unverified. On explicit scheduling, a legal saved engine decision can create or reuse a candidate exercise, including a single answer or forced defence, due 24 hours later. Opening follow-ups retain their existing schedule. Key decisions and short legal engine examples are finite stored-analysis evidence; no generated strategic narrative, version-history selector or measured learning benefit."
     },
     {
       "id": "CB46",

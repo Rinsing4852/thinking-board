@@ -9,6 +9,12 @@ import {TrainingService} from '../dist/apps/server/src/training/training-service
 import {V1TrainingService} from '../dist/apps/server/src/training/v1-training-service.js';
 import {CandidateTrainingService} from '../dist/apps/server/src/training/candidate-training-service.js';
 import {tacticalSessionGroups} from '../dist/apps/server/src/training/practice-diversity.js';
+import {OpeningContentService} from '../dist/apps/server/src/openings/opening-content-service.js';
+import {OpeningPgnImportService} from '../dist/apps/server/src/openings/opening-pgn-import.js';
+import {OpeningGameService} from '../dist/apps/server/src/openings/opening-game-service.js';
+import {OpeningReviewService} from '../dist/apps/server/src/openings/opening-review-service.js';
+import {GameReplayService} from '../dist/apps/server/src/games/game-replay-service.js';
+import {DailyPracticeService} from '../dist/apps/server/src/training/daily-practice-service.js';
 import {AttemptLifecycle} from '../dist/apps/server/src/training/attempt-lifecycle.js';
 const config={...loadConfig(),stockfishDepth:12},database=new Database(':memory:',config.migrationsDir),db=database.connection;
 const analysis=new AnalysisService(db,config),training=new TrainingService(db),v1=new V1TrainingService(db),candidates=new CandidateTrainingService(db,config),attempts=new AttemptLifecycle(db),results=[];
@@ -49,6 +55,31 @@ try{
  assert.equal(db.prepare("SELECT COUNT(*) FROM training_items WHERE source_move_id=? AND mode IN ('blunder_check','punish_blunder') AND active=1").pluck().get(correct),0);
  assert.equal(db.prepare("SELECT COUNT(*) FROM training_items ti JOIN moves m ON m.id=ti.source_move_id WHERE ti.game_id=? AND ti.mode='quiet_position' AND ti.active=1 AND m.move_number BETWEEN 28 AND 30").pluck().get(game),0);
  results.push({name:'Taking the queen on move 31 is correct; tactical errors are not quiet-plan exercises',passed:true});
+ const openingReviews=new OpeningReviewService(db),replay=new GameReplayService(db,new OpeningGameService(db),openingReviews);
+ let review=replay.get(game);
+ assert(review.checkpoints.filter(point=>point.keyDecision).length<=3);
+ assert.equal(review.checkpoints.filter(point=>point.kind==='engine'&&[55,57,59].includes(point.ply)&&point.keyDecision).length,1);
+ const key=review.checkpoints.find(point=>point.kind==='engine'&&point.ply===55);assert(key?.canSchedule);
+ const act=(action,details={})=>{review=replay.act(game,{snapshotId:review.snapshotId,version:review.version,action,...details});return review;};
+ act('jump',{ply:key.ply,checkpointId:key.id});assert.equal(review.feedback,null);act('reveal');
+ assert.equal(review.feedback.teachingLines[0].steps[0].san,'Qxh3');
+ assert.deepEqual(review.feedback.teachingLines[1].steps.slice(0,2).map(step=>step.san),['exd4','Qxd7']);
+ const attemptCount=db.prepare('SELECT COUNT(*) FROM training_attempts').pluck().get();act('schedule');
+ assert.equal(db.prepare('SELECT COUNT(*) FROM training_attempts').pluck().get(),attemptCount);
+ assert(Date.parse(db.prepare('SELECT due_at FROM game_review_practice_followups').pluck().get())>=Date.now()+86_390_000);
+ results.push({name:'Key review groups repeated queens, hides answers, demonstrates Qxd7 and schedules next-day recall without credit',passed:true});
+ new OpeningPgnImportService(db,new OpeningContentService(db)).import({pgn:'1. e4 g6 *',learnerColor:'black',ownershipConfirmed:true});
+ const routine=new DailyPracticeService(db,openingReviews,v1),profile=db.prepare('SELECT profile_id FROM games WHERE id=?').pluck().get(game);
+ let plan=routine.start(profile);assert.equal(plan.next,'opening');const planId=plan.id;
+ for(let step=0;step<8;step++){
+  const active=openingReviews.active();if(!active)break;
+  if(active.kind==='feedback')openingReviews.continue(active.sessionId,active.exercise.queueEntryId);
+  else if(active.phase==='introduction')openingReviews.introduce(active.sessionId,active.queueEntryId,'g7g6');
+  else openingReviews.answer(active.sessionId,'g7g6',false,false,active.queueEntryId);
+ }
+ assert.equal(openingReviews.active(),null);plan=routine.start(profile);assert.equal(plan.next,'thinking');
+ assert(plan.thinkingSession?.items.length>0);assert.equal(routine.get().id,planId);
+ results.push({name:'Daily routine links completed opening recall to saved game practice without starting another analysis',passed:true});
  analysis.backfillBlunderChecks();analysis.backfillWhatChanged();analysis.backfillCandidates();analysis.backfillV1();
  assert.equal(db.prepare('SELECT COUNT(*) FROM jobs').pluck().get(),0);assert.deepEqual(db.pragma('foreign_key_check'),[]);
  console.log(JSON.stringify({measuredAt:new Date().toISOString(),engine:'Stockfish 18',depth:12,scope:'Anonymised full-game regression, not site-equivalent centipawn scores',results},null,2));

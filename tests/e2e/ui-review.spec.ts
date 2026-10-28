@@ -127,7 +127,13 @@ test("keeps home screens and saved-line workspaces within intermediate tablet wi
     await page.setViewportSize({ width, height: 768 });
     for (const view of ["today", "openings", "games", "progress"]) {
       await page.goto(`/#${view}`);
-      if(view==="today") await expect(page.getByRole("grid",{name:"Chess position",exact:true})).toBeVisible();
+      if(view==="today") {
+        await page.reload(); // A hash-only navigation intentionally retains the chosen manual mode.
+        await expect(page.getByRole("grid",{name:"Chess position",exact:true})).toBeHidden();
+        await page.locator('.thinking-mode-picker > summary').click();
+        await page.getByRole('button',{name:'3 · Blunder check',exact:true}).click();
+        await expect(page.getByRole("grid",{name:"Chess position",exact:true})).toBeVisible();
+      }
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     }
     await page.goto(`/#openings?repertoire=${encodeURIComponent(id)}&line=${encodeURIComponent(line.id)}&ply=0`);

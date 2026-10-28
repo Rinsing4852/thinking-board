@@ -77,10 +77,16 @@ test("takes saved games from Today to requested analysis and opens the latest re
 });
 
 test("refreshes expanded learning results on player changes and ignores a late previous-player response",async({page},info)=>{
-  const a=`Metrics A ${info.project.name}`,b=`Metrics B ${info.project.name}`;
+  const identity=`${info.project.name} ${info.retry} ${info.repeatEachIndex}`;
+  const a=`Metrics A ${identity}`,b=`Metrics B ${identity}`;
   await page.request.post('/api/v1/openings/imports/pgn',{data:{pgn:'1. e4 e5 2. Nf3 *',name:`Metrics preparation ${info.project.name}`,learnerColor:'white',ownershipConfirmed:true}});
   const first=await(await page.request.post('/api/v1/imports/pgn',{data:{playerName:a,pgn:`[White "${a}"]\n[Black "Opponent A"]\n[Date "2026.10.26"]\n[TimeControl "600+0"]\n[Result "1-0"]\n\n1. e4 e5 2. Bc4 Nc6 1-0`}})).json();
-  const second=await(await page.request.post('/api/v1/imports/pgn',{data:{playerName:b,pgn:`[White "${b}"]\n[Black "Opponent B"]\n\n1. d4 Nf6 *`}})).json();
+  const second=await(await page.request.post('/api/v1/imports/pgn',{data:{playerName:b,pgn:`[White "${b}"]\n[Black "Opponent B1"]\n\n1. e4 e5 *\n\n[White "${b}"]\n[Black "Opponent B2"]\n\n1. e4 c5 *`}})).json();
+  // Stabilise both players' opening matches before exercising delayed UI responses.
+  // Daily-plan discovery also matches games; zero is not a stable assumption in this shared library.
+  await page.request.post(`/api/v1/profiles/${second.profileId}/activate`);
+  for(const game of (await(await page.request.get('/api/v1/games')).json()).games)await page.request.get(`/api/v1/games/${game.id}/review`);
+  expect((await(await page.request.get('/api/v1/openings/quality/metrics')).json()).games.gamesMatched).toBe(2);
   await page.request.post(`/api/v1/profiles/${first.profileId}/activate`);
   const game=(await(await page.request.get('/api/v1/games')).json()).games[0];
   await page.request.get(`/api/v1/games/${game.id}/review`);
@@ -91,7 +97,7 @@ test("refreshes expanded learning results on player changes and ignores a late p
   const quality=page.getByRole('region',{name:'Move quality over time',exact:true});
   await quality.getByRole('combobox',{name:'Time control',exact:true}).selectOption('rapid');
   const section=page.locator('.opening-learning-measures'),summary=section.locator('summary');
-  await summary.click();await expect(section).toContainText('1 matched games');
+  await summary.click();await expect(section.getByText(/^Played-game comparison: 1 matched games;/)).toBeVisible();
   let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});let held=false;
   await page.route('**/api/v1/openings/quality/metrics',async route=>{
     if(!held){held=true;await gate;await route.fulfill({json:metrics}).catch(()=>undefined);}else await route.continue();
@@ -100,13 +106,16 @@ test("refreshes expanded learning results on player changes and ignores a late p
     await summary.click();
     const pending=page.waitForRequest(request=>request.url().endsWith('/api/v1/openings/quality/metrics'));
     await summary.click();await pending;
+    // Safari can emit the request before its interception callback runs. Hold the old player before switching.
+    await expect.poll(()=>held).toBe(true);
     const refreshed=page.waitForResponse(response=>response.url().endsWith('/api/v1/openings/quality/metrics')&&response.ok());
     await page.getByRole('combobox',{name:'Player',exact:true}).selectOption(second.profileId);await refreshed;
     await expect(page.getByText(`${b}’s training profile`,{exact:true})).toBeVisible();
-    await expect(section).toContainText('0 matched games');
-    await expect(quality).toContainText('0 of 1 saved games have a move-quality report');
+    await expect(section.getByText(/^Played-game comparison: 2 matched games;/)).toBeVisible();
+    await expect(quality).toContainText('0 of 2 saved games have a move-quality report');
     await expect(quality.getByRole('alert')).toHaveCount(0);release();
-    await expect(section).not.toContainText('1 matched games');
+    await expect(section.getByText(/^Played-game comparison: 1 matched games;/)).toHaveCount(0);
+    await expect(section.getByText(/^Played-game comparison: 2 matched games;/)).toBeVisible();
   }finally{release();await page.unroute('**/api/v1/openings/quality/metrics');}
 });
 

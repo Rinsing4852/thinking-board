@@ -1684,7 +1684,8 @@ test("explains large preparation lists as distinct tasks and keeps estimates opt
 test("persists preparation goals and allows postponing, skipping and restoring tasks", async ({ page }, testInfo) => {
   await page.route("**/api/v1/openings/reviews/active", route => route.fulfill({ json: null }));
   await page.route("**/api/v1/openings/lessons/active", route => route.fulfill({ json: null }));
-  await openNavigationStudy(page,`Task choices ${testInfo.project.name}`,"1. e4 e5 2. Nf3 Nc6 3. Bb5 *");
+  const name=`Task choices ${testInfo.project.name} ${testInfo.retry}-${testInfo.repeatEachIndex}`;
+  const repertoireId=await openNavigationStudy(page,name,"1. e4 e5 2. Nf3 Nc6 3. Bb5 *");
   const preferences=await (await page.request.get("/api/v1/openings/preferences")).json();
   await page.getByRole("button", {name:"Back to repertoires",exact:true}).click();
   const settings=page.locator("details.opening-settings");
@@ -1701,7 +1702,7 @@ test("persists preparation goals and allows postponing, skipping and restoring t
   const saved=await (await page.request.get("/api/v1/openings/preferences")).json();
   expect(saved.coverageGoalGames).toBe(100);
   expect(saved.explorerSpeeds).toEqual(["rapid"]);
-  const savedCard=page.locator("article.opening-card").filter({hasText:`Task choices ${testInfo.project.name}`});
+  const savedCard=page.locator("article.opening-card").filter({hasText:name});
   await savedCard.locator("summary").first().click();
   await savedCard.getByRole("button",{name:"View all lines",exact:true}).click();
   await page.getByRole("button",{name:"Find repertoire gaps",exact:true}).click();
@@ -1709,25 +1710,26 @@ test("persists preparation goals and allows postponing, skipping and restoring t
   await panel.getByRole("button",{name:/^(Check|Recheck) coverage$/}).click();
   await expect(panel.getByLabel("Preparation goal")).toContainText("once in 100 games");
   await expect(panel.locator(".opening-task-reason").first()).toContainText("not been tested");
-  await panel.getByRole("button",{name:"Later · 7 days",exact:true}).first().click();
+  const task=panel.locator('.opening-coverage-tasks article').first();
+  const taskId=await task.getAttribute('data-task-id');expect(taskId).toBeTruthy();
+  const selected=panel.locator(`article[data-task-id="${taskId}"]`);
+  await task.getByRole("button",{name:"Later · 7 days",exact:true}).click();
   await expect(panel.getByRole("status")).toContainText("Postponed for seven days");
   const history=panel.getByText(/Postponed and skipped suggestions/);
   await history.click();
-  await panel.getByRole("button",{name:"Restore suggestion",exact:true}).click();
+  await selected.getByRole("button",{name:"Restore suggestion",exact:true}).click();
   await expect(panel.getByRole("status")).toContainText("restored");
-  await panel.getByRole("button",{name:"Skip suggestion",exact:true}).first().click();
+  await selected.getByRole("button",{name:"Skip suggestion",exact:true}).click();
   await expect(panel.getByRole("status")).toContainText("Skipped from suggestions");
+  await expect(page).toHaveURL(new RegExp(`repertoire=${repertoireId}`));
   await page.reload();
-  const card=page.locator("article.opening-card").filter({hasText:`Task choices ${testInfo.project.name}`});
-  const heading=page.getByRole("heading",{name:`Task choices ${testInfo.project.name}`,level:2,exact:true});
-  await expect(heading.or(card.locator("summary").first())).toBeVisible();
-  if (!(await heading.isVisible())) {await card.locator("summary").first().click();await card.getByRole("button",{name:"View all lines",exact:true}).click();}
+  await expect(page.getByRole("heading",{name,level:2,exact:true})).toBeVisible();
   await page.getByRole("button",{name:"Find repertoire gaps",exact:true}).click();
   await panel.getByRole("button",{name:/^(Check|Recheck) coverage$/}).click();
   await expect(panel.getByText(/Postponed and skipped suggestions/)).toBeVisible();
   await panel.getByText(/Postponed and skipped suggestions/).click();
   await expect(panel.getByText(/· skipped/)).toBeVisible();
-  await panel.getByRole("button",{name:"Restore suggestion",exact:true}).click();
+  await selected.getByRole("button",{name:"Restore suggestion",exact:true}).click();
   await page.request.patch("/api/v1/openings/preferences", {data:{ratingGroup:preferences.ratingGroup, platform:preferences.platform, useExplorer:preferences.useExplorer, coverageGoalGames:preferences.coverageGoalGames, explorerSpeeds:preferences.explorerSpeeds}});
 });
 

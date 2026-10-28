@@ -488,6 +488,8 @@ test.describe.serial("stable V1 browser journey", () => {
     await page.getByRole("button", { name: "Analyse selected games",exact:true }).click();
     await expect(page.getByText("Analysis complete. Your move report and exercises are ready below.")).toBeVisible({ timeout: 30_000 });
     await page.getByRole("button", { name: "Today" }).click();
+    await page.locator(".thinking-mode-picker > summary").click();
+    await page.getByRole("button", {name:"3 · Blunder check",exact:true}).click();
     await expect(page.getByRole("heading", { name: "Blunder Check", exact: true })).toBeVisible();
 
     await revealControl(page.getByRole("button", { includeHidden: true, name: "1 · What changed" }));

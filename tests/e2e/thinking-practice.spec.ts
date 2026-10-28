@@ -78,6 +78,8 @@ test("reduces remaining practice, resumes its game filter and completes without 
 test("keeps a narrower game filter when an older exercise response arrives late", async ({ page }, info) => {
   await saveGame(page, `Practice filter race ${info.project.name}`, 72); await analyse(page);
   await page.goto("/#today");
+  await page.locator(".thinking-mode-picker > summary").click();
+  await page.getByRole("button",{name:"3 · Blunder check",exact:true}).click();
   const filter = page.getByRole("combobox", { name: "Practice games", exact: true });
   await expect(filter).toBeEnabled();
   let release!: () => void;
@@ -142,6 +144,8 @@ test("plays a missed winning capture from the learner's side before the game mov
     await route.fulfill({json:{outcome:'excellent',score:1,categoryCorrect:true,moveCorrect:true,playedMoveSan:'Qxh3',acceptableMoves:[{moveUci:'d7h3',moveSan:'Qxh3',categories:['capture']}],explanation:'Before exd4, you could win the queen with Qxh3.',checklistPoint:'Check both sides before choosing your move.'}});
   });
   await page.goto('/#today');
+  await page.locator('.thinking-mode-picker > summary').click();
+  await page.getByRole('button',{name:'3 · Blunder check',exact:true}).click();
   await page.getByRole('button',{name:'Find my missed opportunity',exact:true}).click();
   await page.getByRole('button',{name:'× Capture',exact:true}).click();
   const grid=page.getByRole('grid',{name:'Chess position'});

@@ -1,0 +1,96 @@
+{
+  "run": {
+    "measuredAt": "2026-10-28T00:05:16.353Z",
+    "sourceFingerprint": "30cff788e02229c4033aee8b9a58bef5c9eeecbcac65b510506246954c2047ac",
+    "sourceUnchangedDuringRun": true,
+    "steps": [
+      {
+        "name": "typecheck",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      },
+      {
+        "name": "unit and integration tests",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      },
+      {
+        "name": "tracker assessment tests",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      },
+      {
+        "name": "production build",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      },
+      {
+        "name": "full browser suite",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      }
+    ],
+    "commit": "2b7e58fccf8df1a05b2f41fc2426cbc66048b281"
+  },
+  "unit": {
+    "passed": 411,
+    "failed": 0
+  },
+  "browser": {
+    "startTime": "2026-10-27T23:59:02.925Z",
+    "duration": 373373.99299999996,
+    "expected": 206,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "trackerAssessmentTests": 6,
+  "tracker": {
+    "counts": {
+      "passed": 142,
+      "failed": 0,
+      "flaky": 0,
+      "unknown": 41,
+      "unmet": 30,
+      "excluded": 3
+    },
+    "stale": false
+  },
+  "realStockfish": {
+    "engine": "Stockfish 18",
+    "regressionCases": 46,
+    "scripts": 5,
+    "exitCodes": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "packaging": "All five scripts passed in the final packaged v1.5.24 image, isolated without network access."
+  },
+  "webkitTaskRegression": {
+    "repetitions": 5,
+    "passed": 5,
+    "durationSeconds": 19.3
+  },
+  "webkitPlayerRegression": {
+    "repetitions": 5,
+    "passed": 5,
+    "durationSeconds": 10.3,
+    "scope": "Final exact-summary test using pre-matched one-game and two-game profiles. Earlier isolated repetitions did not establish the shared-library assumption."
+  },
+  "release": {
+    "status": "pending_push",
+    "note": "Local acceptance evidence; publication is a separate GitHub Actions gate."
+  },
+  "limitations": [
+    "Selected engine cases do not measure general tactical precision or competitor parity.",
+    "No demonstrated human learning benefit or delayed recall improvement is claimed."
+  ]
+}
