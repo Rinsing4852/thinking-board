@@ -124,3 +124,39 @@ test("shows the installed build identifier in the footer",async({page})=>{
   await page.goto('/#games');
   await expect(page.locator('footer')).toContainText(`Thinking Board v${APP_VERSION} · build abcdef1`);
 });
+
+
+test("opens the exact progress source decision and its saved practice without requesting analysis",async({page},info)=>{
+  const learner=`Progress source ${info.project.name} ${info.retry}`;
+  const imported=await(await page.request.post('/api/v1/imports/pgn',{data:{playerName:learner,pgn:`[White "${learner}"]\n[Black "Source opponent"]\n[Date "2026.10.27"]\n[TimeControl "600+0"]\n[Result "0-1"]\n\n1. f3 e5 2. g4 Qh4# 0-1`}})).json();
+  await page.request.post(`/api/v1/profiles/${imported.profileId}/activate`);
+  const game=(await(await page.request.get('/api/v1/games')).json()).games[0];
+  const job=await(await page.request.post('/api/v1/games/analysis',{data:{gameIds:[game.id]}})).json();
+  await expect.poll(async()=>(await(await page.request.get(`/api/v1/jobs/${job.id}`)).json()).status,{timeout:20000}).toBe('completed');
+  const trend=await(await page.request.get('/api/v1/game-quality/progress')).json();
+  expect(trend.sources.recent).toHaveLength(1);
+  const source=trend.sources.recent[0];expect(source.firstError).toMatchObject({ply:3,grade:'blunder'});expect(source.practiceItemId).toBeTruthy();
+  let requested=0;page.on('request',request=>{if(request.method()==='POST'&&request.url().endsWith('/api/v1/games/analysis'))requested++;});
+  await page.goto('/#progress');
+  const progress=page.getByRole('region',{name:'Move quality over time',exact:true});
+  await expect(progress.getByText(`${learner} – Source opponent`,{exact:true})).toBeHidden();
+  await progress.getByText('Games behind these figures',{exact:true}).click();
+  const recent=progress.getByRole('region',{name:'Recent source games',exact:true});
+  await expect(recent).toContainText(`${learner} – Source opponent`);
+  await expect(recent).toContainText('first blunder 2.g4');
+  await recent.screenshot({path:info.outputPath('progress-source-games.png'),animations:'disabled'});
+  await recent.getByRole('button',{name:'Review first blunder',exact:true}).click();
+  await expect(page).toHaveURL(new RegExp(`game=${game.id}&ply=2`));
+  const replay=page.getByRole('region',{name:'Saved game replay',exact:true});
+  await expect(replay.getByRole('combobox',{name:'Game position',exact:true})).toHaveValue('2');
+  await expect(replay.getByRole('button',{name:'Show answer',exact:true})).toBeVisible();
+  await page.reload();await expect(replay.getByRole('combobox',{name:'Game position',exact:true})).toHaveValue('2');
+  await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Progress',exact:true}).click();
+  await progress.getByText('Games behind these figures',{exact:true}).click();
+  await progress.getByRole('button',{name:'Practise a saved decision',exact:true}).click();
+  await expect(page).toHaveURL(/#today$/);
+  await expect(page.getByRole('heading',{name:'Blunder Check',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:/You played 2\. g4/})).toBeVisible();
+  expect(requested).toBe(0);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});

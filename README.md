@@ -706,3 +706,16 @@ Postponed/skipped suggestions also include line context and are deduplicated.
 No new API credentials or automatic whole-game analysis are introduced.
 
 See the [delivery notes and evidence](docs/chessbook-audit/DAILY_PRACTICE_AND_TEACHING_2026_10_27.md).
+
+### Traceable progress and broader tactical checks: v1.5.25
+
+Progress → Games behind these figures shows the exact recent and earlier games
+used in the selected time-control and analysis comparison. Each game links to
+its first blunder (or first mistake when no blunder exists) on the replay board.
+A separate action opens an existing Blunder Check exercise when available.
+Opening these links does not run analysis or record recall.
+
+The labelled Stockfish regression corpus now includes a sound queen offer,
+a pinned defender, moving away a queen's defender, delayed recapture and quiet
+defence. These selected cases test false tactical cards and missed tactical
+cards separately; they are not general accuracy or competitor-parity scores.

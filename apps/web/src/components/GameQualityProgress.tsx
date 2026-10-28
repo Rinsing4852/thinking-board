@@ -2,7 +2,7 @@ import { useEffect,useState } from "react";
 import type { GameQualityTrends } from "../../../../packages/contracts/src/api";
 import { get } from "../api";
 const value=(n:number|null,suffix="")=>n===null?"Not enough data":`${n.toFixed(1)}${suffix}`;
-export function GameQualityProgress({refreshToken,onOpenGames}:{refreshToken:number;onOpenGames:()=>void}) {
+export function GameQualityProgress({refreshToken,onOpenGames,onOpenGame,onTrain}:{refreshToken:number;onOpenGames:()=>void;onOpenGame:(gameId:string,ply?:number)=>void;onTrain:(itemId:string)=>void}) {
   const [data,setData]=useState<GameQualityTrends|null>(null),[cohort,setCohort]=useState(""),[control,setControl]=useState(""),[error,setError]=useState(""),[retry,setRetry]=useState(0),[loading,setLoading]=useState(false);
   useEffect(()=>{const controller=new AbortController();setLoading(true);setError("");
     const params=new URLSearchParams();if(cohort)params.set("cohort",cohort);if(control)params.set("timeControl",control);
@@ -31,6 +31,18 @@ export function GameQualityProgress({refreshToken,onOpenGames}:{refreshToken:num
           <tr><th>Mistakes + blunders per 100 moves</th><td>{value(recent.errorsPer100Moves)}</td><td>{value(previous?.errorsPer100Moves??null)}</td></tr>
           <tr><th>Games without a blunder</th><td>{recent.blunderFreeGames}/{recent.games}</td><td>{previous?.games?`${previous.blunderFreeGames}/${previous.games}`:"Not enough data"}</td></tr>
         </tbody></table></div>
+        <details className="quality-source-games"><summary>Games behind these figures</summary>
+          <p>These games make up the comparison above, newest first. Review opens your first blunder, or your first mistake if there was no blunder. Saved practice may cover another decision in the same game and keeps its own schedule.</p>
+          {(['recent','previous'] as const).map(group=><section key={group} aria-label={group==='recent'?'Recent source games':'Earlier source games'}>
+            <h3>{group==='recent'?'Recent games':'Earlier games'}</h3>
+            {data.sources[group].length===0?<p>No games in this comparison group yet.</p>:<ol>{data.sources[group].map(game=><li key={game.gameId}>
+              <strong>{game.white} – {game.black}</strong><p>{new Date(game.playedAt).toLocaleDateString()} · you played {game.playerColor} · {game.result}</p>
+              <p>Accuracy {value(game.accuracy,'%')} · {game.blunders} {game.blunders===1?'blunder':'blunders'} · {game.mistakes} {game.mistakes===1?'mistake':'mistakes'}{game.firstError?` · first ${game.firstError.grade} ${game.firstError.moveNumber}${game.playerColor==='white'?'.':'…'}${game.firstError.san}`:''}</p>
+              <div className="workflow-actions"><button className="secondary" onClick={()=>onOpenGame(game.gameId,game.firstError?game.firstError.ply-1:undefined)}>{game.firstError?`Review first ${game.firstError.grade}`:'Review game'}</button>
+                {game.practiceItemId&&<button className="secondary" onClick={()=>onTrain(game.practiceItemId!)}>Practise a saved decision</button>}</div>
+            </li>)}</ol>}
+          </section>)}
+        </details>
         <details><summary>How far do you get before a blunder?</summary>
           {recent.checkpoints.map(point=><p key={point.move}><strong>Through move {point.move}:</strong> {point.observed?`${point.withoutBlunder}/${point.observed} observed recent games without a blunder`:"Not observed yet"}. {point.endedEarlier} games ended earlier without a blunder and are not counted here.
             {previous?.games?(previous.checkpoints.find(p=>p.move===point.move)?.observed?` Earlier: ${previous.checkpoints.find(p=>p.move===point.move)?.withoutBlunder}/${previous.checkpoints.find(p=>p.move===point.move)?.observed} observed games.`:" Earlier: not observed yet."):""}</p>)}

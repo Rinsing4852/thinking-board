@@ -1,0 +1,137 @@
+{
+  "measuredAt": "2026-10-28T07:54:10.452Z",
+  "engine": "Stockfish 18",
+  "scope": "Small labelled tactical-selection regression corpus; not general precision, recall or an engine-strength benchmark",
+  "selection": {
+    "negativeCases": 6,
+    "falseTacticalCases": 0,
+    "positiveCases": 5,
+    "missedTacticalCases": 0
+  },
+  "results": [
+    {
+      "name": "Ruy Lopez Bb5 is not punished by a6",
+      "motif": "sound_development",
+      "expectedTactical": false,
+      "passed": true,
+      "grade": "best",
+      "chanceLoss": 0,
+      "exercises": 0,
+      "responses": []
+    },
+    {
+      "name": "A routine Modern a6 is not a tactical blunder",
+      "motif": "sound_development",
+      "expectedTactical": false,
+      "passed": true,
+      "grade": "good",
+      "chanceLoss": 2.350213208596621,
+      "exercises": 0,
+      "responses": []
+    },
+    {
+      "name": "Ruy Lopez equal exchange is not winning material",
+      "motif": "equal_exchange",
+      "expectedTactical": false,
+      "passed": true,
+      "grade": "good",
+      "chanceLoss": 2.2945742716370177,
+      "exercises": 0,
+      "responses": []
+    },
+    {
+      "name": "A sound exchange remains sound when recapture is delayed in the game",
+      "motif": "delayed_recapture",
+      "expectedTactical": false,
+      "passed": true,
+      "grade": "good",
+      "chanceLoss": 0.09205189599892805,
+      "exercises": 0,
+      "responses": []
+    },
+    {
+      "name": "Sound queen offer in the Legal mating pattern is not punished",
+      "motif": "sound_sacrifice",
+      "expectedTactical": false,
+      "passed": true,
+      "grade": "best",
+      "chanceLoss": 0,
+      "exercises": 0,
+      "responses": []
+    },
+    {
+      "name": "Quiet g3 prevents the immediate queen mate",
+      "motif": "quiet_defence",
+      "expectedTactical": false,
+      "passed": true,
+      "grade": "good",
+      "chanceLoss": 3.209331130497098,
+      "exercises": 0,
+      "responses": []
+    },
+    {
+      "name": "A pinned knight cannot recapture the hanging queen",
+      "motif": "pinned_defender",
+      "expectedTactical": true,
+      "passed": true,
+      "grade": "blunder",
+      "chanceLoss": 50.55228953683343,
+      "exercises": 2,
+      "responses": [
+        "Qxd5"
+      ]
+    },
+    {
+      "name": "Moving the protecting rook really loses the queen",
+      "motif": "removed_defender",
+      "expectedTactical": true,
+      "passed": true,
+      "grade": "blunder",
+      "chanceLoss": 48.8955556790248,
+      "exercises": 2,
+      "responses": [
+        "Rc1+"
+      ]
+    },
+    {
+      "name": "Black can still deliver the actual mate after g4",
+      "motif": "forced_mate",
+      "expectedTactical": true,
+      "passed": true,
+      "grade": "blunder",
+      "chanceLoss": 43.682358235664054,
+      "exercises": 2,
+      "responses": [
+        "Qh4#"
+      ]
+    },
+    {
+      "name": "White can still deliver the actual mate after g5",
+      "motif": "forced_mate",
+      "expectedTactical": true,
+      "passed": true,
+      "grade": "blunder",
+      "chanceLoss": 37.30455687844095,
+      "exercises": 2,
+      "responses": [
+        "Qh5#"
+      ]
+    },
+    {
+      "name": "A queen genuinely left en prise retains its capture tactic",
+      "motif": "hanging_queen",
+      "expectedTactical": true,
+      "passed": true,
+      "grade": "blunder",
+      "chanceLoss": 36.79501358337297,
+      "exercises": 2,
+      "responses": [
+        "Nxe5"
+      ]
+    },
+    {
+      "name": "Saved-analysis revalidation is idempotent and creates no engine job",
+      "passed": true
+    }
+  ]
+}

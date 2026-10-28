@@ -239,6 +239,10 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
       const nextReview = await get<Review>(`/api/v1/games/${gameId}/review`, controller.signal);
       if (controller.signal.aborted) return;
       setReview(nextReview);
+      const target=new URLSearchParams(window.location.hash.split('?')[1]??''),rawPly=target.get('ply');
+      const ply=rawPly===null?NaN:Number(rawPly);
+      if(!updateLocation&&target.get('game')===gameId&&Number.isSafeInteger(ply)&&ply>=0&&ply<=10000)
+        setInspectMove({ply,requestId:Date.now()});
       setShowAll(false);
       setOpeningStarting(false);
     } catch (loadError) {

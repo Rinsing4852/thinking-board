@@ -1138,10 +1138,17 @@ export interface GameQualityWindow {
   errorsPer100Moves:number|null; firstMistakeMedian:number|null; firstBlunderMedian:number|null; blunderFreeGames:number;
   checkpoints:Array<{move:number;observed:number;withoutBlunder:number;endedEarlier:number}>;
 }
+export interface GameQualitySource {
+  gameId:string; white:string; black:string; playedAt:string; playerColor:Color; result:string;
+  accuracy:number|null; blunders:number; mistakes:number;
+  firstError:{ply:number;moveNumber:number;san:string;grade:"mistake"|"blunder"}|null;
+  practiceItemId:string|null;
+}
 export interface GameQualityTrends {
   totalGames:number; analyzedGames:number; excludedGames:number;
   cohorts:Array<{id:string;engine:string;depth:number;ruleVersion:string}>; cohort:string|null;
   timeControls:string[]; timeControl:string|null; recent:GameQualityWindow; previous:GameQualityWindow;
+  sources:{recent:GameQualitySource[];previous:GameQualitySource[]};
 }
 
 

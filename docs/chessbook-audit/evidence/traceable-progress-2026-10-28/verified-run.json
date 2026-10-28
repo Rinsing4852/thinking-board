@@ -1,0 +1,91 @@
+{
+  "run": {
+    "measuredAt": "2026-10-28T08:04:28.115Z",
+    "sourceFingerprint": "ba25ca33656dd50c9209219eaaefd1ab1369433f11b800eff040997b93d1e85f",
+    "sourceUnchangedDuringRun": true,
+    "steps": [
+      {
+        "name": "typecheck",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      },
+      {
+        "name": "unit and integration tests",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      },
+      {
+        "name": "tracker assessment tests",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      },
+      {
+        "name": "production build",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      },
+      {
+        "name": "full browser suite",
+        "passed": true,
+        "exitCode": 0,
+        "error": null
+      }
+    ],
+    "commit": "ff5c609de90bd5e57b94880101e25d8710aabc9a"
+  },
+  "unit": {
+    "passed": 413,
+    "failed": 0
+  },
+  "browser": {
+    "startTime": "2026-10-28T07:58:08.577Z",
+    "duration": 379464.81600000005,
+    "expected": 208,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "trackerAssessmentTests": 6,
+  "tracker": {
+    "counts": {
+      "passed": 144,
+      "failed": 0,
+      "flaky": 0,
+      "unknown": 41,
+      "unmet": 30,
+      "excluded": 3
+    },
+    "stale": false
+  },
+  "realStockfish": {
+    "engine": "Stockfish 18",
+    "regressionCases": 51,
+    "scripts": 5,
+    "exitCodes": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "packaging": "Real engine checks passed against the v1.5.25 application in isolated containers. The package was subsequently rebuilt with only the tracker-generator denominator correction; application and engine logic stayed unchanged.",
+    "tacticalSelection": {
+      "negativeCases": 6,
+      "falseTacticalCases": 0,
+      "positiveCases": 5,
+      "missedTacticalCases": 0
+    }
+  },
+  "release": {
+    "status": "pending_push",
+    "note": "This snapshot records local verification. GitHub Linux verification and publication are separate gates."
+  },
+  "limitations": [
+    "Selected labelled cases do not establish general tactical precision or recall.",
+    "Source links explain comparison membership; no causal improvement or human learning benefit is claimed."
+  ]
+}

@@ -67,6 +67,15 @@ describe("shared move quality",()=>{
    const alice=db.prepare("SELECT id FROM player_profiles WHERE display_name='Alice'").pluck().get() as string;
    const report=service.report(first,alice)!;expect(report.white.moves).toBe(1);expect(report.black.moves).toBe(1);
    const trends=service.trends(alice,report.cohort,"rapid");expect(trends).toMatchObject({totalGames:5,analyzedGames:5,excludedGames:2,recent:{games:1,blunderFreeGames:1},previous:{games:0}});
+   expect(trends.sources.recent).toEqual([expect.objectContaining({gameId:first,white:'Alice',black:'Opponent 1',accuracy:100,blunders:0,mistakes:0,firstError:null,practiceItemId:null})]);
+   expect(trends.sources.previous).toEqual([]);
+   const ownMove=db.prepare("SELECT id FROM moves WHERE game_id=? AND mover_color='white'").pluck().get(first) as string;
+   db.prepare("UPDATE game_move_quality SET grade='blunder' WHERE run_id='run1' AND move_id=?").run(ownMove);
+   db.prepare("INSERT INTO training_items(id,profile_id,game_id,source_move_id,mode,prompt_version,created_at) VALUES ('progress-card',?,?,?,'blunder_check',1,'2026-01-01')").run(alice,first,ownMove);
+   db.prepare("INSERT INTO review_states(item_id,due_at) VALUES ('progress-card','2026-02-01')").run();
+   expect(service.trends(alice,report.cohort,'rapid').sources.recent[0]).toMatchObject({gameId:first,blunders:1,firstError:{ply:1,moveNumber:1,san:'e4',grade:'blunder'},practiceItemId:'progress-card'});
+   db.prepare("UPDATE training_items SET active=0 WHERE id='progress-card'").run();
+   expect(service.trends(alice,report.cohort,'rapid').sources.recent[0]?.practiceItemId).toBeNull();
    expect(trends.cohorts).toHaveLength(2);expect(trends.timeControls).toEqual(["bullet","rapid"]);
    db.prepare(`INSERT INTO analysis_runs(id,game_id,engine_name,engine_version,depth,multipv,threads,hash_mb,analysis_version,status,started_at,completed_at) SELECT 'new-failed',game_id,engine_name,engine_version,depth,multipv,threads,hash_mb,analysis_version,'failed','2099-01-01','2099-01-01' FROM analysis_runs WHERE id='run1'`).run();
    db.prepare(`INSERT INTO game_move_quality SELECT 'new-failed',move_id,rule_version,chances_before,chances_after,chance_loss,accuracy,grade,best_uci,best_san FROM game_move_quality WHERE run_id='run1'`).run();
@@ -92,6 +101,10 @@ describe("shared move quality",()=>{
    const result=service.trends(alice);
    expect(result).toMatchObject({totalGames:42,analyzedGames:42,recent:{games:20,accuracy:100,goodMovePercent:100,blunderFreeGames:20},previous:{games:20,goodMovePercent:0,blunderFreeGames:0}});
    expect(result.previous.accuracy).toBeLessThan(result.recent.accuracy!);
+   expect(result.sources.recent.map(g=>g.black)).toEqual(Array.from({length:20},(_,i)=>`Opponent ${42-i}`));
+   expect(result.sources.previous.map(g=>g.black)).toEqual(Array.from({length:20},(_,i)=>`Opponent ${22-i}`));
+   expect(result.sources.previous[0]?.firstError).toMatchObject({ply:1,grade:'blunder'});
+   expect(result.sources.recent.every(g=>g.firstError===null)).toBe(true);
  });
 
 });

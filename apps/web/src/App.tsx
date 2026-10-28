@@ -267,7 +267,10 @@ export function App() {
               <h1>Your progress</h1>
               <p>Use your real-game occurrences and practice results to choose the next thinking habit to strengthen.</p>
             </div>
-            <GameQualityProgress key={profileEpoch} refreshToken={refreshToken} onOpenGames={()=>navigate("games")}/>
+            <GameQualityProgress key={profileEpoch} refreshToken={refreshToken} onOpenGames={()=>navigate("games")} onTrain={trainItem} onOpenGame={(gameId,ply)=>{
+              setView('games');window.history.pushState(null,'',`#games?game=${encodeURIComponent(gameId)}${ply===undefined?'':`&ply=${ply}`}`);
+              setGameReviewFocusToken(value=>value+1);
+            }}/>
             <section className="panel opening-progress-link" aria-label="Opening progress">
               <div><h3>Preparation gaps</h3>
                 <p>Open a saved repertoire to inspect missing replies and choose what to prepare. The dashboard figures below cover thinking drills from your games.</p></div>

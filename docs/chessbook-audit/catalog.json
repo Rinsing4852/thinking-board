@@ -3959,6 +3959,20 @@
               "title": "cancels an active search on close and allows a clean retry"
             }
           ]
+        },
+        {
+          "id": "CB59.17",
+          "requirement": "Reject a delayed equal recapture as retained material and verify that a pinned defender cannot legally recapture the queen; broader engine cases remain labelled diagnostic evidence, not general precision or recall.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "does not mistake a delayed recapture for retained material"
+            },
+            {
+              "kind": "unit",
+              "title": "does not count a pinned knight as a legal queen defender"
+            }
+          ]
         }
       ],
       "implementationPaths": [
@@ -4080,6 +4094,28 @@
             {
               "kind": "browser",
               "title": "refreshes expanded learning results on player changes and ignores a late previous-player response",
+              "projects": [
+                "chromium",
+                "webkit"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "CB60.8",
+          "requirement": "Reveal the exact recent and earlier source games for the selected comparison, open the first saved blunder or mistake on the existing board, and practise a saved decision without requesting analysis.",
+          "evidence": [
+            {
+              "kind": "unit",
+              "title": "counts only complete reports once and separates settings, date eligibility and playing speed"
+            },
+            {
+              "kind": "unit",
+              "title": "compares the latest twenty played games with the preceding twenty rather than import order"
+            },
+            {
+              "kind": "browser",
+              "title": "opens the exact progress source decision and its saved practice without requesting analysis",
               "projects": [
                 "chromium",
                 "webkit"

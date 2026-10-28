@@ -32,6 +32,19 @@ describe("tactical punishment evidence", () => {
     expect(tacticalPunishment(before, after, "b1b2", 'not json', null)).toBeNull();
   });
 
+  it("does not mistake a delayed recapture for retained material",()=>{
+    const before="6k1/8/1r6/8/8/8/2r5/1R4K1 b - - 0 1";
+    const after="6k1/8/1r6/8/8/8/1r6/1R4K1 w - - 1 2";
+    expect(tacticalPunishment(before,after,"b1b2",'["b1b2","g8f7","b2b3","b6b3"]',null)).toBeNull();
+  });
+
+  it("does not count a pinned knight as a legal queen defender",()=>{
+    const before="r3k3/4n3/3q4/8/2B5/8/8/3QR2K b - - 0 1",board=new Chess(before);
+    board.move('Qd5+');const after=board.fen();board.move('Bxd5');
+    expect(board.moves()).not.toContain('Nxd5');
+    expect(tacticalPunishment(before,after,"c4d5",'["c4d5","a8a7","d5c4","a7a8"]',null)).toMatchObject({kind:"material",gainPawns:9});
+  });
+
   it("keeps forced mate but rejects a line in which the punishing side gets mated", () => {
     const mate = position(["f3", "e5", "g4"]);
     expect(tacticalPunishment(mate.before, mate.after, "d8h4", '["d8h4"]', -1)).toMatchObject({ kind: "forced_mate", mateIn: 1 });

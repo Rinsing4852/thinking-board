@@ -1,0 +1,43 @@
+{
+  "measuredAt": "2026-10-28T07:55:20.747Z",
+  "engine": "Stockfish 18",
+  "scope": "On-request quiet alternatives; real engine, full game history, disposable data",
+  "results": [
+    {
+      "name": "white: unlisted alternative receives engine-supported credit once",
+      "passed": true,
+      "engineCheck": {
+        "status": "useful",
+        "depth": 12,
+        "lossCp": 52,
+        "bestMoveSan": "Nf3",
+        "continuationSan": [
+          "Bc4",
+          "Nf6",
+          "Nc3",
+          "Nc6",
+          "d3",
+          "Na5"
+        ]
+      }
+    },
+    {
+      "name": "black: unlisted alternative receives engine-supported credit once",
+      "passed": true,
+      "engineCheck": {
+        "status": "useful",
+        "depth": 12,
+        "lossCp": 7,
+        "bestMoveSan": "Nc6",
+        "continuationSan": [
+          "Nf6",
+          "Nxe5",
+          "d6",
+          "Nf3",
+          "Nxe4",
+          "d4"
+        ]
+      }
+    }
+  ]
+}

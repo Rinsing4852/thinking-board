@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { Chess } from "chess.js";
-import type { GameQualityMove,GameQualityReport,GameQualitySide,GameQualityTrends,GameQualityWindow } from "../../../../packages/contracts/src/api.js";
+import type { GameQualityMove,GameQualityReport,GameQualitySide,GameQualityTrends,GameQualityWindow,GameQualitySource } from "../../../../packages/contracts/src/api.js";
 import type { SqliteDatabase } from "../db/database.js";
 import type { AppConfig } from "../config.js";
 import { id,now } from "../lib/ids.js";
@@ -8,7 +8,7 @@ import { QUALITY_VERSION, gameAccuracy } from "./move-quality.js";
 import type { OpeningGameService } from "../openings/opening-game-service.js";
 
 type Run={id:string;game_id:string;engine_name:string;engine_version:string;depth:number;multipv:number;threads:number;hash_mb:number;completed_at:string;rule_version:string};
-type Game={id:string;player_color:"white"|"black";headers_json:string;played_at:string|null;created_at:string;initial_fen:string;result:string};
+type Game={white_name:string;black_name:string;id:string;player_color:"white"|"black";headers_json:string;played_at:string|null;created_at:string;initial_fen:string;result:string};
 const round=(n:number)=>Math.round(n*10)/10;
 function cohort(run:Run):string{return createHash("sha256").update(JSON.stringify([run.rule_version,run.engine_name,run.engine_version,run.depth,run.multipv,run.threads,run.hash_mb])).digest("hex").slice(0,20);}
 export function timeControl(headers:string):string {
@@ -95,10 +95,20 @@ export class GameQualityService {
     const timeControls=[...new Set(eligible.map(r=>r.timeControl))].sort();
     const control=requestedControl??(timeControls.includes("rapid")?"rapid":timeControls[0]??null);
     if(requestedControl&&!timeControls.includes(requestedControl))throw new Error("No comparable games for this time control");
-    const rows=eligible.filter(r=>r.timeControl===control).slice(0,40).map(({game})=>{
+    const selected=eligible.filter(r=>r.timeControl===control).slice(0,40);
+    const rows=selected.map(({game})=>{
       const report=this.report(game.id,profileId,false)!;
       return {side:report[report.playerColor],moves:report.moves.filter(m=>m.color===report.playerColor)};
     });
-    return {totalGames:games.length,analyzedGames:available.length,excludedGames:same.length-eligible.length,cohorts,cohort:chosen,timeControls,timeControl:control,recent:qualityWindow(rows.slice(0,20),same[0]?.run.rule_version),previous:qualityWindow(rows.slice(20,40),same[0]?.run.rule_version)};
+    const sources:GameQualitySource[]=selected.map(({game},index)=>{
+      const row=rows[index]!,first=row.moves.find(m=>m.grade==='blunder')??row.moves.find(m=>m.grade==='mistake');
+      const practice=this.db.prepare(`SELECT ti.id FROM training_items ti JOIN moves m ON m.id=ti.source_move_id
+        JOIN review_states rs ON rs.item_id=ti.id WHERE ti.game_id=? AND ti.profile_id=? AND ti.active=1
+        AND ti.mode='blunder_check' AND m.mover_color=? ORDER BY rs.due_at,m.ply LIMIT 1`).pluck().get(game.id,profileId,game.player_color) as string|undefined;
+      return {gameId:game.id,white:game.white_name,black:game.black_name,playedAt:game.played_at!,playerColor:game.player_color,result:game.result,
+        accuracy:row.side.accuracy,blunders:row.side.counts.blunder,mistakes:row.side.counts.mistake,
+        firstError:first?{ply:first.ply,moveNumber:first.moveNumber,san:first.san,grade:first.grade as 'mistake'|'blunder'}:null,practiceItemId:practice??null};
+    });
+    return {sources:{recent:sources.slice(0,20),previous:sources.slice(20,40)},totalGames:games.length,analyzedGames:available.length,excludedGames:same.length-eligible.length,cohorts,cohort:chosen,timeControls,timeControl:control,recent:qualityWindow(rows.slice(0,20),same[0]?.run.rule_version),previous:qualityWindow(rows.slice(20,40),same[0]?.run.rule_version)};
   }
 }

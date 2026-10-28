@@ -19,10 +19,10 @@ remain separate from the verified requirement counts below.
 
 - **60 feature descriptions**, each with explicit acceptance criteria and a repeatable comparison task.
 - Current inventory: 22 existing, 14 partial, 10 absent, 7 implemented, 1 improved, 5 enhanced, 1 not_targeted.
-- Acceptance checks: 142 passed, 0 failed, 0 flaky, 41 unknown, 30 unmet, 3 excluded.
-- Priority-weighted verified requirement coverage: **75%** (616/821 points). This is a conservative evidence measure, not “75% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
-- Like-for-like unit-evidence baseline: 20.1% → 42.5%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
-- Current validation records: 411 unit/integration tests and 206 browser journeys; 0 failures, 0 flaky results, 0 skipped.
+- Acceptance checks: 144 passed, 0 failed, 0 flaky, 41 unknown, 30 unmet, 3 excluded.
+- Priority-weighted verified requirement coverage: **75.3%** (626/831 points). This is a conservative evidence measure, not “75.3% as good as Chessbook”. Untested manual criteria remain unknown; missing features remain unmet.
+- Like-for-like unit-evidence baseline: 19.9% → 42.6%. Browser checks were measured only for the current revision, so their improvement is not attributed to product changes.
+- Current validation records: 413 unit/integration tests and 208 browser journeys; 0 failures, 0 flaky results, 0 skipped.
 
 ## Implemented from this audit
 
@@ -1159,6 +1159,7 @@ Acceptance criteria:
 - **passed** — Accept supported quiet improvements from different pieces; explain that unlisted legal alternatives remain unverified. Evidence: unit: generates a quiet improvement, scores it, and exposes it in the player model.
 - **passed** — Choose one representative of the same tactical answer persisting across consecutive learner turns in a game; show deferred counts on resumed sessions without deleting positions or fabricating completed reviews. Evidence: unit: selects one example per persistent queen opportunity and keeps deferred positions and history due.
 - **passed** — On request, verify an unlisted quiet move with bounded history-aware Stockfish searches; accept a useful alternative from another piece, retain engine evidence, prevent duplicate submissions and reject stale results. Evidence: unit: gives a checked alternative from another piece full credit and saves engine evidence once; unit: checks an unlisted quiet alternative with full history and explicit search limits; unit: ends a stalled engine check without inventing a move grade; browser/chromium: checks a quiet alternative on request, prevents duplicate submissions and gives another piece full credit; browser/webkit: checks a quiet alternative on request, prevents duplicate submissions and gives another piece full credit; unit: cancels an active search on close and allows a clean retry.
+- **passed** — Reject a delayed equal recapture as retained material and verify that a pinned defender cannot legally recapture the queen; broader engine cases remain labelled diagnostic evidence, not general precision or recall. Evidence: unit: does not mistake a delayed recapture for retained material; unit: does not count a pinned knight as a legal queen defender.
 
 Implementation: `apps/server/src/analysis/move-quality.ts`, `apps/server/src/analysis/game-quality-service.ts`, `apps/server/src/analysis/analysis-service.ts`, `apps/server/src/jobs/job-worker.ts`, `apps/web/src/components/GameMoveReport.tsx`, `apps/web/src/components/GameLibrary.tsx`, `migrations/042_game_quality.sql`, `apps/server/src/analysis/verify-move.ts`, `migrations/043_game_quality_verification.sql`, `apps/server/src/analysis/tactical-punishment.ts`, `apps/server/src/analysis/v1-generator.ts`, `apps/server/src/training/practice-diversity.ts`, `apps/server/src/training/quiet-move-verifier.ts`, `migrations/046_practice_diversity.sql`
 
@@ -1181,6 +1182,7 @@ Acceptance criteria:
 - **unknown** — Demonstrate that the measures reliably reflect stronger play in a matched human longitudinal study.
 - **passed** — Game accuracy gives serious errors more influence; progress averages completed game scores and preserves old reports in separate method groups. Evidence: unit: gives an isolated serious error more influence than a simple average, without inventing scores for empty games; unit: averages complete game scores in progress rather than letting long games dominate; unit: keeps old reports readable and in separate comparison groups while allowing an explicit upgrade.
 - **passed** — Expanded player-specific learning results and game-quality filters refresh on player changes and ignore late previous-player replies. Evidence: browser/chromium: refreshes expanded learning results on player changes and ignores a late previous-player response; browser/webkit: refreshes expanded learning results on player changes and ignores a late previous-player response.
+- **passed** — Reveal the exact recent and earlier source games for the selected comparison, open the first saved blunder or mistake on the existing board, and practise a saved decision without requesting analysis. Evidence: unit: counts only complete reports once and separates settings, date eligibility and playing speed; unit: compares the latest twenty played games with the preceding twenty rather than import order; browser/chromium: opens the exact progress source decision and its saved practice without requesting analysis; browser/webkit: opens the exact progress source decision and its saved practice without requesting analysis.
 
 Implementation: `apps/server/src/analysis/game-quality-service.ts`, `apps/web/src/components/GameQualityProgress.tsx`, `apps/web/src/App.tsx`
 
