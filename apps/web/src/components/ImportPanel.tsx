@@ -8,6 +8,7 @@ import type {
   PgnPreviewResponse,
 } from "../../../../packages/contracts/src/api";
 import { get, post } from "../api";
+import { ChessComImport } from "./ChessComImport";
 
 interface ImportPanelProps {
   refreshToken: number;
@@ -250,6 +251,7 @@ export function ImportPanel({ refreshToken, onAnalyzed, expanded = false, onExpa
           {preview.errors.map((error) => <p className="error" key={`${error.index}-${error.message}`}>{error.message}</p>)}
         </div>
       )}
+      <ChessComImport onSaved={onAnalyzed} refreshToken={refreshToken} />
       <details className="lichess-sync-card" open={lichess?.connected === true}>
         <summary>Sync finished Lichess games <small>{lichess?.connected ? `Connected as ${lichess.username}` : "Optional · use your username"}</small></summary>
         <div>

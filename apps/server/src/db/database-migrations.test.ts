@@ -82,6 +82,8 @@ describe("database migrations", () => {
         .toBe("focus_game_id");
       expect(upgraded.connection.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'lichess_connections'").pluck().get())
         .toBe("lichess_connections");
+      expect(upgraded.connection.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'chesscom_connections'").pluck().get())
+        .toBe("chesscom_connections");
       expect(upgraded.connection.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'opening_position_statistics'").pluck().get())
         .toBe("opening_position_statistics");
       expect(upgraded.connection.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'opening_explorer_cache'").pluck().get())

@@ -1,5 +1,9 @@
 # Opening feature audit
 
+The [project charter](../PROJECT_CHARTER.md) governs current priorities. Competitor
+comparisons below provide evidence, not automatic implementation priorities. Every
+proposed improvement must pass the charter's purpose check.
+
 The [next four delivery](./NEXT_FOUR_DELIVERY.md) adds master sources, bounded gap
 previews/undo, separate study quality feedback and visible delayed-recall measures.
 Opening puzzles remain deferred as CB58.

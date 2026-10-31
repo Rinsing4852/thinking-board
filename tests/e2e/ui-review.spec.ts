@@ -151,11 +151,14 @@ test("puts pasted games before optional sync and invalidates stale previews", as
   await page.locator(".game-import-disclosure > summary").click();
   const input = page.getByLabel("PGN text");
   await expect(input).toBeVisible();
-  const sync = page.locator("details.lichess-sync-card");
+  const sync = page.locator("details.lichess-sync-card").filter({has:page.locator("summary",{hasText:"Sync finished Lichess games"})});
+  const chesscom = page.locator("details.lichess-sync-card").filter({has:page.locator("summary",{hasText:"Import finished Chess.com games"})});
   await expect(sync).not.toHaveAttribute("open");
+  await expect(chesscom).not.toHaveAttribute("open");
   const fieldBox = await input.boundingBox();
   const syncBox = await sync.boundingBox();
   expect(fieldBox!.y).toBeLessThan(syncBox!.y);
+  expect(fieldBox!.y).toBeLessThan((await chesscom.boundingBox())!.y);
   if (testInfo.project.name === "webkit") expect(await input.evaluate(element => getComputedStyle(element).fontSize)).toBe("16px");
   await input.fill('[White "UI learner"]\n[Black "Opponent"]\n[Result "*"]\n\n1. e4 e5 *');
   await page.getByRole("button", { name: "Check PGN", exact: true }).click();

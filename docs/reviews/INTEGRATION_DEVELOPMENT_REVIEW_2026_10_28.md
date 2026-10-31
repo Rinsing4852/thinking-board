@@ -2,6 +2,11 @@
 
 Reviewed 28 October 2026. Application baseline: `f5f4a02`, v1.5.25.
 
+Following the owner's purpose review, the [project charter](../PROJECT_CHARTER.md)
+governs prioritisation. The proposals below remain technical evidence; each must
+pass the charter's purpose check before implementation. No integration is approved
+by the charter update.
+
 ## Decision
 
 **Improve the existing training selector and evidence quality before adding another training mode or inference service.** Adopt focused accessibility testing; treat Playwright MCP as optional developer tooling. Consider a small Lichess puzzle pack for transfer assessment after the selector baseline is established. Defer Maia-3 production integration.

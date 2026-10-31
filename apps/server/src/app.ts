@@ -16,6 +16,7 @@ import type { AppConfig } from "./config.js";
 import { Database } from "./db/database.js";
 import { ImportService } from "./imports/import-service.js";
 import { LichessSyncService } from "./imports/lichess-sync-service.js";
+import { ChessComImportService } from "./imports/chesscom-import-service.js";
 import { JobWorker } from "./jobs/job-worker.js";
 import { id, now } from "./lib/ids.js";
 import { OpeningContentService } from "./openings/opening-content-service.js";
@@ -86,6 +87,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   const database = new Database(config.databasePath, config.migrationsDir);
   const imports = new ImportService(database.connection);
   const lichessSync = new LichessSyncService(database.connection, imports, config.lichessApiToken);
+  const chessCom = new ChessComImportService(database.connection, imports);
   const training = new TrainingService(database.connection);
   const candidateTraining = new CandidateTrainingService(database.connection, config);
   const v1Training = new V1TrainingService(database.connection, config);
@@ -597,6 +599,24 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   });
 
   app.get("/api/v1/lichess/connection", async () => lichessSync.connection());
+
+  app.get("/api/v1/chesscom/connection", async () => chessCom.connection());
+  app.post("/api/v1/chesscom/connect", async (request, reply) => {
+    try {
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      return await chessCom.connect(requiredString(body.username, "Chess.com username"));
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not connect Chess.com" });
+    }
+  });
+  app.post("/api/v1/chesscom/import", async (request, reply) => {
+    try {
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      return await chessCom.importMonth(requiredString(body.month, "Month"));
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not import Chess.com games" });
+    }
+  });
 
   app.post("/api/v1/lichess/connect", async (request, reply) => {
     try {

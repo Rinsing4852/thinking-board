@@ -21,6 +21,13 @@ process.env.STOCKFISH_BINARY = path.resolve("tests/fake-stockfish.mjs");
 const originalFetch=globalThis.fetch;
 globalThis.fetch=async(input,options)=>{
   const url=new URL(String(input));
+  if(url.hostname==="api.chess.com") {
+    const username=url.pathname.split("/")[3];
+    if(!username?.startsWith("chesscom_fixture"))return new Response("",{status:404});
+    if(!url.pathname.includes("/games/"))return Response.json({username});
+    return Response.json({games:[false,true].map((black,index)=>({rules:"chess",url:`https://www.chess.com/game/live/${index+771001}`,
+      pgn:`[Event "Chess.com test game"]\n[Site "Chess.com"]\n[White "${black?'Fixture opponent':username}"]\n[Black "${black?username:'Fixture opponent'}"]\n[UTCDate "2026.10.20"]\n[UTCTime "12:00:00"]\n[TimeControl "600+0"]\n[WhiteElo "1200"]\n[BlackElo "1300"]\n[Result "1-0"]\n\n1. e4 e5 2. Nf3 Nc6 1-0`}))});
+  }
   if(url.hostname==="explorer.lichess.org"&&url.pathname==="/masters") {
     if(url.searchParams.get("topGames")==="4")return Response.json({topGames:[{id:"master01"}]});
     return Response.json({white:50,draws:30,black:20,moves:[{uci:"e2e4",san:"e4",white:20,draws:10,black:10}]});

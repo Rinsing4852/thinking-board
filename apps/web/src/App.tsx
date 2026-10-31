@@ -250,7 +250,7 @@ export function App() {
               <h1>My games</h1>
               <p>Choose a saved game to replay it and practise the moves you missed.</p>
             </div>
-            <ImportPanel refreshToken={refreshToken} onAnalyzed={refreshAfterGameAnalysis} expanded={showGameImport} onExpandedChange={setShowGameImport} />
+            <ImportPanel key={profileEpoch} refreshToken={refreshToken} onAnalyzed={refreshAfterGameAnalysis} expanded={showGameImport} onExpandedChange={setShowGameImport} />
             <GameReview
               refreshToken={refreshToken}
               focusToken={gameReviewFocusToken}

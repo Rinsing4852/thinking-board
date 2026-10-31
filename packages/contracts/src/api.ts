@@ -429,6 +429,19 @@ export interface LichessSyncResponse extends ImportPgnResponse {
   message: string;
 }
 
+export interface ChessComConnectionResponse {
+  connected: boolean;
+  username: string | null;
+  lastImportedAt: string | null;
+  lastMonth: string | null;
+}
+
+export interface ChessComImportResponse extends ImportPgnResponse {
+  connection: ChessComConnectionResponse;
+  skipped: number;
+  message: string;
+}
+
 export type GameOpeningStatus =
   | "in_repertoire"
   | "player_deviation"
