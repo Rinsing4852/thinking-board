@@ -1600,7 +1600,11 @@ test("draws our strongest move and the three most frequent opponent replies whil
   await expect(focusedReply).toBeFocused();
   // Pointer leave during focus-induced scrolling must preserve keyboard preview.
   await focusedReply.dispatchEvent("mouseout");
+  // Scrolling can put another reply under a stationary pointer. Keyboard focus wins.
+  await choices.getByRole("button").filter({hasText:"d5"}).dispatchEvent("mouseover");
+  await expect(focusedReply).toBeFocused();
   await expect(page.locator(".cg-shapes line[stroke='#003088']")).toHaveCount(1);
+  await expect(page.locator(".board-arrow-number")).toHaveText(["1"]);
   await guide.getByRole("button", { name: "Hide suggestion arrows", exact: true }).focus();
   await guide.getByRole("button", { name: "Hide suggestion arrows", exact: true }).click();
   await expect(page.locator(".cg-shapes line")).toHaveCount(0);

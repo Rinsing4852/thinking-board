@@ -123,7 +123,9 @@ export function OpeningMoveSuggestions({
             key={candidate.moveUci}
             onFocus={() => { focusedMove.current = candidate.moveUci; onFocusMove?.(candidate.moveUci); }}
             onBlur={() => { focusedMove.current = null; onFocusMove?.(null); }}
-            onMouseEnter={() => onFocusMove?.(candidate.moveUci)}
+            // Scrolling can move another row under a stationary pointer. Keep
+            // the keyboard preview until focus actually leaves its move.
+            onMouseEnter={() => onFocusMove?.(focusedMove.current ?? candidate.moveUci)}
             onMouseLeave={() => onFocusMove?.(focusedMove.current)}
             onClick={() => onChooseMove(candidate.moveUci, candidate.moveSan)}
           >

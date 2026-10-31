@@ -650,7 +650,9 @@ button.opening-line-buttons, .opening-line-buttons button { background: #101512;
 .chessboard-frame { position: relative; width: 100%; isolation: isolate; }
 .chessboard { position: relative; aspect-ratio: 1; width: 100%; border-radius: 0 0 10px 10px; box-shadow: 0 22px 60px rgba(0,0,0,.32); }
 .chessboard.cg-wrap cg-container { width: 100% !important; height: 100% !important; }
-.chessboard cg-board { border-radius: inherit; }
+/* Keep animated/transformed native pieces inside the playing surface. WebKit
+   can retain their previous paint overflow after responsive board resizing. */
+.chessboard cg-board { border-radius: inherit; overflow: clip; }
 .chessboard, .board-square-layer { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .chessboard.interactive, .chessboard.interactive cg-board, .chessboard.interactive .board-square-layer { touch-action: none; }
 .board-square-layer { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); grid-template-rows: repeat(8, minmax(0, 1fr)); z-index: 10; }
@@ -822,6 +824,7 @@ button.mode-tab.active:disabled { opacity: 1; }
 .opening-inbox-clear p { margin: .35rem 0 0; line-height: 1.5; }
 .opening-inbox-clear.compact { padding: .9rem 1rem; }
 .game-review-heading { display: grid; grid-template-columns: 1fr minmax(260px, 520px); align-items: end; gap: 2rem; margin: 3.5rem 0 1rem; padding-top: 2rem; border-top: 1px solid var(--line); scroll-margin-top: 92px; }
+.game-review-heading > * { min-width: 0; overflow-wrap: anywhere; }
 .game-review-heading h3 { margin: .35rem 0 0; font-size: 1.55rem; }
 .game-review-heading > p { color: var(--ink-soft); line-height: 1.5; margin: 0; }
 .review-section .game-chips { justify-content: flex-start; margin-bottom: 1.5rem; }

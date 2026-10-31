@@ -41,7 +41,26 @@ test("imports Chess.com games through the existing review and requested-analysis
   await expect(report.getByText("Engine accuracy", { exact: true })).toBeVisible({ timeout: 20000 });
   expect(await (await page.request.get(`/api/v1/games/${imported[1].id}/quality`)).json()).toBeNull();
   await expect(page.getByRole("region", { name: "Saved game replay", exact: true })).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const originalViewport = page.viewportSize()!;
+  for (const width of [320, 360, 390, originalViewport.width]) {
+    await page.setViewportSize({width,height:originalViewport.height});
+    // Board resize/animation finishes asynchronously; persistent overflow must fail.
+    try {
+      await expect.poll(async()=>page.evaluate(()=>document.documentElement.scrollWidth-innerWidth),
+        {message:`Game report must fit the ${width}px viewport`}).toBeLessThanOrEqual(0);
+    } catch(error) {
+      console.log(await page.locator('body *').evaluateAll(elements=>elements.map(element=>({tag:element.tagName,classes:element.getAttribute('class'),right:element.getBoundingClientRect().right})).filter(element=>element.right>innerWidth+.5).slice(0,15)));
+      throw error;
+    }
+    // Clipping alone must not hide a misaligned native renderer after resize.
+    const replayBoard=page.getByRole('grid',{name:'Game replay board',exact:true});
+    await expect.poll(async()=>{
+      const square=await replayBoard.getByRole('gridcell',{name:'a8 black rook',exact:true}).boundingBox();
+      const rooks=await replayBoard.locator('cg-board piece.black.rook').evaluateAll(elements=>elements.map(element=>{const rect=element.getBoundingClientRect();return {x:rect.x,y:rect.y,width:rect.width,height:rect.height};}));
+      return Boolean(square&&rooks.some(piece=>Math.abs(piece.x-square.x)<1&&Math.abs(piece.y-square.y)<1&&Math.abs(piece.width-square.width)<1&&Math.abs(piece.height-square.height)<1));
+    }).toBe(true);
+  }
+  await page.setViewportSize(originalViewport);
   await page.screenshot({ path: info.outputPath("chesscom-game-review.png"), fullPage: true });
   await page.getByRole("button", {name:"Back to games",exact:true}).click();
   if (!(await add.evaluate(element => (element as HTMLDetailsElement).open))) await add.locator("summary").first().click();

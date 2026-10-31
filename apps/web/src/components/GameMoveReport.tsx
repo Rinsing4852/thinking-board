@@ -1,11 +1,15 @@
-import { useEffect,useState } from "react";
+import { useEffect,useRef,useState } from "react";
 import type { GameQualityReport } from "../../../../packages/contracts/src/api";
 import { get } from "../api";
 import { GameAnalysisRequest } from "./GameAnalysisRequest";
 const gradeName={best:"Best",good:"Good",inaccuracy:"Inaccuracy",mistake:"Mistake",blunder:"Blunder"};
 export function GameMoveReport({gameId,refreshToken,onInspect}:{gameId:string;refreshToken:number;onInspect:(ply:number)=>void}) {
   const [report,setReport]=useState<GameQualityReport|null|undefined>(),[error,setError]=useState(""),[retry,setRetry]=useState(0);
-  useEffect(()=>{const controller=new AbortController();setReport(undefined);setError("");
+  const displayedGame=useRef(gameId);
+  useEffect(()=>{const controller=new AbortController();
+    // Refresh the same game's report without discarding open move-list details.
+    if(displayedGame.current!==gameId){displayedGame.current=gameId;setReport(undefined);}
+    setError("");
     void get<GameQualityReport|null>(`/api/v1/games/${gameId}/quality`,controller.signal).then(r=>{if(!controller.signal.aborted)setReport(r);}).catch(e=>{if(!controller.signal.aborted)setError(e.message);});return()=>controller.abort();},[gameId,refreshToken,retry]);
   const own=report?.[report.playerColor];
   const ownMoves=report?.moves.filter(m=>m.color===report.playerColor)??[];

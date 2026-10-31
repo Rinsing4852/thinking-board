@@ -39,6 +39,16 @@ test("requests individual and selected/all analysis, retains reports, and compar
   await openGameReport(page);
   await expect(report.getByText("Engine accuracy",{exact:true})).toBeVisible();
   await report.locator("summary").filter({hasText:"Move grades and positions"}).click();
+  // A late job-completion refresh must not close the move list beneath the learner.
+  const qualityPattern=`**/api/v1/games/${games[0].id}/quality`;
+  let releaseRefresh!:()=>void;const refreshGate=new Promise<void>(resolve=>{releaseRefresh=resolve;});
+  await page.route(qualityPattern,async route=>{await refreshGate;await route.continue().catch(()=>undefined);});
+  try {
+    const refreshing=page.waitForRequest(request=>request.url().endsWith(`/api/v1/games/${games[0].id}/quality`));
+    await page.evaluate(()=>window.dispatchEvent(new Event('analysis-requested')));await refreshing;
+    await expect(report.getByText('Engine accuracy',{exact:true})).toBeVisible();
+    await expect(report.locator('.quality-move').first()).toBeVisible();
+  } finally {releaseRefresh();await page.unroute(qualityPattern);}
   await report.locator(".quality-move").first().click();
   await expect(page.getByRole("combobox",{name:"Game position",exact:true})).toHaveValue("0");
   await report.screenshot({path:testInfo.outputPath("game-quality-report.png")});
