@@ -270,3 +270,45 @@ describe('focused practice rounds on the saved replay',()=>{
     expect(f.db.prepare('SELECT COUNT(*) FROM game_review_local_attempts').pluck().get()).toBe(0);
   });
 });
+
+describe('game review checklists',()=>{
+ it('persists partial and complete review independently of recall, schedules and source games',()=>{
+  const f=setup('white','1. Nf3 Nf6 2. Ng1 Ng8 3. f3 e5 *','1. e4 e5 *');
+  const tables=['games','training_attempts','review_states','opening_review_events'];
+  const history=()=>tables.map(table=>f.db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all());
+  const before=history();expect(f.replay.summaries().size).toBe(0);
+  let state=f.replay.get(f.gameId);expect(state.checkpoints).toHaveLength(2);
+  expect(state.reviewProgress).toEqual({status:'not_started',reviewedCount:0,totalCount:2});
+  state=act(f.replay,state,'reveal');
+  expect(state.reviewProgress).toEqual({status:'in_progress',reviewedCount:1,totalCount:2});
+  expect(state.checkpoints[0]).toMatchObject({reviewed:true,recalled:false,attempts:0});
+  const stale=state;state=act(f.replay,state,'review_status',{reviewStatus:'complete'});
+  expect(state.reviewProgress).toEqual({status:'complete',reviewedCount:2,totalCount:2});
+  expect(()=>act(f.replay,stale,'review_status',{reviewStatus:'not_started'})).toThrow(/another tab/);
+  expect(f.replay.get(f.gameId)).toEqual(state);
+  expect(f.replay.summaries().get(f.gameId)).toEqual(state.reviewProgress);
+  state=act(f.replay,state,'review_point',{checkpointId:state.checkpoints[0]!.id,reviewed:false});
+  expect(state.reviewProgress).toEqual({status:'in_progress',reviewedCount:1,totalCount:2});
+  state=act(f.replay,state,'review_status',{reviewStatus:'not_started'});
+  expect(state.reviewProgress?.reviewedCount).toBe(0);
+  expect(state.checkpoints.every(point=>point.attempts===0&&!point.recalled)).toBe(true);
+  state=act(f.replay,state,'review_status',{reviewStatus:'in_progress'});
+  expect(state.reviewProgress?.status).toBe('in_progress');expect(history()).toEqual(before);
+  expect(()=>act(f.replay,state,'review_point',{checkpointId:'not-saved',reviewed:true})).toThrow(/marked decision/);
+  const oldId=state.snapshotId;state=act(f.replay,state,'refresh');
+  expect(state.reviewProgress?.status).toBe('not_started');
+  expect(f.db.prepare('SELECT COUNT(*) FROM game_review_local_attempts WHERE snapshot_id=?').pluck().get(oldId)).toBe(5);
+  f.db.prepare("INSERT INTO player_profiles(id,display_name,created_at) VALUES ('separate','Separate learner','2026-10-31')").run();
+  setActiveProfile(f.db,'separate');expect(f.replay.summaries().size).toBe(0);
+ });
+});
+
+ it('does not treat checklist changes as earlier practice when grading independent recall',()=>{
+  const f=setup();let state=f.replay.get(f.gameId);
+  state=act(f.replay,state,'review_point',{checkpointId:state.checkpoints[0]!.id,reviewed:true});
+  state=act(f.replay,state,'review_point',{checkpointId:state.checkpoints[0]!.id,reviewed:false});
+  state=act(f.replay,state,'practice_start',{filters:['opening']});
+  state=act(f.replay,state,'answer',{moveUci:'e2e4'});
+  expect(state.feedback?.outcome).toBe('recalled');
+  expect(state.checkpoints[0]).toMatchObject({attempts:1,recalled:true});
+ });

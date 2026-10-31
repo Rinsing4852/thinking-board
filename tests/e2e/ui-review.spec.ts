@@ -168,7 +168,10 @@ test("puts pasted games before optional sync and invalidates stale previews", as
   await expect(page.getByRole("button", { name: "Save games" })).toBeHidden();
   await page.screenshot({ path: testInfo.outputPath("paste-first-games.png"), fullPage: true });
   await sync.locator("summary").first().click();
-  await expect(page.getByLabel("Lichess username")).toBeVisible();
+  await sync.getByRole("button",{name:/^(?:Link Lichess in Profile|Manage Lichess account)$/}).click();
+  await expect(page.getByLabel("Lichess username",{exact:true})).toBeVisible();
+  await page.getByRole("button",{name:"Import games from linked accounts",exact:true}).click();
+  await expect(page.getByLabel("PGN text")).toHaveValue('[White "Different learner"]\n[Black "Opponent"]\n[Result "*"]\n\n1. d4 d5 *');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
@@ -482,4 +485,54 @@ test("keeps saved games and analysis feedback available with the import form clo
   await page.locator(".game-import-disclosure > summary").click();
   await expect(page.getByLabel("PGN text")).toHaveValue(/Workflow learner/);
   await page.screenshot({path:testInfo.outputPath("simplified-games.png")});
+});
+
+test('keeps both account usernames on Profile, preserves drafts and scopes saves to the learner',async({page},info)=>{
+ const learner=`Profile learner ${info.project.name}`;
+ const imported=await(await page.request.post('/api/v1/imports/pgn',{data:{playerName:learner,pgn:`[White "${learner}"]\n[Black "Account opponent"]\n\n1. d4 d5 *`}})).json();
+ await page.request.post(`/api/v1/profiles/${imported.profileId}/activate`);
+ await page.goto('/#profile');
+ const lichess=page.getByLabel('Lichess username',{exact:true}),chesscom=page.getByLabel('Chess.com username',{exact:true});
+ await lichess.fill(`profile_fixture_${info.project.name}`);
+ await chesscom.fill(`chesscom_fixture_${info.project.name}`);
+ await page.getByRole('button',{name:'Save Lichess username',exact:true}).click();
+ await expect(page.getByRole('status')).toContainText('Lichess username saved');
+ await expect(chesscom).toHaveValue(`chesscom_fixture_${info.project.name}`);
+ await page.getByRole('button',{name:'Save Chess.com username',exact:true}).click();
+ await expect(page.getByRole('status')).toContainText('Chess.com username saved');
+ await page.reload();
+ await expect(lichess).toHaveValue(`profile_fixture_${info.project.name}`);
+ await expect(chesscom).toHaveValue(`chesscom_fixture_${info.project.name}`);
+ for(const width of [320,390,820,1280]){
+  await page.setViewportSize({width,height:850});
+  await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)).toBeLessThanOrEqual(0);
+  if(width===390)await page.screenshot({path:info.outputPath('profile-accounts-mobile.png'),fullPage:true});
+ }
+ await page.screenshot({path:info.outputPath('profile-accounts.png'),fullPage:true});
+ expect(await(await page.request.get('/api/v1/jobs/active')).json()).toBeNull();
+ const other=await(await page.request.post('/api/v1/imports/pgn',{data:{playerName:`Another ${learner}`,pgn:`[White "Another ${learner}"]\n[Black "Account opponent"]\n\n1. e4 e5 *`}})).json();
+ await page.request.post(`/api/v1/profiles/${imported.profileId}/activate`);
+ await page.reload();
+ await page.getByLabel('Profile player',{exact:true}).selectOption(other.profileId);
+ await expect(lichess).toHaveValue('');await expect(chesscom).toHaveValue('');
+ const stale=await page.request.post('/api/v1/chesscom/connect',{data:{username:'chesscom_fixture_stale',profileId:imported.profileId}});
+ expect(stale.ok()).toBe(false);
+ expect((await(await page.request.get('/api/v1/chesscom/connection')).json()).connected).toBe(false);
+ await page.getByLabel('Profile player',{exact:true}).selectOption(imported.profileId);
+ await expect(lichess).toHaveValue(`profile_fixture_${info.project.name}`);
+});
+
+test('cancels an opening-settings draft without saving it and restores current values',async({page})=>{
+ const actual=await(await page.request.get('/api/v1/openings/preferences')).json();
+ await page.route('**/api/v1/openings/preferences',route=>route.fulfill({json:{...actual,configured:true,ratingGroup:1600}}));
+ await page.goto('/#openings');
+ const settings=page.locator('details.opening-settings');
+ await revealControl(settings);await settings.locator(':scope > summary').click();
+ await settings.getByRole('button',{name:'Change',exact:true}).click();
+ const level=settings.getByRole('combobox',{name:'Closest playing level',exact:true});
+ await level.selectOption('2000');
+ await settings.getByRole('button',{name:'Cancel',exact:true}).click();
+ await expect(level).toBeHidden();
+ await settings.getByRole('button',{name:'Change',exact:true}).click();
+ await expect(level).toHaveValue('1600');
 });

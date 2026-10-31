@@ -31,19 +31,25 @@ export function verifiedMatingAnswers(fen:string,lines:SavedLine[],color:'white'
   for(let distance=1;distance<=Math.abs(line.mate);distance++){const result=forcedMate(fen,line.uci,distance);if(result===null)break;if(result){answers[line.uci]=distance;break;}}}
  return answers;
 }
-function motif(fen:string,line:SavedLine,proof:NonNullable<ReturnType<typeof tacticalPunishment>>):string{
+export function tacticalMotif(fen:string,line:SavedLine,proof:NonNullable<ReturnType<typeof tacticalPunishment>>):string{
  if(proof.kind==='forced_mate')return 'mating threat';
- try{const board=new Chess(fen),move=play(board,line.uci);let targets=0;
-  for(const piece of board.board().flat())if(piece&&piece.color!==move.color&&['n','b','r','q','k'].includes(piece.type)&&board.attackers(piece.square,move.color).includes(move.to))targets++;
-  return targets>=2?'fork':move.captured?'material capture':'material threat';
+ try{const board=new Chess(fen),move=play(board,line.uci);
+  // Explain an immediate winning capture directly; incidental attacks after it
+  // must not relabel a missed queen capture as a missed fork.
+  if(move.captured)return 'material capture';
+  const targets=new Set<string>();
+  for(const piece of board.board().flat())if(piece&&piece.color!==move.color&&['n','b','r','q','k'].includes(piece.type)&&board.attackers(piece.square,move.color).includes(move.to))targets.add(piece.square);
+  const followup=proof.pvUci[2];
+  const takesForkedTarget=followup?.slice(0,2)===move.to&&targets.has(followup.slice(2,4));
+  return targets.size>=2&&takesForkedTarget?'fork':'material threat';
  }catch{return 'tactical opportunity';}
 }
 export function tacticalEvidence(before:string,after:string,played:string,color:'white'|'black',best:SavedLine|undefined,reply:SavedLine|undefined,significant:boolean):TacticalEvidence{
  const result:TacticalEvidence={categories:[],pattern:'unclassified decision'};
  if(best&&best.uci!==played){const proof=tacticalPunishment(before,before,best.uci,best.pv,best.mate);
-  if(proof&&(significant||proof.kind==='forced_mate')){result.categories.push('attacking');result.pattern=motif(before,best,proof);}}
+  if(proof&&(significant||proof.kind==='forced_mate')){result.categories.push('attacking');result.pattern=tacticalMotif(before,best,proof);}}
  if(reply&&significant){const proof=tacticalPunishment(before,after,reply.uci,reply.pv,reply.mate);
-  if(proof){result.categories.push('defending');if(!result.categories.includes('attacking'))result.pattern=motif(after,reply,proof);}}
+  if(proof){result.categories.push('defending');if(!result.categories.includes('attacking'))result.pattern=tacticalMotif(after,reply,proof);}}
  if(best?.mate!==null&&best?.mate!==undefined&&best.mate*(color==='white'?1:-1)>0&&best.uci!==played){
   result.mateIn=Math.abs(best.mate);result.practiceEligible=false;
  }

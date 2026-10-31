@@ -72,7 +72,9 @@ test('reviews key decisions with one board, plays the defensive reply and schedu
    await replay.getByRole('button',{name:'Next practice position',exact:true}).click();
  }
  await expect(replay.getByText('Understand this decision on the board',{exact:true})).toBeHidden();
+ await expect(replay.getByRole('region',{name:'Lesson from this decision',exact:true})).toBeHidden();
  await replay.getByRole('button',{name:'Show answer',exact:true}).click();
+ await expect(replay.getByRole('region',{name:'Lesson from this decision',exact:true})).toContainText('escape squares');
  await replay.getByText('Understand this decision on the board',{exact:true}).click();
  await replay.getByRole('button',{name:'What the opponent could do after your game move',exact:true}).click();
  await replay.getByRole('button',{name:'Next example move',exact:true}).click();
@@ -92,4 +94,26 @@ test('reviews key decisions with one board, plays the defensive reply and schedu
  await page.reload();await expect(replay).toContainText('24 hours later');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.screenshot({path:info.outputPath('game-teaching-followup.png'),animations:'disabled'});
+});
+
+test('keeps one primary daily start while optional focus and manual controls remain reachable',async({page},info)=>{
+ let release!:()=>void;
+ const delayed=new Promise<void>(resolve=>{release=resolve;});
+ await page.route('**/api/v1/practice/daily',route=>route.fulfill({json:{id:null,profileId:'learner',date:'2026-10-31',gameDays:null,status:'ready',next:'thinking',openingCount:0,thinkingCount:2,openingDone:true,thinkingDone:false,message:'Practise two decisions from your games.'}}));
+ await page.route('**/api/v1/practice/focus?*',async route=>{await delayed;await route.fulfill({json:{profileId:'learner',gameDays:null,timeControl:'rapid',timeControls:['rapid'],cohort:'one',eligibleGames:2,analysedGames:2,message:'Verified game evidence.',focus:{id:'forks',title:'Preventing forks',provisional:false,games:2,reason:'Seen in two comparable games.',nextStep:'Practise two decisions.',dueCount:2,nextDueAt:null,itemIds:['a','b'],sources:[],lesson:{warning:'A double attack was possible.',habit:'Check attacks on two pieces and calculate the reply.'}}}});});
+ await page.goto('/#today');
+ const plan=page.getByRole('region',{name:'Your daily practice plan',exact:true});
+ const start=plan.getByRole('button',{name:'Start daily practice',exact:true});
+ await expect(start).toBeVisible();
+ const before=await start.boundingBox();release();
+ await expect(plan).toContainText('Preventing forks');
+ await expect(plan).toContainText('Habit to practise:');
+ expect((await start.boundingBox())!.y).toBe(before!.y);
+ await expect(page.getByRole('button',{name:'Practise this focus',exact:true})).toBeHidden();
+ await expect(page.getByRole('combobox',{name:'Practice games',exact:true})).toBeHidden();
+ await plan.getByText('Supporting games and evidence',{exact:true}).click();
+ await expect(plan.getByRole('button',{name:'Practise this focus',exact:true})).toBeVisible();
+ await page.locator('.manual-practice-options > summary').click();
+ await page.screenshot({path:info.outputPath('one-daily-start.png'),fullPage:true});
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });

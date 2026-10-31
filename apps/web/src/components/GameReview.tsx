@@ -219,7 +219,7 @@ function OpeningConnectionCard({
 export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPracticeStarted, importPanel }: GameReviewProps) {
   const [view,setView]=useState(gameRoute(window.location.hash).view);
   const libraryScroll=useRef(0);
-  const navigate=(next:"library"|"patterns")=>{setView(next);window.history.pushState(null,"",next==="patterns"?"#games?view=patterns":"#games");requestAnimationFrame(()=>window.scrollTo({top:next==="library"?libraryScroll.current:0,behavior:"instant"}));};
+  const navigate=(next:"library"|"patterns")=>{setView(next);if(next==="library")window.dispatchEvent(new Event("game-review-updated"));window.history.pushState(null,"",next==="patterns"?"#games?view=patterns":"#games");requestAnimationFrame(()=>window.scrollTo({top:next==="library"?libraryScroll.current:0,behavior:"instant"}));};
   const [inspectMove,setInspectMove]=useState<{ply:number;requestId:number}|null>(null);
   const [games, setGames] = useState<GameSummary[]>([]);
   const [review, setReview] = useState<Review | null>(null);
@@ -234,6 +234,14 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
   const [loadingGameId, setLoadingGameId] = useState<string | null>(null);
   const [retryToken, setRetryToken] = useState(0);
   const reviewRequest = useRef<AbortController | null>(null);
+
+  useEffect(()=>{
+    let pending:AbortController|null=null;
+    const update=()=>{pending?.abort();const controller=new AbortController();pending=controller;
+      void get<{games:GameSummary[]}>('/api/v1/games',controller.signal).then(result=>{if(!controller.signal.aborted)setGames(result.games);}).catch(()=>{if(!controller.signal.aborted)setError('Could not refresh review progress in the game list. Your saved review is kept. Retry game review to update it.');});};
+    window.addEventListener('game-review-updated',update);
+    return()=>{pending?.abort();window.removeEventListener('game-review-updated',update);};
+  },[refreshToken]);
 
   const loadReview = async (gameId: string, updateLocation = true): Promise<void> => {
     reviewRequest.current?.abort();

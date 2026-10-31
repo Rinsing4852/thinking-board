@@ -36,7 +36,7 @@ export function OpeningRepertoireGoalPanel({repertoireId,graphKey,rating,speeds,
   return <section className="opening-coverage-panel" aria-label="Whole repertoire coverage">
     <h3>Does my whole repertoire meet my goal?</h3>
     <p>Check whether you have saved answers to the replies you are likely to face. Memory is tested separately in practice.</p>
-    <p>A saved plan follows one set of your own move choices. For example, playing 1.e4 and playing 1.d4 are separate plans in the same repertoire. Each plan includes the opponent replies you have saved.</p>
+
     <p className="opening-coverage-note">Checks reset when you leave this view or change settings. Your saved moves are kept.</p>
     <button disabled={busy||disabled||!valid} onClick={()=>void load()}>{busy?"Checking repertoire…":data?"Recheck whole repertoire":"Check whole repertoire"}</button>
     {!useExplorer&&<p className="opening-coverage-note">Common-move data is off. This check uses saved Lichess samples only. The one-line check also shows gaps observed in your games.</p>}
@@ -59,16 +59,17 @@ export function OpeningRepertoireGoalPanel({repertoireId,graphKey,rating,speeds,
       </section>
       {!useExplorer&&unknown>0&&<button className="secondary" disabled={busy||disabled} onClick={onPersonal}>Check this line against my games</button>}
       {data.gaps.length>0&&<><p aria-label="Suggested next step">Start with the first missing answer below: it has the highest estimated reach in this check.</p><h4>Answers still missing</h4><div className="opening-coverage-tasks">
-        {data.gaps.slice(0,showAll?data.gaps.length:3).map(gap=><article key={`${gap.positionId}:${gap.moveUci}`}>
+        {data.gaps.slice(0,showAll?data.gaps.length:1).map(gap=><article key={`${gap.positionId}:${gap.moveUci}`}>
           <strong>{gap.status==="idea_only"?"Finish your answer to":"Prepare a response to"} {gap.moveSan}</strong>
           <p>{gap.chapterTitle} · {gap.lineTitle}</p>
           <small>Estimated chance of reaching this position: {Number((gap.reachPercent??0).toFixed(2))}% when following at least one saved plan · {gap.games.toLocaleString()} sampled games included this reply.</small>
           <div className="answer-actions"><button className="secondary" disabled={busy||disabled} onClick={()=>onInspect(gap)}>Prepare this answer</button></div>
         </article>)}
-      </div>{data.gaps.length>3&&<button className="text-button" onClick={()=>setShowAll(value=>!value)}>{showAll?"Show just three answers":`Show all ${data.gaps.length} missing answers`}</button>}</>}
+      </div>{data.gaps.length>1&&<button className="text-button" onClick={()=>setShowAll(value=>!value)}>{showAll?"Show just the next answer":`Show all ${data.gaps.length} missing answers`}</button>}</>}
       {data.planScan.nextOffset!==null&&<button disabled={busy||disabled||!valid} onClick={()=>void load(0,false,true)}>Check next saved plans · {data.plansOmitted} left</button>}
       {useExplorer&&data.scan.remaining>0&&<button disabled={busy||disabled||!valid} onClick={()=>void load(data.scan.nextOffset??0,data.scan.mode==="refresh")}>Load more frequency samples · {data.scan.remaining} positions left</button>}
       <details><summary>Saved plans and checking details</summary>
+    <p>A saved plan follows one set of your own move choices. For example, playing 1.e4 and playing 1.d4 are separate plans in the same repertoire. Each plan includes the opponent replies you have saved.</p>
         <p>Saved plans are checked in batches. Changing lines, settings, stopping points or sample evidence requires a fresh check. Continuing the sample scan starts a fresh saved-plan check.</p>
         <p>{data.policy}</p>
         <p>Replies use conditional Lichess samples. Uncertain samples are not treated as rare. A higher encounter goal includes rarer positions. Change that goal and the game population in Opening settings.</p>

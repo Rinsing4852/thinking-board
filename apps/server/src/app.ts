@@ -130,7 +130,8 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   });
   app.post("/api/v1/games/:gameId/replay",{schema:{body:{type:"object",additionalProperties:false,
     required:["snapshotId","version","action"],properties:{snapshotId:{type:"string",minLength:1,maxLength:100},version:{type:"integer",minimum:0},
-      action:{enum:["latest","next","previous","jump","retry","answer","reveal","refresh","schedule","skip","key_study","next_key","practice_start","practice_next","practice_skip","practice_exit"]},ply:{type:"integer",minimum:0,maximum:10000},
+      action:{enum:["latest","next","previous","jump","retry","answer","reveal","refresh","schedule","skip","key_study","next_key","practice_start","practice_next","practice_skip","practice_exit","review_point","review_status"]},ply:{type:"integer",minimum:0,maximum:10000},
+      reviewed:{type:"boolean"},reviewStatus:{enum:["not_started","in_progress","complete"]},
       maxMateIn:{type:"integer",minimum:1,maximum:4},
       filters:{type:"array",minItems:1,maxItems:6,uniqueItems:true,items:{enum:["recommended","mistakes","opening","attacking","defending","mates"]}},
       checkpointId:{type:"string",minLength:1,maxLength:200},moveUci:{type:"string",pattern:"^[a-h][1-8][a-h][1-8][qrbn]?$"}}}}},async(request,reply)=>{
@@ -610,6 +611,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   app.post("/api/v1/chesscom/connect", async (request, reply) => {
     try {
       const body = (request.body ?? {}) as Record<string, unknown>;
+      if(body.profileId!==undefined&&body.profileId!==activeProfileId(database.connection))throw new Error("Your player changed. Reload Profile before saving a username.");
       return await chessCom.connect(requiredString(body.username, "Chess.com username"));
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not connect Chess.com" });
@@ -627,6 +629,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   app.post("/api/v1/lichess/connect", async (request, reply) => {
     try {
       const body = (request.body ?? {}) as Record<string, unknown>;
+      if(body.profileId!==undefined&&body.profileId!==activeProfileId(database.connection))throw new Error("Your player changed. Reload Profile before saving a username.");
       return await lichessSync.connect(requiredString(body.username, "Lichess username"));
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not connect Lichess" });
@@ -763,16 +766,17 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     }
   });
 
-  app.get("/api/v1/games", async () => ({
-    games: database.connection.prepare(`
+  app.get("/api/v1/games", async () => {
+    const summaries=gameReplay.summaries();
+    return {games: database.connection.prepare(`
       SELECT id, white_name AS white, black_name AS black, player_color AS playerColor,
              result, played_at AS playedAt, analyzed_at AS analyzedAt,
              EXISTS(SELECT 1 FROM game_review_replays r WHERE r.game_id=games.id) AS hasSavedReview,
              (SELECT json_array_length(s.content_json,'$.points') FROM game_review_replays r
                JOIN game_review_snapshots s ON s.id=r.snapshot_id WHERE r.game_id=games.id) AS reviewDecisions
       FROM games WHERE profile_id = ? ORDER BY created_at DESC
-    `).all(activeProfileId(database.connection)),
-  }));
+    `).all(activeProfileId(database.connection)).map(row=>({...row as Record<string,unknown>,reviewProgress:summaries.get((row as {id:string}).id)??{status:"not_started",reviewedCount:0,totalCount:0}}))};
+  });
 
   app.get("/api/v1/games/:gameId/review", async (request, reply) => {
     const { gameId } = request.params as { gameId: string };

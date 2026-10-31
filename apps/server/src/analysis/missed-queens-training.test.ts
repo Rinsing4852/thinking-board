@@ -39,7 +39,7 @@ describe("missed queen opportunities and exposed pieces",()=>{
   it("asks for Black's missed Qxh3 before exd4 while independently training White's Qxd7 punishment",()=>{
     const f=fixture();
     expect(f.training.next("early",f.item("blunder_check"))).toMatchObject({exerciseKind:"missed_opportunity",playerColor:"black",candidateMoveSan:"exd4",moveNumber:28});
-    expect(f.training.answer(f.attempts.start(f.item("blunder_check")).attemptId,"capture","d7h3")).toMatchObject({outcome:"excellent",playedMoveSan:"Qxh3"});
+    expect(f.training.answer(f.attempts.start(f.item("blunder_check")).attemptId,"capture","d7h3")).toMatchObject({outcome:"excellent",playedMoveSan:"Qxh3",lesson:{warning:expect.stringContaining("you gaining material"),habit:expect.stringContaining("recaptures")}});
     expect(f.v1.nextPunish("early",f.item("punish_blunder"))).toMatchObject({opponentColor:"white",badMoveSan:"exd4"});
     expect(f.v1.answerPunish(f.attempts.start(f.item("punish_blunder")).attemptId,"h3d7")).toMatchObject({outcome:"excellent",playedMoveSan:"Qxd7"});
   });

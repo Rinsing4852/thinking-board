@@ -22,6 +22,7 @@ async function fixture(){
 it('[G3_PLAN] builds an explainable recurring focus with distinct games and bounded due practice',async()=>{
  const f=await fixture();const before=f.sql.prepare('SELECT * FROM review_states ORDER BY item_id').all();
  const plan=f.service.get();expect(plan.focus?.title).toBe('Preventing mating threats');expect(plan.focus?.games).toBe(2);expect(plan.focus?.provisional).toBe(false);
+ expect(plan.focus?.lesson?.habit).toContain('escape squares');expect(plan.focus?.lesson?.warning).toContain('saved analysis');
  expect(plan.focus?.sources).toHaveLength(2);expect(plan.focus?.dueCount).toBe(2);expect(plan.focus?.reason).toContain('2 of 2 comparable');
  expect(f.sql.prepare('SELECT * FROM review_states ORDER BY item_id').all()).toEqual(before);
  expect(f.sql.prepare('SELECT COUNT(*) FROM game_review_snapshots').pluck().get()).toBe(0);

@@ -70,8 +70,8 @@ test("takes saved games from Today to requested analysis and opens the latest re
   expect(await(await page.request.get('/api/v1/jobs/active')).json()).toBeNull();
   await page.goto('/#today');
   const next=page.getByRole('region',{name:'Next step for saved games',exact:true});
-  await expect(next).toContainText('1 saved games awaiting analysis');
-  await next.getByRole('button',{name:'Choose games to analyse',exact:true}).click();
+  await expect(next).toBeHidden();
+  await page.getByRole('button',{name:'Review a game',exact:true}).click();
   await page.locator('.game-chip').first().click();
   await openGameReport(page);
   const report=page.getByRole('region',{name:'Game move-quality report',exact:true});

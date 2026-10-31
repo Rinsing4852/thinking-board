@@ -1,3 +1,6 @@
+import {tacticalLesson} from '../../../../packages/contracts/src/tactical-lessons.js';
+import {tacticalMotif} from '../games/game-tactical-evidence.js';
+import {tacticalPunishment} from '../analysis/tactical-punishment.js';
 import { Chess } from "chess.js";
 
 import type {
@@ -29,12 +32,27 @@ interface ExerciseRow {
 }
 
 interface AttemptRow {
+  fen_before:string;
+  evidence_json:string;
   id: string;
   item_id: string;
   started_at: string | null;
   answered_at: string | null;
   fen_after: string;
   explanation: string;
+}
+
+function lessonForAttempt(attempt:AttemptRow) {
+ try {
+  const evidence=JSON.parse(attempt.evidence_json);
+  if(evidence.detector!=='tactical-punishment-v4'||!Array.isArray(evidence.proof?.pvUci))return undefined;
+  const root=evidence.proof.pvUci[0],pv=JSON.stringify(evidence.proof.pvUci);
+  // A mate distance is used only when the saved proof actually records a mate.
+  const mate=evidence.proof.kind==='forced_mate'?(new Chess(attempt.fen_after).turn()==='w'?1:-1)*evidence.proof.mateIn:null;
+  const proof=tacticalPunishment(attempt.fen_before,attempt.fen_after,root,pv,mate);
+  if(!proof)return undefined;
+  return tacticalLesson(tacticalMotif(attempt.fen_after,{uci:root,mate,pv},proof),evidence.exerciseKind!=='missed_opportunity')??undefined;
+ } catch {return undefined;}
 }
 
 interface ResponseRow {
@@ -182,7 +200,7 @@ export class TrainingService {
     }
     const attempt = this.db.prepare(`
       SELECT ta.id, ta.item_id, ta.started_at, ta.answered_at,
-             CASE WHEN json_extract(bci.evidence_json,'$.exerciseKind')='missed_opportunity' THEN before_pos.fen ELSE p.fen END AS fen_after, bci.explanation
+             CASE WHEN json_extract(bci.evidence_json,'$.exerciseKind')='missed_opportunity' THEN before_pos.fen ELSE p.fen END AS fen_after, before_pos.fen AS fen_before, bci.evidence_json, bci.explanation
       FROM training_attempts ta
       JOIN blunder_check_items bci ON bci.item_id = ta.item_id
       JOIN training_items ti ON ti.id = ta.item_id AND ti.active = 1
@@ -220,7 +238,9 @@ export class TrainingService {
     const answeredAt = now();
     const startedAt = attempt.started_at ?? answeredAt;
     const duration = Math.max(0, Date.parse(answeredAt) - Date.parse(startedAt));
+    const lesson=lessonForAttempt(attempt);
     const feedback = {
+      ...(lesson?{lesson}:{}),
       acceptableMoves: acceptable,
       explanation: attempt.explanation,
       checklistPoint: "Check both sides: what can I win now, and what can they take after my move?",
@@ -254,7 +274,7 @@ export class TrainingService {
   reveal(attemptId: string): TrainingAnswerResponse {
     const attempt = this.db.prepare(`
       SELECT ta.id, ta.item_id, ta.started_at, ta.answered_at,
-             CASE WHEN json_extract(bci.evidence_json,'$.exerciseKind')='missed_opportunity' THEN before_pos.fen ELSE p.fen END AS fen_after, bci.explanation
+             CASE WHEN json_extract(bci.evidence_json,'$.exerciseKind')='missed_opportunity' THEN before_pos.fen ELSE p.fen END AS fen_after, before_pos.fen AS fen_before, bci.evidence_json, bci.explanation
       FROM training_attempts ta
       JOIN blunder_check_items bci ON bci.item_id = ta.item_id
       JOIN training_items ti ON ti.id = ta.item_id AND ti.active = 1
@@ -283,7 +303,9 @@ export class TrainingService {
       `).run(answeredAt, duration, JSON.stringify({ acceptableMoves }), attemptId);
       recordReview(this.db, attempt.item_id, false, duration, "revealed", answeredAt);
     })();
+    const lesson=lessonForAttempt(attempt);
     return {
+      ...(lesson?{lesson}:{}),
       outcome: "incorrect",
       score: 0,
       categoryCorrect: false,

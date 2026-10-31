@@ -5,11 +5,27 @@ future improvements: turn the learner's games into a focused training plan,
 reduce costly mistakes and recognise tactical opportunities, then check progress
 in later games. Every improvement must pass the charter's purpose check.
 
-**Chess.com games:** in My games → Add a game, open **Import finished Chess.com
-games**, connect your username and choose a month. No password or token is needed.
+**Linked accounts:** open **Profile** in the header to save your Lichess and
+Chess.com usernames for the same learner. No password or token is needed.
+Then use My games → Add a game for Lichess sync or **Import finished Chess.com
+games**, where you choose a month.
 Reimporting skips saved games. Choose games for analysis separately; newly finished
 games may take time to appear in the public archive, so PGN paste remains available.
 See the [game sources and coaching plan](docs/reviews/GAME_SOURCES_AND_COACH_2026_10_31.md).
+
+**Review progress:** each saved game has a **Game review status**: Not started,
+Partially reviewed or Complete. Reading an answer marks that decision reviewed;
+you can also mark or reopen a decision manually. Filter My games by review status.
+This checklist does not award recall or change scheduled practice. Refreshing saved
+feedback starts a new checklist while retaining the old review history.
+See the [workflow audit and next priorities](docs/reviews/WORKFLOW_AUDIT_2026_10_31.md).
+
+**Today:** one daily plan is the main starting point. Its game-learning focus
+explains a recurring pattern and a checking habit; supporting games and optional
+focus-only practice are inside its evidence section. Open **Choose your own
+practice and filters** for manual modes or game-date filters. Preparation checks
+show one next task first, with every other task and statistical detail still
+available. See the [workflow implementation record](docs/reviews/WORKFLOW_FOLLOW_THROUGH_2026_10_31.md).
 
 A self-hosted chess trainer for practising the thinking process that prevents
 mistakes:
@@ -20,8 +36,9 @@ The V1 loop turns a player's own PGN into thinking-process drills:
 
 1. Paste one or more PGN games.
 2. Select which player is you.
-3. Analyse every position with local Stockfish MultiPV.
-4. Diagnose meaningful mistakes and generate exercises around the failed stage.
+3. Request local Stockfish analysis for one game, selected games or all games.
+4. Flag mistakes and missed opportunities, then create supported exercises.
+   Engine evidence does not establish why a player made a mistake.
 5. Practise What Changed, Candidate Generation, Blunder Check, reverse-side
    punishment, and quiet weakest-piece decisions.
 6. Store mastery, result, response time, recurring concepts, and next due date.

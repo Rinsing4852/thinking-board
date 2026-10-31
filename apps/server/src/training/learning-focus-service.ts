@@ -7,7 +7,8 @@ import {now} from '../lib/ids.js';
 import {parseGameDays} from './practice-scope.js';
 import {timeControl} from '../analysis/game-quality-service.js';
 import {significantMistake,tacticalPunishment,type SavedMoveAssessment} from '../analysis/tactical-punishment.js';
-import {forcedMate} from '../games/game-tactical-evidence.js';
+import {forcedMate,tacticalMotif} from '../games/game-tactical-evidence.js';
+import {tacticalLesson} from '../../../../packages/contracts/src/tactical-lessons.js';
 import type {V1TrainingService} from './v1-training-service.js';
 
 type Game={result:string;id:string;played_at:string;headers_json:string;white_name:string;black_name:string;player_color:'white'|'black';run_id:string;cohort:string;control:string};
@@ -28,7 +29,7 @@ export class LearningFocusService {
   if(requestedControl&&!controls.includes(requestedControl))throw new Error('No analysed games for that time control.');
   const sameControl=games.filter(g=>g.control===control),cohort=sameControl[0]?.cohort??null;
   const eligible=sameControl.filter(g=>g.cohort===cohort),byGame=new Map(eligible.map(g=>[g.id,g]));
-  const groups=new Map<string,Array<Item&{game:Game;pattern:string}>>();
+  const groups=new Map<string,Array<Item&{game:Game;pattern:string;motif:string;defending:boolean}>>();
   const savedMateLimit=Number(this.db.prepare("SELECT value FROM app_state WHERE key=?").pluck().get(`practice_mate:${profile}`)??2);
   const mateLimit=Number.isInteger(savedMateLimit)&&savedMateLimit>=1&&savedMateLimit<=4?savedMateLimit:2;
   let mateChecks=0;
@@ -52,10 +53,11 @@ export class LearningFocusService {
    const assessment=this.db.prepare('SELECT * FROM move_assessments WHERE run_id=? AND move_id=?').get(game.run_id,row.source_move_id) as SavedMoveAssessment|undefined;
    if(!assessment||!significantMistake(assessment,game.player_color)&&!(attacking&&proof.kind==='forced_mate'))continue;
    if(proof.kind==='forced_mate'&&(proof.mateIn>mateLimit||++mateChecks>8||forcedMate(fen,line.uci,proof.mateIn,1000)!==true))continue;
-   const pattern=proof.kind==='forced_mate'?(attacking?'Finding short mates':'Preventing mating threats'):(attacking?'Taking winning opportunities':'Preventing material loss');
-   const key=(attacking?'attack':'defend')+':'+proof.kind;
+   const motif=tacticalMotif(fen,{uci:line.uci,mate:line.mate,pv:line.pv},proof);
+   const pattern=proof.kind==='forced_mate'?(attacking?'Finding short mates':'Preventing mating threats'):motif==='fork'?(attacking?'Spotting winning forks':'Preventing forks'):(attacking?'Taking winning opportunities':'Preventing material loss');
+   const key=(attacking?'attack':'defend')+':'+(motif==='fork'?'fork':proof.kind);
    row.chance_loss=this.db.prepare('SELECT chance_loss FROM game_move_quality WHERE run_id=? AND move_id=?').pluck().get(game.run_id,row.source_move_id) as number|undefined??null;
-   const list=groups.get(key)??[];list.push({...row,game,pattern});groups.set(key,list);
+   const list=groups.get(key)??[];list.push({...row,game,pattern,motif,defending:!attacking});groups.set(key,list);
   }
   const ranked=[...groups].map(([key,items])=>{
    const unique=[...new Map([...items].sort((a,b)=>(a.chance_loss??0)-(b.chance_loss??0)).map(item=>[item.game_id,item])).values()];
@@ -66,6 +68,7 @@ export class LearningFocusService {
   const due=top?.items.filter(item=>item.due_at<=now()).sort((a,b)=>(a.attempts-a.successes>0?-1:0)-(b.attempts-b.successes>0?-1:0)||b.game.played_at.localeCompare(a.game.played_at))??[];
   const selected:typeof due=[];for(const item of due){if(!selected.some(chosen=>chosen.game_id===item.game_id))selected.push(item);if(selected.length===3)break;}
   const focus=top?{id:top.key,title:top.unique[0]!.pattern,provisional:top.unique.length<2,games:top.unique.length,
+    lesson:tacticalLesson(top.unique[0]!.motif,top.unique[0]!.defending),
     reason:`${top.unique.length<2?'Provisional: one supporting game.':'Recurring pattern.'} Seen in ${top.unique.length} of ${eligible.length} comparable analysed games. Recent recurrence is prioritised, then severity.`,
     nextStep:selected.length?`Practise ${selected.length} due positions from different games, then revisit the supporting decisions.`:'No positions are due. Review a supporting game or return after the next scheduled review.',
     dueCount:selected.length,nextDueAt:top.items.map(item=>item.due_at).sort()[0]??null,

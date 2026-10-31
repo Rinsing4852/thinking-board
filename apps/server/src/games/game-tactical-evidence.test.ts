@@ -34,3 +34,10 @@ it('[G2_PROOF] recognises missed captures and forks only with retained material 
  expect(tacticalEvidence(fork,other.fen(),'h1h2','white',proof,undefined,true)).toMatchObject({categories:['attacking'],pattern:'fork'});
  expect(tacticalEvidence(fork,other.fen(),'h1h2','white',{...proof,pv:'["c3d5"]'},undefined,true).categories).toEqual([]);
 });
+
+it('does not explain an unrelated winning continuation as a fork just because two pieces are attacked',()=>{
+ const fen='q6k/8/1b3r2/8/8/2N5/8/R6K w - - 0 1';
+ const board=new Chess(fen);board.move('Kh2');
+ const line={uci:'c3d5',mate:null,pv:JSON.stringify(['c3d5','h8g7','a1a8','g7g6','a8a7','g6g5'])};
+ expect(tacticalEvidence(fen,board.fen(),'h1h2','white',line,undefined,true)).toMatchObject({categories:['attacking'],pattern:'material threat'});
+});

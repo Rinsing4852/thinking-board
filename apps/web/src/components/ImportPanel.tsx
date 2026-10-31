@@ -11,14 +11,16 @@ import { get, post } from "../api";
 import { ChessComImport } from "./ChessComImport";
 
 interface ImportPanelProps {
+  draft:{pgn:string};
+  onManageAccounts:()=>void;
   refreshToken: number;
   onAnalyzed: () => void;
   expanded?: boolean;
   hideForm?: boolean;
   onExpandedChange?: (open: boolean) => void;
 }
-export function ImportPanel({ refreshToken, onAnalyzed, expanded = false, hideForm = false, onExpandedChange }: ImportPanelProps) {
-  const [pgn, setPgn] = useState("");
+export function ImportPanel({ draft, onManageAccounts, refreshToken, onAnalyzed, expanded = false, hideForm = false, onExpandedChange }: ImportPanelProps) {
+  const [pgn, setPgn] = useState(draft.pgn);
   const [playerName, setPlayerName] = useState("");
   const [preview, setPreview] = useState<PgnPreviewResponse | null>(null);
   const [status, setStatus] = useState("");
@@ -27,7 +29,6 @@ export function ImportPanel({ refreshToken, onAnalyzed, expanded = false, hideFo
   const [job, setJob] = useState<JobResponse | null>(null);
   const pollGeneration = useRef(0);
   const [lichess, setLichess] = useState<LichessConnectionResponse | null>(null);
-  const [lichessUsername, setLichessUsername] = useState("");
   const [lichessLimit, setLichessLimit] = useState(50);
   const [lichessBusy, setLichessBusy] = useState(false);
   const [lichessStatus, setLichessStatus] = useState("");
@@ -72,7 +73,6 @@ export function ImportPanel({ refreshToken, onAnalyzed, expanded = false, hideFo
     ]).then(async ([activeJob, connection]) => {
       if (generation !== pollGeneration.current) return;
       setLichess(connection);
-      if (connection.username) setLichessUsername(connection.username);
       if (activeJob) {
         setJob(activeJob);
         setBusy(activeJob.status !== "failed");
@@ -117,24 +117,6 @@ export function ImportPanel({ refreshToken, onAnalyzed, expanded = false, hideFo
       if (generation <= pollGeneration.current) pollGeneration.current += 1;
     };
   }, [refreshToken]);
-
-  const connectLichess = async (): Promise<void> => {
-    if (!lichessUsername.trim() || lichessBusy) return;
-    setLichessBusy(true);
-    setLichessStatus("");
-    try {
-      const connection = await post<LichessConnectionResponse>("/api/v1/lichess/connect", {
-        username: lichessUsername,
-      });
-      setLichess(connection);
-      setLichessUsername(connection.username ?? lichessUsername);
-      setLichessStatus(`Connected to ${connection.username}. Sync when you are ready.`);
-    } catch (error) {
-      setLichessStatus(error instanceof Error ? error.message : "Could not connect Lichess");
-    } finally {
-      setLichessBusy(false);
-    }
-  };
 
   const syncLichess = async (): Promise<void> => {
     if (!lichess?.connected || lichessBusy) return;
@@ -218,7 +200,7 @@ export function ImportPanel({ refreshToken, onAnalyzed, expanded = false, hideFo
       <textarea
         value={pgn}
         disabled={busy}
-        onChange={(event) => { setPgn(event.target.value); setPreview(null); setPlayerName(""); }}
+        onChange={(event) => { setPgn(event.target.value); draft.pgn=event.target.value; setPreview(null); setPlayerName(""); }}
         placeholder={'[Event "My game"]\n[White "Your name"]\n[Black "Opponent"]\n\n1. e4 ...'}
         aria-label="PGN text"
       />
@@ -235,6 +217,7 @@ export function ImportPanel({ refreshToken, onAnalyzed, expanded = false, hideFo
                 {preview.players.map((player) => <option key={player}>{player}</option>)}
               </select>
             </label>
+            {playerName&&<p className="panel-help" role="status">Save for {playerName}. This becomes the active player. Other players’ games and history are kept.</p>}
             <button disabled={busy || !playerName} onClick={() => void importPgn()}>
               Save games
             </button>
@@ -252,18 +235,14 @@ export function ImportPanel({ refreshToken, onAnalyzed, expanded = false, hideFo
           {preview.errors.map((error) => <p className="error" key={`${error.index}-${error.message}`}>{error.message}</p>)}
         </div>
       )}
-      <ChessComImport onSaved={onAnalyzed} refreshToken={refreshToken} />
-      <details className="lichess-sync-card" open={lichess?.connected === true}>
+      <ChessComImport onManageAccounts={onManageAccounts} onSaved={onAnalyzed} refreshToken={refreshToken} />
+      <details className="lichess-sync-card">
         <summary>Sync finished Lichess games <small>{lichess?.connected ? `Connected as ${lichess.username}` : "Optional · use your username"}</small></summary>
         <div>
           <span className="eyebrow">Optional shortcut</span>
           <p>Public games need only your username. A read-only token set by the server owner can include games visible to that token; it is never sent to this browser.</p>
         </div>
         <div className="lichess-sync-controls">
-          <label>
-            Lichess username
-            <input value={lichessUsername} onChange={(event) => setLichessUsername(event.target.value)} placeholder="Your Lichess name" />
-          </label>
           {lichess?.connected && <label>
             Games per sync
             <select value={lichessLimit} onChange={(event) => setLichessLimit(Number(event.target.value))}>
@@ -272,15 +251,9 @@ export function ImportPanel({ refreshToken, onAnalyzed, expanded = false, hideFo
               <option value={100}>100 latest</option>
             </select>
           </label>}
-          {!lichess?.connected || lichess.username?.toLocaleLowerCase() !== lichessUsername.trim().toLocaleLowerCase() ? (
-            <button disabled={lichessBusy || !lichessUsername.trim()} onClick={() => void connectLichess()}>
-              {lichessBusy ? "Connecting…" : lichess?.connected ? "Change account" : "Connect account"}
-            </button>
-          ) : (
-            <button disabled={lichessBusy || busy} onClick={() => void syncLichess()}>
-              {lichessBusy ? "Syncing…" : lichess.moreAvailable?"Continue syncing games":"Sync new games"}
-            </button>
-          )}
+          {lichess?.connected&&<button disabled={lichessBusy||busy} onClick={()=>void syncLichess()}>{lichessBusy?'Syncing…':lichess.moreAvailable?'Continue syncing games':'Sync new games'}</button>}
+          <p className="panel-help">When this page opens, linked Lichess accounts are checked for new games at most once every six hours. Analysis starts only when you request it. Chess.com imports use the month you choose.</p>
+          <button className="secondary" onClick={onManageAccounts}>{lichess?.connected?'Manage Lichess account':'Link Lichess in Profile'}</button>
         </div>
         {lichess?.connected && (
           <p className="lichess-connection-note">

@@ -238,12 +238,13 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
                 <p className="failure-summary">
                   {missed ? <>You played <strong>{exercise.candidateMoveSan}</strong>. You could have played <strong>{feedback.acceptableMoves.map(answer => answer.moveSan).join(" or ")}</strong>.</> : <>Your move <strong>{exercise.candidateMoveSan}</strong> allowed <strong>{feedback.acceptableMoves.map(answer => answer.moveSan).join(" or ")}</strong> immediately.</>}
                 </p>
+                {feedback.lesson&&<section className="game-decision-lesson" aria-label="Lesson from this exercise"><h4>What to look for next time</h4><p><strong>Warning sign:</strong> {feedback.lesson.warning}</p><p><strong>Checking habit:</strong> {feedback.lesson.habit}</p></section>}
                 <p>{feedback.explanation}</p>
                 <p className="board-result-note">{missed ? "The board shows your missed winning move." : "The board now shows the opponent’s punishment; the highlighted squares show their move."}</p>
-                <div className="checklist-feedback">
-                  <span>Thinking-process failure: Blunder check</span>
+                {!feedback.lesson&&<div className="checklist-feedback">
+                  <span>Habit to practise: Blunder check</span>
                   <p>{feedback.checklistPoint}</p>
-                </div>
+                </div>}
                 <button onClick={() => sessionId ? onCompleted() : void loadNext()}>{sessionId ? "Continue session" : "Next exercise"}</button>
               </div>
             )}

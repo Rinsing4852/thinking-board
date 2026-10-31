@@ -16,7 +16,7 @@ export function OpeningLearningRoutes({repertoires,busy,onPractice,onStudyGame,o
     </div>
     <details className="study-route">
       <summary>Study a stronger player’s game</summary>
-      <p>Find games that follow your opening. Replay them or try to guess the next move.</p>
+      <p>Choose a repertoire to find a stronger player’s continuation. For a particular position, open a saved line, move its board to that position, then choose “Study a game from here”.</p>
       {repertoires.length>0?<><label>Repertoire for model-game study<select value={selectedStudy} onChange={event=>setStudyRepertoire(event.target.value)}>
         {repertoires.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         <button className="secondary" disabled={busy||!selectedStudy} onClick={()=>onStudyGame(selectedStudy)}>Find a study game</button></>:<p>Save an opening line first to search for a matching game.</p>}

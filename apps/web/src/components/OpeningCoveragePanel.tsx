@@ -43,7 +43,7 @@ export function OpeningCoveragePanel({ coverage, busy, disabled, useExplorer, no
   const toPractise = candidates.filter(gap => gap.status === "needs_practice").length;
   const toFinish = candidates.filter(gap => gap.status === "idea_only").length;
   const toAdd = candidates.length - toPractise - toFinish;
-  const tasks = showAll ? candidates : candidates.slice(0, 3);
+  const tasks = showAll ? candidates : candidates.slice(0, 1);
   const history = [...new Map((coverage?.taskHistory??[]).map(gap=>[openingTask(gap).id,gap])).values()];
   const responseTitles = new Map(lines.map(line => [line.id, line.title]));
   const matchesFilter = (branch: OpeningCoverageBranch) => filter === "all" || branch.status === filter
@@ -95,11 +95,6 @@ export function OpeningCoveragePanel({ coverage, busy, disabled, useExplorer, no
       </section>}
       <h4>Start here</h4>
       <p>These are tasks, not a count of chess mistakes. You do not need to complete everything at once.</p>
-      <ul className="opening-coverage-task-counts" aria-label="Types of next steps">
-        {toPractise > 0 && <li><strong>{toPractise}</strong> saved {toPractise === 1 ? "response" : "responses"} to practise</li>}
-        {toAdd > 0 && <li><strong>{toAdd}</strong> opponent {toAdd === 1 ? "reply" : "replies"} without a saved answer</li>}
-        {toFinish > 0 && <li><strong>{toFinish}</strong> {toFinish === 1 ? "idea" : "ideas"} to review</li>}
-      </ul>
       <div className="opening-coverage-tasks">{tasks.map(gap => <article key={openingTask(gap).id} data-task-id={openingTask(gap).id}>
         <strong>{gap.status === "needs_practice" ? "Practise your response to" : gap.status === "idea_only" ? "Review your idea for" : "Consider a response to"} {gap.moveSan}</strong>
         <p>{gap.responseLineId && responseTitles.get(gap.responseLineId) || `${gap.chapterTitle} · ${gap.lineTitle}`}</p>
@@ -121,8 +116,14 @@ export function OpeningCoveragePanel({ coverage, busy, disabled, useExplorer, no
         {history.map(gap => <article key={openingTask(gap).id} data-task-id={openingTask(gap).id}><p>{gap.responseLineId && responseTitles.get(gap.responseLineId) || `${gap.chapterTitle} · ${gap.lineTitle}`} · {gap.moveSan} · {gap.taskChoice?.choice === "later" ? `postponed until ${gap.taskChoice.untilAt?.slice(0, 10)}` : "skipped"}</p>
           <button className="text-button" disabled={locked} onClick={() => onTaskChoice?.(openingTask(gap).id,"restore")}>Restore suggestion</button></article>)}
       </details>}
-      {candidates.length > 3 && <button className="text-button" onClick={() => setShowAll(!showAll)}>{showAll ? "Show just three tasks" : `See all ${candidates.length} practice and preparation tasks`}</button>}
+      {candidates.length > 1 && <button className="text-button" onClick={() => setShowAll(!showAll)}>{showAll ? "Show just the next task" : `See all ${candidates.length} practice and preparation tasks`}</button>}
 <details className="opening-coverage-details" open={detailsOpen} onToggle={event => setDetailsOpen(event.currentTarget.open)}><summary>Detailed estimates and practice history</summary>
+      <ul className="opening-coverage-task-counts" aria-label="Types of next steps">
+        {toPractise > 0 && <li><strong>{toPractise}</strong> saved {toPractise === 1 ? "response" : "responses"} to practise</li>}
+        {toAdd > 0 && <li><strong>{toAdd}</strong> opponent {toAdd === 1 ? "reply" : "replies"} without a saved answer</li>}
+        {toFinish > 0 && <li><strong>{toFinish}</strong> {toFinish === 1 ? "idea" : "ideas"} to review</li>}
+      </ul>
+
       {model && <>
         <h4>Can this line handle replies until your move {model.throughMove}?</h4>
         <p>{coverage.scope?.lichess}</p>

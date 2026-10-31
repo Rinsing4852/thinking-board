@@ -1,7 +1,9 @@
+import type {GameReviewProgress} from "../../../../packages/contracts/src/api";
 import { requestGameAnalysis } from "./GameAnalysisRequest";
 import { useEffect, useState } from "react";
 
 interface Game {
+  reviewProgress?:GameReviewProgress;
   id: string; white: string; black: string; result: string; playerColor: string; playedAt: string | null; hasSavedReview?:boolean|number; reviewDecisions?:number|null;
 }
 
@@ -11,10 +13,11 @@ export function GameLibrary({ games, selectedId, onChoose }: {
 }) {
   const [selecting,setSelecting]=useState(false),[chosen,setChosen]=useState<string[]>([]),[reanalyse,setReanalyse]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState("");
   useEffect(()=>setChosen(current=>current.filter(id=>games.some(game=>game.id===id))),[games]);
+  const [reviewFilter,setReviewFilter]=useState("all");
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(8);
   const matches = games.filter(game => `${game.white} ${game.black} ${game.result} ${game.playerColor} ${game.playedAt ?? ""} ${game.playedAt ? new Date(game.playedAt).toLocaleDateString() : ""}`
-    .toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
+    .toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())&&(reviewFilter==="all"||(game.reviewProgress?.status??"not_started")===reviewFilter));
   const selected = matches.find(game => game.id === selectedId);
   const visible = matches.slice(0, limit);
   if (selected && !visible.some(game => game.id === selected.id)) visible.unshift(selected);
@@ -37,6 +40,9 @@ export function GameLibrary({ games, selectedId, onChoose }: {
         setQuery(event.target.value); setLimit(8);
       }} />
     </label>}
+    <label>Filter by review status<select aria-label="Filter by review status" value={reviewFilter} onChange={event=>{setReviewFilter(event.target.value);setLimit(8);}}>
+      <option value="all">All reviews</option><option value="not_started">Not started</option><option value="in_progress">Partially reviewed</option><option value="complete">Complete</option>
+    </select></label>
     <div className="game-chips" aria-label="Imported games">
       {visible.map(game => <div className="game-library-entry" key={game.id}>
         {selecting&&<label className="game-select"><input type="checkbox" aria-label={`Select ${game.white} versus ${game.black} ${game.playedAt??"date unknown"}, game ${games.findIndex(item=>item.id===game.id)+1}`} disabled={busy} checked={chosen.includes(game.id)} onChange={e=>setChosen(current=>e.target.checked?[...current,game.id]:current.filter(id=>id!==game.id))}/> Select game</label>}
@@ -44,10 +50,10 @@ export function GameLibrary({ games, selectedId, onChoose }: {
         aria-pressed={selectedId === game.id} onClick={() => onChoose(game.id)}>
         <strong>{game.white} – {game.black}</strong>
         <small>{game.result} · you played {game.playerColor}{game.playedAt ? ` · ${new Date(game.playedAt).toLocaleDateString()}` : ""}</small>
-        {Boolean(game.hasSavedReview)&&<small>Saved review · {game.reviewDecisions??0} marked decisions</small>}
+        <small>{game.reviewProgress?.status==='complete'?'Review complete':game.reviewProgress?.status==='in_progress'?'Partially reviewed':'Not reviewed'}{Boolean(game.hasSavedReview)?` · ${game.reviewProgress?.reviewedCount??0}/${game.reviewProgress?.totalCount??game.reviewDecisions??0} decisions reviewed`:''}</small>
       </button></div>)}
     </div>
-    {matches.length === 0 && <p role="status">No games match this search. <button className="text-button" onClick={() => setQuery("")}>Clear game search</button></p>}
+    {matches.length === 0 && <p role="status">No games match this search. <button className="text-button" onClick={() => {setQuery("");setReviewFilter("all");}}>Clear game search</button></p>}
     {visible.length < matches.length && <button className="secondary" onClick={() => setLimit(value => value + 8)}>
       Show more games ({matches.length - visible.length} remaining)
     </button>}

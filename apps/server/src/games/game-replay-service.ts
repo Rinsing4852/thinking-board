@@ -1,3 +1,4 @@
+import {gameReviewProgress,type ReviewEvent} from "./game-review-progress.js";
 import {tacticalEvidence,verifiedMatingAnswers} from "./game-tactical-evidence.js";
 import { CandidateGenerator } from "../analysis/candidate-generator.js";
 import { Chess } from "chess.js";
@@ -180,15 +181,27 @@ export class GameReplayService {
     if(!saved||unusedBeforeAnalysis)this.db.transaction(()=>this.makeSnapshot(gameId))();
     return this.response(gameId,this.saved(gameId)!);
   }
+  summaries() {
+    const profile=activeProfileId(this.db);
+    const events=this.db.prepare(`SELECT a.snapshot_id,a.checkpoint_id,a.result FROM game_review_local_attempts a
+      JOIN game_review_replays r ON r.snapshot_id=a.snapshot_id WHERE r.profile_id=? ORDER BY a.rowid`).all(profile) as Array<ReviewEvent&{snapshot_id:string}>;
+    const grouped=new Map<string,ReviewEvent[]>();
+    for(const event of events){const list=grouped.get(event.snapshot_id)??[];list.push(event);grouped.set(event.snapshot_id,list);}
+    const rows=this.db.prepare(`SELECT r.game_id,r.snapshot_id,
+      (SELECT json_group_array(json_extract(value,'$.id')) FROM json_each(s.content_json,'$.points')) AS points
+      FROM game_review_replays r JOIN game_review_snapshots s ON s.id=r.snapshot_id WHERE r.profile_id=?`).all(profile) as Array<{game_id:string;snapshot_id:string;points:string}>;
+    return new Map(rows.map(row=>{const {reviewedIds:_,...progress}=gameReviewProgress(JSON.parse(row.points),grouped.get(row.snapshot_id)??[]);return [row.game_id,progress];}));
+  }
   private response(gameId:string,saved:Saved):GameReplayResponse {
     const content=JSON.parse(saved.content_json) as Snapshot,state=JSON.parse(saved.state_json) as State;
     const point=this.practicePoint(content.points.find(point=>point.id===state.point),state);
     const fen=state.ply===0?content.initialFen:content.moves[state.ply-1]!.fenAfter;
     const onBoard=state.phase==="feedback"&&state.answerMove?apply(fen,state.answerMove):null;
-    const attempts=this.db.prepare("SELECT checkpoint_id,result FROM game_review_local_attempts WHERE snapshot_id=?").all(saved.snapshot_id) as Array<{checkpoint_id:string;result:string}>;
-    return {gameId,snapshotId:saved.snapshot_id,savedAt:saved.created_at,version:saved.version,playerColor:content.playerColor,initialFen:content.initialFen,moves:content.moves,
-      checkpoints:content.points.map(({matingAnswers:________,answers,answerNotes:_____,teachingLines:______,priorityLoss:_______,explanation:_,sourceMoveId:__,repertoireId:___,positionId:____,...point})=>({...point,canRecall:answers.length>0,
-        attempts:attempts.filter(attempt=>attempt.checkpoint_id===point.id&&attempt.result!=="shown").length,
+    const attempts=this.db.prepare("SELECT checkpoint_id,result FROM game_review_local_attempts WHERE snapshot_id=? ORDER BY rowid").all(saved.snapshot_id) as Array<{checkpoint_id:string;result:string}>;
+    const {reviewedIds,...reviewProgress}=gameReviewProgress(content.points.map(point=>point.id),attempts);
+    return {reviewProgress,gameId,snapshotId:saved.snapshot_id,savedAt:saved.created_at,version:saved.version,playerColor:content.playerColor,initialFen:content.initialFen,moves:content.moves,
+      checkpoints:content.points.map(({matingAnswers:________,answers,answerNotes:_____,teachingLines:______,priorityLoss:_______,explanation:_,sourceMoveId:__,repertoireId:___,positionId:____,...point})=>({...point,canRecall:answers.length>0,reviewed:reviewedIds.includes(point.id),
+        attempts:attempts.filter(attempt=>attempt.checkpoint_id===point.id&&["recalled","after_retry","unverified"].includes(attempt.result)).length,
         recalled:attempts.some(attempt=>attempt.checkpoint_id===point.id&&attempt.result==="recalled")})),
       keyStudyComplete:state.keyStudyComplete??false,...(state.practice?{practice:state.practice}:{}),currentPly:state.ply,activeCheckpointId:state.point,phase:state.phase,displayFen:onBoard?.fen??fen,
       displayMove:onBoard?state.answerMove:state.ply?content.moves[state.ply-1]!.uci:null,
@@ -208,7 +221,19 @@ export class GameReplayService {
       };
       if(state.practice?.status==='active'&&['next','previous','jump','skip','key_study','next_key'].includes(input.action))
         throw new Error('Finish or exit focused practice before navigating the full game.');
-      if(input.action==='practice_start') {
+      if(input.action==='review_point'||input.action==='review_status') {
+        let result:string,checkpointId:string;
+        if(input.action==='review_point'){
+          const target=content.points.find(candidate=>candidate.id===input.checkpointId);
+          if(!target||typeof input.reviewed!=='boolean')throw new Error('Choose a marked decision and its review status.');
+          result=input.reviewed?'marked_reviewed':'marked_unreviewed';checkpointId=target.id;
+        }else{
+          if(!['not_started','in_progress','complete'].includes(input.reviewStatus??''))throw new Error('Choose a valid review status.');
+          result=input.reviewStatus==='complete'?'game_complete':input.reviewStatus==='in_progress'?'game_partial':'game_not_started';checkpointId='review:game';
+        }
+        this.db.prepare('INSERT INTO game_review_local_attempts(id,snapshot_id,checkpoint_id,move_uci,result,created_at) VALUES(?,?,?,NULL,?,?)')
+          .run(id(),saved.snapshot_id,checkpointId,result,now());
+      } else if(input.action==='practice_start') {
         const filters=input.filters;
         if(!filters?.length||filters.some(filter=>!GAME_PRACTICE_FILTERS.includes(filter))||new Set(filters).size!==filters.length
           ||(filters.includes('recommended')&&filters.length>1))throw new Error('Choose Recommended or one or more practice categories.');
@@ -267,7 +292,7 @@ export class GameReplayService {
           const played=apply(fen,uci);state.tries++;
           if(point.answers.some(answer=>answer.uci===uci)) {
             const earlierPractice=state.practice?.status==='active'&&Boolean(this.db.prepare(`SELECT 1 FROM game_review_local_attempts
-              WHERE snapshot_id=? AND checkpoint_id=? AND created_at>=? LIMIT 1`).get(saved.snapshot_id,point.id,now().slice(0,10)));
+              WHERE snapshot_id=? AND checkpoint_id=? AND result IN ('shown','recalled','after_retry','unverified') AND created_at>=? LIMIT 1`).get(saved.snapshot_id,point.id,now().slice(0,10)));
             result=state.tries===1&&!earlierPractice?"recalled":"after_retry";state.phase="feedback";state.answerMove=uci;
             state.message=`${played.san} is an accepted ${point.kind==="opening"?"repertoire response":"stored engine improvement"}${state.tries>1?" after another try":earlierPractice?" after earlier practice today":""}.`;
           } else {result="unverified";state.message=point.kind==="opening"?`${played.san} is not a saved response in this review. It may still be a good chess move. Try again or show the answer.`:`${played.san} is not among the accepted stored candidates. Other moves have not been graded here. Try again or show the answer.`;}

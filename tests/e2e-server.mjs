@@ -21,6 +21,8 @@ process.env.STOCKFISH_BINARY = path.resolve("tests/fake-stockfish.mjs");
 const originalFetch=globalThis.fetch;
 globalThis.fetch=async(input,options)=>{
   const url=new URL(String(input));
+  if(url.hostname==="lichess.org"&&url.pathname.startsWith("/api/user/profile_fixture"))return Response.json({username:url.pathname.split("/").at(-1)});
+  if(url.hostname==="lichess.org"&&url.pathname.startsWith("/api/games/user/profile_fixture"))return new Response("",{headers:{"Content-Type":"application/x-chess-pgn"}});
   if(url.hostname==="api.chess.com") {
     const username=url.pathname.split("/")[3];
     if(!username?.startsWith("chesscom_fixture"))return new Response("",{status:404});

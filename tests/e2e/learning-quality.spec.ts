@@ -67,7 +67,7 @@ test('[G3_UI] explains a recurring weakness, links its games and starts existing
  await focus.screenshot({path:info.outputPath('learning-focus.png')});
  const target=focus.getByRole('link').first();await target.click();
  await expect(page.getByRole('grid',{name:'Game replay board',exact:true})).toBeVisible();
- await page.goto('/#today');await focus.getByRole('button',{name:'Practise this focus',exact:true}).click();
+ await page.goto('/#today');await focus.locator('summary').click();await focus.getByRole('button',{name:'Practise this focus',exact:true}).click();
  await expect(page.getByRole('button',{name:'Practise this focus',exact:true})).toBeVisible();
  const session=await(await page.request.get('/api/v1/training/session/active')).json();
  // The regular trainer owns the queue and progress; no second board is introduced.

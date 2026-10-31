@@ -25,6 +25,7 @@ test("reduces remaining practice, resumes its game filter and completes without 
   const learner = `Practice completion ${info.project.name}`;
   await saveGame(page, learner, 2); await saveGame(page, learner, 72); await analyse(page);
   await page.goto("/#today");
+  await page.locator(".manual-practice-options > summary").click();
   const filter = page.getByRole("combobox", { name: "Practice games", exact: true });
   await filter.selectOption("1");
   const expected = await (await page.request.get("/api/v1/dashboard?gameDays=1")).json();
@@ -54,6 +55,7 @@ test("reduces remaining practice, resumes its game filter and completes without 
     await trainer.getByRole("button", { name: "Continue session", exact: true }).click();
     if (index === 0 && count > 1) {
       await page.reload();
+      await page.locator(".manual-practice-options > summary").click();
       await expect(filter).toHaveValue("1"); await expect(filter).toBeDisabled();
       await expect(page.locator(".session-progress")).toContainText(`${count - 1} remaining · 1 completed`);
     }

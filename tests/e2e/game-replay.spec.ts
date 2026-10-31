@@ -145,3 +145,33 @@ test("filters opening recall on one board, resumes a round and distinguishes rev
   await controls.screenshot({path:info.outputPath('game-practice-filters.png')});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
+
+test('tracks review completion in the saved game and library without awarding recall',async({page},info)=>{
+ const learner=`Completion learner ${info.project.name}`;
+ await page.request.post('/api/v1/openings/imports/pgn',{data:{name:`Completion opening ${info.project.name}`,learnerColor:'white',ownershipConfirmed:true,pgn:'1. e4 e5 *'}});
+ const imported=await(await page.request.post('/api/v1/imports/pgn',{data:{playerName:learner,pgn:`[White "${learner}"]\n[Black "Completion opponent"]\n\n1. Nf3 Nf6 2. Ng1 Ng8 3. f3 e5 *`}})).json();
+ await page.request.post(`/api/v1/profiles/${imported.profileId}/activate`);
+ const gameId=(await(await page.request.get('/api/v1/games')).json()).games[0].id;
+ await page.goto(`/#games?game=${gameId}`);
+ const replay=page.getByRole('region',{name:'Saved game replay',exact:true});
+ await replay.getByLabel('Game review status',{exact:true}).selectOption('not_started');
+ await expect(replay.getByRole('button',{name:'Mark this decision reviewed',exact:true})).toBeEnabled();
+ await replay.getByRole('button',{name:'Mark this decision reviewed',exact:true}).click();
+ await expect(replay.getByRole('button',{name:'Reopen this decision',exact:true})).toBeEnabled();
+ const saved=await(await page.request.get(`/api/v1/games/${gameId}/replay`)).json();
+ expect(saved.checkpoints.find((point:{id:string})=>point.id===saved.activeCheckpointId).reviewed).toBe(true);
+ await replay.getByLabel('Game review status',{exact:true}).selectOption('in_progress');
+ await expect(replay.getByLabel('Game review status',{exact:true})).toBeEnabled();
+ await page.getByRole('button',{name:'Back to games',exact:true}).click();
+ await page.getByLabel('Filter by review status',{exact:true}).selectOption('in_progress');
+ const chip=page.getByRole('button',{name:/Completion learner .* – Completion opponent/});
+ await expect(chip).toHaveCount(1);await expect(chip).toContainText('Partially reviewed');
+ await chip.click();
+ await replay.getByLabel('Game review status',{exact:true}).selectOption('complete');
+ await expect(replay.getByLabel('Game review status',{exact:true})).toBeEnabled();
+ await page.reload();await expect(replay.getByLabel('Game review status',{exact:true})).toHaveValue('complete');
+ await page.getByRole('button',{name:'Back to games',exact:true}).click();
+ await page.getByLabel('Filter by review status',{exact:true}).selectOption('complete');
+ await expect(chip).toContainText('Review complete');
+ await page.screenshot({path:info.outputPath('game-library-completion.png'),fullPage:true});
+});

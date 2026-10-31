@@ -1,3 +1,4 @@
+import {tacticalLesson} from '../../../../packages/contracts/src/tactical-lessons';
 import { useEffect,useRef,useState } from "react";
 import type { GameReplayAction,GameReplayResponse } from "../../../../packages/contracts/src/api";
 import { get,post } from "../api";
@@ -24,13 +25,14 @@ export function GameReplay({gameId,onRefreshed,requestedPosition}:{gameId:string
       if(!controller.signal.aborted){setError(problem instanceof Error?problem.message:"Could not load this saved review.");if(saving)setNeedsReload(true);}
     } finally {lock.current=false;if(!controller.signal.aborted)setBusy(false);}
   };
-  const load=()=>void run(async signal=>{const response=await get<GameReplayResponse>(endpoint,signal);if(!signal.aborted){setData(response);setNeedsReload(false);}});
+  const load=()=>void run(async signal=>{const response=await get<GameReplayResponse>(endpoint,signal);if(!signal.aborted){setData(response);setNeedsReload(false);window.dispatchEvent(new Event("game-review-updated"));}});
   useEffect(()=>{load();return()=>request.current?.abort();},[endpoint]);
-  const act=(action:GameReplayAction["action"],details:Partial<Pick<GameReplayAction,"ply"|"checkpointId"|"moveUci"|"filters"|"maxMateIn">>={},focus=false)=>{
+  const act=(action:GameReplayAction["action"],details:Partial<Pick<GameReplayAction,"ply"|"checkpointId"|"moveUci"|"filters"|"maxMateIn"|"reviewed"|"reviewStatus">>={},focus=false)=>{
     if(!data||needsReload)return;
     void run(async signal=>{
       const response=await post<GameReplayResponse>(endpoint,{snapshotId:data.snapshotId,version:data.version,action,...details},signal);
       if(signal.aborted)return;setData(response);
+      if(["answer","reveal","review_point","review_status","refresh"].includes(action))window.dispatchEvent(new Event("game-review-updated"));
       if(action==="refresh")onRefreshed?.();
       if(focus)focusBoard();
     },true);
@@ -43,6 +45,7 @@ export function GameReplay({gameId,onRefreshed,requestedPosition}:{gameId:string
   },[requestedPosition,data,busy,needsReload]);
   useEffect(()=>setWalkthrough(null),[data?.snapshotId,data?.version]);
   const point=data?.checkpoints.find(point=>point.id===data.activeCheckpointId);
+  const lesson=point?.kind==='engine'?tacticalLesson(point.pattern??'',Boolean(point.categories?.includes('defending')&&!point.categories?.includes('attacking'))):null;
   const blocked=busy||needsReload;
   const practiceActive=data?.practice?.status==='active';
   const markedPoints=data?.checkpoints.filter(point=>!practiceActive||data.practice!.checkpointIds.includes(point.id))??[];
@@ -59,6 +62,14 @@ export function GameReplay({gameId,onRefreshed,requestedPosition}:{gameId:string
     {data&&<>
       {data.updatesAvailable&&<div className="game-replay-update"><p>Your analysis or repertoire has changed. This replay keeps the feedback you saved.</p>
         <button className="secondary" disabled={blocked} onClick={()=>{if(window.confirm("Save a fresh review using the current analysis and repertoire? Replay restarts; the previous saved feedback and local attempts are retained."))act("refresh");}}>Refresh saved feedback</button></div>}
+      {data.reviewProgress&&<section className="game-review-progress" aria-label="Game review progress">
+        <div><strong>{data.reviewProgress.status==='complete'?'Review complete':data.reviewProgress.status==='in_progress'?'Partially reviewed':'Not reviewed yet'}</strong>
+          <p>{data.reviewProgress.reviewedCount} of {data.reviewProgress.totalCount} marked decisions reviewed</p></div>
+        <label>Game review status<select aria-label="Game review status" disabled={blocked||practiceActive} value={data.reviewProgress.status} onChange={event=>act('review_status',{reviewStatus:event.target.value as 'not_started'|'in_progress'|'complete'})}>
+          <option value="not_started">Not started</option><option value="in_progress">Partially reviewed</option><option value="complete">Complete</option>
+        </select></label>
+        <small>Reading an answer counts as reviewed, not recalled. Refreshing saved feedback starts a new checklist.</small>
+      </section>}
       <GamePracticeControls key={data.snapshotId} data={data} blocked={blocked} onAction={(action,details)=>act(action,details??{},action==='practice_start')}/>
       <div className="game-replay-layout">
         <div ref={board} role="region" aria-label="Game replay board and controls" tabIndex={-1}>
@@ -87,8 +98,15 @@ export function GameReplay({gameId,onRefreshed,requestedPosition}:{gameId:string
             {data.phase==="question"&&<><p>Play your answer on the board. The saved answers stay hidden until you recall one or ask to see them.</p>
               <div className="answer-actions"><button disabled={blocked} onClick={()=>act("reveal")}>Show answer</button>
                 <button className="secondary" disabled={blocked} onClick={()=>act(practiceActive?"practice_skip":"skip")}>{practiceActive?"Skip this position":"Continue without trying"}</button></div></>}
+            <button className="secondary" disabled={blocked||practiceActive} onClick={()=>act('review_point',{checkpointId:point.id,reviewed:!point.reviewed})}>
+              {point.reviewed?'Reopen this decision':'Mark this decision reviewed'}
+            </button>
             {data.feedback&&<div className="game-replay-feedback"><strong>{data.feedback.message}</strong>
-              {data.phase==="feedback"&&<><p>Accepted in this saved review: {data.feedback.answers.map(answer=>answer.san).join(", ")}</p><p>{data.feedback.explanation}</p>
+              {data.phase==="feedback"&&<>{lesson&&<section className="game-decision-lesson" aria-label="Lesson from this decision">
+                  <h4>What to look for next time</h4>
+                  <p><strong>Warning sign:</strong> {lesson.warning}</p>
+                  <p><strong>Checking habit:</strong> {lesson.habit}</p>
+                </section>}<p>Accepted in this saved review: {data.feedback.answers.map(answer=>answer.san).join(", ")}</p><p>{data.feedback.explanation}</p>
                 {teaching.some(line=>line.steps.length>0)&&<details className="game-teaching-lines"><summary>Understand this decision on the board</summary>
                   <p>Compare short saved engine examples on this board. These continuations show possible play, not what necessarily happened in the game.</p>
                   <div className="answer-actions">{teaching.map((line,index)=>line.steps.length>0&&<button className="secondary" key={index} disabled={blocked} onClick={()=>showWalkthrough({line:index,step:0})}>{line.label}</button>)}</div>
@@ -105,9 +123,10 @@ export function GameReplay({gameId,onRefreshed,requestedPosition}:{gameId:string
             {!data.checkpoints.length&&<p>No opening difference or analysed mistake is marked in this saved review. You can still replay the complete game.</p>}
             {markedPoints.map(point=>{
               const move=data.moves[point.ply];
-              return <button key={point.id} className={point.id===data.activeCheckpointId?"active":"secondary"} disabled={blocked||practiceActive}
+              return <button key={point.id} aria-current={point.id===data.activeCheckpointId?"step":undefined} className={`secondary${point.reviewed?" reviewed":""}${point.id===data.activeCheckpointId?" active":""}`} disabled={blocked||practiceActive}
                 aria-pressed={point.id===data.activeCheckpointId} onClick={()=>act("jump",{ply:point.ply,checkpointId:point.id},true)}>
                 {move?`${move.moveNumber}${move.moverColor==="white"?".":"..."}${move.san}`:"Position"} · {point.label}
+                {point.reviewed?" · Reviewed":" · To review"}
                 {point.recalled?" · recalled here":point.attempts?` · ${point.attempts} local tries`:""}
               </button>;
             })}

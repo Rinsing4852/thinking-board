@@ -1,4 +1,4 @@
-import {LearningFocus} from "./components/LearningFocus";
+import {ProfilePage} from "./components/ProfilePage";
 import { DailyPracticePlan } from "./components/DailyPracticePlan";
 import { GameQualityProgress } from "./components/GameQualityProgress";
 import { useEffect, useRef, useState } from "react";
@@ -18,11 +18,11 @@ import { QuietPositionPanel } from "./components/QuietPositionPanel";
 import { OpeningLearningMeasures } from "./components/OpeningLearningMeasures";
 import { OpeningPractice } from "./components/OpeningPractice";
 
-type AppView = "today" | "openings" | "games" | "progress";
+type AppView = "today" | "openings" | "games" | "progress" | "profile";
 
 function initialView(): AppView {
   const hash = window.location.hash.slice(1).split("?")[0];
-  return hash === "openings" || hash === "games" || hash === "progress" ? hash : "today";
+  return hash === "openings" || hash === "games" || hash === "progress" || hash === "profile" ? hash : "today";
 }
 
 export function App() {
@@ -30,6 +30,8 @@ export function App() {
   const [build,setBuild]=useState<string|null>(null);
   useEffect(()=>{void get<{build?:string|null}>("/api/v1/health").then(result=>setBuild(result.build??null)).catch(()=>undefined);},[]);
   const [profileEpoch,setProfileEpoch]=useState(0);
+  const importDrafts=useRef<Record<number,{pgn:string}>>({});
+  const importDraft=importDrafts.current[profileEpoch]??(importDrafts.current[profileEpoch]={pgn:""});
   const [view, setView] = useState<AppView>(initialView);
   const [openingFocusActive, setOpeningFocusActive] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
@@ -176,7 +178,7 @@ export function App() {
             <button className={view === target ? "active" : ""} aria-current={view === target ? "page" : undefined} key={target} onClick={() => navigate(target)}>{label}</button>
           ))}
         </nav>
-
+        <button className="secondary profile-button" aria-current={view==='profile'?'page':undefined} onClick={()=>navigate('profile')}>Profile</button>
       </header>
 
       <main id="main-content" tabIndex={-1} className={`app-view app-view-${view}${openingFocusActive ? " app-view-practice-focus" : ""}`}>
@@ -186,19 +188,20 @@ export function App() {
               <div><DailyPracticePlan key={profileEpoch} refreshToken={refreshToken} gameDays={gameDays}
                   onOpening={()=>navigate("openings")} onThinking={startSession} onGames={()=>navigate("games")}
                   onBuild={()=>navigate("openings")} onStateChange={setDailyPlanActive}/>
-                <p>Or choose your own practice below.</p>
+                <p className="panel-help">One short routine. Other practice options are available below.</p>
                 <div className="workflow-actions">
                   <button className="secondary" onClick={() => navigate("openings")}>Practise openings</button>
                   <button className="secondary" onClick={() => navigate("games")}>Review a game</button>
                 </div>
               </div>
             </section>
-            <LearningFocus key={profileEpoch} refreshToken={refreshToken} gameDays={gameDays} onStart={startSession}/>
+            <section className="trainer-hub" id="trainer">
+              <details className="panel workflow-disclosure thinking-mode-picker manual-practice-options"><summary>Choose your own practice and filters</summary>
+              <p>Use these options for a separate session or a particular skill. Your daily plan remains saved.</p>
             <Dashboard compact gameDays={gameDays} onGameDaysChanged={days => { setGameDays(days); setTrainingRequest(null); }} practiceActive={Boolean(session)} onChooseGames={() => navigate("games")} onImport={() => openGamesAt("import")} refreshToken={refreshToken} onChooseMode={chooseMode} onStartSession={startSession} onProfileChanged={() => {
               setSession(null); setDailyPlanActive(false); setTrainingRequest(null); setProfileEpoch(value=>value+1);setRefreshToken((value) => value + 1);
             }} />
-            <section className="trainer-hub" id="trainer">
-              <details className="panel workflow-disclosure thinking-mode-picker"><summary>Choose a thinking exercise</summary>
+
               <p>Start with blunder check, or choose a specific skill to practise.</p>
               <div className="mode-tabs" aria-label="Training modes">
                 {([[
@@ -246,6 +249,9 @@ export function App() {
           onFocusChange={setOpeningFocusActive}
         />}
 
+        {view==='profile'&&<ProfilePage key={profileEpoch} onImport={()=>openGamesAt('import')} onAccountsChanged={()=>setRefreshToken(value=>value+1)} onProfileChanged={()=>{
+          setSession(null);setDailyPlanActive(false);setTrainingRequest(null);setProfileEpoch(value=>value+1);setRefreshToken(value=>value+1);
+        }}/>}
         {view === "games" && (
           <>
             <div className="page-heading">
@@ -254,7 +260,7 @@ export function App() {
               <p>Choose a saved game to replay it and practise the moves you missed.</p>
             </div>
             <GameReview
-              importPanel={hideForm=><ImportPanel hideForm={hideForm} key={profileEpoch} refreshToken={refreshToken} onAnalyzed={refreshAfterGameAnalysis} expanded={showGameImport} onExpandedChange={setShowGameImport} />}
+              importPanel={hideForm=><ImportPanel draft={importDraft} onManageAccounts={()=>navigate("profile")} hideForm={hideForm} key={profileEpoch} refreshToken={refreshToken} onAnalyzed={refreshAfterGameAnalysis} expanded={showGameImport} onExpandedChange={setShowGameImport} />}
               refreshToken={refreshToken}
               focusToken={gameReviewFocusToken}
               onTrain={trainItem}

@@ -1,3 +1,4 @@
+import {LearningFocus} from './LearningFocus';
 import { useEffect, useRef, useState } from "react";
 import type { DailyPracticePlan as Plan, TrainingSessionResponse } from "../../../../packages/contracts/src/api";
 import {get,post} from "../api";
@@ -42,6 +43,7 @@ export function DailyPracticePlan({refreshToken,gameDays,onOpening,onThinking,on
       </ol>}
       {plan.status!=='completed'&&<button disabled={busy} onClick={()=>void start()}>{busy?'Starting…':plan.status==='ready'?'Start daily practice':plan.status==='empty'?plan.next==='games'?'Choose games to review':'Open my repertoires':plan.next==='opening'?'Resume opening practice':'Continue game practice'}</button>}
       {plan.gameDays!==null&&plan.thinkingCount>0&&<small>Game practice uses games played in the last {plan.gameDays} days. A saved plan keeps its original filter.</small>}
+      <LearningFocus refreshToken={refreshToken} gameDays={plan.gameDays} onStart={onThinking}/>
       <small>One short routine. Opening recall and game-practice results keep their own records.</small>
     </>}
     {error&&<p role="alert">{error} <button className="secondary" onClick={()=>setRetry(value=>value+1)}>Retry plan</button></p>}

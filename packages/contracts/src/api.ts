@@ -920,6 +920,7 @@ export interface CandidateGenerationAnswerResponse {
 }
 
 export interface TrainingAnswerResponse {
+  lesson?:{warning:string;habit:string};
   outcome: "excellent" | "partial" | "incorrect";
   score: number;
   categoryCorrect: boolean;
@@ -1096,7 +1097,13 @@ export interface GamePracticeRound {
   skippedIds: string[];
   status: "active" | "completed";
 }
+export interface GameReviewProgress {
+  status: "not_started" | "in_progress" | "complete";
+  reviewedCount: number;
+  totalCount: number;
+}
 export interface GameReplayCheckpoint {
+  reviewed?: boolean;
   categories?: Array<"attacking"|"defending"|"mates">;
   pattern?: string;
   mateIn?: number;
@@ -1111,6 +1118,7 @@ export interface GameReplayResponse {
   currentPly:number; activeCheckpointId:string|null; phase:"replay"|"question"|"feedback";
   displayFen:string; displayMove:string|null; updatesAvailable:boolean; analysisPending:boolean;
   keyStudyComplete?:boolean;
+  reviewProgress?: GameReviewProgress;
   practice?: GamePracticeRound;
   tacticalEvidenceAvailable?: boolean;
   maxMateIn?: number;
@@ -1119,8 +1127,9 @@ export interface GameReplayResponse {
 }
 export interface GameReplayAction {
   snapshotId:string; version:number;
-  action:"latest"|"next"|"previous"|"jump"|"retry"|"answer"|"reveal"|"refresh"|"schedule"|"skip"|"key_study"|"next_key"|"practice_start"|"practice_next"|"practice_skip"|"practice_exit";
+  action:"latest"|"next"|"previous"|"jump"|"retry"|"answer"|"reveal"|"refresh"|"schedule"|"skip"|"key_study"|"next_key"|"practice_start"|"practice_next"|"practice_skip"|"practice_exit"|"review_point"|"review_status";
   ply?:number; checkpointId?:string; moveUci?:string;
+  reviewed?: boolean; reviewStatus?: GameReviewProgress["status"];
   filters?: GamePracticeFilter[];
   maxMateIn?: number;
 }
@@ -1208,6 +1217,6 @@ export interface GameReviewTeachingLine {
 export interface LearningFocusPlan {
  profileId:string|null;gameDays:number|null;timeControl:string|null;timeControls:string[];cohort:string|null;
  eligibleGames:number;analysedGames:number;message:string;
- focus:null|{id:string;title:string;provisional:boolean;games:number;reason:string;nextStep:string;dueCount:number;nextDueAt:string|null;
+ focus:null|{lesson?:{warning:string;habit:string}|null;id:string;title:string;provisional:boolean;games:number;reason:string;nextStep:string;dueCount:number;nextDueAt:string|null;
  sources:Array<{gameId:string;ply:number;white:string;black:string;playedAt:string}>;itemIds:string[]};
 }

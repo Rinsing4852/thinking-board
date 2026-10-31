@@ -38,6 +38,7 @@ export function OpeningPlayerContext({ preferences, onSaved }: OpeningPlayerCont
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    if(editing)return;
     setCoverageGoalGames(preferences.coverageGoalGames ?? 200);
     setSpeeds((preferences.explorerSpeeds ?? ["blitz","rapid","classical"]).join(","));
     setRatingGroup(preferences.ratingGroup);
@@ -51,7 +52,7 @@ export function OpeningPlayerContext({ preferences, onSaved }: OpeningPlayerCont
     setPracticePace(preferences.practicePace);
     setPauseAfterMove(preferences.pauseAfterMove);
     if (!preferences.configured) setEditing(true);
-  }, [preferences]);
+  }, [preferences,editing]);
 
   const save = async (): Promise<void> => {
     if (saving) return;
