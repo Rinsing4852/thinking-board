@@ -77,7 +77,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await expect(openings.getByRole("grid", { name: "Opening focus board" })).toBeHidden();
     await revealControl(openings.getByRole("button", { includeHidden: true, name: /Analyse a played game/ }));
     await openings.getByRole("button", { includeHidden: true, name: /Analyse a played game/ }).click();
-    await expect(page).toHaveURL(/#games$/);
+    await expect(page).toHaveURL(/#games\?add$/);
     await expect(page.getByRole("heading", { name: "Paste a game (PGN)" })).toBeVisible();
     await expect(page.getByLabel("PGN text")).toBeVisible();
   });
@@ -539,13 +539,16 @@ test.describe.serial("stable V1 browser journey", () => {
     await expect(page.getByText(`Thinking Board v${APP_VERSION}`, { exact: false })).toBeVisible();
 
     await page.getByRole("button", { name: "My games" }).click();
+    await page.getByRole("button", { name: "Opening patterns",exact:true }).click();
     await expect(page.getByRole("heading", { name: "Opening inbox" })).toBeVisible();
     const f3InboxItem = page.locator(".opening-inbox-item").filter({ hasText: "Recall e4 instead of f3" });
     await expect(f3InboxItem).toBeVisible();
     await expect(f3InboxItem.getByText("Seen once · 1 new")).toBeVisible();
+    await f3InboxItem.getByRole("button", { name: "Review pattern",exact:true }).click();
     await f3InboxItem.getByRole("button", { name: "Mark reviewed" }).click();
     await expect(f3InboxItem).toBeHidden();
-    await page.getByRole("button", { name: "olleyr – Training opponent" }).click();
+    await page.getByRole("button", { name: "Games",exact:true }).click();
+    await page.getByRole("button", { name: /olleyr – Training opponent/ }).click();
     const replay=page.getByRole("region",{name:"Saved game replay",exact:true});
     const differenceBoard=page.getByRole("grid",{name:"Game replay board",exact:true});
     await expect(differenceBoard.getByRole("gridcell",{name:"e2 white pawn"})).toBeVisible();
@@ -578,9 +581,10 @@ test.describe.serial("stable V1 browser journey", () => {
     });
     expect(response.ok()).toBe(true);
 
-    await page.goto("/#games");
+    await page.goto("/#games?view=patterns");
     const surprise = page.locator(".opening-inbox-item").filter({ hasText: "surprised you with 2...d6" });
     await expect(surprise).toBeVisible();
+    await surprise.getByRole("button", { name: "Review pattern",exact:true }).click();
     await surprise.getByRole("button", { name: "Prepare for d6" }).click();
     await expect(surprise.getByRole("heading", { name: "How will you answer d6?" })).toBeVisible();
     await expect(surprise.getByText("Nothing is saved until you confirm it.", { exact: false })).toBeVisible();

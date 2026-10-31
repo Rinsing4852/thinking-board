@@ -1,5 +1,5 @@
 import { GameMoveReport } from "./GameMoveReport";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import type {
   GameOpeningConnection,
@@ -13,6 +13,8 @@ import { OpeningGameInbox } from "./OpeningGameInbox";
 import { OpeningPreparationAdvice } from "./OpeningPreparationAdvice";
 import { OpeningExplanation } from "./OpeningExplanation";
 import { GameReplay } from "./GameReplay";
+import { gameRoute } from "../game-navigation";
+import { GameAnalysisRequest } from "./GameAnalysisRequest";
 import { GameLibrary } from "./GameLibrary";
 
 interface Concept {
@@ -56,6 +58,7 @@ interface Review {
 }
 
 interface GameReviewProps {
+  importPanel?: (hideForm: boolean) => ReactNode;
   refreshToken: number;
   focusToken: number;
   onTrain: (itemId: string) => void;
@@ -213,7 +216,10 @@ function OpeningConnectionCard({
   );
 }
 
-export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPracticeStarted }: GameReviewProps) {
+export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPracticeStarted, importPanel }: GameReviewProps) {
+  const [view,setView]=useState(gameRoute(window.location.hash).view);
+  const libraryScroll=useRef(0);
+  const navigate=(next:"library"|"patterns")=>{setView(next);window.history.pushState(null,"",next==="patterns"?"#games?view=patterns":"#games");requestAnimationFrame(()=>window.scrollTo({top:next==="library"?libraryScroll.current:0,behavior:"instant"}));};
   const [inspectMove,setInspectMove]=useState<{ply:number;requestId:number}|null>(null);
   const [games, setGames] = useState<GameSummary[]>([]);
   const [review, setReview] = useState<Review | null>(null);
@@ -232,8 +238,9 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
   const loadReview = async (gameId: string, updateLocation = true): Promise<void> => {
     reviewRequest.current?.abort();
     const controller = new AbortController(); reviewRequest.current = controller;
-    setLoadingGameId(gameId); setReview(null); setInspectMove(null);
-    if (updateLocation) window.history.replaceState(null, "", `#games?game=${encodeURIComponent(gameId)}`);
+    setLoadingGameId(gameId); setReview(current=>current?.game.id===gameId?current:null); setInspectMove(null);
+    setView("game");
+    if (updateLocation) {libraryScroll.current=window.scrollY;window.history.pushState(null, "", `#games?game=${encodeURIComponent(gameId)}`);window.scrollTo({top:0,behavior:"instant"});}
     setError("");
     try {
       const nextReview = await get<Review>(`/api/v1/games/${gameId}/review`, controller.signal);
@@ -259,7 +266,7 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
       const first = data.games[0];
       const requested = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("game");
       if (requested && data.games.some(game => game.id === requested)) void loadReview(requested, false);
-      else if (first) void loadReview(first.id, false);
+      else if (requested) {setView("library");setReview(null);setError("That game is not in this player’s library. Choose a saved game.");}
       else setReview(null);
     }).catch((loadError: unknown) => { if (!controller.signal.aborted) setError(loadError instanceof Error ? loadError.message : "Could not load games"); })
       .finally(() => { if (!controller.signal.aborted) setLoadingGames(false); });
@@ -271,11 +278,11 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
   }, [refreshToken, retryToken]);
 
   useEffect(() => {
-    const requested = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("game");
-    if (requested && review?.game.id !== requested) return;
-    if ((!requested && focusToken === 0) || games.length === 0) return;
-    requestAnimationFrame(() => document.getElementById(requested ? "selected-game-review" : "opening-inbox")?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }, [focusToken, games.length, inbox, review?.game.id]);
+    const sync=()=>{const route=gameRoute(window.location.hash);setView(route.view);if(route.gameId)void loadReview(route.gameId,false);else requestAnimationFrame(()=>window.scrollTo({top:route.view==="library"?libraryScroll.current:0,behavior:"instant"}));};
+    window.addEventListener("popstate",sync);window.addEventListener("hashchange",sync);
+    if(focusToken>0)sync();
+    return()=>{window.removeEventListener("popstate",sync);window.removeEventListener("hashchange",sync);};
+  }, [focusToken]);
 
   const saveDiagnosis = async (itemId: string, thinking: string, tactic: string): Promise<void> => {
     const conceptIds = [thinking, tactic].filter(Boolean);
@@ -321,28 +328,31 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
     }
   };
 
-  if (games.length === 0) return <section className="panel game-review-state" aria-label="Game review" aria-busy={loadingGames}>
+  if (games.length === 0) return <>{importPanel?.(false)}<section className="panel game-review-state" aria-label="Game review" aria-busy={loadingGames}>
     {error ? <><p className="error" role="alert">{error}</p><button className="secondary" onClick={() => setRetryToken(value => value + 1)}>Retry game review</button></>
       : <p role="status">{loadingGames ? "Loading your games…" : "No games imported yet. Choose Add a game to see your opening comparison and thinking mistakes."}</p>}
-  </section>;
+  </section></>;
   return (
-    <section className="review-section" id="game-review">
+    <>{importPanel?.(view!=='library')}<section className="review-section" id="game-review">
       {status && <p className="success" role="status">{status}</p>}
       {error && <p className="error" role="alert">{error} <button className="text-button" onClick={() => setRetryToken(value => value + 1)}>Retry game review</button></p>}
-      <div className="game-review-heading" id="selected-game-review">
-        <div>
-          <span className="eyebrow">Game detail</span>
-          <h3>Inspect a complete game</h3>
-        </div>
-        <p>Opening feedback and Stockfish mistakes remain separate: leaving preparation is not automatically a bad chess move.</p>
+      <div className="workflow-actions" aria-label="Game views">
+        <button className="secondary" aria-pressed={view==='library'} onClick={()=>navigate('library')}>{view==='game'?'Back to games':'Games'}</button>
+        <button className="secondary" aria-pressed={view==='patterns'} onClick={()=>navigate('patterns')}>Opening patterns</button>
       </div>
-      <GameLibrary games={games} selectedId={loadingGameId ?? review?.game.id ?? null} onChoose={gameId => void loadReview(gameId)} />
+      <div hidden={view!=='library'}><GameLibrary games={games} selectedId={loadingGameId ?? review?.game.id ?? null} onChoose={gameId => void loadReview(gameId)} /></div>
+      {view==='game'&&<div className="game-review-heading" id="selected-game-review"><h2>{review?`${review.game.white} – ${review.game.black}`:'Loading game…'}</h2>
+        {review&&<p>{review.game.result} · you played {review.game.playerColor}{review.game.playedAt?` · ${new Date(review.game.playedAt).toLocaleDateString()}`:''}</p>}
+      </div>}
       {loadingGameId && <p role="status">Loading the selected game…</p>}
-      {review && (
+      {view==='game' && review && (
         <div className="mistake-list">
-          <GameMoveReport key={`quality-${review.game.id}`} gameId={review.game.id} refreshToken={refreshToken} onInspect={ply=>setInspectMove(current=>({ply,requestId:(current?.requestId??0)+1}))}/>
+          {!review.game.analyzedAt&&<div className="game-analysis-compact"><GameAnalysisRequest gameId={review.game.id} hasReport={false}/></div>}
           <GameReplay key={review.game.id} gameId={review.game.id} requestedPosition={inspectMove} onRefreshed={()=>void loadReview(review.game.id,false)} />
 
+          <details className="game-report-disclosure"><summary>Move report and accuracy</summary>
+          <GameMoveReport key={`quality-${review.game.id}`} gameId={review.game.id} refreshToken={refreshToken} onInspect={ply=>setInspectMove(current=>({ply,requestId:(current?.requestId??0)+1}))}/>
+          </details>
           <details className="game-review-details"><summary>Current review notes and practice options</summary>
           <p className="opening-coverage-note">These notes use the current repertoire and analysis. The replay above preserves its saved feedback until you refresh it.</p>
           {review.opening && (
@@ -373,7 +383,7 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
           </details>
         </div>
       )}
-      <section className="game-followups" id="opening-inbox" aria-label="Opening follow-ups across games">
+      <section hidden={view!=='patterns'} className="game-followups" id="opening-inbox" aria-label="Opening follow-ups across games">
       <div className="panel-heading">
         <div>
           <span className="eyebrow">From your games</span>
@@ -397,6 +407,6 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
         onPreparationDecision={response => { setInbox(response.inbox); setStatus(response.message); setError(""); }}
       />
       </section>
-    </section>
+    </section></>
   );
 }

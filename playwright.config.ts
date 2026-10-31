@@ -16,7 +16,7 @@ export default defineConfig({
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "webkit", testMatch: /(?:opening-quality|opening-model-games|game-replay|game-analysis|chesscom-import|thinking-practice|daily-practice|ui-review|chessboard)\.spec\.ts/, use: { ...devices["iPhone 13"] } },
+    { name: "webkit", testMatch: /(?:learning-quality|opening-quality|opening-model-games|game-replay|game-analysis|chesscom-import|thinking-practice|daily-practice|ui-review|chessboard)\.spec\.ts/, use: { ...devices["iPhone 13"] } },
   ],
   webServer: [{
     command: "node tests/e2e-server.mjs",

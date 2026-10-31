@@ -29,7 +29,8 @@
     "smoke:quiet": "node scripts/smoke-quiet-practice.mjs",
     "smoke:thinking": "node scripts/smoke-thinking-exercises.mjs",
     "smoke:tactics": "node scripts/smoke-tactical-training.mjs",
-    "smoke:reliability": "node scripts/smoke-app-reliability.mjs"
+    "smoke:reliability": "node scripts/smoke-app-reliability.mjs",
+    "quality:learning": "node scripts/learning-quality.mjs"
   },
   "dependencies": {
     "@fastify/static": "^10.1.3",

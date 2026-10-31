@@ -1,3 +1,4 @@
+import {LearningFocusService} from "./learning-focus-service.js";
 import type { DailyPracticePlan } from "../../../../packages/contracts/src/api.js";
 import type { SqliteDatabase } from "../db/database.js";
 import { id, now } from "../lib/ids.js";
@@ -36,12 +37,13 @@ export class DailyPracticeService {
       WHERE session_id=? AND presentation_kind='scheduled'`).pluck().get(activeOpening.sessionId)) : recommendation.counts.total;
     const resolvedGameDays=activeThinking?activeThinking.gameDays??null:gameDays;
     const dashboard=this.thinking.dashboard(resolvedGameDays);
-    const thinkingCount=activeThinking?.remainingCount ?? Math.min(5,dashboard.practice?.available??0);
+    const learningFocus=new LearningFocusService(this.db,this.thinking).get(resolvedGameDays).focus;
+    const thinkingCount=activeThinking?.remainingCount ?? (learningFocus?.dueCount || Math.min(5,dashboard.practice?.available??0));
     const next=activeThinking?'thinking':openingCount?'opening':thinkingCount?'thinking':dashboard.totals.games?'games':'build';
     return {id:null,openingKind:activeLesson?"lesson":"recall",profileId:profile,date:activity.date,gameDays:resolvedGameDays,status:openingCount||thinkingCount?'ready':'empty',next,
       openingCount,thinkingCount,openingDone:openingCount===0,thinkingDone:thinkingCount===0,
       message:activeOpening||activeThinking||activeLesson?'Finish your saved session first; your place is kept.'
-        :openingCount&&thinkingCount?'Recall your opening moves, then revisit decisions from your games.'
+        :openingCount&&thinkingCount?learningFocus?.dueCount?`Recall your opening moves, then work on ${learningFocus.title.toLowerCase()}.`:'Recall your opening moves, then revisit decisions from your games.'
         :openingCount?'Strengthen your saved opening responses with a short recall session.'
         :thinkingCount?'Practise decisions from games you chose to analyse.'
         :dashboard.totals.awaitingAnalysis?'Choose saved games to analyse before building game practice.'
@@ -81,7 +83,8 @@ export class DailyPracticeService {
         const count=Number(this.db.prepare('SELECT initial_item_count FROM opening_review_sessions WHERE id=?').pluck().get(review.sessionId));
         this.db.prepare('UPDATE daily_practice_plans SET opening_lesson_id=NULL,opening_session_id=?,opening_count=? WHERE id=?').run(review.sessionId,count,plan.id);
       } else if(state.next==='thinking'){
-        const session=this.thinking.createSession(Math.max(1,plan.thinking_count),plan.game_days);
+        const focusService=new LearningFocusService(this.db,this.thinking),focus=focusService.get(plan.game_days);
+        const session=focus.focus?.dueCount?focusService.start(profileId,focus.focus.id,plan.game_days,focus.timeControl??undefined):this.thinking.createSession(Math.max(1,plan.thinking_count),plan.game_days);
         if(!session.id){this.db.prepare('UPDATE daily_practice_plans SET thinking_count=0 WHERE id=?').run(plan.id);}
         else this.db.prepare('UPDATE daily_practice_plans SET thinking_session_id=?,thinking_count=? WHERE id=?')
           .run(session.id,session.items.length,plan.id);

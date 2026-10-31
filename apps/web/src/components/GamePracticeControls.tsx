@@ -3,20 +3,21 @@ import type { GamePracticeFilter, GameReplayAction, GameReplayResponse } from ".
 import { selectGamePractice } from "../../../../packages/contracts/src/game-practice";
 
 const labels: Record<GamePracticeFilter, string> = {
-  recommended: "Recommended", mistakes: "Analysed mistakes", opening: "Opening recall",
+  recommended: "Recommended", mistakes: "Analysed mistakes", opening: "Opening recall", attacking:"Attacking", defending:"Defending", mates:"Missed mates",
 };
 
 export function GamePracticeControls({ data, blocked, onAction }: {
   data: GameReplayResponse; blocked: boolean;
-  onAction: (action: GameReplayAction["action"], details?: Pick<GameReplayAction, "filters">) => void;
+  onAction: (action: GameReplayAction["action"], details?: Pick<GameReplayAction, "filters" | "maxMateIn">) => void;
 }) {
   const [filters, setFilters] = useState<GamePracticeFilter[]>(data.practice?.filters ?? ["recommended"]);
+  const [maxMateIn,setMaxMateIn]=useState(data.practice?.maxMateIn??data.maxMateIn??2);
   const options = useRef<HTMLDetailsElement>(null);
   const round = data.practice, active = round?.status === "active";
-  const selected = selectGamePractice(data.checkpoints, filters);
+  const selected = selectGamePractice(data.checkpoints, filters,maxMateIn);
   const start = () => {
     if (options.current) options.current.open = false;
-    onAction("practice_start", { filters });
+    onAction("practice_start", { filters, maxMateIn });
   };
   const toggle = (filter: GamePracticeFilter, checked: boolean) => {
     setFilters(current => checked ? filter === "recommended" ? [filter]
@@ -30,11 +31,14 @@ export function GamePracticeControls({ data, blocked, onAction }: {
       <legend>Practice categories</legend>
       <div className="game-practice-filters">
         {(Object.keys(labels) as GamePracticeFilter[]).map(filter => {
-          const count = selectGamePractice(data.checkpoints, [filter]).length;
-          return <label key={filter}><input type="checkbox" checked={filters.includes(filter)}
+          const count = selectGamePractice(data.checkpoints, [filter],maxMateIn).length;
+          return <label key={filter}><input type="checkbox" disabled={["attacking","defending","mates"].includes(filter)&&!data.tacticalEvidenceAvailable} checked={filters.includes(filter)}
             onChange={event => toggle(filter, event.target.checked)} />{labels[filter]} <span>({count})</span></label>;
         })}
       </div>
+      <label>Maximum mating length<select value={maxMateIn} onChange={event=>setMaxMateIn(Number(event.target.value))}>{[1,2,3,4].map(value=><option key={value} value={value}>Mate in {value}</option>)}</select></label>
+      <small>Counts your moves to deliver mate, with the opponent defending. Longer or unverified mates stay in analysis.</small>
+      {!data.tacticalEvidenceAvailable&&!data.analysisPending&&<small>Refresh saved feedback to enable verified tactical filters.</small>}
     </fieldset>
     </details>
     {!active && round?.status !== "completed" && <>

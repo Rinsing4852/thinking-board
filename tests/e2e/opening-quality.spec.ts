@@ -912,8 +912,9 @@ test("keeps a preparation idea without a line, then shows it after recall when a
   const learner = profiles.profiles.find((profile: { displayName: string }) => profile.displayName === player);
   expect((await page.request.post(`/api/v1/profiles/${learner.id}/activate`)).ok()).toBeTruthy();
   const before = (await (await page.request.get(`/api/v1/openings/repertoires/${repertoireId}`)).json()).chapters[0].lines.length;
-  await page.goto("/#games");
+  await page.goto("/#games?view=patterns");
   const item = page.locator("article.opening-inbox-item").filter({ hasText: name });
+  await item.getByRole("button",{name:"Review pattern",exact:true}).click();
   const advice = item.getByRole("region", { name: "Worth preparing?" });
   await expect(advice.getByText(/^Frequency unknown/)).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("preparation-choice-inbox.png"), fullPage: true });
@@ -926,6 +927,7 @@ test("keeps a preparation idea without a line, then shows it after recall when a
   expect((await (await page.request.get(`/api/v1/openings/repertoires/${repertoireId}`)).json()).chapters[0].lines).toHaveLength(before);
   await page.reload();
   await page.getByRole("button", { name: /Show all/ }).click();
+  await item.getByRole("button",{name:"Review pattern",exact:true}).click();
   await expect(advice.getByText(note, { exact: true })).toBeVisible();
   await item.getByRole("button", { name: "Prepare for h6", exact: true }).click();
   const board = item.getByRole("grid", { name: "Position after h6" });

@@ -1,4 +1,4 @@
-import { revealControl } from "./workflow-helpers";
+import { openGameReport, revealControl } from "./workflow-helpers";
 import { expect, test } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
@@ -103,7 +103,7 @@ test("keeps navigation history, keyboard access and first-run actions clear", as
   await expect(page).toHaveURL(/#openings$/);
   await page.getByRole("button", { name: "Progress", exact: true }).click();
   await page.getByRole("button", { name: "Import a game to begin" }).click();
-  await expect(page).toHaveURL(/#games$/);
+  await expect(page).toHaveURL(/#games\?add$/);
 });
 
 test("keeps home screens and saved-line workspaces within intermediate tablet widths", async ({ page }, testInfo) => {
@@ -231,13 +231,17 @@ test("searches the whole game library and ignores an obsolete review response", 
   await library.getByRole("button", { name: /UI learner – Opponent 19/ }).click();
   await expect(page).toHaveURL(/#games\?game=ui-game-19$/);
   await expect(library.locator(".active")).toContainText("Opponent 19");
+  await page.getByRole("button", {name:"Back to games",exact:true}).click();
+  await expect(search).toHaveValue("Opponent 19");
   await search.fill("");
   await expect(library.locator("button")).toHaveCount(9);
   const pending = page.waitForRequest(/\/games\/ui-game-1\/review$/);
   await library.getByRole("button", { name: /UI learner – Opponent 1 / }).click();
   await pending;
+  await page.getByRole("button", {name:"Back to games",exact:true}).click();
   await library.getByRole("button", { name: /UI learner – Opponent 2 / }).click();
   await expect(library.locator(".active")).toContainText("Opponent 2");
+  await openGameReport(page);
   await expect(page.getByRole("region", { name:"Game move-quality report",exact:true })).toBeVisible();
   release!();
   await handled;
@@ -296,8 +300,10 @@ test("keeps an unsaved preparation idea when background analysis refreshes the i
     await held; analysisFinished = true;
     await route.fulfill({ json: { ...job, status: "completed" } });
   });
-  await page.goto("/#games");
-  const advice = page.locator("article.opening-inbox-item").filter({ hasText: name }).getByRole("region", { name: "Worth preparing?" });
+  await page.goto("/#games?view=patterns");
+  const item = page.locator("article.opening-inbox-item").filter({ hasText: name });
+  await item.getByRole("button",{name:"Review pattern",exact:true}).click();
+  const advice = item.getByRole("region", { name: "Worth preparing?" });
   await advice.getByRole("button", { name: "Keep an idea instead", exact: true }).click();
   const note = "Finish development before expanding this rare reply.";
   const noteInput = advice.locator(".opening-preparation-note textarea");
@@ -313,6 +319,7 @@ test("keeps an unsaved preparation idea when background analysis refreshes the i
   await expect(page.getByRole("status").filter({ hasText: "Idea kept." })).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: /Show all/ }).click();
+  await item.getByRole("button",{name:"Review pattern",exact:true}).click();
   await expect(advice.getByText(note, { exact: true })).toBeVisible();
 });
 
@@ -396,7 +403,7 @@ test("keeps the game-import action fixed while player choices arrive",async({pag
     const after=await action.boundingBox();expect(after).not.toBeNull();
     await testInfo.attach("import-action-layout",{body:JSON.stringify({before,after}),contentType:"application/json"});
     expect(Math.abs(after!.y-before!.y)).toBeLessThanOrEqual(1);expect(Math.abs(after!.x-before!.x)).toBeLessThanOrEqual(1);
-    await page.mouse.up();await expect(page).toHaveURL(/#games$/);
+    await page.mouse.up();await expect(page).toHaveURL(/#games\?add$/);
   } finally {release();await page.mouse.up();}
 });
 

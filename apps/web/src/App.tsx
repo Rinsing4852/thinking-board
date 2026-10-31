@@ -1,3 +1,4 @@
+import {LearningFocus} from "./components/LearningFocus";
 import { DailyPracticePlan } from "./components/DailyPracticePlan";
 import { GameQualityProgress } from "./components/GameQualityProgress";
 import { useEffect, useRef, useState } from "react";
@@ -89,7 +90,8 @@ export function App() {
   const openGamesAt = (targetId: "import" | "opening-inbox"): void => {
     setView("games");
     if (targetId === "import") setShowGameImport(true);
-    window.history.pushState(null, "", "#games");
+    window.history.pushState(null, "", targetId === "import" ? "#games?add" : "#games?view=patterns");
+    setGameReviewFocusToken(value => value + 1);
     requestAnimationFrame(() => requestAnimationFrame(() => {
       document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" });
     }));
@@ -191,6 +193,7 @@ export function App() {
                 </div>
               </div>
             </section>
+            <LearningFocus key={profileEpoch} refreshToken={refreshToken} gameDays={gameDays} onStart={startSession}/>
             <Dashboard compact gameDays={gameDays} onGameDaysChanged={days => { setGameDays(days); setTrainingRequest(null); }} practiceActive={Boolean(session)} onChooseGames={() => navigate("games")} onImport={() => openGamesAt("import")} refreshToken={refreshToken} onChooseMode={chooseMode} onStartSession={startSession} onProfileChanged={() => {
               setSession(null); setDailyPlanActive(false); setTrainingRequest(null); setProfileEpoch(value=>value+1);setRefreshToken((value) => value + 1);
             }} />
@@ -250,8 +253,8 @@ export function App() {
               <h1>My games</h1>
               <p>Choose a saved game to replay it and practise the moves you missed.</p>
             </div>
-            <ImportPanel key={profileEpoch} refreshToken={refreshToken} onAnalyzed={refreshAfterGameAnalysis} expanded={showGameImport} onExpandedChange={setShowGameImport} />
             <GameReview
+              importPanel={hideForm=><ImportPanel hideForm={hideForm} key={profileEpoch} refreshToken={refreshToken} onAnalyzed={refreshAfterGameAnalysis} expanded={showGameImport} onExpandedChange={setShowGameImport} />}
               refreshToken={refreshToken}
               focusToken={gameReviewFocusToken}
               onTrain={trainItem}

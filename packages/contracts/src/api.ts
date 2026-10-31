@@ -1087,8 +1087,9 @@ export interface OpeningStudyDiscoveryResponse {
 export interface GameReplayMove {
   ply:number; moveNumber:number; moverColor:Color; uci:string; san:string; fenBefore:string; fenAfter:string;
 }
-export type GamePracticeFilter = "recommended" | "mistakes" | "opening";
+export type GamePracticeFilter = "recommended" | "mistakes" | "opening" | "attacking" | "defending" | "mates";
 export interface GamePracticeRound {
+  maxMateIn?: number;
   filters: GamePracticeFilter[];
   checkpointIds: string[];
   reviewedIds: string[];
@@ -1096,6 +1097,10 @@ export interface GamePracticeRound {
   status: "active" | "completed";
 }
 export interface GameReplayCheckpoint {
+  categories?: Array<"attacking"|"defending"|"mates">;
+  pattern?: string;
+  mateIn?: number;
+  practiceEligible?: boolean;
   id:string; ply:number; kind:"opening"|"engine"|"opponent"|"gap";
   label:string; question:string; canRecall:boolean; canSchedule:boolean; keyDecision?:boolean;
   attempts:number; recalled:boolean;
@@ -1107,6 +1112,8 @@ export interface GameReplayResponse {
   displayFen:string; displayMove:string|null; updatesAvailable:boolean; analysisPending:boolean;
   keyStudyComplete?:boolean;
   practice?: GamePracticeRound;
+  tacticalEvidenceAvailable?: boolean;
+  maxMateIn?: number;
   feedback:null|{message:string; outcome:string; answers:Array<{uci:string;san:string}>; explanation:string;
     teachingLines?:GameReviewTeachingLine[]};
 }
@@ -1115,6 +1122,7 @@ export interface GameReplayAction {
   action:"latest"|"next"|"previous"|"jump"|"retry"|"answer"|"reveal"|"refresh"|"schedule"|"skip"|"key_study"|"next_key"|"practice_start"|"practice_next"|"practice_skip"|"practice_exit";
   ply?:number; checkpointId?:string; moveUci?:string;
   filters?: GamePracticeFilter[];
+  maxMateIn?: number;
 }
 
 export interface OpeningStudyQuiz {
@@ -1195,4 +1203,11 @@ export interface DailyPracticePlan {
 export interface GameReviewTeachingLine {
   label: string;
   steps: Array<{fen:string;uci:string;san:string}>;
+}
+
+export interface LearningFocusPlan {
+ profileId:string|null;gameDays:number|null;timeControl:string|null;timeControls:string[];cohort:string|null;
+ eligibleGames:number;analysedGames:number;message:string;
+ focus:null|{id:string;title:string;provisional:boolean;games:number;reason:string;nextStep:string;dueCount:number;nextDueAt:string|null;
+ sources:Array<{gameId:string;ply:number;white:string;black:string;playedAt:string}>;itemIds:string[]};
 }

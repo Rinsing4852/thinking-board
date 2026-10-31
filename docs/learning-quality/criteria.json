@@ -1,0 +1,96 @@
+{
+  "stages": [
+    {
+      "id": 1,
+      "name": "Focused game page",
+      "requirements": [
+        "LR07",
+        "LR10",
+        "LR11"
+      ],
+      "checks": [
+        {
+          "id": "G1_NAV",
+          "kind": "unit",
+          "description": "Game routes preserve detail, position and return destinations without inventing games."
+        },
+        {
+          "id": "G1_UI",
+          "kind": "browser",
+          "description": "Library and focused review are separate; Back restores search, one board, no analysis on navigation."
+        },
+        {
+          "id": "G1_PATTERNS",
+          "kind": "browser",
+          "description": "Opening patterns are bounded and expandable; all remain reachable outside game detail."
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Evidence-based tactical practice",
+      "requirements": [
+        "LR04",
+        "LR05",
+        "LR06",
+        "LR07"
+      ],
+      "checks": [
+        {
+          "id": "G2_PROOF",
+          "kind": "unit",
+          "description": "Attack/defence tags require legal stored engine evidence; neutral moves and incomplete proof stay unlabelled."
+        },
+        {
+          "id": "G2_MATE",
+          "kind": "unit",
+          "description": "Mate distances use learner moves, both colours, selectable limits 1\u20134, exclude mate 17 and keep valid alternatives."
+        },
+        {
+          "id": "G2_UI",
+          "kind": "browser",
+          "description": "Tactical filters and mate limit persist, retain hidden answers and distinguish missing evidence from no errors."
+        },
+        {
+          "id": "G2_ENGINE",
+          "kind": "engine",
+          "description": "Real Stockfish labelled sound-move and tactical cases retain correct filters; fake engines cannot satisfy this gate."
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Cross-game learning focus",
+      "requirements": [
+        "LR01",
+        "LR02",
+        "LR03",
+        "LR08",
+        "LR09",
+        "LR11"
+      ],
+      "checks": [
+        {
+          "id": "G3_PLAN",
+          "kind": "unit",
+          "description": "Recurring objective patterns use distinct game evidence, bounded selection and transparent ranking; sparse evidence stays provisional."
+        },
+        {
+          "id": "G3_HISTORY",
+          "kind": "unit",
+          "description": "Profiles, time-control/analysis cohorts, recency and repetitions remain separate; selecting a focus creates no analysis or credit."
+        },
+        {
+          "id": "G3_UI",
+          "kind": "browser",
+          "description": "The learner sees a supported focus, reason, source games and a direct practice action with no extra board or forced cloud service."
+        }
+      ]
+    }
+  ],
+  "manual": [
+    "Physical Safari and assistive-technology usability",
+    "Learner understands the recommendation without explanation from the developer",
+    "Delayed recall, unfamiliar-position transfer and fewer serious errors in later games"
+  ]
+}

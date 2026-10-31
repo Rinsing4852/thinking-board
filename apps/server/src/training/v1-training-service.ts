@@ -327,7 +327,7 @@ export class V1TrainingService {
     };
   }
 
-  createSession(requestedSize = 15, gameDays: number | null = null): TrainingSessionResponse {
+  createSession(requestedSize = 15, gameDays: number | null = null, focusItemIds?:string[]): TrainingSessionResponse {
     gameDays = parseGameDays(gameDays);
     const scope = practiceScope(gameDays);
     const size = Math.max(1, Math.min(50, Math.round(requestedSize)));
@@ -342,7 +342,7 @@ export class V1TrainingService {
       const resumed = this.session(existing.id);
       if (resumed.status === "active") return resumed;
     }
-    const mix = this.recommendedMix(size, profile.id, gameDays);
+    const mix = focusItemIds ? [{mode:"blunder_check",count:size}] : this.recommendedMix(size, profile.id, gameDays);
     const selected: Array<{ itemId: string; mode: string; ordinal: number }> = [];
     let similarDeferredCount = 0;
     for (const allocation of mix) {
@@ -359,13 +359,13 @@ export class V1TrainingService {
           WHERE tic2.active = 1 AND ti2.profile_id = ?
           GROUP BY tic2.concept_id
         ) concept_frequency ON concept_frequency.concept_id = tic.concept_id
-        WHERE ti.profile_id = ? AND ti.mode = ? AND ti.active = 1 AND rs.due_at <= ? ${scope.sql}
+        WHERE ti.profile_id = ? AND ti.mode = ? AND ti.active = 1 AND rs.due_at <= ? ${scope.sql} ${focusItemIds?.length?`AND ti.id IN (${focusItemIds.map(()=>'?').join(',')})`:focusItemIds?'AND 0':''}
         GROUP BY ti.id
         ORDER BY CASE WHEN rs.due_at <= ? THEN 0 ELSE 1 END,
                  CASE WHEN rs.last_result IS NOT NULL AND rs.last_result != 'excellent' THEN 0 ELSE 1 END,
                  repeated_concepts DESC, (rs.attempts - rs.successes) DESC,
                  rs.average_response_ms DESC, ti.created_at DESC, RANDOM()
-      `).all(profile.id, profile.id, allocation.mode, now(), ...scope.params, now()) as Array<{ id: string }>;
+      `).all(profile.id, profile.id, allocation.mode, now(), ...scope.params,...(focusItemIds??[]), now()) as Array<{ id: string }>;
       const groups = tacticalSessionGroups(this.db, rows.map(row=>row.id));
       const represented = new Set<string>();
       const chosen = new Set<string>();

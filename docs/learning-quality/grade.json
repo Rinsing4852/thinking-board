@@ -1,0 +1,284 @@
+{
+  "engine": {
+    "name": "Stockfish 18",
+    "cases": 16,
+    "fullGameCases": 9,
+    "selection": {
+      "negativeCases": 6,
+      "falseTacticalCases": 0,
+      "positiveCases": 5,
+      "missedTacticalCases": 0
+    }
+  },
+  "generatedAt": "2026-10-31T13:12:54.965Z",
+  "current": true,
+  "run": {
+    "engineImage": "fc40f0f1f24e",
+    "measuredAt": "2026-10-31T12:54:31.868Z",
+    "stage": 3,
+    "fingerprint": "cf5af8616c042775cbbf6a759a89dae03a559e6347527aaa5badc50460f4fb61",
+    "unchanged": true,
+    "steps": [
+      {
+        "name": "grader",
+        "passed": true
+      },
+      {
+        "name": "types",
+        "passed": true
+      },
+      {
+        "name": "unit suite",
+        "passed": true
+      },
+      {
+        "name": "build",
+        "passed": true
+      },
+      {
+        "name": "browser gates",
+        "passed": true
+      },
+      {
+        "name": "real Stockfish: smoke-tactical-training.mjs",
+        "passed": true
+      },
+      {
+        "name": "real Stockfish: smoke-thinking-exercises.mjs",
+        "passed": true
+      }
+    ]
+  },
+  "status": "PASS",
+  "stages": [
+    {
+      "id": 1,
+      "name": "Focused game page",
+      "requirements": [
+        "LR07",
+        "LR10",
+        "LR11"
+      ],
+      "checks": [
+        {
+          "id": "G1_NAV",
+          "kind": "unit",
+          "description": "Game routes preserve detail, position and return destinations without inventing games.",
+          "status": "passed",
+          "evidence": [
+            {
+              "title": "[G1_NAV] preserves focused game and position links while keeping library and patterns separate",
+              "status": "passed",
+              "file": "apps/web/src/game-navigation.test.ts"
+            }
+          ]
+        },
+        {
+          "id": "G1_UI",
+          "kind": "browser",
+          "description": "Library and focused review are separate; Back restores search, one board, no analysis on navigation.",
+          "status": "passed",
+          "evidence": [
+            {
+              "title": "[G1_UI] separates library and focused board and restores search on Back and reload",
+              "project": "chromium",
+              "status": "passed",
+              "file": "learning-quality.spec.ts"
+            },
+            {
+              "title": "[G1_UI] separates library and focused board and restores search on Back and reload",
+              "project": "webkit",
+              "status": "passed",
+              "file": "learning-quality.spec.ts"
+            }
+          ]
+        },
+        {
+          "id": "G1_PATTERNS",
+          "kind": "browser",
+          "description": "Opening patterns are bounded and expandable; all remain reachable outside game detail.",
+          "status": "passed",
+          "evidence": [
+            {
+              "title": "[G1_PATTERNS] bounds pattern rows and expands one pattern without losing the complete inbox",
+              "project": "chromium",
+              "status": "passed",
+              "file": "learning-quality.spec.ts"
+            },
+            {
+              "title": "[G1_PATTERNS] bounds pattern rows and expands one pattern without losing the complete inbox",
+              "project": "webkit",
+              "status": "passed",
+              "file": "learning-quality.spec.ts"
+            }
+          ]
+        }
+      ],
+      "status": "PASS",
+      "verified": 3,
+      "required": 3
+    },
+    {
+      "id": 2,
+      "name": "Evidence-based tactical practice",
+      "requirements": [
+        "LR04",
+        "LR05",
+        "LR06",
+        "LR07"
+      ],
+      "checks": [
+        {
+          "id": "G2_PROOF",
+          "kind": "unit",
+          "description": "Attack/defence tags require legal stored engine evidence; neutral moves and incomplete proof stay unlabelled.",
+          "status": "passed",
+          "evidence": [
+            {
+              "title": "[G2_PROOF] refuses neutral development and malformed proof while identifying a legal mating threat",
+              "status": "passed",
+              "file": "apps/server/src/games/game-tactical-evidence.test.ts"
+            },
+            {
+              "title": "[G2_PROOF] recognises missed captures and forks only with retained material evidence",
+              "status": "passed",
+              "file": "apps/server/src/games/game-tactical-evidence.test.ts"
+            }
+          ]
+        },
+        {
+          "id": "G2_MATE",
+          "kind": "unit",
+          "description": "Mate distances use learner moves, both colours, selectable limits 1–4, exclude mate 17 and keep valid alternatives.",
+          "status": "passed",
+          "evidence": [
+            {
+              "title": "[G2_MATE] verifies both colours, alternatives, 1–4 limits and rejects long or unproved mates",
+              "status": "passed",
+              "file": "apps/server/src/games/game-tactical-evidence.test.ts"
+            }
+          ]
+        },
+        {
+          "id": "G2_UI",
+          "kind": "browser",
+          "description": "Tactical filters and mate limit persist, retain hidden answers and distinguish missing evidence from no errors.",
+          "status": "passed",
+          "evidence": [
+            {
+              "title": "[G2_UI] offers verified tactical categories and retains the selected mating limit",
+              "project": "chromium",
+              "status": "passed",
+              "file": "learning-quality.spec.ts"
+            },
+            {
+              "title": "[G2_UI] offers verified tactical categories and retains the selected mating limit",
+              "project": "webkit",
+              "status": "passed",
+              "file": "learning-quality.spec.ts"
+            }
+          ]
+        },
+        {
+          "id": "G2_ENGINE",
+          "kind": "engine",
+          "description": "Real Stockfish labelled sound-move and tactical cases retain correct filters; fake engines cannot satisfy this gate.",
+          "status": "passed",
+          "evidence": [
+            {
+              "title": "[G2_ENGINE] labelled real Stockfish regression",
+              "status": "passed",
+              "file": "scripts/smoke-tactical-training.mjs"
+            }
+          ]
+        }
+      ],
+      "status": "PASS",
+      "verified": 4,
+      "required": 4
+    },
+    {
+      "id": 3,
+      "name": "Cross-game learning focus",
+      "requirements": [
+        "LR01",
+        "LR02",
+        "LR03",
+        "LR08",
+        "LR09",
+        "LR11"
+      ],
+      "checks": [
+        {
+          "id": "G3_PLAN",
+          "kind": "unit",
+          "description": "Recurring objective patterns use distinct game evidence, bounded selection and transparent ranking; sparse evidence stays provisional.",
+          "status": "passed",
+          "evidence": [
+            {
+              "title": "[G3_PLAN] builds an explainable recurring focus with distinct games and bounded due practice",
+              "status": "passed",
+              "file": "apps/server/src/training/learning-focus-service.test.ts"
+            }
+          ]
+        },
+        {
+          "id": "G3_HISTORY",
+          "kind": "unit",
+          "description": "Profiles, time-control/analysis cohorts, recency and repetitions remain separate; selecting a focus creates no analysis or credit.",
+          "status": "passed",
+          "evidence": [
+            {
+              "title": "[G3_HISTORY] isolates cohorts, filters and profiles without resetting completed practice",
+              "status": "passed",
+              "file": "apps/server/src/training/learning-focus-service.test.ts"
+            },
+            {
+              "title": "[G3_HISTORY] excludes stale exercise evidence when the latest assessment is no longer a mistake",
+              "status": "passed",
+              "file": "apps/server/src/training/learning-focus-service.test.ts"
+            }
+          ]
+        },
+        {
+          "id": "G3_UI",
+          "kind": "browser",
+          "description": "The learner sees a supported focus, reason, source games and a direct practice action with no extra board or forced cloud service.",
+          "status": "passed",
+          "evidence": [
+            {
+              "title": "[G3_UI] explains a recurring weakness, links its games and starts existing focused practice",
+              "project": "chromium",
+              "status": "passed",
+              "file": "learning-quality.spec.ts"
+            },
+            {
+              "title": "[G3_UI] explains a recurring weakness, links its games and starts existing focused practice",
+              "project": "webkit",
+              "status": "passed",
+              "file": "learning-quality.spec.ts"
+            }
+          ]
+        }
+      ],
+      "status": "PASS",
+      "verified": 3,
+      "required": 3
+    }
+  ],
+  "manual": [
+    {
+      "description": "Physical Safari and assistive-technology usability",
+      "status": "unmeasured"
+    },
+    {
+      "description": "Learner understands the recommendation without explanation from the developer",
+      "status": "unmeasured"
+    },
+    {
+      "description": "Delayed recall, unfamiliar-position transfer and fewer serious errors in later games",
+      "status": "unmeasured"
+    }
+  ],
+  "scope": "Engineering acceptance only. Human usability and learning benefit are not established."
+}

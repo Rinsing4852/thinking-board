@@ -26,7 +26,7 @@ export function GameReplay({gameId,onRefreshed,requestedPosition}:{gameId:string
   };
   const load=()=>void run(async signal=>{const response=await get<GameReplayResponse>(endpoint,signal);if(!signal.aborted){setData(response);setNeedsReload(false);}});
   useEffect(()=>{load();return()=>request.current?.abort();},[endpoint]);
-  const act=(action:GameReplayAction["action"],details:Partial<Pick<GameReplayAction,"ply"|"checkpointId"|"moveUci"|"filters">>={},focus=false)=>{
+  const act=(action:GameReplayAction["action"],details:Partial<Pick<GameReplayAction,"ply"|"checkpointId"|"moveUci"|"filters"|"maxMateIn">>={},focus=false)=>{
     if(!data||needsReload)return;
     void run(async signal=>{
       const response=await post<GameReplayResponse>(endpoint,{snapshotId:data.snapshotId,version:data.version,action,...details},signal);

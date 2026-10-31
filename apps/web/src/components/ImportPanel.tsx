@@ -14,9 +14,10 @@ interface ImportPanelProps {
   refreshToken: number;
   onAnalyzed: () => void;
   expanded?: boolean;
+  hideForm?: boolean;
   onExpandedChange?: (open: boolean) => void;
 }
-export function ImportPanel({ refreshToken, onAnalyzed, expanded = false, onExpandedChange }: ImportPanelProps) {
+export function ImportPanel({ refreshToken, onAnalyzed, expanded = false, hideForm = false, onExpandedChange }: ImportPanelProps) {
   const [pgn, setPgn] = useState("");
   const [playerName, setPlayerName] = useState("");
   const [preview, setPreview] = useState<PgnPreviewResponse | null>(null);
@@ -203,8 +204,8 @@ export function ImportPanel({ refreshToken, onAnalyzed, expanded = false, onExpa
   };
 
   return (
-    <section className="panel import-panel" id="import">
-      <details className="workflow-disclosure game-import-disclosure" open={expanded} onToggle={event => onExpandedChange?.(event.currentTarget.open)}>
+    <section className="panel import-panel" id="import" hidden={hideForm && !status && !job && !pollError}>
+      <details hidden={hideForm} className="workflow-disclosure game-import-disclosure" open={expanded} onToggle={event => onExpandedChange?.(event.currentTarget.open)}>
       <summary>Add a game</summary>
       <div className="panel-heading">
         <div>

@@ -9,3 +9,5 @@ test-results/
 *.log
 .DS_Store
 .env
+
+docs/learning-quality/raw/

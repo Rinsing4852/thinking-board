@@ -1,3 +1,4 @@
+import { openGameReport } from "./workflow-helpers";
 import { expect, test } from "@playwright/test";
 test.use({ baseURL: "http://127.0.0.1:8192" });
 
@@ -33,6 +34,7 @@ test("imports Chess.com games through the existing review and requested-analysis
   if (!(await add.evaluate(element => (element as HTMLDetailsElement).open))) await add.locator("summary").first().click();
   await expect(card.locator("summary")).toContainText(`Connected as ${username}`);
   await page.goto(`/#games?game=${imported[0].id}`);
+  await openGameReport(page);
   const report = page.getByRole("region", { name: "Game move-quality report", exact: true });
   await expect(report).toContainText("No move-quality report yet");
   await report.getByRole("button", { name: "Analyse this game", exact: true }).click();
@@ -41,6 +43,7 @@ test("imports Chess.com games through the existing review and requested-analysis
   await expect(page.getByRole("region", { name: "Saved game replay", exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("chesscom-game-review.png"), fullPage: true });
+  await page.getByRole("button", {name:"Back to games",exact:true}).click();
   if (!(await add.evaluate(element => (element as HTMLDetailsElement).open))) await add.locator("summary").first().click();
   await card.locator("summary").click();
   await card.screenshot({ path: info.outputPath("chesscom-import-controls.png") });

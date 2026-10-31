@@ -59,6 +59,11 @@ try{
  let review=replay.get(game);
  assert(review.checkpoints.filter(point=>point.keyDecision).length<=3);
  assert.equal(review.checkpoints.filter(point=>point.kind==='engine'&&[55,57,59].includes(point.ply)&&point.keyDecision).length,1);
+ if(process.argv.includes('--learning-quality'))for(const ply of [55,57,59]){
+  const point=review.checkpoints.find(p=>p.kind==='engine'&&p.ply===ply);
+  assert(point?.categories?.includes('attacking'),`Missed queen capture at ply ${ply} must be attacking practice`);
+  assert(point?.categories?.includes('defending'),`Allowed queen capture at ply ${ply} must also be defensive practice`);
+ }
  const key=review.checkpoints.find(point=>point.kind==='engine'&&point.ply===55);assert(key?.canSchedule);
  const act=(action,details={})=>{review=replay.act(game,{snapshotId:review.snapshotId,version:review.version,action,...details});return review;};
  act('jump',{ply:key.ply,checkpointId:key.id});assert.equal(review.feedback,null);act('reveal');
@@ -82,5 +87,5 @@ try{
  results.push({name:'Daily routine links completed opening recall to saved game practice without starting another analysis',passed:true});
  analysis.backfillBlunderChecks();analysis.backfillWhatChanged();analysis.backfillCandidates();analysis.backfillV1();
  assert.equal(db.prepare('SELECT COUNT(*) FROM jobs').pluck().get(),0);assert.deepEqual(db.pragma('foreign_key_check'),[]);
- console.log(JSON.stringify({measuredAt:new Date().toISOString(),engine:'Stockfish 18',depth:12,scope:'Anonymised full-game regression, not site-equivalent centipawn scores',results},null,2));
+ console.log(JSON.stringify({learningQuality:process.argv.includes('--learning-quality'),measuredAt:new Date().toISOString(),engine:db.prepare('SELECT engine_name FROM analysis_runs LIMIT 1').pluck().get(),depth:12,scope:'Anonymised full-game regression, not site-equivalent centipawn scores',results},null,2));
 }finally{await candidates.close();await analysis.close();database.close();}

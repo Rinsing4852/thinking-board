@@ -1,3 +1,9 @@
+import {UciEngine} from "../dist/apps/server/src/analysis/uci-engine.js";
+import {forcedMate} from "../dist/apps/server/src/games/game-tactical-evidence.js";
+import {GameReplayService} from "../dist/apps/server/src/games/game-replay-service.js";
+import {OpeningGameService} from "../dist/apps/server/src/openings/opening-game-service.js";
+import {OpeningReviewService} from "../dist/apps/server/src/openings/opening-review-service.js";
+import {setActiveProfile} from "../dist/apps/server/src/training/profile.js";
 // Focused real-engine checks. Disposable memory database; never a live library.
 import assert from 'node:assert/strict';
 import {loadConfig} from '../dist/apps/server/src/config.js';
@@ -35,7 +41,23 @@ try {
   assert.equal(items.length,f.expected?2:0,f.name);
   if(index===0)assert(['best','good','inaccuracy'].includes(row.grade));
   const responses=items.length?db.prepare('SELECT move_san FROM acceptable_responses WHERE item_id=?').all(items[0].id).map(r=>r.move_san):[];
+  if(process.argv.includes('--learning-quality')){
+    setActiveProfile(db,saved.profileId);
+    const replay=new GameReplayService(db,new OpeningGameService(db),new OpeningReviewService(db)).get(game);
+    const point=replay.checkpoints.find(p=>p.id===`engine:${move}`);
+    assert.equal(Boolean(point?.categories?.includes('defending')),f.expected,`${f.name}: defensive filter`);
+  }
   results.push({name:f.name,motif:f.motif??'existing_regression',expectedTactical:f.expected,passed:true,grade:row.grade,chanceLoss:row.chance_loss,exercises:items.length,responses});
+ }
+ if(process.argv.includes('--learning-quality')){
+  const mateEngine=new UciEngine(config.stockfishBinary,1,32);
+  try{for(const fixture of [
+    {fen:'7k/8/6K1/8/8/8/Q7/8 w - - 0 1',mate:1},
+    {fen:'7k/8/5K2/8/8/8/Q7/8 w - - 0 1',mate:2},
+    {fen:'7k/8/8/5K2/8/8/Q7/8 w - - 0 1',mate:3},
+    {fen:'7k/8/8/8/5K2/8/Q7/8 w - - 0 1',mate:4},
+  ]){const analysed=await mateEngine.analyze(fixture.fen,16,1),line=analysed.lines[0];assert.equal(line.mateInWhite,fixture.mate);assert.equal(forcedMate(fixture.fen,line.moveUci,fixture.mate),true);results.push({name:`Real Stockfish mate in ${fixture.mate} verified against all legal defences`,passed:true});}}
+  finally{await mateEngine.close();}
  }
  const before=db.prepare('SELECT COUNT(*) FROM training_items WHERE active=1 AND mode IN (\'blunder_check\',\'punish_blunder\')').pluck().get();
  const attempts=db.prepare('SELECT COUNT(*) FROM training_attempts').pluck().get();
@@ -45,5 +67,5 @@ try {
  assert.equal(db.prepare('SELECT COUNT(*) FROM jobs').pluck().get(),0);
  assert.deepEqual(db.pragma('foreign_key_check'),[]);
  results.push({name:'Saved-analysis revalidation is idempotent and creates no engine job',passed:true});
- console.log(JSON.stringify({measuredAt:new Date().toISOString(),engine:db.prepare('SELECT engine_name FROM analysis_runs LIMIT 1').pluck().get(),scope:'Small labelled tactical-selection regression corpus; not general precision, recall or an engine-strength benchmark',selection:{negativeCases:fixtures.filter(f=>!f.expected).length,falseTacticalCases:results.filter(r=>r.expectedTactical===false&&r.exercises>0).length,positiveCases:fixtures.filter(f=>f.expected).length,missedTacticalCases:results.filter(r=>r.expectedTactical===true&&r.exercises!==2).length},results},null,2));
+ console.log(JSON.stringify({learningQuality:process.argv.includes('--learning-quality'),measuredAt:new Date().toISOString(),engine:db.prepare('SELECT engine_name FROM analysis_runs LIMIT 1').pluck().get(),scope:'Small labelled tactical-selection regression corpus; not general precision, recall or an engine-strength benchmark',selection:{negativeCases:fixtures.filter(f=>!f.expected).length,falseTacticalCases:results.filter(r=>r.expectedTactical===false&&r.exercises>0).length,positiveCases:fixtures.filter(f=>f.expected).length,missedTacticalCases:results.filter(r=>r.expectedTactical===true&&r.exercises!==2).length},results},null,2));
 }finally{await analysis.close();database.close();}

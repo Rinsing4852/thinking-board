@@ -61,6 +61,8 @@ export function OpeningGameInbox({
   onPrepared,
   onPreparationDecision,
 }: OpeningGameInboxProps) {
+  const [limit,setLimit]=useState(3);
+  const [expanded,setExpanded]=useState<string|null>(null);
   const [showReviewed, setShowReviewed] = useState(false);
   const [preparingKey, setPreparingKey] = useState<string | null>(null);
   if (!inbox) return <p className="opening-inbox-loading">Comparing games with your repertoire…</p>;
@@ -95,7 +97,7 @@ export function OpeningGameInbox({
         </div>
       ) : (
         <div className="opening-inbox-list">
-          {visibleGroups.map((group) => {
+          {visibleGroups.slice(0,limit).map((group) => {
             const latest = group.occurrences[0]!.game;
             const reviewed = group.unreviewedCount === 0;
             const departure = group.opening.departure;
@@ -113,6 +115,8 @@ export function OpeningGameInbox({
                   </div>
                   <span className="opening-inbox-frequency">{occurrenceLabel(group)}</span>
                 </div>
+                <button className="secondary" aria-expanded={expanded===group.key} onClick={()=>setExpanded(value=>value===group.key?null:group.key)}>Review pattern</button>
+                <div hidden={expanded!==group.key}>
                 <p>{group.opening.repertoire.name} · latest in {latest.white} – {latest.black}</p>
                 {group.opening.status === "player_deviation" && group.opening.expectedMove && (
                   <p className="opening-inbox-why">{hasOpeningReason(group.opening.expectedMove.explanation.summary)
@@ -157,11 +161,13 @@ export function OpeningGameInbox({
                     }}
                   />
                 )}
+                </div>
               </article>
             );
           })}
         </div>
       )}
+      {visibleGroups.length>limit&&<button className="secondary" onClick={()=>setLimit(value=>value+6)}>Show more patterns ({visibleGroups.length-limit} remaining)</button>}
     </div>
   );
 }

@@ -741,3 +741,13 @@ The labelled Stockfish regression corpus now includes a sound queen offer,
 a pinned defender, moving away a queen's defender, delayed recapture and quiet
 defence. These selected cases test false tactical cards and missed tactical
 cards separately; they are not general accuracy or competitor-parity scores.
+
+### Learning quality acceptance
+
+The three focused improvements—organised game review, verified tactical/mate
+practice and an explainable cross-game training focus—have a separate
+[quality checklist and pilot plan](docs/learning-quality/README.md).
+Run `npm run quality:learning -- --verify --stage 3` before expanding this work;
+see the guide for the required real Stockfish runtime. The generated
+[quality report](docs/learning-quality/QUALITY.md) grades current engineering
+evidence and keeps human usability and learning outcomes explicitly unmeasured.

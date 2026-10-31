@@ -1,3 +1,4 @@
+import {tacticalEvidence,verifiedMatingAnswers} from "./game-tactical-evidence.js";
 import { CandidateGenerator } from "../analysis/candidate-generator.js";
 import { Chess } from "chess.js";
 import type { GameOpeningConnection,GameReplayAction,GameReplayCheckpoint,GameReplayMove,GameReplayResponse,GameReviewTeachingLine,Color,GamePracticeRound } from "../../../../packages/contracts/src/api.js";
@@ -11,9 +12,9 @@ import type { OpeningReviewService } from "../openings/opening-review-service.js
 
 type Answer={uci:string;san:string};
 type Point=Omit<GameReplayCheckpoint,"attempts"|"recalled"|"canRecall">&{
-  answers:Answer[]; teachingLines?:GameReviewTeachingLine[]; priorityLoss?:number; answerNotes?:Record<string,string>; explanation:string; sourceMoveId:string; repertoireId?:string; positionId?:string|undefined;
+  matingAnswers?:Record<string,number>; answers:Answer[]; teachingLines?:GameReviewTeachingLine[]; priorityLoss?:number; answerNotes?:Record<string,string>; explanation:string; sourceMoveId:string; repertoireId?:string; positionId?:string|undefined;
 };
-type Snapshot={playerColor:Color;initialFen:string;moves:GameReplayMove[];points:Point[];analysisPending:boolean};
+type Snapshot={playerColor:Color;initialFen:string;moves:GameReplayMove[];points:Point[];analysisPending:boolean;evidenceVersion?:number};
 type State={ply:number;point:string|null;phase:GameReplayResponse["phase"];outcome:string;message:string;answerMove:string|null;tries:number;keyStudyComplete?:boolean;keyStudySeen?:string[];practice?:GamePracticeRound};
 type Saved={snapshot_id:string;version:number;state_json:string;content_json:string;source_revision:string;created_at:string};
 const initial=(ply=0,point:Point|undefined=undefined):State=>({ply,point:point?.id??null,phase:point?.answers.length?"question":"replay",outcome:"",message:"",answerMove:null,tries:0});
@@ -31,7 +32,7 @@ export class GameReplayService {
   private revision(gameId:string) {
     const run=this.db.prepare("SELECT id FROM analysis_runs WHERE game_id=? AND status='completed' ORDER BY completed_at DESC,id DESC LIMIT 1").pluck().get(gameId) as string|undefined;
     const opening=this.db.prepare("SELECT revision FROM opening_match_revision WHERE id=1").pluck().get();
-    return {run,revision:JSON.stringify([run??null,opening,this.tolerance,"teaching-v2"])};
+    return {run,revision:JSON.stringify([run??null,opening,this.tolerance,"teaching-v3"])};
   }
   private saved(gameId:string):Saved|undefined {
     const game=this.game(gameId);
@@ -75,8 +76,8 @@ export class GameReplayService {
         sourceMoveId:move.id,repertoireId:opening.repertoire.id,positionId,canSchedule:true});
     }
     if(source.run) {
-      const mistakes=this.db.prepare(`SELECT m.id,ma.classification,ma.comparison_loss FROM moves m JOIN move_assessments ma ON ma.move_id=m.id
-        WHERE m.game_id=? AND ma.run_id=? AND ma.meaningful=1 AND m.mover_color=? ORDER BY m.ply`).all(gameId,source.run,game.player_color) as Array<{id:string;classification:string;comparison_loss:number}>;
+      const mistakes=this.db.prepare(`SELECT m.id,ma.classification,ma.comparison_loss,ma.meaningful FROM moves m JOIN move_assessments ma ON ma.move_id=m.id
+        WHERE m.game_id=? AND ma.run_id=? AND (ma.meaningful=1 OR ma.eval_before_mate_white * CASE WHEN m.mover_color='white' THEN 1 ELSE -1 END>0) AND m.mover_color=? ORDER BY m.ply`).all(gameId,source.run,game.player_color) as Array<{id:string;classification:string;comparison_loss:number;meaningful:number}>;
       for(const mistake of mistakes) {
         const move=rows.find(move=>move.id===mistake.id);if(!move)continue;
         const lines=this.db.prepare(`SELECT el.move_uci AS uci,el.move_san AS san,el.centipawns_white AS cp,el.mate_in_white AS mate,el.pv_uci_json AS pv
@@ -85,25 +86,33 @@ export class GameReplayService {
         const legal=lines.filter(line=>{try {apply(move.fenBefore,line.uci);return line.cp!==null||line.mate!==null;}catch{return false;}});
         const utility=(line:typeof lines[number])=>(line.cp??((line.mate??0)>0?100_000-Math.min(100,line.mate!)*100:-100_000+Math.min(100,Math.abs(line.mate!))*100))*(game.player_color==="white"?1:-1);
         const best=Math.max(...legal.map(utility));
-        const answers=legal.filter(line=>best-utility(line)<=this.tolerance).map(({uci,san})=>({uci,san}));
+        let answers=legal.filter(line=>best-utility(line)<=this.tolerance).map(({uci,san})=>({uci,san}));
         const leading=legal.find(line=>utility(line)===best);
         const teachingLines:GameReviewTeachingLine[]=[];
         if(leading)teachingLines.push(this.teachingLine(move.fenBefore,leading.pv,leading.uci,"A better continuation"));
-        const reply=this.db.prepare(`SELECT el.move_uci AS uci,el.pv_uci_json AS pv FROM position_analyses pa
+        const reply=this.db.prepare(`SELECT el.move_uci AS uci,el.pv_uci_json AS pv,el.mate_in_white AS mate FROM position_analyses pa
           JOIN engine_lines el ON el.position_analysis_id=pa.id JOIN moves m ON m.to_position_id=pa.position_id
-          WHERE m.id=? AND pa.run_id=? AND el.rank=1`).get(move.id,source.run) as {uci:string;pv:string}|undefined;
+          WHERE m.id=? AND pa.run_id=? AND el.rank=1`).get(move.id,source.run) as {uci:string;pv:string;mate:number|null}|undefined;
         if(reply){let pv:string[]=[];try{pv=JSON.parse(reply.pv);}catch{};
           teachingLines.push(this.teachingLine(move.fenBefore,JSON.stringify([move.uci,...(Array.isArray(pv)&&pv[0]===reply.uci?pv:[reply.uci])]),move.uci,"What the opponent could do after your game move"));}
+        const evidence=tacticalEvidence(move.fenBefore,move.fenAfter,move.uci,game.player_color,leading,reply,Boolean(mistake.meaningful));
+        const matingAnswers=evidence.mateIn!==undefined?verifiedMatingAnswers(move.fenBefore,legal,game.player_color):undefined;
+        if(matingAnswers&&Object.keys(matingAnswers).length){
+          evidence.mateIn=Math.min(...Object.values(matingAnswers));evidence.practiceEligible=true;evidence.categories.push('mates');evidence.pattern='missed mate';
+          answers=legal.filter(line=>matingAnswers[line.uci]!==undefined).map(({uci,san})=>({uci,san}));
+        }
+        if(!mistake.meaningful&&evidence.mateIn===undefined)continue;
         const tactical=this.db.prepare(`SELECT bci.explanation FROM training_items ti JOIN blunder_check_items bci ON bci.item_id=ti.id
           WHERE ti.source_move_id=? AND ti.active=1`).pluck().get(move.id) as string|undefined;
-        points.push({id:`engine:${move.id}`,ply:move.ply-1,kind:"engine",label:`Analysed ${mistake.classification}`,
-          question:answers.length?"Find an improvement for your side before seeing the stored analysis.":"This move was flagged by analysis, but a legal answer is not available yet.",
+        points.push({id:`engine:${move.id}`,ply:move.ply-1,kind:"engine",label:!mistake.meaningful?"Missed mating opportunity":`Analysed ${mistake.classification}`,
+          ...evidence,...(matingAnswers?{matingAnswers}:{}),
+          question:evidence.categories.includes("mates")?"Find the first move of a forced mate. You can study the continuation after answering.":answers.length?"Find an improvement for your side before seeing the stored analysis.":"This move was flagged by analysis, but a legal answer is not available yet.",
           answers,teachingLines,priorityLoss:mistake.comparison_loss,explanation:(tactical?`${tactical} `:"")+`The stored engine analysis flagged ${move.san} as ${mistake.classification}. Answers shown are legal stored candidates within ${(this.tolerance/100).toFixed(2)} pawns of the best stored evaluation for your side when measured in pawns. Mate outcomes are compared separately. Unlisted moves have not been graded.`,
           sourceMoveId:move.id,canSchedule:answers.length>0});
       }
     }
     points.sort((a,b)=>a.ply-b.ply||(a.kind==="opening"?-1:b.kind==="opening"?1:a.id.localeCompare(b.id)));
-    const enginePoints=points.filter(point=>point.kind==='engine'&&point.answers.length);
+    const enginePoints=points.filter(point=>point.kind==='engine'&&point.answers.length&&point.practiceEligible!==false);
     const recent=new Map<string,{ply:number;group:string}>(),groups=new Map<string,string>();
     for(const point of enginePoints){
       const root=point.teachingLines?.[0]?.steps[0]?.uci??point.id,previous=recent.get(root);
@@ -118,7 +127,7 @@ export class GameReplayService {
     for(const point of points.filter(point=>point.kind==='opening'&&point.answers.length)){
       if(keyCount>=3)break;point.keyDecision=true;keyCount++;
     }
-    const content:Snapshot={playerColor:game.player_color,initialFen:game.initial_fen,moves:rows.map(({id:_,positionId:__,...move})=>move),points,analysisPending:!source.run};
+    const content:Snapshot={playerColor:game.player_color,initialFen:game.initial_fen,moves:rows.map(({id:_,positionId:__,...move})=>move),points,analysisPending:!source.run,evidenceVersion:1};
     const snapshot=id(),created=now(),state=initial(0,points.find(point=>point.ply===0));
     this.db.prepare("INSERT INTO game_review_snapshots(id,game_id,profile_id,source_revision,content_json,created_at) VALUES(?,?,?,?,?,?)").run(snapshot,gameId,game.profile_id,source.revision,JSON.stringify(content),created);
     this.db.prepare(`INSERT INTO game_review_replays(game_id,profile_id,snapshot_id,state_json,updated_at) VALUES(?,?,?,?,?)
@@ -127,11 +136,15 @@ export class GameReplayService {
   private teachingLine(fen:string,pvJson:string,root:string,label:string):GameReviewTeachingLine {
     let pv:unknown;try{pv=JSON.parse(pvJson);}catch{pv=[];}
     const moves=Array.isArray(pv)&&pv[0]===root?pv:[root],steps:GameReviewTeachingLine['steps']=[];
-    for(const uci of moves.slice(0,6)){
+    for(const uci of moves.slice(0,8)){
       if(typeof uci!=='string'||!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(uci))break;
       try{const result=apply(fen,uci);fen=result.fen;steps.push({fen,uci,san:result.san});}catch{break;}
     }
     return {label,steps};
+  }
+  private practicePoint(point:Point|undefined,state:State):Point|undefined {
+    if(!point?.matingAnswers||!state.practice)return point;
+    return {...point,answers:point.answers.filter(answer=>point.matingAnswers![answer.uci]!<=(state.practice?.maxMateIn??2))};
   }
   private openingAnswers(repertoireId:string,fen:string,profile:string):Answer[] {
     return this.db.prepare(`SELECT DISTINCT m.move_uci AS uci,m.move_san AS san FROM opening_moves m
@@ -169,16 +182,17 @@ export class GameReplayService {
   }
   private response(gameId:string,saved:Saved):GameReplayResponse {
     const content=JSON.parse(saved.content_json) as Snapshot,state=JSON.parse(saved.state_json) as State;
-    const point=content.points.find(point=>point.id===state.point);
+    const point=this.practicePoint(content.points.find(point=>point.id===state.point),state);
     const fen=state.ply===0?content.initialFen:content.moves[state.ply-1]!.fenAfter;
     const onBoard=state.phase==="feedback"&&state.answerMove?apply(fen,state.answerMove):null;
     const attempts=this.db.prepare("SELECT checkpoint_id,result FROM game_review_local_attempts WHERE snapshot_id=?").all(saved.snapshot_id) as Array<{checkpoint_id:string;result:string}>;
     return {gameId,snapshotId:saved.snapshot_id,savedAt:saved.created_at,version:saved.version,playerColor:content.playerColor,initialFen:content.initialFen,moves:content.moves,
-      checkpoints:content.points.map(({answers,answerNotes:_____,teachingLines:______,priorityLoss:_______,explanation:_,sourceMoveId:__,repertoireId:___,positionId:____,...point})=>({...point,canRecall:answers.length>0,
+      checkpoints:content.points.map(({matingAnswers:________,answers,answerNotes:_____,teachingLines:______,priorityLoss:_______,explanation:_,sourceMoveId:__,repertoireId:___,positionId:____,...point})=>({...point,canRecall:answers.length>0,
         attempts:attempts.filter(attempt=>attempt.checkpoint_id===point.id&&attempt.result!=="shown").length,
         recalled:attempts.some(attempt=>attempt.checkpoint_id===point.id&&attempt.result==="recalled")})),
       keyStudyComplete:state.keyStudyComplete??false,...(state.practice?{practice:state.practice}:{}),currentPly:state.ply,activeCheckpointId:state.point,phase:state.phase,displayFen:onBoard?.fen??fen,
       displayMove:onBoard?state.answerMove:state.ply?content.moves[state.ply-1]!.uci:null,
+      tacticalEvidenceAvailable:content.evidenceVersion===1,maxMateIn:Number(this.db.prepare("SELECT value FROM app_state WHERE key=?").pluck().get(`practice_mate:${this.game(gameId).profile_id}`)??2),
       analysisPending:content.analysisPending,updatesAvailable:this.revision(gameId).revision!==saved.source_revision,
       feedback:state.message||state.phase==="feedback"?{message:state.message,outcome:state.outcome,answers:state.phase==="feedback"?point?.answers??[]:[],explanation:state.phase==="feedback"?(point?.answerNotes?.[state.answerMove??""]??point?.explanation??""):"",...(state.phase==="feedback"&&point?.teachingLines?{teachingLines:point.teachingLines}:{})}:null};
   }
@@ -186,7 +200,7 @@ export class GameReplayService {
     return this.db.transaction(()=>{
       const saved=this.saved(gameId);if(!saved||saved.snapshot_id!==input.snapshotId||saved.version!==input.version)throw new Error("This game review changed in another tab. Reload the saved review before continuing.");
       const content=JSON.parse(saved.content_json) as Snapshot;let state=JSON.parse(saved.state_json) as State;
-      const point=content.points.find(point=>point.id===state.point);
+      const point=this.practicePoint(content.points.find(point=>point.id===state.point),state);
       const at=(ply:number,pointId?:string)=>{
         if(!Number.isSafeInteger(ply)||ply<0||ply>content.moves.length)throw new Error("Choose a position inside this game.");
         const selected=pointId?content.points.find(point=>point.id===pointId&&point.ply===ply):content.points.find(point=>point.ply===ply);
@@ -198,9 +212,13 @@ export class GameReplayService {
         const filters=input.filters;
         if(!filters?.length||filters.some(filter=>!GAME_PRACTICE_FILTERS.includes(filter))||new Set(filters).size!==filters.length
           ||(filters.includes('recommended')&&filters.length>1))throw new Error('Choose Recommended or one or more practice categories.');
-        const selected=selectGamePractice(content.points.map(candidate=>({...candidate,canRecall:candidate.answers.length>0})),filters);
+        const maxMateIn=input.maxMateIn??2;
+        if(!Number.isInteger(maxMateIn)||maxMateIn<1||maxMateIn>4)throw new Error('Choose a mate limit from 1 to 4 moves.');
+        if(filters.some(filter=>['attacking','defending','mates'].includes(filter))&&content.evidenceVersion!==1)throw new Error('Refresh saved feedback to enable verified tactical filters.');
+        const selected=selectGamePractice(content.points.map(candidate=>({...candidate,canRecall:candidate.answers.length>0})),filters,maxMateIn);
+        this.db.prepare("INSERT INTO app_state(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(`practice_mate:${this.game(gameId).profile_id}`,String(maxMateIn));
         if(!selected.length)throw new Error(content.analysisPending?'No saved answers match. Engine analysis has not been included in this review.':'No saved answers match these practice categories.');
-        state={...at(selected[0]!.ply,selected[0]!.id),practice:{filters,checkpointIds:selected.map(candidate=>candidate.id),reviewedIds:[],skippedIds:[],status:'active'}};
+        state={...at(selected[0]!.ply,selected[0]!.id),practice:{filters,maxMateIn,checkpointIds:selected.map(candidate=>candidate.id),reviewedIds:[],skippedIds:[],status:'active'}};
       } else if(input.action==='practice_next'||input.action==='practice_skip') {
         const round=state.practice;
         if(round?.status!=='active'||!point||!round.checkpointIds.includes(point.id))throw new Error('Start focused practice first.');

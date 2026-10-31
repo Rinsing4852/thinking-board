@@ -1,3 +1,4 @@
+import { openGameReport } from "./workflow-helpers";
 import { expect,test } from "@playwright/test";
 import { APP_VERSION } from "../../packages/contracts/src/version";
 test.use({baseURL:"http://127.0.0.1:8192"});
@@ -14,12 +15,14 @@ test("requests individual and selected/all analysis, retains reports, and compar
   const games=(await(await page.request.get("/api/v1/games")).json()).games;
   expect(games).toHaveLength(2);expect(await(await page.request.get("/api/v1/jobs/active")).json()).toBeNull();
   await page.goto(`/#games?game=${games[0].id}`);
+  await openGameReport(page);
   const report=page.getByRole("region",{name:"Game move-quality report",exact:true});
   await expect(report).toContainText("No move-quality report yet");
   await report.getByRole("button",{name:"Analyse this game",exact:true}).click();
   await expect(report.getByText("Engine accuracy",{exact:true})).toBeVisible({timeout:20000});
   const first=await(await page.request.get(`/api/v1/games/${games[0].id}/quality`)).json();
   expect(await(await page.request.get(`/api/v1/games/${games[1].id}/quality`)).json()).toBeNull();
+  await page.getByRole("button",{name:"Back to games",exact:true}).click();
   await page.getByRole("button",{name:"Select games to analyse",exact:true}).click();
   const selection=page.getByRole("region",{name:"Choose games for analysis",exact:true});
   await expect(selection.getByRole("button",{name:"Analyse selected games",exact:true})).toBeDisabled();
@@ -32,7 +35,8 @@ test("requests individual and selected/all analysis, retains reports, and compar
   await expect(page.getByRole("status").filter({hasText:"1 games queued · 0 already waiting · 1 saved reports kept."})).toBeVisible();
   await expect.poll(async()=>await(await page.request.get(`/api/v1/games/${games[1].id}/quality`)).json(),{timeout:20000}).not.toBeNull();
   expect((await(await page.request.get(`/api/v1/games/${games[0].id}/quality`)).json()).analyzedAt).toBe(first.analyzedAt);
-  await page.reload();
+  await page.goto(`/#games?game=${games[0].id}`);
+  await openGameReport(page);
   await expect(report.getByText("Engine accuracy",{exact:true})).toBeVisible();
   await report.locator("summary").filter({hasText:"Move grades and positions"}).click();
   await report.locator(".quality-move").first().click();
@@ -58,6 +62,8 @@ test("takes saved games from Today to requested analysis and opens the latest re
   const next=page.getByRole('region',{name:'Next step for saved games',exact:true});
   await expect(next).toContainText('1 saved games awaiting analysis');
   await next.getByRole('button',{name:'Choose games to analyse',exact:true}).click();
+  await page.locator('.game-chip').first().click();
+  await openGameReport(page);
   const report=page.getByRole('region',{name:'Game move-quality report',exact:true});
   await expect(report).toContainText('No move-quality report yet');
   const game=(await(await page.request.get('/api/v1/games')).json()).games[0];
@@ -65,6 +71,7 @@ test("takes saved games from Today to requested analysis and opens the latest re
   const original=await(await page.request.get(replayUrl)).json();
   await page.request.post(replayUrl,{data:{snapshotId:original.snapshotId,version:original.version,action:'jump',ply:1}});
   await page.reload();
+  await openGameReport(page);
   await report.getByRole('button',{name:'Analyse this game',exact:true}).click();
   await expect(report.getByText('Engine accuracy',{exact:true})).toBeVisible({timeout:20000});
   expect((await(await page.request.get(replayUrl)).json()).snapshotId).toBe(original.snapshotId);
