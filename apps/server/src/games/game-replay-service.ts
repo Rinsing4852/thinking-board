@@ -1,6 +1,7 @@
 import { CandidateGenerator } from "../analysis/candidate-generator.js";
 import { Chess } from "chess.js";
-import type { GameOpeningConnection,GameReplayAction,GameReplayCheckpoint,GameReplayMove,GameReplayResponse,GameReviewTeachingLine,Color } from "../../../../packages/contracts/src/api.js";
+import type { GameOpeningConnection,GameReplayAction,GameReplayCheckpoint,GameReplayMove,GameReplayResponse,GameReviewTeachingLine,Color,GamePracticeRound } from "../../../../packages/contracts/src/api.js";
+import { GAME_PRACTICE_FILTERS, selectGamePractice } from "../../../../packages/contracts/src/game-practice.js";
 import type { SqliteDatabase } from "../db/database.js";
 import { activeProfileId } from "../training/profile.js";
 import { id,now } from "../lib/ids.js";
@@ -13,7 +14,7 @@ type Point=Omit<GameReplayCheckpoint,"attempts"|"recalled"|"canRecall">&{
   answers:Answer[]; teachingLines?:GameReviewTeachingLine[]; priorityLoss?:number; answerNotes?:Record<string,string>; explanation:string; sourceMoveId:string; repertoireId?:string; positionId?:string|undefined;
 };
 type Snapshot={playerColor:Color;initialFen:string;moves:GameReplayMove[];points:Point[];analysisPending:boolean};
-type State={ply:number;point:string|null;phase:GameReplayResponse["phase"];outcome:string;message:string;answerMove:string|null;tries:number;keyStudyComplete?:boolean;keyStudySeen?:string[]};
+type State={ply:number;point:string|null;phase:GameReplayResponse["phase"];outcome:string;message:string;answerMove:string|null;tries:number;keyStudyComplete?:boolean;keyStudySeen?:string[];practice?:GamePracticeRound};
 type Saved={snapshot_id:string;version:number;state_json:string;content_json:string;source_revision:string;created_at:string};
 const initial=(ply=0,point:Point|undefined=undefined):State=>({ply,point:point?.id??null,phase:point?.answers.length?"question":"replay",outcome:"",message:"",answerMove:null,tries:0});
 const apply=(fen:string,uci:string)=>{const chess=new Chess(fen);const move=chess.move({from:uci.slice(0,2),to:uci.slice(2,4),...(uci.length===5?{promotion:uci.slice(4)}:{})});if(!move)throw new Error("Choose a legal move.");return {fen:chess.fen(),san:move.san};};
@@ -176,7 +177,7 @@ export class GameReplayService {
       checkpoints:content.points.map(({answers,answerNotes:_____,teachingLines:______,priorityLoss:_______,explanation:_,sourceMoveId:__,repertoireId:___,positionId:____,...point})=>({...point,canRecall:answers.length>0,
         attempts:attempts.filter(attempt=>attempt.checkpoint_id===point.id&&attempt.result!=="shown").length,
         recalled:attempts.some(attempt=>attempt.checkpoint_id===point.id&&attempt.result==="recalled")})),
-      keyStudyComplete:state.keyStudyComplete??false,currentPly:state.ply,activeCheckpointId:state.point,phase:state.phase,displayFen:onBoard?.fen??fen,
+      keyStudyComplete:state.keyStudyComplete??false,...(state.practice?{practice:state.practice}:{}),currentPly:state.ply,activeCheckpointId:state.point,phase:state.phase,displayFen:onBoard?.fen??fen,
       displayMove:onBoard?state.answerMove:state.ply?content.moves[state.ply-1]!.uci:null,
       analysisPending:content.analysisPending,updatesAvailable:this.revision(gameId).revision!==saved.source_revision,
       feedback:state.message||state.phase==="feedback"?{message:state.message,outcome:state.outcome,answers:state.phase==="feedback"?point?.answers??[]:[],explanation:state.phase==="feedback"?(point?.answerNotes?.[state.answerMove??""]??point?.explanation??""):"",...(state.phase==="feedback"&&point?.teachingLines?{teachingLines:point.teachingLines}:{})}:null};
@@ -191,7 +192,30 @@ export class GameReplayService {
         const selected=pointId?content.points.find(point=>point.id===pointId&&point.ply===ply):content.points.find(point=>point.ply===ply);
         if(pointId&&!selected)throw new Error("This decision is not in the saved game review.");return {...initial(ply,selected),keyStudyComplete:state.keyStudyComplete??false,...(state.keyStudySeen?{keyStudySeen:state.keyStudySeen}:{})};
       };
-      if(input.action==='key_study'){
+      if(state.practice?.status==='active'&&['next','previous','jump','skip','key_study','next_key'].includes(input.action))
+        throw new Error('Finish or exit focused practice before navigating the full game.');
+      if(input.action==='practice_start') {
+        const filters=input.filters;
+        if(!filters?.length||filters.some(filter=>!GAME_PRACTICE_FILTERS.includes(filter))||new Set(filters).size!==filters.length
+          ||(filters.includes('recommended')&&filters.length>1))throw new Error('Choose Recommended or one or more practice categories.');
+        const selected=selectGamePractice(content.points.map(candidate=>({...candidate,canRecall:candidate.answers.length>0})),filters);
+        if(!selected.length)throw new Error(content.analysisPending?'No saved answers match. Engine analysis has not been included in this review.':'No saved answers match these practice categories.');
+        state={...at(selected[0]!.ply,selected[0]!.id),practice:{filters,checkpointIds:selected.map(candidate=>candidate.id),reviewedIds:[],skippedIds:[],status:'active'}};
+      } else if(input.action==='practice_next'||input.action==='practice_skip') {
+        const round=state.practice;
+        if(round?.status!=='active'||!point||!round.checkpointIds.includes(point.id))throw new Error('Start focused practice first.');
+        if(input.action==='practice_next'&&state.phase!=='feedback')throw new Error('Try the position, show the answer or skip it before continuing.');
+        if(input.action==='practice_skip'&&state.phase!=='question')throw new Error('This position already has feedback. Continue to the next position.');
+        const reviewedIds=input.action==='practice_next'?[...new Set([...round.reviewedIds,point.id])]:round.reviewedIds;
+        const skippedIds=input.action==='practice_skip'?[...new Set([...round.skippedIds,point.id])]:round.skippedIds;
+        const nextId=round.checkpointIds.find(checkpoint=>!reviewedIds.includes(checkpoint)&&!skippedIds.includes(checkpoint));
+        const next=content.points.find(candidate=>candidate.id===nextId);
+        const practice:GamePracticeRound={...round,reviewedIds,skippedIds,status:next?'active':'completed'};
+        state=next?{...at(next.ply,next.id),practice}:{...state,practice};
+        if(!next&&input.action==='practice_skip')state={...initial(state.ply),practice};
+      } else if(input.action==='practice_exit') {
+        const {practice:_,...replay}=state;state=replay;
+      } else if(input.action==='key_study'){
         const first=content.points.find(point=>point.keyDecision&&point.answers.length);
         if(!first)throw new Error('No key decisions have saved answers in this review. Refresh after analysis.');
         state={...at(first.ply,first.id),keyStudySeen:[],keyStudyComplete:false};
@@ -215,7 +239,7 @@ export class GameReplayService {
         state=at(Math.min(content.moves.length,state.ply+1));
       } else if(input.action==="previous")state=at(Math.max(0,state.ply-1));
       else if(input.action==="jump")state=at(input.ply??-1,input.checkpointId);
-      else if(input.action==="retry") {if(!point?.answers.length)throw new Error("There is no saved answer at this decision.");state=initial(point.ply,point);}
+      else if(input.action==="retry") {if(!point?.answers.length)throw new Error("There is no saved answer at this decision.");state={...initial(point.ply,point),...(state.practice?.status==='active'?{practice:state.practice}:{})};}
       else if(input.action==="answer"||input.action==="reveal") {
         if(!point?.answers.length||state.phase!=="question")throw new Error("Open a recall decision first.");
         const fen=state.ply===0?content.initialFen:content.moves[state.ply-1]!.fenAfter;
@@ -224,8 +248,10 @@ export class GameReplayService {
           uci=input.moveUci??"";if(!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(uci))throw new Error("Choose a legal move on the board.");
           const played=apply(fen,uci);state.tries++;
           if(point.answers.some(answer=>answer.uci===uci)) {
-            result=state.tries===1?"recalled":"after_retry";state.phase="feedback";state.answerMove=uci;
-            state.message=`${played.san} is an accepted ${point.kind==="opening"?"repertoire response":"stored engine improvement"}${state.tries>1?" after another try":""}.`;
+            const earlierPractice=state.practice?.status==='active'&&Boolean(this.db.prepare(`SELECT 1 FROM game_review_local_attempts
+              WHERE snapshot_id=? AND checkpoint_id=? AND created_at>=? LIMIT 1`).get(saved.snapshot_id,point.id,now().slice(0,10)));
+            result=state.tries===1&&!earlierPractice?"recalled":"after_retry";state.phase="feedback";state.answerMove=uci;
+            state.message=`${played.san} is an accepted ${point.kind==="opening"?"repertoire response":"stored engine improvement"}${state.tries>1?" after another try":earlierPractice?" after earlier practice today":""}.`;
           } else {result="unverified";state.message=point.kind==="opening"?`${played.san} is not a saved response in this review. It may still be a good chess move. Try again or show the answer.`:`${played.san} is not among the accepted stored candidates. Other moves have not been graded here. Try again or show the answer.`;}
         } else {state.phase="feedback";state.answerMove=point.answers[0]!.uci;state.message="Answer shown. This was helped practice, not an unassisted recall.";}
         state.outcome=result;

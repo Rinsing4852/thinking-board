@@ -1087,6 +1087,14 @@ export interface OpeningStudyDiscoveryResponse {
 export interface GameReplayMove {
   ply:number; moveNumber:number; moverColor:Color; uci:string; san:string; fenBefore:string; fenAfter:string;
 }
+export type GamePracticeFilter = "recommended" | "mistakes" | "opening";
+export interface GamePracticeRound {
+  filters: GamePracticeFilter[];
+  checkpointIds: string[];
+  reviewedIds: string[];
+  skippedIds: string[];
+  status: "active" | "completed";
+}
 export interface GameReplayCheckpoint {
   id:string; ply:number; kind:"opening"|"engine"|"opponent"|"gap";
   label:string; question:string; canRecall:boolean; canSchedule:boolean; keyDecision?:boolean;
@@ -1098,13 +1106,15 @@ export interface GameReplayResponse {
   currentPly:number; activeCheckpointId:string|null; phase:"replay"|"question"|"feedback";
   displayFen:string; displayMove:string|null; updatesAvailable:boolean; analysisPending:boolean;
   keyStudyComplete?:boolean;
+  practice?: GamePracticeRound;
   feedback:null|{message:string; outcome:string; answers:Array<{uci:string;san:string}>; explanation:string;
     teachingLines?:GameReviewTeachingLine[]};
 }
 export interface GameReplayAction {
   snapshotId:string; version:number;
-  action:"latest"|"next"|"previous"|"jump"|"retry"|"answer"|"reveal"|"refresh"|"schedule"|"skip"|"key_study"|"next_key";
+  action:"latest"|"next"|"previous"|"jump"|"retry"|"answer"|"reveal"|"refresh"|"schedule"|"skip"|"key_study"|"next_key"|"practice_start"|"practice_next"|"practice_skip"|"practice_exit";
   ply?:number; checkpointId?:string; moveUci?:string;
+  filters?: GamePracticeFilter[];
 }
 
 export interface OpeningStudyQuiz {

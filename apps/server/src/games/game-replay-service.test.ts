@@ -194,3 +194,79 @@ it("shows legal defensive replies to the game move only after the answer is reve
   expect(lines[1]!.steps.map(step=>step.san)).toEqual(['g4','Qh4#']);
   expect(new Chess(lines[1]!.steps.at(-1)!.fen).isCheckmate()).toBe(true);
 });
+
+describe('focused practice rounds on the saved replay',()=>{
+  it('combines categories once per position, keeps answers hidden and retains the snapshot',()=>{
+    const f=setup();analysis(f,1,[['d2d4','d4',50,null]]);
+    let state=f.replay.get(f.gameId);const snapshot=state.snapshotId;
+    const existing=f.db.prepare('SELECT * FROM opening_review_events').all();
+    state=act(f.replay,state,'practice_start',{filters:['opening','mistakes']});
+    expect(state.snapshotId).toBe(snapshot);expect(state.practice?.checkpointIds).toHaveLength(1);
+    expect(state.activeCheckpointId).toMatch(/^engine:/);expect(state.phase).toBe('question');expect(state.feedback).toBeNull();
+    expect(JSON.stringify(state.practice)).not.toContain('d2d4');
+    expect(f.db.prepare('SELECT COUNT(*) FROM game_review_local_attempts').pluck().get()).toBe(0);
+    expect(f.db.prepare('SELECT * FROM opening_review_events').all()).toEqual(existing);
+    expect(f.db.prepare('SELECT COUNT(*) FROM jobs').pluck().get()).toBe(0);
+    expect(f.replay.get(f.gameId)).toEqual(state);
+  });
+
+  it('runs only the selected opening positions, skips without exposure and restores completion',()=>{
+    const f=setup('white','1. Nf3 Nf6 2. Ng1 Ng8 3. f3 e5 *','1. e4 e5 *');
+    let state=f.replay.get(f.gameId);
+    state=act(f.replay,state,'practice_start',{filters:['opening']});expect(state.currentPly).toBe(0);
+    expect(()=>act(f.replay,state,'practice_next')).toThrow('Try the position');
+    expect(()=>act(f.replay,state,'jump',{ply:4})).toThrow('exit focused practice');
+    state=act(f.replay,state,'practice_skip');expect(state.currentPly).toBe(4);
+    expect(state.practice?.skippedIds).toHaveLength(1);expect(state.phase).toBe('question');
+    expect(f.db.prepare('SELECT COUNT(*) FROM game_review_local_attempts').pluck().get()).toBe(0);
+    state=act(f.replay,state,'answer',{moveUci:'e2e4'});expect(state.feedback?.outcome).toBe('recalled');
+    state=act(f.replay,state,'practice_next');expect(state.practice?.status).toBe('completed');
+    expect(state.practice?.reviewedIds).toHaveLength(1);expect(state.practice?.skippedIds).toHaveLength(1);
+    expect(f.replay.get(f.gameId)).toEqual(state);
+    state=act(f.replay,state,'practice_exit');expect(state.practice).toBeUndefined();
+    state=act(f.replay,state,'jump',{ply:0});expect(state.currentPly).toBe(0);
+    expect(f.db.prepare('SELECT COUNT(*) FROM training_attempts').pluck().get()).toBe(0);
+  });
+
+  it('does not reclassify a same-day revealed answer as unaided when restarting a round',()=>{
+    const f=setup();let state=f.replay.get(f.gameId);
+    state=act(f.replay,state,'practice_start',{filters:['opening']});state=act(f.replay,state,'reveal');
+    const round=state.practice;state=act(f.replay,state,'retry');expect(state.practice).toEqual(round);
+    state=act(f.replay,state,'answer',{moveUci:'e2e4'});expect(state.feedback?.outcome).toBe('after_retry');
+    expect(state.feedback?.message).toContain('earlier practice today');
+    state=act(f.replay,state,'practice_next');state=act(f.replay,state,'practice_start',{filters:['opening']});
+    state=act(f.replay,state,'answer',{moveUci:'e2e4'});expect(state.feedback?.outcome).toBe('after_retry');
+    expect(f.db.prepare('SELECT result FROM game_review_local_attempts ORDER BY rowid').pluck().all()).toEqual(['shown','after_retry','after_retry']);
+  });
+
+  it('rejects invalid and empty categories without altering a legacy saved review',()=>{
+    const f=setup();const state=f.replay.get(f.gameId);
+    for(const filters of [[],['mistakes'],['recommended','opening'],['opening','opening'],['bogus']]) {
+      expect(()=>act(f.replay,state,'practice_start',{filters:filters as NonNullable<GameReplayAction['filters']>})).toThrow();
+      expect(f.replay.get(f.gameId)).toEqual(state);
+    }
+    const other=setup('white','1. e4 d5 2. exd5 Qxd5 *','1. e4 e5 *');
+    expect(()=>act(other.replay,other.replay.get(other.gameId),'practice_start',{filters:['opening']})).toThrow('No saved answers');
+  });
+
+  it('keeps black-side engine answers and normal scheduling in focused practice',()=>{
+    const f=setup('black','1. e4 f6 2. d4 e5 *','1. e4 e5 *');
+    analysis(f,2,[['e7e5','e5',-100,null],['c7c5','c5',-75,null]]);
+    let state=f.replay.get(f.gameId);state=act(f.replay,state,'practice_start',{filters:['mistakes']});
+    const version=state;
+    state=act(f.replay,state,'answer',{moveUci:'c7c5'});expect(state.feedback?.outcome).toBe('recalled');
+    expect(()=>act(f.replay,version,'practice_skip')).toThrow('another tab');
+    state=act(f.replay,state,'schedule');expect(state.practice?.status).toBe('active');
+    expect(f.db.prepare('SELECT COUNT(*) FROM game_review_practice_followups').pluck().get()).toBe(1);
+    state=act(f.replay,state,'practice_next');expect(state.practice?.status).toBe('completed');
+    expect(f.db.prepare('SELECT COUNT(*) FROM training_attempts').pluck().get()).toBe(0);
+  });
+
+  it('finishes an entirely skipped round with no phantom question or review credit',()=>{
+    const f=setup();let state=f.replay.get(f.gameId);
+    state=act(f.replay,state,'practice_start',{filters:['recommended']});state=act(f.replay,state,'practice_skip');
+    expect(state.practice?.status).toBe('completed');expect(state.practice?.reviewedIds).toHaveLength(0);
+    expect(state.phase).toBe('replay');expect(state.activeCheckpointId).toBeNull();expect(state.feedback).toBeNull();
+    expect(f.db.prepare('SELECT COUNT(*) FROM game_review_local_attempts').pluck().get()).toBe(0);
+  });
+});

@@ -2,6 +2,7 @@ import { useEffect,useRef,useState } from "react";
 import type { GameReplayAction,GameReplayResponse } from "../../../../packages/contracts/src/api";
 import { get,post } from "../api";
 import { ChessBoard } from "./ChessBoard";
+import { GamePracticeControls } from "./GamePracticeControls";
 
 export function GameReplay({gameId,onRefreshed,requestedPosition}:{gameId:string;onRefreshed?:()=>void;requestedPosition?:{ply:number;requestId:number}|null}) {
   const [data,setData]=useState<GameReplayResponse|null>(null),[busy,setBusy]=useState(false);
@@ -25,7 +26,7 @@ export function GameReplay({gameId,onRefreshed,requestedPosition}:{gameId:string
   };
   const load=()=>void run(async signal=>{const response=await get<GameReplayResponse>(endpoint,signal);if(!signal.aborted){setData(response);setNeedsReload(false);}});
   useEffect(()=>{load();return()=>request.current?.abort();},[endpoint]);
-  const act=(action:GameReplayAction["action"],details:Partial<Pick<GameReplayAction,"ply"|"checkpointId"|"moveUci">>={},focus=false)=>{
+  const act=(action:GameReplayAction["action"],details:Partial<Pick<GameReplayAction,"ply"|"checkpointId"|"moveUci"|"filters">>={},focus=false)=>{
     if(!data||needsReload)return;
     void run(async signal=>{
       const response=await post<GameReplayResponse>(endpoint,{snapshotId:data.snapshotId,version:data.version,action,...details},signal);
@@ -43,7 +44,8 @@ export function GameReplay({gameId,onRefreshed,requestedPosition}:{gameId:string
   useEffect(()=>setWalkthrough(null),[data?.snapshotId,data?.version]);
   const point=data?.checkpoints.find(point=>point.id===data.activeCheckpointId);
   const blocked=busy||needsReload;
-  const keyDecisions=data?.checkpoints.filter(point=>point.keyDecision&&point.canRecall)??[];
+  const practiceActive=data?.practice?.status==='active';
+  const markedPoints=data?.checkpoints.filter(point=>!practiceActive||data.practice!.checkpointIds.includes(point.id))??[];
   const teaching=data?.feedback?.teachingLines??[];
   const frame=walkthrough?teaching[walkthrough.line]?.steps[walkthrough.step]:null;
   const nextPoint=data?.checkpoints.find((point,index)=>point.ply>data.currentPly||(point.ply===data.currentPly&&index>data.checkpoints.findIndex(p=>p.id===data.activeCheckpointId)));
@@ -55,14 +57,9 @@ export function GameReplay({gameId,onRefreshed,requestedPosition}:{gameId:string
     {error&&<div role="alert"><p>{error}</p>{needsReload&&<p>The save could not be confirmed. Reload the saved review before making another move.</p>}<button disabled={busy} onClick={load}>Reload saved review</button></div>}
     {!data&&busy&&<p role="status">Loading saved replay…</p>}
     {data&&<>
-      {keyDecisions.length>0&&<div className="game-key-decisions">
-        <strong>{data.keyStudyComplete?"Key decisions reviewed":`Start with ${keyDecisions.length} key ${keyDecisions.length===1?'decision':'decisions'}`}</strong>
-        <p>{data.keyStudyComplete?'You have reviewed this short selection. Try recalling these positions on a later day; immediate retries are helped practice.':'These are a short selection of analysed errors and repertoire differences. Repeated versions of the same engine move are grouped.'}</p>
-        <button className="secondary" disabled={blocked} onClick={()=>act("key_study",{},true)}>{data.keyStudyComplete?'Revisit key decisions':'Review key decisions'}</button>
-      </div>}
       {data.updatesAvailable&&<div className="game-replay-update"><p>Your analysis or repertoire has changed. This replay keeps the feedback you saved.</p>
         <button className="secondary" disabled={blocked} onClick={()=>{if(window.confirm("Save a fresh review using the current analysis and repertoire? Replay restarts; the previous saved feedback and local attempts are retained."))act("refresh");}}>Refresh saved feedback</button></div>}
-      {data.analysisPending&&<p className="opening-coverage-note">This saved review contains opening feedback. Engine analysis was not available when it was saved. Request analysis, then refresh saved feedback when it finishes.</p>}
+      <GamePracticeControls key={data.snapshotId} data={data} blocked={blocked} onAction={(action,details)=>act(action,details??{},action==='practice_start')}/>
       <div className="game-replay-layout">
         <div ref={board} role="region" aria-label="Game replay board and controls" tabIndex={-1}>
           <ChessBoard fen={frame?.fen??data.displayFen} orientation={data.playerColor} lastMove={frame?.uci??data.displayMove} ariaLabel="Game replay board"
@@ -73,7 +70,7 @@ export function GameReplay({gameId,onRefreshed,requestedPosition}:{gameId:string
             <button disabled={walkthrough.step+1>=teaching[walkthrough.line]!.steps.length} onClick={()=>showWalkthrough({...walkthrough,step:walkthrough.step+1})}>Next example move</button>
             <button className="secondary" onClick={()=>showWalkthrough(null)}>Back to decision</button>
           </div>}
-          {!walkthrough&&<><div className="answer-actions" role="group" aria-label="Game replay controls">
+          {!walkthrough&&!practiceActive&&<><div className="answer-actions" role="group" aria-label="Game replay controls">
             <button className="secondary" disabled={blocked||Boolean(walkthrough)||data.currentPly===0} onClick={()=>act("previous")}>Previous move</button>
             <button disabled={blocked||Boolean(walkthrough)||data.currentPly===data.moves.length||data.phase==="question"} onClick={()=>act("next")}>{data.phase==="feedback"?"Continue game as played":"Next move"}</button>
             <button className="secondary" disabled={blocked||Boolean(walkthrough)||!nextPoint} onClick={()=>nextPoint&&act("jump",{ply:nextPoint.ply,checkpointId:nextPoint.id},true)}>Next decision</button>
@@ -89,26 +86,26 @@ export function GameReplay({gameId,onRefreshed,requestedPosition}:{gameId:string
             {point.kind==="opening"&&<p>A different repertoire move is not automatically a chess mistake.</p>}
             {data.phase==="question"&&<><p>Play your answer on the board. The saved answers stay hidden until you recall one or ask to see them.</p>
               <div className="answer-actions"><button disabled={blocked} onClick={()=>act("reveal")}>Show answer</button>
-                <button className="secondary" disabled={blocked} onClick={()=>act("skip")}>Continue without trying</button></div></>}
+                <button className="secondary" disabled={blocked} onClick={()=>act(practiceActive?"practice_skip":"skip")}>{practiceActive?"Skip this position":"Continue without trying"}</button></div></>}
             {data.feedback&&<div className="game-replay-feedback"><strong>{data.feedback.message}</strong>
               {data.phase==="feedback"&&<><p>Accepted in this saved review: {data.feedback.answers.map(answer=>answer.san).join(", ")}</p><p>{data.feedback.explanation}</p>
                 {teaching.some(line=>line.steps.length>0)&&<details className="game-teaching-lines"><summary>Understand this decision on the board</summary>
                   <p>Compare short saved engine examples on this board. These continuations show possible play, not what necessarily happened in the game.</p>
                   <div className="answer-actions">{teaching.map((line,index)=>line.steps.length>0&&<button className="secondary" key={index} disabled={blocked} onClick={()=>showWalkthrough({line:index,step:0})}>{line.label}</button>)}</div>
                 </details>}
-                <p>Continue returns to the move actually played in your game.</p>
+                <p>{practiceActive?"Continue moves to the next selected practice position. Answers and retries stay with this game.":"Continue returns to the move actually played in your game."}</p>
                 <div className="answer-actions"><button className="secondary" disabled={blocked} onClick={()=>act("retry",{},true)}>Try again in this game</button>
                   {point.canSchedule&&<button className="secondary" disabled={blocked} onClick={()=>act("schedule")}>{point.kind==='engine'?'Practise tomorrow':'Practise later'}</button>}</div>
-                {point.keyDecision&&!data.keyStudyComplete&&<button disabled={blocked} onClick={()=>act("next_key",{},true)}>Next key decision</button>}
+                {practiceActive&&<button disabled={blocked} onClick={()=>act("practice_next",{},true)}>{data.practice!.reviewedIds.length+data.practice!.skippedIds.length+1>=data.practice!.checkpointIds.length?"Finish practice":"Next practice position"}</button>}
                 {point.kind==="engine"&&!point.canSchedule&&<p className="opening-coverage-note">No separate candidate exercise is available for this position. You can retry it here.</p>}
               </>}
             </div>}
           </>:<><h4>Follow the game</h4><p>Use Next move to play through the game. It pauses before a marked decision so you can recall a response.</p></>}
-          <details className="game-replay-markers" open><summary>Marked decisions · {data.checkpoints.length}</summary>
+          <details className="game-replay-markers" open={!practiceActive}><summary>Marked decisions · {markedPoints.length}</summary>
             {!data.checkpoints.length&&<p>No opening difference or analysed mistake is marked in this saved review. You can still replay the complete game.</p>}
-            {data.checkpoints.map(point=>{
+            {markedPoints.map(point=>{
               const move=data.moves[point.ply];
-              return <button key={point.id} className={point.id===data.activeCheckpointId?"active":"secondary"} disabled={blocked}
+              return <button key={point.id} className={point.id===data.activeCheckpointId?"active":"secondary"} disabled={blocked||practiceActive}
                 aria-pressed={point.id===data.activeCheckpointId} onClick={()=>act("jump",{ply:point.ply,checkpointId:point.id},true)}>
                 {move?`${move.moveNumber}${move.moverColor==="white"?".":"..."}${move.san}`:"Position"} · {point.label}
                 {point.recalled?" · recalled here":point.attempts?` · ${point.attempts} local tries`:""}

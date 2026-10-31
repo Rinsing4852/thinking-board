@@ -126,7 +126,8 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   });
   app.post("/api/v1/games/:gameId/replay",{schema:{body:{type:"object",additionalProperties:false,
     required:["snapshotId","version","action"],properties:{snapshotId:{type:"string",minLength:1,maxLength:100},version:{type:"integer",minimum:0},
-      action:{enum:["latest","next","previous","jump","retry","answer","reveal","refresh","schedule","skip","key_study","next_key"]},ply:{type:"integer",minimum:0,maximum:10000},
+      action:{enum:["latest","next","previous","jump","retry","answer","reveal","refresh","schedule","skip","key_study","next_key","practice_start","practice_next","practice_skip","practice_exit"]},ply:{type:"integer",minimum:0,maximum:10000},
+      filters:{type:"array",minItems:1,maxItems:3,uniqueItems:true,items:{enum:["recommended","mistakes","opening"]}},
       checkpointId:{type:"string",minLength:1,maxLength:200},moveUci:{type:"string",pattern:"^[a-h][1-8][a-h][1-8][qrbn]?$"}}}}},async(request,reply)=>{
     try {return gameReplay.act((request.params as {gameId:string}).gameId,request.body as import("../../../packages/contracts/src/api.js").GameReplayAction);}
     catch(error) {return reply.code(400).send({error:error instanceof Error?error.message:"Could not save game review."});}

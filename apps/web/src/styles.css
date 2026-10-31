@@ -1098,6 +1098,17 @@ footer { border-top: 1px solid var(--line); padding: 2rem 4vw; color: #69756d; d
 .game-replay-layout { display:grid; grid-template-columns:minmax(240px,540px) minmax(240px,1fr); gap:1.5rem; align-items:start; margin-top:1rem; }
 .game-replay-layout > * { min-width:0; }
 .game-replay-position { display:grid; gap:.5rem; }
+.game-practice-controls { margin:1rem 0; padding:.85rem; border:1px solid var(--line); border-radius:10px; background:var(--panel-soft); }
+.game-practice-controls fieldset { border:0; padding:0; margin:0; min-width:0; }
+.game-practice-controls legend { font-weight:700; margin-bottom:.6rem; }
+.game-practice-options > summary { font-weight:700; cursor:pointer; padding:.35rem 0; }
+.game-practice-options[open] > summary { margin-bottom:.6rem; }
+.game-practice-filters { display:flex; flex-wrap:wrap; gap:.5rem; }
+.game-practice-filters label { display:flex; align-items:center; gap:.35rem; padding:.6rem; border:1px solid var(--line); border-radius:8px; cursor:pointer; }
+.game-practice-filters input { width:1rem; height:1rem; accent-color:var(--lime); }
+.game-practice-controls small { display:block; margin-top:.6rem; color:var(--ink-soft); line-height:1.45; }
+.game-practice-progress { display:flex; flex-wrap:wrap; align-items:center; gap:.65rem; margin-top:.6rem; }
+.game-practice-progress small { flex-basis:100%; }
 .game-replay-markers { margin-top:1rem; }
 .game-replay-markers button { display:block; width:100%; text-align:left; margin:.5rem 0; }
 .game-replay-feedback { border-left:3px solid var(--lime); padding:.75rem; margin:.75rem 0; }

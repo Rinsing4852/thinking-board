@@ -61,12 +61,16 @@ test('reviews key decisions with one board, plays the defensive reply and schedu
  await expect.poll(async()=>(await(await page.request.get(`/api/v1/jobs/${job.id}`)).json()).status,{timeout:20000}).toBe('completed');
  await page.goto(`/#games?game=${game.id}`);
  const replay=page.getByRole('region',{name:'Saved game replay',exact:true});
- await expect(replay.getByRole('button',{name:'Review key decisions',exact:true})).toBeVisible();
- await replay.getByRole('button',{name:'Review key decisions',exact:true}).click();
+ await expect(replay.getByRole('button',{name:'Start practice',exact:true})).toBeVisible();
+ await replay.getByRole('button',{name:'Start practice',exact:true}).click();
  const data=await(await page.request.get(`/api/v1/games/${game.id}/replay`)).json();
  const key=data.checkpoints.find((p:{kind:string;ply:number})=>p.kind==='engine'&&p.ply===2);
  expect(key).toBeTruthy();
- await replay.getByRole('button',{name:/2.g4 · Analysed/}).click();
+ const index=data.practice.checkpointIds.indexOf(key.id);expect(index).toBeGreaterThanOrEqual(0);
+ for(let position=0;position<index;position++){
+   await replay.getByRole('button',{name:'Show answer',exact:true}).click();
+   await replay.getByRole('button',{name:'Next practice position',exact:true}).click();
+ }
  await expect(replay.getByText('Understand this decision on the board',{exact:true})).toBeHidden();
  await replay.getByRole('button',{name:'Show answer',exact:true}).click();
  await replay.getByText('Understand this decision on the board',{exact:true}).click();

@@ -73,7 +73,7 @@ test("takes saved games from Today to requested analysis and opens the latest re
   const current=await(await page.request.get(replayUrl)).json();
   expect(current.snapshotId).not.toBe(original.snapshotId);expect(current.analysisPending).toBe(false);
   expect(current.activeCheckpointId).toMatch(/^engine:/);
-  await expect(page.getByRole('region',{name:'Saved game replay',exact:true})).not.toContainText('Engine analysis was not available');
+  await expect(page.getByRole('region',{name:'Saved game replay',exact:true})).not.toContainText('Engine analysis is not included');
 });
 
 test("refreshes expanded learning results on player changes and ignores a late previous-player response",async({page},info)=>{

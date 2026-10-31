@@ -356,6 +356,17 @@ continue without trying. Accepted saved alternatives are allowed. Engine recall
 uses legal stored candidates within the configured tolerance; other moves remain
 unverified rather than being labelled automatically wrong.
 
+Use **Choose practice** immediately above the board to select **Recommended**,
+**Analysed mistakes**, **Opening recall**, or combine mistakes and opening recall.
+**Start practice** visits matching saved positions on the same board, with answers
+hidden. Shared positions appear once; combined practice uses the engine answer.
+Skip, continue or exit explicitly. Round progress survives reloads; reviewed and
+skipped counts do not prove mastery or change scheduled practice totals. Repeating
+a position already attempted or revealed that day in the same saved review is
+recorded as helped practice.
+Attack/defence and mate-specific filters remain future work. See the
+[scope and acceptance checks](docs/reviews/GAME_BOARD_PRACTICE_FILTERS_2026_10_31.md).
+
 Replay resumes after reload. Feedback is preserved if the repertoire or analysis
 changes; choose **Refresh saved feedback** to use the newer material. Local
 retries and revealed answers do not change due dates, normal recall results,
