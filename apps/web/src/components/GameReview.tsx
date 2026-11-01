@@ -5,6 +5,7 @@ import type {
   GameOpeningConnection,
   GameOpeningInboxGroup,
   GameOpeningInboxResponse,
+  GameSource,
   OpeningReviewActiveState,
   OpeningSurprisePreparationResponse,
 } from "../../../../packages/contracts/src/api";
@@ -24,6 +25,7 @@ interface Concept {
 }
 
 interface GameSummary {
+  source?:GameSource;
   id: string;
   white: string;
   black: string;
@@ -348,7 +350,7 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
         <button className="secondary" aria-pressed={view==='library'} onClick={()=>navigate('library')}>{view==='game'?'Back to games':'Games'}</button>
         <button className="secondary" aria-pressed={view==='patterns'} onClick={()=>navigate('patterns')}>Opening patterns</button>
       </div>
-      <div hidden={view!=='library'}><GameLibrary games={games} selectedId={loadingGameId ?? review?.game.id ?? null} onChoose={gameId => void loadReview(gameId)} /></div>
+      <div hidden={view!=='library'}><GameLibrary active={view==='library'} refreshToken={refreshToken} games={games} selectedId={loadingGameId ?? review?.game.id ?? null} onChoose={gameId => void loadReview(gameId)} /></div>
       {view==='game'&&<div className="game-review-heading" id="selected-game-review"><h2>{review?`${review.game.white} – ${review.game.black}`:'Loading game…'}</h2>
         {review&&<p>{review.game.result} · you played {review.game.playerColor}{review.game.playedAt?` · ${new Date(review.game.playedAt).toLocaleDateString()}`:''}</p>}
       </div>}
@@ -356,7 +358,7 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
       {view==='game' && review && (
         <div className="mistake-list">
           {!review.game.analyzedAt&&<div className="game-analysis-compact"><GameAnalysisRequest gameId={review.game.id} hasReport={false}/></div>}
-          <GameReplay key={review.game.id} gameId={review.game.id} requestedPosition={inspectMove} onRefreshed={()=>void loadReview(review.game.id,false)} />
+          <GameReplay key={review.game.id} refreshToken={refreshToken} gameId={review.game.id} requestedPosition={inspectMove} onRefreshed={()=>void loadReview(review.game.id,false)} />
 
           <details className="game-report-disclosure"><summary>Move report and accuracy</summary>
           <GameMoveReport key={`quality-${review.game.id}`} gameId={review.game.id} refreshToken={refreshToken} onInspect={ply=>setInspectMove(current=>({ply,requestId:(current?.requestId??0)+1}))}/>

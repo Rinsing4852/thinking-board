@@ -13,7 +13,7 @@ export function GameMoveReport({gameId,refreshToken,onInspect}:{gameId:string;re
     void get<GameQualityReport|null>(`/api/v1/games/${gameId}/quality`,controller.signal).then(r=>{if(!controller.signal.aborted)setReport(r);}).catch(e=>{if(!controller.signal.aborted)setError(e.message);});return()=>controller.abort();},[gameId,refreshToken,retry]);
   const own=report?.[report.playerColor];
   const ownMoves=report?.moves.filter(m=>m.color===report.playerColor)??[];
-  const firstReviewMove=ownMoves.find(m=>m.grade==="mistake"||m.grade==="blunder")??ownMoves[0];
+  const firstReviewMove=ownMoves.find(m=>m.grade==="mistake"||m.grade==="blunder")??ownMoves.find(m=>m.grade==="inaccuracy")??ownMoves[0];
   const departure=report?.opening?.departure;
   const outside=departure?ownMoves.find(m=>m.ply>=departure.ply):null;
   return <section className="panel game-quality-report" aria-label="Game move-quality report">

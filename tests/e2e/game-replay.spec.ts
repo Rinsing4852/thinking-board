@@ -137,8 +137,8 @@ test("filters opening recall on one board, resumes a round and distinguishes rev
   await controls.locator('summary').click();
   await controls.getByRole('checkbox',{name:/Opening recall/}).uncheck();
   await expect(controls.getByRole('button',{name:'Start practice',exact:true})).toBeDisabled();
-  await controls.getByRole('checkbox',{name:/Analysed mistakes/}).check();
-  await expect(controls).toContainText('0 positions · Analysed mistakes');
+  await controls.getByRole('checkbox',{name:/Move improvements/}).check();
+  await expect(controls).toContainText('0 positions · Move improvements');
   await expect(controls.getByRole('button',{name:'Start practice',exact:true})).toBeDisabled();
   await expect(replay.getByRole('grid',{name:'Game replay board',exact:true})).toHaveCount(1);
   await controls.locator('summary').click();
@@ -164,7 +164,7 @@ test('tracks review completion in the saved game and library without awarding re
  await expect(replay.getByLabel('Game review status',{exact:true})).toBeEnabled();
  await page.getByRole('button',{name:'Back to games',exact:true}).click();
  await page.getByLabel('Filter by review status',{exact:true}).selectOption('in_progress');
- const chip=page.getByRole('button',{name:/Completion learner .* – Completion opponent/});
+ const chip=page.locator('.game-chip').filter({hasText:'Completion opponent'});
  await expect(chip).toHaveCount(1);await expect(chip).toContainText('Partially reviewed');
  await chip.click();
  await replay.getByLabel('Game review status',{exact:true}).selectOption('complete');
@@ -174,4 +174,83 @@ test('tracks review completion in the saved game and library without awarding re
  await page.getByLabel('Filter by review status',{exact:true}).selectOption('complete');
  await expect(chip).toContainText('Review complete');
  await page.screenshot({path:info.outputPath('game-library-completion.png'),fullPage:true});
+});
+
+test('waits for an in-flight review save before refreshing completed-analysis state',async({page},info)=>{
+ const {replay,gameId}=await fixture(page,`Concurrent save ${info.project.name}`);
+ let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});let saved=false,reads=0;
+ await page.route(`**/api/v1/games/${gameId}/replay`,async route=>{
+  if(route.request().method()==='GET'){reads++;return route.continue();}
+  if(route.request().postDataJSON().action==='review_point'){
+   const response=await route.fetch();saved=true;await gate;return route.fulfill({response});
+  }
+  await route.continue();
+ });
+ try{
+  const mark=replay.getByRole('button',{name:/^(Mark this decision reviewed|Reopen this decision)$/});
+  const wasReviewed=(await mark.innerText())==='Reopen this decision';
+  await mark.click();await expect.poll(()=>saved).toBe(true);
+  let refreshed=false;page.on('response',response=>{if(response.url().endsWith(`/games/${gameId}/review`))refreshed=true;});
+  await page.evaluate(()=>window.dispatchEvent(new Event('analysis-requested')));
+  await expect.poll(()=>refreshed).toBe(true);expect(reads).toBe(0);
+  release();
+  await expect(replay.getByRole('button',{name:wasReviewed?'Mark this decision reviewed':'Reopen this decision',exact:true})).toBeEnabled();
+  await expect.poll(()=>reads).toBeGreaterThan(0);
+  await expect(replay.getByRole('alert')).toHaveCount(0);
+ }finally{release();}
+});
+
+test('shows an opponent table with source filters and credits cross-game practice to each source review',async({page},info)=>{
+ const learner=`Across games ${info.project.name}`;
+ await page.request.post('/api/v1/openings/imports/pgn',{data:{name:learner,learnerColor:'white',ownershipConfirmed:true,pgn:'1. e4 e5 *'}});
+ await page.request.post('/api/v1/openings/imports/pgn',{data:{name:`${learner} black`,learnerColor:'black',ownershipConfirmed:true,pgn:'1. d4 d5 *'}});
+ const cases=[{opponent:'Lichess rival',site:`https://lichess.org/${info.project.name==='webkit'?'crossw01':'crossc01'}`,date:'2026.10.28'},
+  {opponent:'Chess.com rival',site:'Chess.com',date:'2026.10.29'},{opponent:'PGN rival',site:'Club game',date:'2026.10.30',black:true}];
+ let profileId='';
+ for(const game of cases){const imported=await(await page.request.post('/api/v1/imports/pgn',{data:{playerName:learner,pgn:`[White "${game.black?game.opponent:learner}"]\n[Black "${game.black?learner:game.opponent}"]\n[Site "${game.site}"]\n[Date "${game.date}"]\n[Result "${game.black?'1/2-1/2':'0-1'}"]\n\n${game.black?'1. d4 f6 2. e4 e5 1/2-1/2':'1. f3 e5 2. g4 Qh4# 0-1'}`}})).json();profileId=imported.profileId;expect(imported.imported).toBe(1);}
+ await page.request.post(`/api/v1/profiles/${profileId}/activate`);
+ await page.goto('/#games');
+ const table=page.getByRole('table');await expect(table.getByRole('row')).toHaveCount(4);
+ await expect(table).not.toContainText(learner);
+ await page.screenshot({path:info.outputPath('games-source-table.png'),fullPage:true});
+ for(const heading of ['Opponent','Colour','Result','Date','Source','Review'])await expect(table.getByRole('columnheader',{name:heading,exact:true})).toBeVisible();
+ const source=page.getByRole('combobox',{name:'Filter by source',exact:true});
+ expect(await source.evaluate(el=>el.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+ for(const [value,label] of [['lichess','Lichess rival'],['chesscom','Chess.com rival'],['pgn','PGN rival']]){
+  await source.selectOption(value!);await expect(table.getByRole('row')).toHaveCount(2);await expect(table.getByRole('button',{name:label!,exact:true})).toBeVisible();
+ }
+ // A non-button cell also opens the row's game. Back preserves filters.
+ await expect(table.getByRole('cell',{name:'Black',exact:true})).toBeVisible();
+ await table.getByRole('cell',{name:'Draw',exact:true}).click();
+ await expect(page.getByRole('region',{name:'Saved game replay',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Back to games',exact:true}).click();await expect(source).toHaveValue('pgn');
+ await source.selectOption('all');
+ await page.getByRole('button',{name:'Practise across games',exact:true}).click();
+ const practice=page.getByRole('region',{name:'Practice across games',exact:true});
+ await practice.getByLabel('Practice type',{exact:true}).selectOption('opening');
+ await practice.getByRole('button',{name:'Find practice positions',exact:true}).click();
+ await expect(practice).toContainText('Position 1 of 3');
+ const games=(await(await page.request.get('/api/v1/games')).json()).games;
+ const newest=games.find((game:{white:string;black:string})=>game.black==='PGN rival'||game.white==='PGN rival');
+ await practice.getByRole('button',{name:'Skip this position',exact:true}).click();
+ await expect(practice).toContainText('Position 2 of 3');
+ await practice.getByRole('button',{name:'Show answer',exact:true}).click();
+ await expect(practice.getByRole('button',{name:'Next position',exact:true})).toBeEnabled();
+ await practice.getByRole('button',{name:'Next position',exact:true}).click();
+ await expect(practice).toContainText('Position 3 of 3');
+ await practice.getByRole('button',{name:'Show answer',exact:true}).click();
+ await practice.getByRole('button',{name:'Finish round',exact:true}).click();
+ await expect(practice).toContainText('2 reviewed · 1 skipped');
+ const updated=(await(await page.request.get('/api/v1/games')).json()).games;
+ expect(updated.filter((game:{reviewProgress:{status:string}})=>game.reviewProgress.status==='complete')).toHaveLength(2);
+ expect(updated.find((game:{id:string})=>game.id===newest.id).reviewProgress.status).toBe('not_started');
+ const reviewed=updated.find((game:{reviewProgress:{status:string}})=>game.reviewProgress.status==='complete');
+ const replay=await(await page.request.get(`/api/v1/games/${reviewed.id}/replay`)).json();
+ expect(replay.checkpoints[0]).toMatchObject({reviewed:true,recalled:false});
+ await expect(table.getByRole('cell').filter({hasText:'Review complete'})).toHaveCount(2);
+ await practice.getByRole('button',{name:'Find practice positions',exact:true}).click();
+ await expect(practice).toContainText('Position 1 of 1');
+ expect(await(await page.request.get('/api/v1/jobs/active')).json()).toBeNull();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.screenshot({path:info.outputPath('cross-game-practice.png'),fullPage:true});
 });

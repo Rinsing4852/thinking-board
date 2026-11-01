@@ -1212,6 +1212,25 @@ button.quality-move { display: grid; gap: .3rem; text-align: left; min-height: 7
 @media(max-width:820px) { .profile-button { grid-column:2; grid-row:1; } .profile-accounts { grid-template-columns:minmax(0,1fr); } }
 
 .game-review-progress select, .game-library > label select, .profile-page select { min-height:44px; color-scheme:dark; color:#e9eee9; background:#101512; border:1px solid var(--line); border-radius:8px; padding:.65rem .75rem; }
+
+.game-library-filters { display:flex; flex-wrap:wrap; gap:.75rem; }
+.game-library-filters label { flex:1 1 180px; display:grid; gap:.35rem; }
+.game-library-filters select { width:100%; height:44px; min-height:44px; padding:.6rem; border:1px solid var(--line); border-radius:8px; background:#101512; color:#e9eee9; color-scheme:dark; }
+.game-library > .workflow-actions, .review-section > .workflow-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+.game-library .game-chips.game-table-scroll { display:block; overflow:auto; max-height:65vh; border:1px solid var(--line); border-radius:10px; margin-bottom:0; }
+.game-table { width:100%; min-width:650px; border-collapse:separate; border-spacing:0; text-align:left; font-size:.85rem; }
+.game-table th,.game-table td { padding:.55rem .7rem; border-bottom:1px solid var(--line); white-space:nowrap; }
+.game-table thead th { position:sticky; top:0; z-index:2; background:#202b21; font-weight:700; }
+.game-table tbody th { position:sticky; left:0; z-index:1; background:#172019; }
+.game-table thead th:first-child { left:0; z-index:3; }
+.game-library .game-table .game-chip { display:table-row; min-width:0; cursor:pointer; box-shadow:none; background:var(--panel); }
+.game-library .game-table .game-chip:hover td,.game-library .game-table .game-chip:hover th { background:#263329; }
+.game-library .game-table .game-chip.active td,.game-library .game-table .game-chip.active th { background:#293a25; }
+.game-opponent { display:block; width:100%; min-height:44px; padding:.35rem .2rem; text-align:left; color:var(--lime); background:transparent; border:0; text-transform:none; letter-spacing:normal; }
+.game-table td small { display:block; margin-top:.2rem; }
+.game-source { font-size:.75rem; border:1px solid var(--line); border-radius:5px; padding:.15rem .35rem; }
+.cross-game-practice { border:1px solid var(--line); border-radius:10px; padding:1rem; display:grid; gap:.75rem; }
+.cross-game-practice .game-replay { margin:0; }
 .learning-focus { border-top:1px solid var(--line); margin-top:1rem; padding-top:1rem; }
 .learning-focus h2 { font-size:.9rem; color:var(--ink-soft); }
 .learning-focus h3 { font-size:1.15rem; }

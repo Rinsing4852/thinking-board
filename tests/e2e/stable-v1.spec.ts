@@ -548,7 +548,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await f3InboxItem.getByRole("button", { name: "Mark reviewed" }).click();
     await expect(f3InboxItem).toBeHidden();
     await page.getByRole("button", { name: "Games",exact:true }).click();
-    await page.getByRole("button", { name: /olleyr – Training opponent/ }).click();
+    await page.getByRole("button", { name: 'Training opponent',exact:true }).click();
     const replay=page.getByRole("region",{name:"Saved game replay",exact:true});
     const differenceBoard=page.getByRole("grid",{name:"Game replay board",exact:true});
     await expect(differenceBoard.getByRole("gridcell",{name:"e2 white pawn"})).toBeVisible();

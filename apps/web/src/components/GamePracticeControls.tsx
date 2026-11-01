@@ -3,7 +3,7 @@ import type { GamePracticeFilter, GameReplayAction, GameReplayResponse } from ".
 import { selectGamePractice } from "../../../../packages/contracts/src/game-practice";
 
 const labels: Record<GamePracticeFilter, string> = {
-  recommended: "Recommended", mistakes: "Analysed mistakes", opening: "Opening recall", attacking:"Attacking", defending:"Defending", mates:"Missed mates",
+  recommended: "Recommended", mistakes: "Move improvements", opening: "Opening recall", attacking:"Attacking", defending:"Defending", mates:"Missed mates",
 };
 
 export function GamePracticeControls({ data, blocked, onAction }: {
@@ -43,7 +43,7 @@ export function GamePracticeControls({ data, blocked, onAction }: {
     </details>
     {!active && round?.status !== "completed" && <>
       <p>{selected.length} {selected.length === 1 ? "position" : "positions"} · {filters.length ? filters.map(filter => labels[filter]).join(" + ") : "Choose a category"}</p>
-      {!selected.length && <p>No saved answers match this selection.</p>}
+      {!selected.length && <p>No saved answers match this selection. Check the analysis summary and marked decisions below, or choose another category. Longer mates remain in the move report.</p>}
       <button disabled={blocked || !selected.length} onClick={start}>Start practice</button>
     </>}
     {active && <div className="game-practice-progress" role="status">

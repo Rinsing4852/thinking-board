@@ -2,6 +2,7 @@ import {LearningFocusService} from "./training/learning-focus-service.js";
 import { DailyPracticeService } from "./training/daily-practice-service.js";
 import { GameQualityService } from "./analysis/game-quality-service.js";
 import { GameReplayService } from "./games/game-replay-service.js";
+import {gameSource} from './games/game-source.js';
 import { openingQualityMetrics } from "./openings/opening-quality-metrics.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -124,6 +125,13 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     openingAnalysis, config.acceptableToleranceCp);
   const openingGames = new OpeningGameService(database.connection, openingPreparation);
   const gameReplay=new GameReplayService(database.connection,openingGames,openingReviews,config.acceptableToleranceCp);
+  app.post('/api/v1/games/practice/selection',{schema:{body:{type:'object',additionalProperties:false,required:['type'],properties:{
+    type:{enum:['all','blunder','mistake','inaccuracy','attacking','defending','fork','capture','mates','opening']},source:{enum:['all','lichess','chesscom','pgn']},
+    includeReviewed:{type:'boolean'},maxMateIn:{type:'integer',minimum:1,maximum:4}}}}},async(request,reply)=>{
+    try{const body=request.body as {type:import('../../../packages/contracts/src/api.js').GameErrorType;source?:import('../../../packages/contracts/src/api.js').GameSource|'all';includeReviewed?:boolean;maxMateIn?:number};
+      return gameReplay.selectAcrossGames(body.type,body.source,body.includeReviewed,body.maxMateIn);
+    }catch(error){return reply.code(400).send({error:error instanceof Error?error.message:'Could not select practice positions.'});}
+  });
   app.get("/api/v1/games/:gameId/replay",async(request,reply)=>{
     try {return gameReplay.get((request.params as {gameId:string}).gameId);}
     catch(error) {return reply.code(400).send({error:error instanceof Error?error.message:"Could not load saved game review."});}
@@ -770,12 +778,12 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     const summaries=gameReplay.summaries();
     return {games: database.connection.prepare(`
       SELECT id, white_name AS white, black_name AS black, player_color AS playerColor,
-             result, played_at AS playedAt, analyzed_at AS analyzedAt,
+             result, played_at AS playedAt, analyzed_at AS analyzedAt,identity_key,headers_json,
              EXISTS(SELECT 1 FROM game_review_replays r WHERE r.game_id=games.id) AS hasSavedReview,
              (SELECT json_array_length(s.content_json,'$.points') FROM game_review_replays r
                JOIN game_review_snapshots s ON s.id=r.snapshot_id WHERE r.game_id=games.id) AS reviewDecisions
       FROM games WHERE profile_id = ? ORDER BY created_at DESC
-    `).all(activeProfileId(database.connection)).map(row=>({...row as Record<string,unknown>,reviewProgress:summaries.get((row as {id:string}).id)??{status:"not_started",reviewedCount:0,totalCount:0}}))};
+    `).all(activeProfileId(database.connection)).map(row=>{const {identity_key,headers_json,...game}=row as Record<string,unknown>&{id:string;identity_key:string|null;headers_json:string};return {...game,source:gameSource(identity_key,headers_json),reviewProgress:summaries.get(game.id)??{status:"not_started",reviewedCount:0,totalCount:0}};})};
   });
 
   app.get("/api/v1/games/:gameId/review", async (request, reply) => {
@@ -810,9 +818,9 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       JOIN move_assessments ma ON ma.run_id = ar.id AND ma.move_id = m.id
       LEFT JOIN training_items ti ON ti.source_move_id = m.id AND ti.mode = 'blunder_check' AND ti.active = 1
       LEFT JOIN blunder_check_items bci ON bci.item_id = ti.id
-      WHERE m.game_id = ? AND ma.meaningful = 1
+      WHERE m.game_id = ? AND (ma.meaningful = 1 OR ma.classification = 'inaccuracy')
         AND m.mover_color = (SELECT player_color FROM games WHERE id = ?)
-        AND ar.completed_at = (SELECT MAX(completed_at) FROM analysis_runs WHERE game_id = ? AND status = 'completed')
+        AND ar.id = (SELECT id FROM analysis_runs WHERE game_id = ? AND status = 'completed' ORDER BY completed_at DESC,rowid DESC LIMIT 1)
       ORDER BY ma.comparison_loss DESC
     `).all(gameId, gameId, gameId) as Array<Record<string, unknown>>;
     const mistakes = mistakeRows.map((mistake) => {
@@ -829,7 +837,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
         JOIN engine_lines el ON el.position_analysis_id = pa.id
         JOIN analysis_runs ar ON ar.id = pa.run_id
         WHERE pa.position_id = ? AND ar.status = 'completed'
-          AND ar.completed_at = (SELECT MAX(completed_at) FROM analysis_runs WHERE game_id = ? AND status = 'completed')
+          AND ar.id = (SELECT id FROM analysis_runs WHERE game_id = ? AND status = 'completed' ORDER BY completed_at DESC,rowid DESC LIMIT 1)
           AND el.move_uci != '(none)' AND el.move_uci != ?
         ORDER BY el.rank LIMIT 3
       `).all(mistake.beforePositionId, gameId, mistake.playedMoveUci);

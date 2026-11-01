@@ -257,7 +257,7 @@ export function App() {
             <div className="page-heading">
               <span className="eyebrow">Your games</span>
               <h1>My games</h1>
-              <p>Choose a saved game to replay it and practise the moves you missed.</p>
+              <p>Review one game or practise a type of mistake across your games.</p>
             </div>
             <GameReview
               importPanel={hideForm=><ImportPanel draft={importDraft} onManageAccounts={()=>navigate("profile")} hideForm={hideForm} key={profileEpoch} refreshToken={refreshToken} onAnalyzed={refreshAfterGameAnalysis} expanded={showGameImport} onExpandedChange={setShowGameImport} />}

@@ -231,7 +231,7 @@ test("searches the whole game library and ignores an obsolete review response", 
   await expect(library.locator("button")).toHaveCount(8);
   const search = page.getByLabel("Find a game");
   await search.fill("Opponent 19");
-  await library.getByRole("button", { name: /UI learner – Opponent 19/ }).click();
+  await library.getByRole("button", { name: 'Opponent 19',exact:true }).click();
   await expect(page).toHaveURL(/#games\?game=ui-game-19$/);
   await expect(library.locator(".active")).toContainText("Opponent 19");
   await page.getByRole("button", {name:"Back to games",exact:true}).click();
@@ -239,10 +239,10 @@ test("searches the whole game library and ignores an obsolete review response", 
   await search.fill("");
   await expect(library.locator("button")).toHaveCount(9);
   const pending = page.waitForRequest(/\/games\/ui-game-1\/review$/);
-  await library.getByRole("button", { name: /UI learner – Opponent 1 / }).click();
+  await library.getByRole("button", { name: 'Opponent 1',exact:true }).click();
   await pending;
   await page.getByRole("button", {name:"Back to games",exact:true}).click();
-  await library.getByRole("button", { name: /UI learner – Opponent 2 / }).click();
+  await library.getByRole("button", { name: 'Opponent 2',exact:true }).click();
   await expect(library.locator(".active")).toContainText("Opponent 2");
   await openGameReport(page);
   await expect(page.getByRole("region", { name:"Game move-quality report",exact:true })).toBeVisible();

@@ -312,3 +312,97 @@ describe('game review checklists',()=>{
   expect(state.feedback?.outcome).toBe('recalled');
   expect(state.checkpoints[0]).toMatchObject({attempts:1,recalled:true});
  });
+
+it('reviews an inaccuracy when no serious mistake exists, without fabricating a blunder or scheduled drill',()=>{
+ const f=setup();analysis(f,1,[['e2e4','e4',20,null]]);
+ f.db.prepare("UPDATE move_assessments SET classification='inaccuracy',meaningful=0,comparison_loss=70").run();
+ const state=f.replay.get(f.gameId),point=state.checkpoints.find(point=>point.kind==='engine');
+ expect(point).toMatchObject({label:'Analysed inaccuracy',canRecall:true,canSchedule:false,keyDecision:true});
+ expect(state.analysisSummary).toMatchObject({analysedMoves:1,totalMoves:3,complete:false,counts:{inaccuracy:1,mistake:0,blunder:0},firstReviewPly:0});
+ expect(f.db.prepare('SELECT COUNT(*) FROM training_attempts').pluck().get()).toBe(0);
+});
+it('uses the most recently inserted completed run when timestamps tie and keeps old feedback until explicitly updated',()=>{
+ const f=setup();analysis(f,1,[['e2e4','e4',20,null]],'z-old');
+ let state=f.replay.get(f.gameId);state=act(f.replay,state,'reveal');const saved=state.snapshotId;
+ analysis(f,3,[['b1c3','Nc3',100,null]],'a-new');
+ f.db.prepare("UPDATE move_assessments SET classification='inaccuracy',meaningful=0 WHERE run_id='a-new'").run();
+ state=f.replay.get(f.gameId);expect(state.snapshotId).toBe(saved);expect(state.updatesAvailable).toBe(true);
+ expect(state.analysisSummary?.counts).toEqual({inaccuracy:1,mistake:0,blunder:0});
+ state=act(f.replay,state,'latest',{ply:2});
+ expect(state.snapshotId).not.toBe(saved);expect(state.checkpoints.filter(point=>point.kind==='engine')).toMatchObject([{ply:2,label:'Analysed inaccuracy'}]);
+ expect(f.db.prepare('SELECT COUNT(*) FROM game_review_local_attempts WHERE snapshot_id=?').pluck().get(saved)).toBe(1);
+});
+it('reports a genuinely clean complete analysis without inventing a review decision',()=>{
+ const f=setup('white','1. e4 e5 *','1. e4 e5 *');analysis(f,1,[['e2e4','e4',20,null]]);
+ f.db.prepare("UPDATE move_assessments SET classification='good',meaningful=0").run();
+ const state=f.replay.get(f.gameId);
+ expect(state.checkpoints.filter(point=>point.kind==='engine')).toHaveLength(0);
+ expect(state.analysisSummary).toMatchObject({complete:true,analysedMoves:1,totalMoves:1,counts:{inaccuracy:0,mistake:0,blunder:0},firstReviewPly:null});
+});
+it('does not call an alternative checkmate a missed mating opportunity',()=>{
+ const fen='1r2k1nr/p1q1p3/B4p1p/3p2p1/b2PP3/4QPB1/Pb4PP/1K4NR b k - 1 23';
+ const f=setup('black',`[SetUp "1"]\n[FEN "${fen}"]\n\n23... Bc2# 0-1`);
+ analysis(f,1,[['c7c2','Qc2#',null,-1],['a4c2','Bc2#',null,-1]]);
+ f.db.prepare("UPDATE move_assessments SET classification='good',meaningful=0,eval_before_mate_white=-1").run();
+ const state=f.replay.get(f.gameId);
+ expect(state.checkpoints.filter(point=>point.kind==='engine')).toHaveLength(0);
+ expect(state.analysisSummary).toMatchObject({complete:true,analysedMoves:1,totalMoves:1,counts:{inaccuracy:0,mistake:0,blunder:0}});
+});
+
+it('selects errors across sources and saves review credit only to the exact source decision',()=>{
+ const f=setup();analysis(f,1,[['e2e4','e4',20,null]]);f.db.prepare("UPDATE move_assessments SET classification='blunder'").run();
+ const profile=f.db.prepare('SELECT profile_id FROM games WHERE id=?').pluck().get(f.gameId) as string;
+ const second=new ImportService(f.db).importIntoProfile('[White "Learner"]\n[Black "Second opponent"]\n[Site "Chess.com"]\n\n1. d4 d5 2. c4 e6 *','Learner',profile);
+ const secondId=f.db.prepare('SELECT id FROM games WHERE import_batch_id=?').pluck().get(second.batchId) as string;
+ analysis({...f,gameId:secondId},1,[['e2e4','e4',20,null]],'second-run');
+ f.db.prepare("UPDATE move_assessments SET classification='blunder' WHERE run_id='second-run'").run();
+ const queue=f.replay.selectAcrossGames('blunder');expect(queue.positions).toHaveLength(2);
+ expect(queue.positions.map(point=>point.source).sort()).toEqual(['chesscom','pgn']);
+ expect(f.replay.selectAcrossGames('blunder','chesscom').positions.map(point=>point.gameId)).toEqual([secondId]);
+ const target=queue.positions.find(point=>point.gameId===f.gameId)!;
+ let state=f.replay.get(f.gameId);
+ state=act(f.replay,state,'latest',{ply:target.ply,checkpointId:target.checkpointId});
+ expect(state.activeCheckpointId).toBe(target.checkpointId);
+ state=act(f.replay,state,'answer',{moveUci:'d2d3'});
+ expect(state.reviewProgress?.reviewedCount).toBe(0);
+ state=act(f.replay,state,'reveal');
+ expect(state.reviewProgress).toMatchObject({status:'in_progress',reviewedCount:1});
+ expect(state.checkpoints.find(point=>point.id===target.checkpointId)).toMatchObject({reviewed:true,recalled:false});
+ expect(state.checkpoints.find(point=>point.kind==='opening')?.reviewed).toBe(false);
+ expect(f.replay.summaries().get(secondId)?.reviewedCount).toBe(0);
+ expect(f.replay.selectAcrossGames('blunder').positions.map(point=>point.gameId)).toEqual([secondId]);
+ expect(f.replay.selectAcrossGames('blunder','all',true).positions).toHaveLength(2);
+ expect(f.db.prepare('SELECT COUNT(*) FROM training_attempts').pluck().get()).toBe(0);
+ expect(f.db.prepare('SELECT COUNT(*) FROM jobs').pluck().get()).toBe(0);
+ const opening=state.checkpoints.find(point=>point.kind==='opening')!;
+ state=act(f.replay,state,'review_point',{checkpointId:opening.id,reviewed:true});
+ // Later departures may also exist; only the source checklist determines whole-game completion.
+ for(const point of state.checkpoints.filter(point=>!point.reviewed))state=act(f.replay,state,'review_point',{checkpointId:point.id,reviewed:true});
+ expect(f.replay.summaries().get(f.gameId)?.status).toBe('complete');
+});
+it('isolates cross-game practice by profile and retains older attempts when current feedback is selected',()=>{
+ const f=setup();analysis(f,1,[['e2e4','e4',20,null]],'old');
+ let state=f.replay.get(f.gameId);state=act(f.replay,state,'reveal');const old=state.snapshotId;
+ analysis(f,3,[['b1c3','Nc3',20,null]],'new');
+ const queue=f.replay.selectAcrossGames('mistake');
+ expect(queue.positions).toHaveLength(1);expect(queue.positions[0]?.ply).toBe(2);
+ expect(queue.positions[0]?.snapshotId).not.toBe(old);
+ expect(f.db.prepare('SELECT COUNT(*) FROM game_review_local_attempts WHERE snapshot_id=?').pluck().get(old)).toBe(1);
+ expect(f.db.prepare('SELECT 1 FROM game_review_snapshots WHERE id=?').get(old)).toBeTruthy();
+ f.db.prepare("INSERT INTO player_profiles(id,display_name,created_at) VALUES ('other','Other','2026-11-01')").run();setActiveProfile(f.db,'other');
+ expect(f.replay.selectAcrossGames('all').positions).toHaveLength(0);
+ expect(()=>f.replay.selectAcrossGames('all','all',false,17)).toThrow(/mate limit/);
+});
+it('practises only the chosen cross-game decision and retains helped-practice grading on repetition',()=>{
+ const f=setup();analysis(f,1,[['e2e4','e4',20,null]]);
+ const selected=f.replay.selectAcrossGames('mistake').positions[0]!;
+ let state=f.replay.get(f.gameId);
+ state=act(f.replay,state,'practice_start',{filters:['mistakes'],checkpointId:selected.checkpointId,maxMateIn:2});
+ expect(state.practice?.checkpointIds).toEqual([selected.checkpointId]);expect(state.activeCheckpointId).toBe(selected.checkpointId);
+ state=act(f.replay,state,'reveal');state=act(f.replay,state,'practice_next');
+ expect(state.practice?.status).toBe('completed');
+ state=act(f.replay,state,'practice_start',{filters:['mistakes'],checkpointId:selected.checkpointId,maxMateIn:2});
+ state=act(f.replay,state,'answer',{moveUci:'e2e4'});
+ expect(state.feedback?.outcome).toBe('after_retry');
+ expect(state.checkpoints.find(point=>point.id===selected.checkpointId)).toMatchObject({reviewed:true,recalled:false});
+});

@@ -1113,6 +1113,7 @@ export interface GameReplayCheckpoint {
   attempts:number; recalled:boolean;
 }
 export interface GameReplayResponse {
+  analysisSummary?:null|{analysedMoves:number;totalMoves:number;complete:boolean;counts:{inaccuracy:number;mistake:number;blunder:number};firstReviewPly:number|null};
   gameId:string; snapshotId:string; savedAt:string; version:number; playerColor:Color;
   initialFen:string; moves:GameReplayMove[]; checkpoints:GameReplayCheckpoint[];
   currentPly:number; activeCheckpointId:string|null; phase:"replay"|"question"|"feedback";
@@ -1124,6 +1125,15 @@ export interface GameReplayResponse {
   maxMateIn?: number;
   feedback:null|{message:string; outcome:string; answers:Array<{uci:string;san:string}>; explanation:string;
     teachingLines?:GameReviewTeachingLine[]};
+}
+
+export type GameSource='lichess'|'chesscom'|'pgn';
+export type GameErrorType='all'|'blunder'|'mistake'|'inaccuracy'|'attacking'|'defending'|'fork'|'capture'|'mates'|'opening';
+export interface CrossGamePosition {
+ gameId:string;snapshotId:string;checkpointId:string;ply:number;opponent:string;playerColor:Color;source:GameSource;playedAt:string|null;label:string;
+}
+export interface CrossGameSelection {
+ profileId:string;positions:CrossGamePosition[];totalMatches:number;unanalysedGames:number;
 }
 export interface GameReplayAction {
   snapshotId:string; version:number;

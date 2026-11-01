@@ -177,3 +177,28 @@ test("opens the exact progress source decision and its saved practice without re
   expect(requested).toBe(0);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
+
+test('updates an open used replay when analysis finishes and clearly offers the new results',async({page},info)=>{
+ const name=`Live analysis ${info.project.name}`;
+ const saved=await(await page.request.post('/api/v1/imports/pgn',{data:{playerName:name,pgn:`[White "${name}"]\n[Black "Live opponent"]\n[Result "0-1"]\n\n1. f3 e5 2. g4 Qh4# 0-1`}})).json();
+ await page.request.post(`/api/v1/profiles/${saved.profileId}/activate`);
+ const game=(await(await page.request.get('/api/v1/games')).json()).games[0];
+ await page.goto(`/#games?game=${game.id}`);
+ const replay=page.getByRole('region',{name:'Saved game replay',exact:true});
+ await expect(replay).toBeVisible();
+ await replay.getByRole('combobox',{name:'Game position',exact:true}).selectOption('1');
+ const before=await(await page.request.get(`/api/v1/games/${game.id}/replay`)).json();
+ await openGameReport(page);
+ const report=page.getByRole('region',{name:'Game move-quality report',exact:true});
+ await report.getByRole('button',{name:'Analyse this game',exact:true}).click();
+ const summary=replay.getByRole('region',{name:'Latest analysis summary',exact:true});
+ await expect(summary).toContainText('Assessed 2 of your 2 moves',{timeout:20000});
+ await expect(replay.getByRole('button',{name:'Review new analysis',exact:true})).toBeEnabled();
+ expect((await(await page.request.get(`/api/v1/games/${game.id}/replay`)).json()).snapshotId).toBe(before.snapshotId);
+ await replay.getByRole('button',{name:'Review new analysis',exact:true}).click();
+ await expect(replay).not.toContainText('This board still uses older saved feedback');
+ await expect(replay.locator('.game-replay-markers')).toContainText('Analysed blunder');
+ expect((await(await page.request.get(`/api/v1/games/${game.id}/replay`)).json()).snapshotId).not.toBe(before.snapshotId);
+ expect(await(await page.request.get('/api/v1/jobs/active')).json()).toBeNull();
+ await page.screenshot({path:info.outputPath('live-analysis-review.png'),fullPage:true});
+});

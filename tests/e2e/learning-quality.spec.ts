@@ -12,7 +12,7 @@ test('[G1_UI] separates library and focused board and restores search on Back an
  const games=await ownGames(page,`navigation ${info.project.name}`);
  await page.goto('/#games');await expect(page.getByRole('grid',{name:'Game replay board',exact:true})).toBeHidden();
  await page.getByLabel('Find a game',{exact:true}).fill('Quality opponent 3');
- await page.getByRole('button',{name:/Quality opponent 3.*1-0/}).click();
+ await page.getByRole('button',{name:'Quality opponent 3',exact:true}).click();
  await expect(page.getByRole('grid',{name:'Game replay board',exact:true})).toHaveCount(1);
  await expect(page.getByLabel('Find a game',{exact:true})).toBeHidden();
  await expect(page.getByRole('region',{name:'Opening follow-ups across games',exact:true})).toBeHidden();
