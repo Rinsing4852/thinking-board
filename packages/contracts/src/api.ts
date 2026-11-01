@@ -1128,6 +1128,10 @@ export interface GameReplayResponse {
 }
 
 export type GameSource='lichess'|'chesscom'|'pgn';
+export interface GameLibraryAnalysis {
+ completedAt:string;complete:boolean;assessedMoves:number;totalMoves:number;
+ counts:{inaccuracy:number;mistake:number;blunder:number};reviewUpdatesAvailable:boolean;
+}
 export type GameErrorType='all'|'blunder'|'mistake'|'inaccuracy'|'attacking'|'defending'|'fork'|'capture'|'mates'|'opening';
 export interface CrossGamePosition {
  gameId:string;snapshotId:string;checkpointId:string;ply:number;opponent:string;playerColor:Color;source:GameSource;playedAt:string|null;label:string;

@@ -228,7 +228,13 @@ test("searches the whole game library and ignores an obsolete review response", 
   });
   await page.goto("/#games");
   const library = page.locator(".game-chips");
-  await expect(library.locator("button")).toHaveCount(8);
+  await expect(library.locator("button")).toHaveCount(20);
+  await expect(page.getByRole('button',{name:/Show more games/})).toHaveCount(0);
+  expect(await library.evaluate(el=>el.scrollHeight>el.clientHeight)).toBe(true);
+  await library.evaluate(el=>{el.scrollTop=el.scrollHeight;});
+  await expect(library.getByRole('button',{name:'Opponent 19',exact:true})).toBeVisible();
+  const sticky=await library.evaluate(el=>{const box=el.getBoundingClientRect(),head=el.querySelector('thead th')!.getBoundingClientRect();return Math.abs(head.top-box.top);});
+  expect(sticky).toBeLessThan(3);
   const search = page.getByLabel("Find a game");
   await search.fill("Opponent 19");
   await library.getByRole("button", { name: 'Opponent 19',exact:true }).click();
@@ -237,7 +243,7 @@ test("searches the whole game library and ignores an obsolete review response", 
   await page.getByRole("button", {name:"Back to games",exact:true}).click();
   await expect(search).toHaveValue("Opponent 19");
   await search.fill("");
-  await expect(library.locator("button")).toHaveCount(9);
+  await expect(library.locator("button")).toHaveCount(20);
   const pending = page.waitForRequest(/\/games\/ui-game-1\/review$/);
   await library.getByRole("button", { name: 'Opponent 1',exact:true }).click();
   await pending;

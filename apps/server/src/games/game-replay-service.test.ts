@@ -406,3 +406,28 @@ it('practises only the chosen cross-game decision and retains helped-practice gr
  expect(state.feedback?.outcome).toBe('after_retry');
  expect(state.checkpoints.find(point=>point.id===selected.checkpointId)).toMatchObject({reviewed:true,recalled:false});
 });
+it('reads latest library analysis before opening a review, without creating snapshots or review credit',()=>{
+ const f=setup();
+ expect(f.replay.libraryAnalysis().has(f.gameId)).toBe(false);
+ analysis(f,1,[['e2e4','e4',20,null]],'z-old');
+ expect(f.replay.libraryAnalysis().get(f.gameId)).toMatchObject({complete:false,assessedMoves:1,totalMoves:3,counts:{inaccuracy:0,mistake:1,blunder:0},reviewUpdatesAvailable:false});
+ expect(f.db.prepare('SELECT COUNT(*) FROM game_review_snapshots').pluck().get()).toBe(0);
+ let saved=f.replay.get(f.gameId);saved=act(f.replay,saved,'review_status',{reviewStatus:'complete'});
+ const before=f.db.prepare('SELECT * FROM game_review_replays').all();
+ analysis(f,3,[['b1c3','Nc3',20,null]],'a-new');
+ f.db.prepare("UPDATE move_assessments SET classification='blunder' WHERE run_id='a-new'").run();
+ const summary=f.replay.libraryAnalysis().get(f.gameId);
+ expect(summary).toMatchObject({counts:{inaccuracy:0,mistake:0,blunder:1},reviewUpdatesAvailable:true});
+ expect(f.db.prepare('SELECT * FROM game_review_replays').all()).toEqual(before);
+ expect(f.replay.summaries().get(f.gameId)?.status).toBe('complete');
+ expect(f.db.prepare('SELECT COUNT(*) FROM game_review_local_attempts').pluck().get()).toBe(1);
+ f.db.prepare("INSERT INTO player_profiles(id,display_name,created_at) VALUES ('library-other','Other','2026-11-01')").run();setActiveProfile(f.db,'library-other');
+ expect(f.replay.libraryAnalysis().size).toBe(0);
+});
+it('distinguishes complete clean analysis from missing assessments in the library',()=>{
+ const f=setup('black','1. e4 e5 *');analysis(f,2,[['e7e5','e5',20,null]]);
+ f.db.prepare("UPDATE move_assessments SET meaningful=0,classification='good'").run();
+ expect(f.replay.libraryAnalysis().get(f.gameId)).toMatchObject({complete:true,assessedMoves:1,totalMoves:1,counts:{inaccuracy:0,mistake:0,blunder:0}});
+ f.db.prepare('DELETE FROM move_assessments').run();
+ expect(f.replay.libraryAnalysis().get(f.gameId)).toMatchObject({complete:false,assessedMoves:0,totalMoves:1});
+});

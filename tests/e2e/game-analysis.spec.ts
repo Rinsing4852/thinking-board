@@ -63,6 +63,49 @@ test("requests individual and selected/all analysis, retains reports, and compar
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
 
+test('updates library analysis and pending feedback without opening a game',async({page},info)=>{
+ const learner=`Library feedback ${info.project.name}`;
+ const imported=await(await page.request.post('/api/v1/imports/pgn',{data:{playerName:learner,pgn:`[White "${learner}"]\n[Black "Feedback rival"]\n[Result "0-1"]\n\n1. f3 e5 2. g4 Qh4# 0-1`}})).json();
+ await page.request.post(`/api/v1/profiles/${imported.profileId}/activate`);
+ const initial=(await(await page.request.get('/api/v1/games')).json()).games[0];
+ expect(initial.hasSavedReview).toBe(0);
+ let reads=0;page.on('request',request=>{if(request.url().endsWith('/replay')&&request.method()==='GET')reads++;});
+ await page.goto('/#games');
+ const row=page.getByRole('row').filter({has:page.getByRole('button',{name:'Feedback rival',exact:true})});
+ await expect(row).toContainText('Not analysed');
+ await page.getByRole('button',{name:'Select games to analyse',exact:true}).click();
+ const choose=page.getByRole('region',{name:'Choose games for analysis',exact:true});
+ await choose.getByRole('button',{name:'Select all 1 games',exact:true}).click();
+ await choose.getByRole('button',{name:'Analyse selected games',exact:true}).click();
+ await expect(row).toContainText('Analysis complete',{timeout:20000});
+ await expect(row).toContainText('Ready to review');
+ expect(reads).toBe(0);
+ const complete=(await(await page.request.get('/api/v1/games')).json()).games[0];
+ expect(complete.hasSavedReview).toBe(0);expect(complete.analysis.complete).toBe(true);
+ expect(complete.analysis.counts.blunder+complete.analysis.counts.mistake+complete.analysis.counts.inaccuracy).toBeGreaterThan(0);
+ await row.getByRole('button',{name:'Feedback rival',exact:true}).click();
+ const replay=page.getByRole('region',{name:'Saved game replay',exact:true});
+ await replay.getByLabel('Game review status',{exact:true}).selectOption('complete');
+ await expect(replay.getByLabel('Game review status',{exact:true})).toBeEnabled();
+ const saved=await(await page.request.get(`/api/v1/games/${initial.id}/replay`)).json();
+ await page.getByRole('button',{name:'Back to games',exact:true}).click();
+ await expect(row).toContainText('Review complete');
+ await choose.getByLabel('Include games with an existing report').check();
+ await choose.getByRole('button',{name:'Select all 1 games',exact:true}).click();
+ const previousReads=reads;
+ await choose.getByRole('button',{name:'Analyse selected games',exact:true}).click();
+ await expect(row).toContainText('New analysis to review',{timeout:20000});
+ expect(reads).toBe(previousReads);
+ const latest=(await(await page.request.get('/api/v1/games')).json()).games[0];
+ expect(latest.reviewProgress.status).toBe('complete');expect(latest.analysis.reviewUpdatesAvailable).toBe(true);
+ const unchanged=await(await page.request.get(`/api/v1/games/${initial.id}/replay`)).json();expect(unchanged.snapshotId).toBe(saved.snapshotId);
+ await page.getByRole('combobox',{name:'Filter by review status',exact:true}).selectOption('complete');
+ await expect(row).toHaveCount(0);
+ await page.getByRole('combobox',{name:'Filter by review status',exact:true}).selectOption('not_started');
+ await expect(row).toContainText('New analysis to review');
+ await page.screenshot({path:info.outputPath('library-live-feedback.png'),fullPage:true});
+});
+
 test("takes saved games from Today to requested analysis and opens the latest replay in one action",async({page},info)=>{
   const name=`Repair journey ${info.project.name}`;
   const saved=await(await page.request.post("/api/v1/imports/pgn",{data:{playerName:name,pgn:`[White "${name}"]\n[Black "Repair opponent"]\n[Date "2026.10.26"]\n[Result "0-1"]\n\n1. f3 e5 2. g4 Qh4# 0-1`}})).json();

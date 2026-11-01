@@ -1,6 +1,6 @@
 import {gameReviewProgress,type ReviewEvent} from "./game-review-progress.js";
 import {gameSource} from './game-source.js';
-import type {CrossGameSelection,GameErrorType,GameSource} from '../../../../packages/contracts/src/api.js';
+import type {CrossGameSelection,GameErrorType,GameSource,GameLibraryAnalysis} from '../../../../packages/contracts/src/api.js';
 import {tacticalEvidence,verifiedMatingAnswers} from "./game-tactical-evidence.js";
 import { CandidateGenerator } from "../analysis/candidate-generator.js";
 import { Chess } from "chess.js";
@@ -196,6 +196,24 @@ export class GameReplayService {
       (SELECT json_group_array(json_extract(value,'$.id')) FROM json_each(s.content_json,'$.points')) AS points
       FROM game_review_replays r JOIN game_review_snapshots s ON s.id=r.snapshot_id WHERE r.profile_id=?`).all(profile) as Array<{game_id:string;snapshot_id:string;points:string}>;
     return new Map(rows.map(row=>{const {reviewedIds:_,...progress}=gameReviewProgress(JSON.parse(row.points),grouped.get(row.snapshot_id)??[]);return [row.game_id,progress];}));
+  }
+  /** Read current analysis without creating or replacing the learner's saved feedback. */
+  libraryAnalysis():Map<string,GameLibraryAnalysis> {
+    const rows=this.db.prepare(`SELECT ar.game_id,ar.completed_at,COUNT(m.id) AS total,COUNT(ma.move_id) AS assessed,
+      SUM(CASE WHEN ma.classification='inaccuracy' THEN 1 ELSE 0 END) AS inaccuracies,
+      SUM(CASE WHEN ma.classification='mistake' THEN 1 ELSE 0 END) AS mistakes,
+      SUM(CASE WHEN ma.classification='blunder' THEN 1 ELSE 0 END) AS blunders,
+      CASE WHEN s.id IS NOT NULL AND json_extract(s.source_revision,'$[0]') IS NOT ar.id THEN 1 ELSE 0 END AS pending
+      FROM games g JOIN analysis_runs ar ON ar.game_id=g.id
+      LEFT JOIN moves m ON m.game_id=g.id AND m.mover_color=g.player_color
+      LEFT JOIN move_assessments ma ON ma.move_id=m.id AND ma.run_id=ar.id
+      LEFT JOIN game_review_replays r ON r.game_id=g.id AND r.profile_id=g.profile_id
+      LEFT JOIN game_review_snapshots s ON s.id=r.snapshot_id
+      WHERE g.profile_id=? AND ar.id=(SELECT latest.id FROM analysis_runs latest WHERE latest.game_id=g.id AND latest.status='completed'
+        ORDER BY latest.completed_at DESC,latest.rowid DESC LIMIT 1)
+      GROUP BY ar.id`).all(activeProfileId(this.db)) as Array<{game_id:string;completed_at:string;total:number;assessed:number;inaccuracies:number;mistakes:number;blunders:number;pending:number}>;
+    return new Map(rows.map(row=>[row.game_id,{completedAt:row.completed_at,complete:row.total>0&&row.assessed===row.total,
+      assessedMoves:row.assessed,totalMoves:row.total,counts:{inaccuracy:row.inaccuracies,mistake:row.mistakes,blunder:row.blunders},reviewUpdatesAvailable:Boolean(row.pending)}]));
   }
   /** Explicit practice selection reuses saved review decisions and their event history. */
   selectAcrossGames(type:GameErrorType,source:GameSource|'all'='all',includeReviewed=false,maxMateIn=2):CrossGameSelection {

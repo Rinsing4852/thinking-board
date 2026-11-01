@@ -1228,6 +1228,7 @@ button.quality-move { display: grid; gap: .3rem; text-align: left; min-height: 7
 .game-library .game-table .game-chip.active td,.game-library .game-table .game-chip.active th { background:#293a25; }
 .game-opponent { display:block; width:100%; min-height:44px; padding:.35rem .2rem; text-align:left; color:var(--lime); background:transparent; border:0; text-transform:none; letter-spacing:normal; }
 .game-table td small { display:block; margin-top:.2rem; }
+.game-table .game-library-error-counts { max-width:16rem; white-space:normal; }
 .game-source { font-size:.75rem; border:1px solid var(--line); border-radius:5px; padding:.15rem .35rem; }
 .cross-game-practice { border:1px solid var(--line); border-radius:10px; padding:1rem; display:grid; gap:.75rem; }
 .cross-game-practice .game-replay { margin:0; }

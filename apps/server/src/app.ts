@@ -776,6 +776,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
 
   app.get("/api/v1/games", async () => {
     const summaries=gameReplay.summaries();
+    const analyses=gameReplay.libraryAnalysis();
     return {games: database.connection.prepare(`
       SELECT id, white_name AS white, black_name AS black, player_color AS playerColor,
              result, played_at AS playedAt, analyzed_at AS analyzedAt,identity_key,headers_json,
@@ -783,7 +784,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
              (SELECT json_array_length(s.content_json,'$.points') FROM game_review_replays r
                JOIN game_review_snapshots s ON s.id=r.snapshot_id WHERE r.game_id=games.id) AS reviewDecisions
       FROM games WHERE profile_id = ? ORDER BY created_at DESC
-    `).all(activeProfileId(database.connection)).map(row=>{const {identity_key,headers_json,...game}=row as Record<string,unknown>&{id:string;identity_key:string|null;headers_json:string};return {...game,source:gameSource(identity_key,headers_json),reviewProgress:summaries.get(game.id)??{status:"not_started",reviewedCount:0,totalCount:0}};})};
+    `).all(activeProfileId(database.connection)).map(row=>{const {identity_key,headers_json,...game}=row as Record<string,unknown>&{id:string;identity_key:string|null;headers_json:string};return {...game,source:gameSource(identity_key,headers_json),analysis:analyses.get(game.id)??null,reviewProgress:summaries.get(game.id)??{status:"not_started",reviewedCount:0,totalCount:0}};})};
   });
 
   app.get("/api/v1/games/:gameId/review", async (request, reply) => {
