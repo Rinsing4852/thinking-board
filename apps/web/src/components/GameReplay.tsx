@@ -117,6 +117,7 @@ export function GameReplay({gameId,onRefreshed,requestedPosition,refreshToken=0,
         <div className="game-replay-decision" aria-live="polite">
           {point?<>
             <span className="eyebrow">{point.label}</span><h4>{point.question}</h4>
+            {point.reviewedInTraining&&<p>Reviewed in Today practice. This does not count as unaided recall.</p>}
             {point.kind==="opening"&&<p>A different repertoire move is not automatically a chess mistake.</p>}
             {data.phase==="question"&&<><p>Play your answer on the board. The saved answers stay hidden until you recall one or ask to see them.</p>
               <div className="answer-actions"><button disabled={blocked} onClick={()=>act("reveal")}>Show answer</button>

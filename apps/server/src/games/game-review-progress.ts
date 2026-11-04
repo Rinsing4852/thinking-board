@@ -1,7 +1,7 @@
 import type { GameReviewProgress } from '../../../../packages/contracts/src/api.js';
 
 export interface ReviewEvent { checkpoint_id: string; result: string }
-export const REVIEWED_RESULTS = new Set(['shown', 'recalled', 'after_retry', 'marked_reviewed']);
+export const REVIEWED_RESULTS = new Set(['shown', 'recalled', 'after_retry', 'marked_reviewed', 'trained_reviewed']);
 
 /** A review checklist is independent of recall success, practice rounds and FSRS. */
 export function gameReviewProgress(pointIds: string[], events: ReviewEvent[]): GameReviewProgress & { reviewedIds: string[] } {

@@ -1,3 +1,4 @@
+import {completedTrainingReview} from './training-review-link.js';
 import {gameReviewProgress,type ReviewEvent} from "./game-review-progress.js";
 import {gameSource} from './game-source.js';
 import type {CrossGameSelection,GameErrorType,GameSource,GameLibraryAnalysis} from '../../../../packages/contracts/src/api.js';
@@ -138,6 +139,34 @@ export class GameReplayService {
     this.db.prepare("INSERT INTO game_review_snapshots(id,game_id,profile_id,source_revision,content_json,created_at) VALUES(?,?,?,?,?,?)").run(snapshot,gameId,game.profile_id,source.revision,JSON.stringify(content),created);
     this.db.prepare(`INSERT INTO game_review_replays(game_id,profile_id,snapshot_id,state_json,updated_at) VALUES(?,?,?,?,?)
       ON CONFLICT(game_id) DO UPDATE SET snapshot_id=excluded.snapshot_id,state_json=excluded.state_json,version=game_review_replays.version+1,updated_at=excluded.updated_at`).run(gameId,game.profile_id,snapshot,JSON.stringify(state),created);
+    if(source.run){
+      const pending=this.db.prepare(`SELECT c.attempt_id FROM training_game_review_context c
+        JOIN training_attempts ta ON ta.id=c.attempt_id JOIN training_items ti ON ti.id=ta.item_id
+        WHERE c.snapshot_id IS NULL AND c.analysis_run_id=? AND ti.game_id=? AND ti.profile_id=? AND ta.answered_at IS NOT NULL`)
+        .all(source.run,gameId,game.profile_id) as Array<{attempt_id:string}>;
+      for(const attempt of pending)this.recordTrainingReview(attempt.attempt_id);
+    }
+  }
+  /** Today feedback reviews the source decision; it never earns local recall credit. */
+  recordTrainingReview(attemptId:string):void {
+    const attempt=completedTrainingReview(this.db,attemptId);
+    if(!attempt||attempt.profile_id!==activeProfileId(this.db))return;
+    let snapshotId=attempt.snapshot_id;
+    if(!snapshotId){
+      const saved=this.saved(attempt.game_id);
+      if(!saved){this.get(attempt.game_id);return;}
+      if(JSON.parse(saved.source_revision)[0]!==attempt.analysis_run_id)return;
+      snapshotId=saved.snapshot_id;
+    }
+    const snapshot=this.db.prepare('SELECT content_json,source_revision FROM game_review_snapshots WHERE id=? AND game_id=? AND profile_id=?')
+      .get(snapshotId,attempt.game_id,attempt.profile_id) as {content_json:string;source_revision:string}|undefined;
+    if(!snapshot||JSON.parse(snapshot.source_revision)[0]!==attempt.analysis_run_id)return;
+    const pointId=`engine:${attempt.source_move_id}`;
+    if(!(JSON.parse(snapshot.content_json) as Snapshot).points.some(point=>point.id===pointId))return;
+    const inserted=this.db.prepare(`INSERT OR IGNORE INTO game_review_local_attempts(id,snapshot_id,checkpoint_id,move_uci,result,created_at)
+      VALUES(?,?,?,NULL,'trained_reviewed',?)`).run(`training:${attempt.id}`,snapshotId,pointId,attempt.answered_at);
+    this.db.prepare('UPDATE training_game_review_context SET snapshot_id=? WHERE attempt_id=?').run(snapshotId,attempt.id);
+    if(inserted.changes)this.db.prepare('UPDATE game_review_replays SET version=version+1,updated_at=? WHERE snapshot_id=?').run(now(),snapshotId);
   }
   private teachingLine(fen:string,pvJson:string,root:string,label:string):GameReviewTeachingLine {
     let pv:unknown;try{pv=JSON.parse(pvJson);}catch{pv=[];}
@@ -267,6 +296,7 @@ export class GameReplayService {
     const {reviewedIds,...reviewProgress}=gameReviewProgress(content.points.map(point=>point.id),attempts);
     return {analysisSummary:this.analysisSummary(gameId),reviewProgress,gameId,snapshotId:saved.snapshot_id,savedAt:saved.created_at,version:saved.version,playerColor:content.playerColor,initialFen:content.initialFen,moves:content.moves,
       checkpoints:content.points.map(({matingAnswers:________,answers,answerNotes:_____,teachingLines:______,priorityLoss:_______,prioritySeverity:_________,explanation:_,sourceMoveId:__,repertoireId:___,positionId:____,...point})=>({...point,canRecall:answers.length>0,reviewed:reviewedIds.includes(point.id),
+        reviewedInTraining:reviewedIds.includes(point.id)&&attempts.some(event=>event.checkpoint_id===point.id&&event.result==="trained_reviewed"),
         attempts:attempts.filter(attempt=>attempt.checkpoint_id===point.id&&["recalled","after_retry","unverified"].includes(attempt.result)).length,
         recalled:attempts.some(attempt=>attempt.checkpoint_id===point.id&&attempt.result==="recalled")})),
       keyStudyComplete:state.keyStudyComplete??false,...(state.practice?{practice:state.practice}:{}),currentPly:state.ply,activeCheckpointId:state.point,phase:state.phase,displayFen:onBoard?.fen??fen,
@@ -359,7 +389,7 @@ export class GameReplayService {
           const played=apply(fen,uci);state.tries++;
           if(point.answers.some(answer=>answer.uci===uci)) {
             const earlierPractice=state.practice?.status==='active'&&Boolean(this.db.prepare(`SELECT 1 FROM game_review_local_attempts
-              WHERE snapshot_id=? AND checkpoint_id=? AND result IN ('shown','recalled','after_retry','unverified') AND created_at>=? LIMIT 1`).get(saved.snapshot_id,point.id,now().slice(0,10)));
+              WHERE snapshot_id=? AND checkpoint_id=? AND result IN ('shown','recalled','after_retry','unverified','trained_reviewed') AND created_at>=? LIMIT 1`).get(saved.snapshot_id,point.id,now().slice(0,10)));
             result=state.tries===1&&!earlierPractice?"recalled":"after_retry";state.phase="feedback";state.answerMove=uci;
             state.message=`${played.san} is an accepted ${point.kind==="opening"?"repertoire response":"stored engine improvement"}${state.tries>1?" after another try":earlierPractice?" after earlier practice today":""}.`;
           } else {result="unverified";state.message=point.kind==="opening"?`${played.san} is not a saved response in this review. It may still be a good chess move. Try again or show the answer.`:`${played.san} is not among the accepted stored candidates. Other moves have not been graded here. Try again or show the answer.`;}

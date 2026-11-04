@@ -67,7 +67,9 @@
         "LR03",
         "LR08",
         "LR09",
-        "LR11"
+        "LR11",
+        "LR07",
+        "LR10"
       ],
       "checks": [
         {
@@ -84,6 +86,16 @@
           "id": "G3_UI",
           "kind": "browser",
           "description": "The learner sees a supported focus, reason, source games and a direct practice action with no extra board or forced cloud service."
+        },
+        {
+          "id": "G3_REVIEW_LINK",
+          "kind": "unit",
+          "description": "Today feedback reviews only its exact source engine decision and analysis snapshot; no extra scheduling or recall credit, cross-profile credit, stale-content credit or reset resurrection."
+        },
+        {
+          "id": "G3_REVIEW_LINK_UI",
+          "kind": "browser",
+          "description": "Completing Today practice updates source-game review progress and shows reviewed-in-practice after navigation and reload, independently of recall."
         }
       ]
     }

@@ -75,7 +75,7 @@ function moveFromUci(uci: string): { from: string; to: string; promotion?: strin
 
 export class V1TrainingService {
   private quietEngine: UciEngine | null = null;
-  constructor(private readonly db: SqliteDatabase, private readonly config?: AppConfig) {}
+  constructor(private readonly db: SqliteDatabase, private readonly config?: AppConfig,private readonly onReviewed?:(attemptId:string)=>void) {}
 
   async close(): Promise<void> { await this.quietEngine?.close(); }
 
@@ -581,6 +581,7 @@ export class V1TrainingService {
         WHERE id = ?
       `).run(answeredAt, answeredAt, duration, score, storedOutcome, JSON.stringify(response), JSON.stringify(feedback), attempt.id);
       recordReview(this.db, attempt.item_id, passed, duration, storedOutcome, answeredAt);
+      this.onReviewed?.(attempt.id);
     })();
   }
 

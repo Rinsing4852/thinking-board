@@ -90,9 +90,10 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   const imports = new ImportService(database.connection);
   const lichessSync = new LichessSyncService(database.connection, imports, config.lichessApiToken);
   const chessCom = new ChessComImportService(database.connection, imports);
-  const training = new TrainingService(database.connection);
-  const candidateTraining = new CandidateTrainingService(database.connection, config);
-  const v1Training = new V1TrainingService(database.connection, config);
+  const reviewedInTraining=(attemptId:string)=>gameReplay.recordTrainingReview(attemptId);
+  const training = new TrainingService(database.connection,reviewedInTraining);
+  const candidateTraining = new CandidateTrainingService(database.connection, config,reviewedInTraining);
+  const v1Training = new V1TrainingService(database.connection, config,reviewedInTraining);
   const learningFocus=new LearningFocusService(database.connection,v1Training);
   app.get('/api/v1/practice/focus',async(request,reply)=>{try{const query=request.query as {gameDays?:unknown;timeControl?:string};return learningFocus.get(parseGameDays(query.gameDays),query.timeControl);}catch(error){return reply.code(400).send({error:error instanceof Error?error.message:'Could not load learning focus'});}});
   app.post('/api/v1/practice/focus/start',async(request,reply)=>{try{const body=request.body as {profileId?:unknown;focusId?:unknown;gameDays?:unknown;timeControl?:string};return learningFocus.start(requiredString(body.profileId,'Player'),requiredString(body.focusId,'Focus'),parseGameDays(body.gameDays),body.timeControl);}catch(error){return reply.code(400).send({error:error instanceof Error?error.message:'Could not start focused practice'});}});

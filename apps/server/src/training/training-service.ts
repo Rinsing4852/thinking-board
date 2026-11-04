@@ -93,7 +93,7 @@ function moveFromUci(uci: string): { from: string; to: string; promotion?: strin
 }
 
 export class TrainingService {
-  constructor(private readonly db: SqliteDatabase) {}
+  constructor(private readonly db: SqliteDatabase,private readonly onReviewed?:(attemptId:string)=>void) {}
 
   next(pool: string, itemId?: string, gameDays: number | null = null): NextTrainingResponse {
     const profileId = activeProfileId(this.db);
@@ -259,6 +259,7 @@ export class TrainingService {
         JSON.stringify(feedback), attemptId,
       );
       recordReview(this.db, attempt.item_id, outcome === "excellent", duration, outcome, answeredAt);
+      this.onReviewed?.(attemptId);
     })();
 
     return {
@@ -302,6 +303,7 @@ export class TrainingService {
           outcome = 'revealed', feedback_json = ? WHERE id = ?
       `).run(answeredAt, duration, JSON.stringify({ acceptableMoves }), attemptId);
       recordReview(this.db, attempt.item_id, false, duration, "revealed", answeredAt);
+      this.onReviewed?.(attemptId);
     })();
     const lesson=lessonForAttempt(attempt);
     return {
@@ -354,6 +356,7 @@ export class TrainingService {
         JSON.stringify({ square }), JSON.stringify(feedback), attemptId,
       );
       recordReview(this.db, attempt.item_id, outcome === "excellent", duration, outcome, answeredAt);
+      this.onReviewed?.(attemptId);
     })();
     return { outcome, score, categoryCorrect, squareCorrect, ...feedback };
   }
@@ -374,6 +377,7 @@ export class TrainingService {
         WHERE id = ?
       `).run(answeredAt, duration, JSON.stringify(feedback), attemptId);
       recordReview(this.db, attempt.item_id, false, duration, "revealed", answeredAt);
+      this.onReviewed?.(attemptId);
     })();
     return {
       outcome: "incorrect",

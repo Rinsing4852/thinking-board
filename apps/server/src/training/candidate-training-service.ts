@@ -101,7 +101,7 @@ export class CandidateTrainingService {
   private readonly engine: UciEngine;
   private evaluationQueue: Promise<void> = Promise.resolve();
 
-  constructor(private readonly db: SqliteDatabase, private readonly config: AppConfig) {
+  constructor(private readonly db: SqliteDatabase, private readonly config: AppConfig,private readonly onReviewed?:(attemptId:string)=>void) {
     this.engine = new UciEngine(config.stockfishBinary, config.stockfishThreads, config.stockfishHashMb);
   }
 
@@ -161,6 +161,7 @@ export class CandidateTrainingService {
           outcome = 'revealed', response_json = '{}', feedback_json = ? WHERE id = ?
       `).run(answeredAt, duration, JSON.stringify(feedback), attemptId);
       recordReview(this.db, attempt.item_id, false, duration, "revealed", answeredAt);
+      this.onReviewed?.(attemptId);
     })();
     return feedback;
   }
@@ -266,6 +267,7 @@ export class CandidateTrainingService {
         JSON.stringify({ candidates: submissions }), JSON.stringify(feedback), attemptId,
       );
       recordReview(this.db, attempt.item_id, outcome === "excellent", duration, outcome, answeredAt);
+      this.onReviewed?.(attemptId);
     })();
     return feedback;
   }

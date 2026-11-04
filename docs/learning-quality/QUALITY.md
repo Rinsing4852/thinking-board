@@ -25,11 +25,13 @@ Validation: grader=passed, types=passed, unit suite=passed, build=passed, browse
 
 ## 3. Cross-game learning focus: PASS
 
-3/3 checks verified.
+5/5 checks verified.
 
 - **passed** G3_PLAN: Recurring objective patterns use distinct game evidence, bounded selection and transparent ranking; sparse evidence stays provisional.
 - **passed** G3_HISTORY: Profiles, time-control/analysis cohorts, recency and repetitions remain separate; selecting a focus creates no analysis or credit.
 - **passed** G3_UI: The learner sees a supported focus, reason, source games and a direct practice action with no extra board or forced cloud service.
+- **passed** G3_REVIEW_LINK: Today feedback reviews only its exact source engine decision and analysis snapshot; no extra scheduling or recall credit, cross-profile credit, stale-content credit or reset resurrection.
+- **passed** G3_REVIEW_LINK_UI: Completing Today practice updates source-game review progress and shows reviewed-in-practice after navigation and reload, independently of recall.
 
 ## Human and learning evidence
 

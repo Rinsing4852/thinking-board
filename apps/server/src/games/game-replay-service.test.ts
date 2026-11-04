@@ -1,3 +1,6 @@
+import {CandidateTrainingService} from '../training/candidate-training-service.js';
+import type {AppConfig} from '../config.js';
+import {AttemptLifecycle} from '../training/attempt-lifecycle.js';
 import path from "node:path";
 import { Chess } from "chess.js";
 import { afterEach,describe,expect,it,vi } from "vitest";
@@ -430,4 +433,87 @@ it('distinguishes complete clean analysis from missing assessments in the librar
  expect(f.replay.libraryAnalysis().get(f.gameId)).toMatchObject({complete:true,assessedMoves:1,totalMoves:1,counts:{inaccuracy:0,mistake:0,blunder:0}});
  f.db.prepare('DELETE FROM move_assessments').run();
  expect(f.replay.libraryAnalysis().get(f.gameId)).toMatchObject({complete:false,assessedMoves:0,totalMoves:1});
+});
+
+// Today results reuse the review checklist without changing its recall or scheduling semantics.
+describe('[G3_REVIEW_LINK] Today practice links to source game decisions',()=>{
+  function exercise(){
+    const f=setup();analysis(f,1,[['e2e4','e4',100,null],['d2d4','d4',90,null]]);
+    new CandidateGenerator(f.db).generateForGame(f.gameId);
+    const item=f.db.prepare("SELECT id FROM training_items WHERE mode='candidate_generation'").pluck().get() as string;
+    return {...f,item};
+  }
+  function finish(f:ReturnType<typeof exercise>,attemptId:string){
+    f.db.prepare("UPDATE training_attempts SET answered_at='2026-11-02T10:00:00.000Z',outcome='revealed',feedback_json='{}' WHERE id=?").run(attemptId);
+    f.replay.recordTrainingReview(attemptId);
+  }
+  it('[G3_REVIEW_LINK] writes the review from a real candidate reveal transaction and schedules only once',async()=>{
+    const f=exercise(),service=new CandidateTrainingService(f.db,{stockfishBinary:'unused',stockfishThreads:1,stockfishHashMb:16} as AppConfig,
+      attemptId=>f.replay.recordTrainingReview(attemptId));
+    const attempt=new AttemptLifecycle(f.db).start(f.item);
+    service.reveal(attempt.attemptId);
+    expect(f.replay.get(f.gameId).checkpoints.find(p=>p.kind==='engine')).toMatchObject({reviewed:true,recalled:false,attempts:0});
+    expect(f.db.prepare('SELECT attempts FROM review_states WHERE item_id=?').pluck().get(f.item)).toBe(1);
+    expect(()=>service.reveal(attempt.attemptId)).toThrow();
+    expect(f.db.prepare('SELECT attempts FROM review_states WHERE item_id=?').pluck().get(f.item)).toBe(1);
+    await service.close();
+  });
+  it('[G3_REVIEW_LINK] links feedback even before opening the game, once, without marking overlapping opening practice or recall',()=>{
+    const f=exercise(),attempt=new AttemptLifecycle(f.db).start(f.item);
+    const schedule=f.db.prepare('SELECT * FROM review_states').all();finish(f,attempt.attemptId);
+    let state=f.replay.get(f.gameId);
+    expect(state.checkpoints.find(p=>p.kind==='engine')).toMatchObject({reviewed:true,reviewedInTraining:true,recalled:false,attempts:0});
+    expect(state.checkpoints.find(p=>p.kind==='opening')?.reviewed).toBe(false);
+    expect(state.reviewProgress?.status).toBe('in_progress');
+    expect(f.db.prepare('SELECT * FROM review_states').all()).toEqual(schedule);
+    f.replay.recordTrainingReview(attempt.attemptId);expect(f.replay.get(f.gameId).version).toBe(state.version);
+    state=act(f.replay,state,'review_point',{checkpointId:state.checkpoints.find(p=>p.kind==='engine')!.id,reviewed:false});
+    f.replay.recordTrainingReview(attempt.attemptId);
+    expect(f.replay.get(f.gameId).checkpoints.find(p=>p.kind==='engine')?.reviewed).toBe(false);
+    state=f.replay.get(f.gameId);state=act(f.replay,state,'refresh');
+    expect(state.checkpoints.find(p=>p.kind==='engine')?.reviewed).toBe(false);
+  });
+  it('[G3_REVIEW_LINK] does not credit unfinished, abandoned or changed exercise content',()=>{
+    const f=exercise(),lifecycle=new AttemptLifecycle(f.db),first=lifecycle.start(f.item);
+    f.replay.recordTrainingReview(first.attemptId);expect(f.db.prepare('SELECT * FROM game_review_local_attempts').all()).toHaveLength(0);
+    const second=lifecycle.start(f.item);finish(f,first.attemptId);
+    expect(f.db.prepare('SELECT * FROM game_review_local_attempts').all()).toHaveLength(0);
+    f.db.prepare("UPDATE candidate_generation_items SET explanation='New feedback' WHERE item_id=?").run(f.item);
+    finish(f,second.attemptId);expect(f.db.prepare('SELECT * FROM game_review_local_attempts').all()).toHaveLength(0);
+  });
+  it('[G3_REVIEW_LINK] retains used older feedback until latest is requested and then applies a pending current review only once',()=>{
+    const f=setup();let state=f.replay.get(f.gameId);state=act(f.replay,state,'skip');
+    const old=state.snapshotId;analysis(f,1,[['e2e4','e4',100,null],['d2d4','d4',90,null]]);new CandidateGenerator(f.db).generateForGame(f.gameId);
+    const item=f.db.prepare("SELECT id FROM training_items WHERE mode='candidate_generation'").pluck().get() as string;
+    const attempt=new AttemptLifecycle(f.db).start(item);finish({...f,item},attempt.attemptId);
+    expect(f.replay.get(f.gameId).snapshotId).toBe(old);
+    state=act(f.replay,f.replay.get(f.gameId),'latest');
+    expect(state.snapshotId).not.toBe(old);expect(state.checkpoints.find(p=>p.kind==='engine')?.reviewed).toBe(true);
+    state=act(f.replay,state,'refresh');expect(state.checkpoints.find(p=>p.kind==='engine')?.reviewed).toBe(false);
+  });
+  it('[G3_REVIEW_LINK] keeps a delayed completion in its original snapshot after an explicit fresh review',()=>{
+    const f=exercise(),original=f.replay.get(f.gameId),attempt=new AttemptLifecycle(f.db).start(f.item);
+    const fresh=act(f.replay,original,'refresh');finish(f,attempt.attemptId);
+    expect(f.replay.get(f.gameId).version).toBe(fresh.version);
+    expect(f.replay.get(f.gameId).checkpoints.find(p=>p.kind==='engine')?.reviewed).toBe(false);
+    expect(f.db.prepare("SELECT snapshot_id FROM game_review_local_attempts WHERE result='trained_reviewed'").pluck().get()).toBe(original.snapshotId);
+  });
+  it('[G3_REVIEW_LINK] treats Today feedback as help when practising the same correction again today',()=>{
+    const f=exercise(),attempt=new AttemptLifecycle(f.db).start(f.item);
+    f.db.prepare("UPDATE training_attempts SET answered_at=?,outcome='excellent',feedback_json='{}' WHERE id=?").run(new Date().toISOString(),attempt.attemptId);
+    f.replay.recordTrainingReview(attempt.attemptId);
+    let state=f.replay.get(f.gameId);const point=state.checkpoints.find(p=>p.kind==='engine')!;
+    state=act(f.replay,state,'practice_start',{checkpointId:point.id,filters:['recommended']});
+    state=act(f.replay,state,'answer',{moveUci:'e2e4'});
+    expect(state.feedback?.outcome).toBe('after_retry');expect(state.checkpoints.find(p=>p.id===point.id)?.recalled).toBe(false);
+  });
+  it('[G3_REVIEW_LINK] does not apply an older attempt to newer analysis or another active profile',()=>{
+    const f=exercise(),attempt=new AttemptLifecycle(f.db).start(f.item);
+    analysis(f,1,[['e2e4','e4',100,null]],'analysis-2');finish(f,attempt.attemptId);
+    expect(f.replay.get(f.gameId).checkpoints.find(p=>p.kind==='engine')?.reviewed).toBe(false);
+    const fresh=new AttemptLifecycle(f.db).start(f.item);
+    new ImportService(f.db).import('[White "Other"]\n[Black "Opponent"]\n[Result "*"]\n\n1. d4 d5 *','Other');
+    setActiveProfile(f.db,f.db.prepare("SELECT id FROM player_profiles WHERE display_name='Other'").pluck().get() as string);
+    finish(f,fresh.attemptId);expect(f.db.prepare('SELECT * FROM game_review_local_attempts').all()).toHaveLength(0);
+  });
 });

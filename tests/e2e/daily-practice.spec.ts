@@ -1,7 +1,7 @@
 import {expect,test} from '@playwright/test';
 test.use({baseURL:'http://127.0.0.1:8192'});
 
-test('starts a short daily plan, resumes its opening queue and continues to completed game practice',async({page},info)=>{
+test('[G3_REVIEW_LINK_UI] starts a short daily plan, resumes its opening queue and continues to completed game practice',async({page},info)=>{
  const learner=`Daily plan ${info.project.name} ${info.retry}`;
  const imported=await(await page.request.post('/api/v1/imports/pgn',{data:{playerName:learner,pgn:`[White "${learner}"]\n[Black "Daily opponent"]\n[Date "2026.10.28"]\n[Result "0-1"]\n\n1. f3 e5 2. g4 Qh4# 0-1`}})).json();
  await page.request.post(`/api/v1/profiles/${imported.profileId}/activate`);
@@ -49,6 +49,20 @@ test('starts a short daily plan, resumes its opening queue and continues to comp
   expect((await(await page.request.get('/api/v1/practice/daily')).json()).id).toBe(savedPlan.id);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:info.outputPath('daily-plan-complete.png'),animations:'disabled'});
+  // Completing Today feedback also reviews the exact engine decision in its source game.
+  const games=(await(await page.request.get('/api/v1/games')).json()).games;
+  const game=games.find((g:{white:string})=>g.white===learner);expect(game).toBeTruthy();
+  const review=await(await page.request.get(`/api/v1/games/${game.id}/replay`)).json();
+  const trained=review.checkpoints.filter((p:{reviewedInTraining?:boolean})=>p.reviewedInTraining);
+  expect(trained.length).toBeGreaterThan(0);
+  for(const point of trained){expect(point.reviewed).toBe(true);expect(point.recalled).toBe(false);expect(point.attempts).toBe(0);}
+  expect(games.find((g:{id:string})=>g.id===game.id).reviewProgress.reviewedCount).toBeGreaterThan(0);
+  const jump=await page.request.post(`/api/v1/games/${game.id}/replay`,{data:{snapshotId:review.snapshotId,version:review.version,action:'jump',ply:trained[0].ply,checkpointId:trained[0].id}});
+  expect(jump.ok()).toBeTruthy();
+  await page.goto(`/#games?game=${game.id}`);
+  await expect(page.getByRole('region',{name:'Saved game replay',exact:true})).toContainText('Reviewed in Today practice. This does not count as unaided recall.');
+  await page.reload();await expect(page.getByRole('region',{name:'Saved game replay',exact:true})).toContainText('Reviewed in Today practice.');
+
  }finally{for(const r of others)await page.request.patch(`/api/v1/openings/repertoires/${r.id}/archive`,{data:{archived:false}});}
 });
 

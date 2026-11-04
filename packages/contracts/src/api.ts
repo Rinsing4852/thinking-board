@@ -1103,6 +1103,7 @@ export interface GameReviewProgress {
   totalCount: number;
 }
 export interface GameReplayCheckpoint {
+  reviewedInTraining?: boolean;
   reviewed?: boolean;
   categories?: Array<"attacking"|"defending"|"mates">;
   pattern?: string;

@@ -10,13 +10,13 @@
       "missedTacticalCases": 0
     }
   },
-  "generatedAt": "2026-11-01T23:33:15.380Z",
+  "generatedAt": "2026-11-04T18:23:23.814Z",
   "current": true,
   "run": {
     "engineImage": "fc40f0f1f24e",
-    "measuredAt": "2026-11-01T23:30:21.272Z",
+    "measuredAt": "2026-11-04T18:16:03.574Z",
     "stage": 3,
-    "fingerprint": "d7f28448e44f5612c333ae98d3bc8553209faeb02bc87c6ea0958734212b8f27",
+    "fingerprint": "f62b80ebb841c0948b52f917e21f9adf1540b880b508be6547b6d5d4565d9efc",
     "unchanged": true,
     "steps": [
       {
@@ -206,7 +206,9 @@
         "LR03",
         "LR08",
         "LR09",
-        "LR11"
+        "LR11",
+        "LR07",
+        "LR10"
       ],
       "checks": [
         {
@@ -259,11 +261,74 @@
               "file": "learning-quality.spec.ts"
             }
           ]
+        },
+        {
+          "id": "G3_REVIEW_LINK",
+          "kind": "unit",
+          "description": "Today feedback reviews only its exact source engine decision and analysis snapshot; no extra scheduling or recall credit, cross-profile credit, stale-content credit or reset resurrection.",
+          "status": "passed",
+          "evidence": [
+            {
+              "title": "[G3_REVIEW_LINK] writes the review from a real candidate reveal transaction and schedules only once",
+              "status": "passed",
+              "file": "apps/server/src/games/game-replay-service.test.ts"
+            },
+            {
+              "title": "[G3_REVIEW_LINK] links feedback even before opening the game, once, without marking overlapping opening practice or recall",
+              "status": "passed",
+              "file": "apps/server/src/games/game-replay-service.test.ts"
+            },
+            {
+              "title": "[G3_REVIEW_LINK] does not credit unfinished, abandoned or changed exercise content",
+              "status": "passed",
+              "file": "apps/server/src/games/game-replay-service.test.ts"
+            },
+            {
+              "title": "[G3_REVIEW_LINK] retains used older feedback until latest is requested and then applies a pending current review only once",
+              "status": "passed",
+              "file": "apps/server/src/games/game-replay-service.test.ts"
+            },
+            {
+              "title": "[G3_REVIEW_LINK] keeps a delayed completion in its original snapshot after an explicit fresh review",
+              "status": "passed",
+              "file": "apps/server/src/games/game-replay-service.test.ts"
+            },
+            {
+              "title": "[G3_REVIEW_LINK] treats Today feedback as help when practising the same correction again today",
+              "status": "passed",
+              "file": "apps/server/src/games/game-replay-service.test.ts"
+            },
+            {
+              "title": "[G3_REVIEW_LINK] does not apply an older attempt to newer analysis or another active profile",
+              "status": "passed",
+              "file": "apps/server/src/games/game-replay-service.test.ts"
+            }
+          ]
+        },
+        {
+          "id": "G3_REVIEW_LINK_UI",
+          "kind": "browser",
+          "description": "Completing Today practice updates source-game review progress and shows reviewed-in-practice after navigation and reload, independently of recall.",
+          "status": "passed",
+          "evidence": [
+            {
+              "title": "[G3_REVIEW_LINK_UI] starts a short daily plan, resumes its opening queue and continues to completed game practice",
+              "project": "chromium",
+              "status": "passed",
+              "file": "daily-practice.spec.ts"
+            },
+            {
+              "title": "[G3_REVIEW_LINK_UI] starts a short daily plan, resumes its opening queue and continues to completed game practice",
+              "project": "webkit",
+              "status": "passed",
+              "file": "daily-practice.spec.ts"
+            }
+          ]
         }
       ],
       "status": "PASS",
-      "verified": 3,
-      "required": 3
+      "verified": 5,
+      "required": 5
     }
   ],
   "manual": [

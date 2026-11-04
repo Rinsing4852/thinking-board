@@ -1,6 +1,7 @@
 import type { SqliteDatabase } from "../db/database.js";
 import { id, now } from "../lib/ids.js";
 import { activeProfileId } from "./profile.js";
+import {captureTrainingReview} from '../games/training-review-link.js';
 
 export class AttemptLifecycle {
   constructor(private readonly db: SqliteDatabase) {}
@@ -34,6 +35,7 @@ export class AttemptLifecycle {
         INSERT INTO training_attempts(id, item_id, started_at, session_id, created_at)
         VALUES (?, ?, ?, ?, ?)
       `).run(attemptId, itemId, startedAt, sessionId ?? null, startedAt);
+      captureTrainingReview(this.db,attemptId);
       if (sessionId) {
         this.db.prepare(`
           UPDATE training_session_items SET attempt_id = ?
