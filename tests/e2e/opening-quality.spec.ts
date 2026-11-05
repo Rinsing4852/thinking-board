@@ -1863,8 +1863,15 @@ test("compares master and practical samples at the same saved position",async({p
   const id=(await imported.json()).repertoireIds[0],detail=await(await page.request.get(`/api/v1/openings/repertoires/${id}`)).json();
   await page.goto(`/#openings?repertoire=${id}&line=${detail.chapters[0].lines[0].id}&ply=0`);
   await page.getByRole("button",{name:"Edit lines",exact:true}).click();
-  await page.getByText("Compare master-game evidence",{exact:true}).click();
-  const comparison=page.locator(".opening-master-evidence");await expect(comparison).toContainText("Masters: 100 games");await expect(comparison).toContainText("40.0%");
+  // Engine rows expand asynchronously above this control. Wait for their
+  // actual UI state before the pointer interaction, rather than racing layout.
+  const suggestions=page.getByRole("region",{name:"Moves to consider",exact:true});
+  await expect(suggestions.locator(".opening-suggestion-list > button")).toHaveCount(3);
+  await expect(suggestions.getByText("Updating…",{exact:true})).toBeHidden();
+  const comparison=page.locator(".opening-master-evidence");
+  await comparison.locator(":scope > summary").click();
+  await expect(comparison).toHaveAttribute("open", "");
+  await expect(comparison).toContainText("Masters: 100 games");await expect(comparison).toContainText("40.0%");
   await expect(comparison).toContainText(/Rating-band sample unavailable|Lichess 1600 band/);
   await expect(comparison.getByRole("columnheader",{name:"At your level",exact:true})).toBeVisible();
   await page.screenshot({path:testInfo.outputPath("master-comparison.png")});
