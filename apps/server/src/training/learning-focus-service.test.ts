@@ -1,3 +1,5 @@
+import {AttemptLifecycle} from './attempt-lifecycle.js';
+import {TrainingService} from './training-service.js';
 import {DailyPracticeService} from "./daily-practice-service.js";
 import {OpeningReviewService} from "../openings/opening-review-service.js";
 import path from 'node:path';
@@ -47,4 +49,47 @@ it('[G3_HISTORY] excludes stale exercise evidence when the latest assessment is 
  const f=await fixture();expect(f.service.get().focus).not.toBeNull();
  f.sql.prepare('UPDATE move_assessments SET meaningful=0').run();
  expect(f.service.get().focus).toBeNull();
+});
+
+it('[G3_TRANSFER] separates later games, colour/platform and incomplete grading around recorded study',async()=>{
+ const f=await fixture();const focus=f.service.get().focus!,item=focus.itemIds[0]!;
+ const attempt=new AttemptLifecycle(f.sql).start(item);new TrainingService(f.sql).reveal(attempt.attemptId);
+ f.sql.prepare("UPDATE training_attempts SET answered_at='2026-11-01T12:00:00.000Z' WHERE id=?").run(attempt.attemptId);
+ const later=f.imports.import(f.text('Later','2026.11.02')+'\n\n'+f.text('Other speed','2026.11.02','60+0'),'Focus learner');
+ const more=f.sql.prepare("SELECT id FROM games WHERE id NOT IN (?,?)").pluck().all(...f.games) as string[];
+ await analysis!.analyzeGames(more,()=>{});
+ let transfer=f.service.get(null,'rapid').focus!.transfer!;
+ expect(transfer.before.games).toBe(2);expect(transfer.after.games).toBe(1);expect(transfer.after.flaggedGames).toBe(1);
+ expect(transfer.after.ownMoves).toBe(2);expect(transfer.after.errorsPer100Moves).not.toBeNull();expect(transfer.after.learnerRatings).toBeNull();
+ const laterGame=f.sql.prepare("SELECT id FROM games WHERE black_name='Later'").pluck().get() as string;
+ f.sql.prepare("UPDATE games SET headers_json=json_set(headers_json,'$.Site','https://chess.com/game/live/123') WHERE id=?").run(laterGame);
+ expect(f.service.get(null,'rapid').focus!.transfer!.after.games).toBe(0);
+ f.sql.prepare("UPDATE games SET headers_json=json_remove(headers_json,'$.Site') WHERE id=?").run(laterGame);
+ f.sql.prepare("DELETE FROM game_move_quality WHERE move_id=(SELECT id FROM moves WHERE game_id=? AND mover_color='white' LIMIT 1)").run(laterGame);
+ transfer=f.service.get(null,'rapid').focus!.transfer!;expect(transfer.after.games).toBe(0);expect(transfer.incompleteGames).toBe(1);
+ // Merely reading the plan creates no extra attempts or analysis jobs.
+ expect(f.sql.prepare('SELECT COUNT(*) FROM training_attempts').pluck().get()).toBe(1);
+ expect(f.sql.prepare('SELECT COUNT(*) FROM jobs').pluck().get()).toBe(0);
+ expect(later.profileId).toBe(f.profile);
+});
+it('[G3_TRANSFER] does not infer a study date from old unbound or unfinished practice',async()=>{
+ const f=await fixture(),item=f.service.get().focus!.itemIds[0]!;
+ const attempt=new AttemptLifecycle(f.sql).start(item);expect(f.service.get().focus!.transfer).toBeNull();
+ new TrainingService(f.sql).reveal(attempt.attemptId);expect(f.service.get().focus!.transfer).not.toBeNull();
+ f.sql.prepare('DELETE FROM training_game_review_context').run();expect(f.service.get().focus!.transfer).toBeNull();
+});
+
+it('[G3_TRANSFER] excludes uncertain study-day timing, future games and stale exercise provenance',async()=>{
+ const f=await fixture(),item=f.service.get().focus!.itemIds[0]!;
+ const attempt=new AttemptLifecycle(f.sql).start(item);new TrainingService(f.sql).reveal(attempt.attemptId);
+ f.sql.prepare("UPDATE training_attempts SET answered_at='2026-10-31T13:00:00.000Z' WHERE id=?").run(attempt.attemptId);
+ const uncertain=f.games.find(id=>(f.sql.prepare('SELECT played_at FROM games WHERE id=?').pluck().get(id) as string).startsWith('2026-10-31'))!;
+ f.sql.prepare("UPDATE games SET headers_json=json_remove(headers_json,'$.UTCTime') WHERE id=?").run(uncertain);
+ expect(f.service.get().focus!.transfer!.timingExcludedGames).toBe(1);
+ const old=f.sql.prepare('SELECT played_at FROM games WHERE id=?').pluck().get(uncertain);
+ f.sql.prepare("UPDATE games SET played_at='2999-01-01T00:00:00Z' WHERE id=?").run(uncertain);
+ expect(f.service.get().eligibleGames).toBe(1);
+ f.sql.prepare('UPDATE games SET played_at=? WHERE id=?').run(old,uncertain);
+ f.sql.prepare("UPDATE blunder_check_items SET explanation=explanation||' Updated' WHERE item_id=?").run(item);
+ expect(f.service.get().focus!.transfer).toBeNull();
 });

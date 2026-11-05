@@ -1241,3 +1241,12 @@ button.quality-move { display: grid; gap: .3rem; text-align: left; min-height: 7
 .study-game-entry { display:grid; gap:.35rem; max-width:21rem; }
 .study-game-entry small { color:var(--ink-soft); line-height:1.4; }
 .manual-practice-options > p { color:var(--ink-soft); line-height:1.5; }
+
+/* Branch indentation stays bounded on small screens; long move labels wrap. */
+.opening-branch-group { min-width: 0; border-left: 2px solid var(--line); padding-left: .45rem; }
+.opening-branch-group > summary { cursor: pointer; padding: .6rem .2rem; overflow-wrap: anywhere; }
+.opening-branch-group > summary small { display: block; color: var(--ink-soft); margin-top: .2rem; }
+.opening-branch-children { display: grid; gap: .4rem; }
+.opening-branch-moves { margin: .35rem 0; font-size: .8rem; overflow-wrap: anywhere; }
+.opening-branch-leaf { min-width: 0; }
+.opening-branch-leaf > button { width: 100%; overflow-wrap: anywhere; }

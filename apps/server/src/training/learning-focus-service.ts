@@ -1,3 +1,4 @@
+import {focusTransfer} from './focus-transfer.js';
 import {createHash} from 'node:crypto';
 import {Chess} from 'chess.js';
 import type {LearningFocusPlan,TrainingSessionResponse} from '../../../../packages/contracts/src/api.js';
@@ -11,7 +12,7 @@ import {forcedMate,tacticalMotif} from '../games/game-tactical-evidence.js';
 import {tacticalLesson} from '../../../../packages/contracts/src/tactical-lessons.js';
 import type {V1TrainingService} from './v1-training-service.js';
 
-type Game={result:string;id:string;played_at:string;headers_json:string;white_name:string;black_name:string;player_color:'white'|'black';run_id:string;cohort:string;control:string};
+type Game={identity_key:string|null;result:string;id:string;played_at:string;headers_json:string;white_name:string;black_name:string;player_color:'white'|'black';run_id:string;cohort:string;control:string};
 type Item={id:string;game_id:string;source_move_id:string;ply:number;fenBefore:string;fenAfter:string;evidence_json:string;due_at:string;chance_loss:number|null;attempts:number;successes:number};
 export class LearningFocusService {
  constructor(private readonly db:SqliteDatabase,private readonly training:V1TrainingService){}
@@ -21,9 +22,9 @@ export class LearningFocusService {
   const games=(this.db.prepare(`SELECT g.*,ar.id AS run_id,ar.engine_name,ar.engine_version,ar.depth,ar.multipv,ar.threads,ar.hash_mb,
     (SELECT rule_version FROM game_move_quality WHERE run_id=ar.id LIMIT 1) AS rule_version
     FROM games g JOIN analysis_runs ar ON ar.game_id=g.id AND ar.status='completed'
-    WHERE g.profile_id=? AND ar.id=(SELECT id FROM analysis_runs WHERE game_id=g.id AND status='completed' ORDER BY completed_at DESC,id DESC LIMIT 1)
+    WHERE g.profile_id=? AND ar.id=(SELECT id FROM analysis_runs WHERE game_id=g.id AND status='completed' ORDER BY completed_at DESC,rowid DESC LIMIT 1)
     ORDER BY g.played_at DESC,g.id LIMIT 100`).all(profile) as Array<Game&{engine_name:string;engine_version:string;depth:number;multipv:number;threads:number;hash_mb:number;rule_version:string|null;initial_fen:string}>)
-    .filter(g=>g.played_at&&Number.isFinite(Date.parse(g.played_at))&&g.result!=='*'&&g.initial_fen===new Chess().fen()&&(!gameDays||Date.parse(g.played_at)>=Date.now()-gameDays*86400000))
+    .filter(g=>g.played_at&&Number.isFinite(Date.parse(g.played_at))&&Date.parse(g.played_at)<=Date.now()&&g.result!=='*'&&g.initial_fen===new Chess().fen()&&(!gameDays||Date.parse(g.played_at)>=Date.now()-gameDays*86400000))
     .map(g=>({...g,control:timeControl(g.headers_json),cohort:createHash('sha256').update(JSON.stringify([g.engine_name,g.engine_version,g.depth,g.multipv,g.threads,g.hash_mb,g.rule_version])).digest('hex').slice(0,20)}));
   const controls=[...new Set(games.map(g=>g.control))].sort(),control=requestedControl??(controls.includes('rapid')?'rapid':controls[0]??null);
   if(requestedControl&&!controls.includes(requestedControl))throw new Error('No analysed games for that time control.');
@@ -69,6 +70,7 @@ export class LearningFocusService {
   const selected:typeof due=[];for(const item of due){if(!selected.some(chosen=>chosen.game_id===item.game_id))selected.push(item);if(selected.length===3)break;}
   const focus=top?{id:top.key,title:top.unique[0]!.pattern,provisional:top.unique.length<2,games:top.unique.length,
     lesson:tacticalLesson(top.unique[0]!.motif,top.unique[0]!.defending),
+    transfer:focusTransfer(this.db,eligible,top.items,profile),
     reason:`${top.unique.length<2?'Provisional: one supporting game.':'Recurring pattern.'} Seen in ${top.unique.length} of ${eligible.length} comparable analysed games. Recent recurrence is prioritised, then severity.`,
     nextStep:selected.length?`Practise ${selected.length} due positions from different games, then revisit the supporting decisions.`:'No positions are due. Review a supporting game or return after the next scheduled review.',
     dueCount:selected.length,nextDueAt:top.items.map(item=>item.due_at).sort()[0]??null,

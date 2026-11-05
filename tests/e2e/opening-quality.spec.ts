@@ -983,7 +983,7 @@ async function openNavigationStudy(page: import("@playwright/test").Page, name: 
   return repertoireId;
 }
 
-test("navigates nested variations through shared moves without changing the repertoire", async ({ page }, testInfo) => {
+test("[G1_BRANCH_TREE_UI] navigates nested variations through shared moves without changing the repertoire", async ({ page }, testInfo) => {
   const id = await openNavigationStudy(page, `Branch navigation ${testInfo.project.name}`,
     "1. e4 e5 2. Nf3 Nc6 (2... d6 3. d4 (3. Bc4)) 3. Bb5 a6 *");
   const before = await (await page.request.get(`/api/v1/openings/repertoires/${id}`)).json();
@@ -1003,6 +1003,7 @@ test("navigates nested variations through shared moves without changing the repe
   await choices.getByRole("button", { name: "Follow 2...Nc6", exact: true }).click();
   await choices.getByRole("button", { name: "Follow 3.Bb5", exact: true }).click();
   await showLibrary();
+  await library.getByLabel("Branch 2...d6",{exact:true}).click();
   await library.getByRole("button", { name: /^2\.\.\.d6 branch/ }).click();
   // Switching after a fork stops before the differing reply, not at move one.
   await expect(board.getByRole("gridcell", { name: "e4 white pawn" })).toBeVisible();
@@ -1023,6 +1024,7 @@ test("navigates nested variations through shared moves without changing the repe
   await expect(library.getByRole("button", { name: /^3\.Bc4 branch/ })).toBeVisible();
   await expect(library.getByRole("button", { name: /^Main line/ })).toBeHidden();
   await library.getByRole("button", { name: "Clear line search" }).click();
+  await library.screenshot({path:testInfo.outputPath("nested-branch-library.png")});
   if (await page.getByRole("button", { name: "Hide line list" }).isVisible()) await page.getByRole("button", { name: "Hide line list" }).click();
   const controls = await page.locator(".opening-line-controls").boundingBox();
   expect(controls!.height).toBeLessThan(125);
@@ -1866,4 +1868,22 @@ test("compares master and practical samples at the same saved position",async({p
   await expect(comparison).toContainText(/Rating-band sample unavailable|Lichess 1600 band/);
   await expect(comparison.getByRole("columnheader",{name:"At your level",exact:true})).toBeVisible();
   await page.screenshot({path:testInfo.outputPath("master-comparison.png")});
+});
+
+
+test('[G1_BRANCH_TREE_UI] shows separate first moves and first replies with searchable nested continuations',async({page},info)=>{
+ const id=await openNavigationStudy(page,`First replies ${info.project.name}`,'1. e4 (1. d4 d5) e5 (1... d5 2. exd5 Qxd5 (2... Nf6)) 2. Nf3 Nc6 3. Bb5 *');
+ const before=await(await page.request.get(`/api/v1/openings/repertoires/${id}`)).json();
+ const toggle=page.getByRole('button',{name:/Choose another line/});if(await toggle.isVisible())await toggle.click();
+ const library=page.getByRole('complementary',{name:'Opening lines',exact:true});
+ await expect(library.getByLabel('Branch 1.e4',{exact:true})).toBeVisible();
+ const scandi=library.getByLabel('Branch 1...d5 2.exd5',{exact:true});await expect(scandi).toBeVisible();await scandi.press('Enter');
+ await expect(library.getByText('2...Nf6',{exact:true})).toBeVisible();
+ await expect(library.getByText('1.d4 1...d5',{exact:true})).toBeVisible();
+ await library.getByLabel('Find a line',{exact:true}).fill('Qxd5');
+ await expect(library.getByText('2...Qxd5',{exact:true})).toBeVisible();
+ await expect(library.getByText('1.d4 1...d5',{exact:true})).toBeHidden();
+ await page.screenshot({path:info.outputPath('first-reply-tree.png'),fullPage:true});
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ expect(await(await page.request.get(`/api/v1/openings/repertoires/${id}`)).json()).toEqual(before);
 });

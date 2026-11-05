@@ -123,7 +123,9 @@ test('keeps one primary daily start while optional focus and manual controls rem
  await expect(plan).toContainText('Preventing forks');
  await expect(plan).toContainText('Habit to practise:');
  expect((await start.boundingBox())!.y).toBe(before!.y);
- await expect(page.getByRole('button',{name:'Practise this focus',exact:true})).toBeHidden();
+ const focusStart=page.getByRole('button',{name:'Practise this focus',exact:true});
+ await expect(focusStart).toHaveCount(1);await expect(focusStart).toBeVisible();await expect(focusStart).toHaveClass('secondary');
+ await expect(plan.getByRole('button',{name:'Start daily practice',exact:true})).toHaveCount(1);
  await expect(page.getByRole('combobox',{name:'Practice games',exact:true})).toBeHidden();
  await plan.getByText('Supporting games and evidence',{exact:true}).click();
  await expect(plan.getByRole('button',{name:'Practise this focus',exact:true})).toBeVisible();

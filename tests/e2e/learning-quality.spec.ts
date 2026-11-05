@@ -55,7 +55,7 @@ test('[G2_UI] offers verified tactical categories and retains the selected matin
  await expect(page.getByRole('region',{name:'Saved game replay',exact:true}).getByText(/Accepted in this saved review/)).toBeHidden();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
-test('[G3_UI] explains a recurring weakness, links its games and starts existing focused practice',async({page},info)=>{
+test('[G3_COACH_UI] [G3_UI] explains a recurring weakness, links its games and starts existing focused practice',async({page},info)=>{
  const name=`Focus ${info.project.name}`;
  const pgn=[0,1].map(i=>`[White "${name}"]\n[Black "Focus opponent ${i}"]\n[Date "2026.10.${29+i}"]\n[TimeControl "600+0"]\n[Result "0-1"]\n\n1. f3 e5 2. g4 Qh4# 0-1`).join('\n\n');
  const saved=await(await page.request.post('/api/v1/imports/pgn',{data:{playerName:name,pgn}})).json();await page.request.post(`/api/v1/profiles/${saved.profileId}/activate`);
@@ -63,7 +63,9 @@ test('[G3_UI] explains a recurring weakness, links its games and starts existing
  await expect.poll(async()=>(await(await page.request.get(`/api/v1/jobs/${job.id}`)).json()).status,{timeout:20000}).toBe('completed');
  await page.goto('/#today');const focus=page.getByRole('region',{name:'Learning focus from your games',exact:true});
  await expect(focus).toContainText('Preventing mating threats');await expect(focus).toContainText('2 of 2 comparable');
- await focus.locator('summary').click();await expect(focus.getByRole('link')).toHaveCount(2);
+ await expect(focus.getByRole('button',{name:'Practise this focus',exact:true})).toBeVisible();
+ await expect(focus).toContainText('What to look for:');
+ await focus.locator('summary').click();await expect(focus.getByRole('link')).toHaveCount(3);
  await focus.screenshot({path:info.outputPath('learning-focus.png')});
  const target=focus.getByRole('link').first();await target.click();
  await expect(page.getByRole('grid',{name:'Game replay board',exact:true})).toBeVisible();
@@ -73,4 +75,29 @@ test('[G3_UI] explains a recurring weakness, links its games and starts existing
  // The regular trainer owns the queue and progress; no second board is introduced.
  expect(session?.remainingCount??session?.session?.remainingCount).toBe(2);
  expect(await(await page.request.get('/api/v1/jobs/active')).json()).toBeNull();
+});
+
+test('[G3_TRANSFER_UI] follows recorded practice with later comparable games and honest sample counts',async({page},info)=>{
+ const name=`Transfer ${info.project.name}`;
+ const pgn=[0,1].map(i=>`[White "${name}"]\n[Black "Earlier ${i}"]\n[Date "2026.10.${29+i}"]\n[TimeControl "600+0"]\n[Result "0-1"]\n\n1. f3 e5 2. g4 Qh4# 0-1`).join('\n\n');
+ const saved=await(await page.request.post('/api/v1/imports/pgn',{data:{playerName:name,pgn}})).json();await page.request.post(`/api/v1/profiles/${saved.profileId}/activate`);
+ let job=await(await page.request.post('/api/v1/games/analysis',{data:{all:true}})).json();
+ await expect.poll(async()=>(await(await page.request.get(`/api/v1/jobs/${job.id}`)).json()).status,{timeout:20000}).toBe('completed');
+ let plan=await(await page.request.get('/api/v1/practice/focus')).json();
+ const attempt=await(await page.request.post(`/api/v1/training/items/${plan.focus.itemIds[0]}/start`,{data:{}})).json();
+ expect((await page.request.post(`/api/v1/training/attempts/${attempt.attemptId}/reveal`)).ok()).toBeTruthy();
+ const later=new Date(Math.ceil((Date.now()+1000)/1000)*1000);
+ await expect.poll(()=>Date.now()>=later.getTime(),{timeout:4000,intervals:[100,250]}).toBe(true);
+ const text=later.toISOString();
+ await page.request.post('/api/v1/imports/pgn',{data:{playerName:name,pgn:`[White "${name}"]\n[Black "Later opponent"]\n[UTCDate "${text.slice(0,10).replaceAll('-','.')}"]\n[UTCTime "${text.slice(11,19)}"]\n[TimeControl "600+0"]\n[WhiteElo "487"]\n[BlackElo "500"]\n[Result "0-1"]\n\n1. f3 e5 2. g4 Qh4# 0-1`}});
+ job=await(await page.request.post('/api/v1/games/analysis',{data:{all:true}})).json();
+ await expect.poll(async()=>(await(await page.request.get(`/api/v1/jobs/${job.id}`)).json()).status,{timeout:20000}).toBe('completed');
+ plan=await(await page.request.get('/api/v1/practice/focus')).json();expect(plan.focus.transfer.before.games).toBe(2);expect(plan.focus.transfer.after.games).toBe(1);
+ await page.goto('/#today');const focus=page.getByRole('region',{name:'Learning focus from your games',exact:true});
+ await focus.getByText('Is this focus recurring less in later games?',{exact:true}).click();
+ await expect(focus.getByRole('table')).toContainText('1 games · 2 own moves');
+ await expect(focus).toContainText('Small sample');await expect(focus).toContainText('do not show that practice caused a change');
+ await expect(focus).toContainText('opponents 500–500');
+ await page.screenshot({path:info.outputPath('focus-later-games.png'),fullPage:true});
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });

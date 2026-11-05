@@ -1229,9 +1229,17 @@ export interface GameReviewTeachingLine {
   steps: Array<{fen:string;uci:string;san:string}>;
 }
 
+export interface FocusTransferWindow {
+ games:number;ownMoves:number;flaggedGames:number;seriousErrors:number;blunders:number;errorsPer100Moves:number|null;
+ from:string|null;to:string|null;gameIds:string[];
+ learnerRatings:{min:number;max:number;known:number}|null;opponentRatings:{min:number;max:number;known:number}|null;
+}
+export interface FocusTransfer {
+ practisedAt:string;source:GameSource;playerColor:Color;incompleteGames:number;timingExcludedGames:number;before:FocusTransferWindow;after:FocusTransferWindow;
+}
 export interface LearningFocusPlan {
  profileId:string|null;gameDays:number|null;timeControl:string|null;timeControls:string[];cohort:string|null;
  eligibleGames:number;analysedGames:number;message:string;
- focus:null|{lesson?:{warning:string;habit:string}|null;id:string;title:string;provisional:boolean;games:number;reason:string;nextStep:string;dueCount:number;nextDueAt:string|null;
+ focus:null|{transfer?:FocusTransfer|null;lesson?:{warning:string;habit:string}|null;id:string;title:string;provisional:boolean;games:number;reason:string;nextStep:string;dueCount:number;nextDueAt:string|null;
  sources:Array<{gameId:string;ply:number;white:string;black:string;playedAt:string}>;itemIds:string[]};
 }

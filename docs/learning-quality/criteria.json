@@ -23,6 +23,16 @@
           "id": "G1_PATTERNS",
           "kind": "browser",
           "description": "Opening patterns are bounded and expandable; all remain reachable outside game detail."
+        },
+        {
+          "id": "G1_BRANCH_TREE",
+          "kind": "unit",
+          "description": "Saved move sequences form stable nested branches, separate first moves/replies, ended lines and distinct starting boards without changing source data."
+        },
+        {
+          "id": "G1_BRANCH_TREE_UI",
+          "kind": "browser",
+          "description": "Collapsed repertoire branches expose the selected route; search reveals nested and first-reply alternatives on desktop and mobile without changing saved lines."
         }
       ]
     },
@@ -69,7 +79,8 @@
         "LR09",
         "LR11",
         "LR07",
-        "LR10"
+        "LR10",
+        "LR13"
       ],
       "checks": [
         {
@@ -96,6 +107,21 @@
           "id": "G3_REVIEW_LINK_UI",
           "kind": "browser",
           "description": "Completing Today practice updates source-game review progress and shows reviewed-in-practice after navigation and reload, independently of recall."
+        },
+        {
+          "id": "G3_COACH_UI",
+          "kind": "browser",
+          "description": "The current learning focus visibly connects a warning sign, checking habit, source decision and existing practice action without another training mode."
+        },
+        {
+          "id": "G3_TRANSFER",
+          "kind": "unit",
+          "description": "Later-game observations anchor to recorded current-content study, separate cohorts/platform/colour and exclude incomplete or ambiguous data; no causal improvement credit."
+        },
+        {
+          "id": "G3_TRANSFER_UI",
+          "kind": "browser",
+          "description": "Recorded focus study and a later analysed game expose comparable sample counts, ratings and explicit uncertainty with no false improvement claim."
         }
       ]
     }

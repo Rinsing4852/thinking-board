@@ -10,13 +10,13 @@
       "missedTacticalCases": 0
     }
   },
-  "generatedAt": "2026-11-04T18:23:23.814Z",
+  "generatedAt": "2026-11-05T22:13:57.670Z",
   "current": true,
   "run": {
     "engineImage": "fc40f0f1f24e",
-    "measuredAt": "2026-11-04T18:16:03.574Z",
+    "measuredAt": "2026-11-05T08:10:28.113Z",
     "stage": 3,
-    "fingerprint": "f62b80ebb841c0948b52f917e21f9adf1540b880b508be6547b6d5d4565d9efc",
+    "fingerprint": "9c4ad9819c6051bd0ef25b825b2ce4d734a2724df030213cb1d70bb0bf52fc23",
     "unchanged": true,
     "steps": [
       {
@@ -112,11 +112,61 @@
               "file": "learning-quality.spec.ts"
             }
           ]
+        },
+        {
+          "id": "G1_BRANCH_TREE",
+          "kind": "unit",
+          "description": "Saved move sequences form stable nested branches, separate first moves/replies, ended lines and distinct starting boards without changing source data.",
+          "status": "passed",
+          "evidence": [
+            {
+              "title": "[G1_BRANCH_TREE] groups first replies and nested alternatives independently of import order",
+              "status": "passed",
+              "file": "apps/web/src/opening-branch-tree.test.ts"
+            },
+            {
+              "title": "[G1_BRANCH_TREE] preserves ended lines, duplicate routes, archives and different starting boards",
+              "status": "passed",
+              "file": "apps/web/src/opening-branch-tree.test.ts"
+            }
+          ]
+        },
+        {
+          "id": "G1_BRANCH_TREE_UI",
+          "kind": "browser",
+          "description": "Collapsed repertoire branches expose the selected route; search reveals nested and first-reply alternatives on desktop and mobile without changing saved lines.",
+          "status": "passed",
+          "evidence": [
+            {
+              "title": "[G1_BRANCH_TREE_UI] navigates nested variations through shared moves without changing the repertoire",
+              "project": "chromium",
+              "status": "passed",
+              "file": "opening-quality.spec.ts"
+            },
+            {
+              "title": "[G1_BRANCH_TREE_UI] shows separate first moves and first replies with searchable nested continuations",
+              "project": "chromium",
+              "status": "passed",
+              "file": "opening-quality.spec.ts"
+            },
+            {
+              "title": "[G1_BRANCH_TREE_UI] navigates nested variations through shared moves without changing the repertoire",
+              "project": "webkit",
+              "status": "passed",
+              "file": "opening-quality.spec.ts"
+            },
+            {
+              "title": "[G1_BRANCH_TREE_UI] shows separate first moves and first replies with searchable nested continuations",
+              "project": "webkit",
+              "status": "passed",
+              "file": "opening-quality.spec.ts"
+            }
+          ]
         }
       ],
       "status": "PASS",
-      "verified": 3,
-      "required": 3
+      "verified": 5,
+      "required": 5
     },
     {
       "id": 2,
@@ -208,7 +258,8 @@
         "LR09",
         "LR11",
         "LR07",
-        "LR10"
+        "LR10",
+        "LR13"
       ],
       "checks": [
         {
@@ -249,13 +300,13 @@
           "status": "passed",
           "evidence": [
             {
-              "title": "[G3_UI] explains a recurring weakness, links its games and starts existing focused practice",
+              "title": "[G3_COACH_UI] [G3_UI] explains a recurring weakness, links its games and starts existing focused practice",
               "project": "chromium",
               "status": "passed",
               "file": "learning-quality.spec.ts"
             },
             {
-              "title": "[G3_UI] explains a recurring weakness, links its games and starts existing focused practice",
+              "title": "[G3_COACH_UI] [G3_UI] explains a recurring weakness, links its games and starts existing focused practice",
               "project": "webkit",
               "status": "passed",
               "file": "learning-quality.spec.ts"
@@ -324,11 +375,74 @@
               "file": "daily-practice.spec.ts"
             }
           ]
+        },
+        {
+          "id": "G3_COACH_UI",
+          "kind": "browser",
+          "description": "The current learning focus visibly connects a warning sign, checking habit, source decision and existing practice action without another training mode.",
+          "status": "passed",
+          "evidence": [
+            {
+              "title": "[G3_COACH_UI] [G3_UI] explains a recurring weakness, links its games and starts existing focused practice",
+              "project": "chromium",
+              "status": "passed",
+              "file": "learning-quality.spec.ts"
+            },
+            {
+              "title": "[G3_COACH_UI] [G3_UI] explains a recurring weakness, links its games and starts existing focused practice",
+              "project": "webkit",
+              "status": "passed",
+              "file": "learning-quality.spec.ts"
+            }
+          ]
+        },
+        {
+          "id": "G3_TRANSFER",
+          "kind": "unit",
+          "description": "Later-game observations anchor to recorded current-content study, separate cohorts/platform/colour and exclude incomplete or ambiguous data; no causal improvement credit.",
+          "status": "passed",
+          "evidence": [
+            {
+              "title": "[G3_TRANSFER] separates later games, colour/platform and incomplete grading around recorded study",
+              "status": "passed",
+              "file": "apps/server/src/training/learning-focus-service.test.ts"
+            },
+            {
+              "title": "[G3_TRANSFER] does not infer a study date from old unbound or unfinished practice",
+              "status": "passed",
+              "file": "apps/server/src/training/learning-focus-service.test.ts"
+            },
+            {
+              "title": "[G3_TRANSFER] excludes uncertain study-day timing, future games and stale exercise provenance",
+              "status": "passed",
+              "file": "apps/server/src/training/learning-focus-service.test.ts"
+            }
+          ]
+        },
+        {
+          "id": "G3_TRANSFER_UI",
+          "kind": "browser",
+          "description": "Recorded focus study and a later analysed game expose comparable sample counts, ratings and explicit uncertainty with no false improvement claim.",
+          "status": "passed",
+          "evidence": [
+            {
+              "title": "[G3_TRANSFER_UI] follows recorded practice with later comparable games and honest sample counts",
+              "project": "chromium",
+              "status": "passed",
+              "file": "learning-quality.spec.ts"
+            },
+            {
+              "title": "[G3_TRANSFER_UI] follows recorded practice with later comparable games and honest sample counts",
+              "project": "webkit",
+              "status": "passed",
+              "file": "learning-quality.spec.ts"
+            }
+          ]
         }
       ],
       "status": "PASS",
-      "verified": 5,
-      "required": 5
+      "verified": 8,
+      "required": 8
     }
   ],
   "manual": [
