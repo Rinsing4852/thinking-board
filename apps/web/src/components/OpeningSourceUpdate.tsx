@@ -37,7 +37,7 @@ export function OpeningSourceUpdate({ repertoire, onUpdated }: {
     {repertoire.sourceUpdatedAt && <small>Last source update: {new Date(repertoire.sourceUpdatedAt).toLocaleString()}</small>}
     {open && <div className="opening-source-update-form">
       <h4>Update this repertoire</h4>
-      <p>Refresh your lines and source explanations without starting your learning again.</p>
+      <p>Refresh source lines and notes; keep review history.</p>
       <label>Update using
         <select value={mode} disabled={busy} onChange={event => { setMode(event.target.value as "lichess" | "pgn"); invalidate(); }}>
           <option value="lichess">Lichess Study link</option>

@@ -6,7 +6,7 @@ function ratings(window:FocusTransferWindow){
  return `Your rating ${range(window.learnerRatings)}; opponents ${range(window.opponentRatings)}.`;
 }
 export function FocusTransfer({data}:{data:Transfer|null|undefined}){
- if(!data)return <p>Complete a focus exercise to start checking later games.</p>;
+ if(!data)return null;
  const small=data.before.games<10||data.after.games<10;
  return <details className="focus-transfer"><summary>Is this focus recurring less in later games?</summary>
   <p>First recorded study of this focus: {date(data.practisedAt)}. Up to 20 games on each side of that date; {data.source==='chesscom'?'Chess.com':data.source==='lichess'?'Lichess':'PGN / platform unknown'} · you played {data.playerColor}. Same time control, engine settings and grading method as this focus.</p>

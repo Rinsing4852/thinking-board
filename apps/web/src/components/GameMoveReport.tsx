@@ -19,7 +19,7 @@ export function GameMoveReport({gameId,refreshToken,onInspect}:{gameId:string;re
   return <section className="panel game-quality-report" aria-label="Game move-quality report">
     <h2>How well did you play?</h2>
     {error?<p role="alert">{error} <button className="secondary" onClick={()=>setRetry(r=>r+1)}>Retry move report</button></p>:report===undefined?<p role="status">Loading saved analysis…</p>:!report?<>
-      <p>No move-quality report yet. Your game and opening comparison are saved. Request engine analysis when you are ready.</p>
+      <p>No analysis yet. Analyse this game to see move quality.</p>
       <GameAnalysisRequest gameId={gameId} hasReport={false}/>
     </>:own&&<>
       <p>Your moves as {report.playerColor} · {own.moves} moves analysed</p>
@@ -34,8 +34,8 @@ export function GameMoveReport({gameId,refreshToken,onInspect}:{gameId:string;re
         <line x1="0" y1="50" x2="600" y2="50" stroke="currentColor" opacity=".3"/>
         <polyline fill="none" stroke="currentColor" strokeWidth="2" points={report.moves.map((m,i)=>`${report.moves.length>1?i*600/(report.moves.length-1):0},${100-(m.color==="white"?m.chancesAfter:100-m.chancesAfter)}`).join(" ")}/>
       </svg>
-      <small>Position balance · higher favours White, lower favours Black. This is an engine estimate.</small>
-      {outside&&<p className="quality-opening-context">{departure?.moverColor===report.playerColor?"Your first move outside preparation":"Your first move after the prepared line ended"}: <strong>{outside.moveNumber}{outside.color==="white"?".":"…"}{outside.san} — {gradeName[outside.grade]}</strong>. Compared with your current repertoire. Leaving preparation is not automatically a chess mistake.</p>}
+      <small>Engine estimate · + White · − Black</small>
+      {outside&&<p className="quality-opening-context">{departure?.moverColor===report.playerColor?"Your first move outside preparation":"Your first move after the prepared line ended"}: <strong>{outside.moveNumber}{outside.color==="white"?".":"…"}{outside.san} — {gradeName[outside.grade]}</strong>. Outside preparation does not mean a bad move.</p>}
       <details><summary>Move grades and positions</summary>
         <p>{Object.entries(own.counts).map(([grade,count])=>`${gradeName[grade as keyof typeof gradeName]}: ${count}`).join(" · ")}</p>
         <div className="quality-moves">{ownMoves.map(move=><button className={`secondary quality-move grade-${move.grade}`} key={move.ply} onClick={()=>onInspect(move.ply-1)}>

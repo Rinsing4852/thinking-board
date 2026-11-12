@@ -40,7 +40,7 @@ test("imports Chess.com games through the existing review and requested-analysis
   await page.goto(`/#games?game=${imported[0].id}`);
   await openGameReport(page);
   const report = page.getByRole("region", { name: "Game move-quality report", exact: true });
-  await expect(report).toContainText("No move-quality report yet");
+  await expect(report).toContainText("No analysis yet");
   await report.getByRole("button", { name: "Analyse this game", exact: true }).click();
   await expect(report.getByText("Engine accuracy", { exact: true })).toBeVisible({ timeout: 20000 });
   expect(await (await page.request.get(`/api/v1/games/${imported[1].id}/quality`)).json()).toBeNull();

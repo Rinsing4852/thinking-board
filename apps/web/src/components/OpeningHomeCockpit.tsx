@@ -83,7 +83,7 @@ export function OpeningHomeCockpit({
                 <b>{day.completed}</b>
               </span>)}
             </div>
-            <small>A streak means completing practice on consecutive days. Corrected or hinted answers count as practice, but not unaided recall.</small>
+            <small>Streaks count practice days, including helped answers.</small>
             </details>
           </section>}
         </div>
@@ -91,7 +91,7 @@ export function OpeningHomeCockpit({
         <h3>Recommended next steps</h3>
         {recommendationLoading ? <div className="opening-home-primary" role="status">
           <strong>Preparing your practice suggestions…</strong>
-          <p>Your library is ready. You can browse a repertoire or build a line while suggestions load.</p>
+          <p>Loading suggestions… Your library is ready to browse.</p>
         </div> : recommendation?.available && repertoire ? (
           <div className="opening-home-primary">
             <div>
@@ -122,7 +122,7 @@ export function OpeningHomeCockpit({
             <div>
               <span className="eyebrow">Ready when you are</span>
               <h3>{libraryEmpty ? "Your opening library is empty" : activity?.goalReached ? "Your daily practice is complete" : "No scheduled positions right now"}</h3>
-              <p>{libraryEmpty ? "Build moves on the board, paste opening lines as PGN, or bring in your Lichess Study. Then practise the moves and their ideas." : activity?.goalReached ? "Come back tomorrow, or open a repertoire to practise extra moves or a complete line." : recommendation?.message ?? "Practice suggestions could not be loaded yet. Retry the summary or open a saved line to practise it directly."}</p>
+              <p>{libraryEmpty ? "Build a line or import a PGN / Lichess Study." : activity?.goalReached ? "Goal reached. Return tomorrow or practise a saved line." : recommendation?.message ?? "Practice suggestions could not be loaded yet. Retry the summary or open a saved line to practise it directly."}</p>
 
             </div>
           </div>
@@ -153,7 +153,7 @@ export function OpeningHomeCockpit({
           )}
           {!libraryEmpty && (
             <button className="opening-home-action" disabled={coverageLoading || !gap} onClick={() => gap && onOpenGap(gap)}>
-              <span><b>{coverageLoading ? "Checking common replies…" : gap ? `Consider ${gap.moveSan}` : "No evidenced preparation gap yet"}</b><small>{gap ? `${gap.lineTitle} · ${gap.games > 0 ? frequencyLabel(gap.frequencyPercent) : "frequency unknown"}` : coverage?.personal?.gamesChecked ? "No unsaved priority reply was found in these games and samples. Inspect a repertoire to check more positions." : "Import or sync your games to find replies you have faced. Lichess samples can identify other common replies."}</small></span>
+              <span><b>{coverageLoading ? "Checking common replies…" : gap ? `Consider ${gap.moveSan}` : "No evidenced preparation gap yet"}</b><small>{gap ? `${gap.lineTitle} · ${gap.games > 0 ? frequencyLabel(gap.frequencyPercent) : "frequency unknown"}` : coverage?.personal?.gamesChecked ? "No priority reply found in this sample." : "Import games to find replies you face."}</small></span>
               <strong>{gap ? "Consider response →" : "—"}</strong>
             </button>
           )}

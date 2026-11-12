@@ -90,7 +90,7 @@ export function OpeningPreparationAdvice({ target, initial, groupKey, onDecision
       <details><summary>Why this recommendation?</summary><p>{assessment.message}</p>
         {assessment.decision?.choice === "unprepared" && <p>Your choice stays in place. New encounters can help you reconsider; no line is added automatically.</p>}
         <ul>{assessment.reasons.map(reason => <li key={reason}>{reason}</li>)}</ul>
-        <p>Popularity and engine quality are different. These are {assessment.frequency.ratingGroup}-band Lichess blitz, rapid and classical samples, not a forecast of your next game.</p>
+        <p>Lichess {assessment.frequency.ratingGroup} band · blitz, rapid and classical. Frequency is not engine strength.</p>
       </details>
     </>}
     <div className="answer-actions">
@@ -102,7 +102,7 @@ export function OpeningPreparationAdvice({ target, initial, groupKey, onDecision
     </div>
     {editingIdea && <div className="opening-preparation-note">
       <label>Idea to remember<textarea value={note} onChange={event => setNote(event.target.value)} rows={3} maxLength={2000} placeholder="For example: take the centre, develop, and check what their move attacks." /></label>
-      <p>This saves a note, not another memorisation line or review card.</p>
+      <p>Note only; no review card added.</p>
       <button disabled={busy || !note.trim()} onClick={() => void save("idea")}>Save idea without a line</button>
     </div>}
     {error && <p className="error" role="alert">{error}</p>}

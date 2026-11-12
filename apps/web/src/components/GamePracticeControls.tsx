@@ -37,13 +37,13 @@ export function GamePracticeControls({ data, blocked, onAction }: {
         })}
       </div>
       <label>Maximum mating length<select value={maxMateIn} onChange={event=>setMaxMateIn(Number(event.target.value))}>{[1,2,3,4].map(value=><option key={value} value={value}>Mate in {value}</option>)}</select></label>
-      <small>Counts your moves to deliver mate, with the opponent defending. Longer or unverified mates stay in analysis.</small>
+      <small>Counts your moves against best defence. Longer mates stay in analysis.</small>
       {!data.tacticalEvidenceAvailable&&!data.analysisPending&&<small>Refresh saved feedback to enable verified tactical filters.</small>}
     </fieldset>
     </details>
     {!active && round?.status !== "completed" && <>
       <p>{selected.length} {selected.length === 1 ? "position" : "positions"} · {filters.length ? filters.map(filter => labels[filter]).join(" + ") : "Choose a category"}</p>
-      {!selected.length && <p>No saved answers match this selection. Check the analysis summary and marked decisions below, or choose another category. Longer mates remain in the move report.</p>}
+      {!selected.length && <p>No positions match. Choose another category or check the analysis.</p>}
       <button disabled={blocked || !selected.length} onClick={start}>Start practice</button>
     </>}
     {active && <div className="game-practice-progress" role="status">
@@ -55,10 +55,10 @@ export function GamePracticeControls({ data, blocked, onAction }: {
       <strong>Practice finished</strong><span>{round.reviewedIds.length} reviewed · {round.skippedIds.length} skipped</span>
       <button disabled={blocked || !selected.length} onClick={start}>Start another practice</button>
       <button className="secondary" disabled={blocked} onClick={() => onAction("practice_exit")}>Back to full replay</button>
-      <small>Reviewed means you tried or saw the answer. It does not prove mastery.</small>
+      <small>Reviewed means tried or revealed.</small>
     </div>}
-    {data.analysisPending ? <small>Engine analysis is not included in this saved review. Opening recall is available where taught; analyse and refresh saved feedback to include mistakes.</small>
+    {data.analysisPending ? <small>Analyse and refresh feedback to include engine mistakes.</small>
       : filters.includes("opening") && filters.includes("mistakes") ? <small>Shared positions appear once, using the engine answer. Opening recall on its own uses your repertoire.</small>
-      : filters.includes("recommended") ? <small>A short selection of saved decisions. Try first, then request help if needed.</small> : null}
+      : null}
   </section>;
 }

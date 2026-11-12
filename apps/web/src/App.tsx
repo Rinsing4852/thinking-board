@@ -188,7 +188,7 @@ export function App() {
               <div><DailyPracticePlan key={profileEpoch} refreshToken={refreshToken} gameDays={gameDays}
                   onOpening={()=>navigate("openings")} onThinking={startSession} onGames={()=>navigate("games")}
                   onBuild={()=>navigate("openings")} onStateChange={setDailyPlanActive}/>
-                <p className="panel-help">One short routine. Other practice options are available below.</p>
+
                 <div className="workflow-actions">
                   <button className="secondary" onClick={() => navigate("openings")}>Practise openings</button>
                   <button className="secondary" onClick={() => navigate("games")}>Review a game</button>
@@ -197,12 +197,12 @@ export function App() {
             </section>
             <section className="trainer-hub" id="trainer">
               <details className="panel workflow-disclosure thinking-mode-picker manual-practice-options"><summary>Choose your own practice and filters</summary>
-              <p>Use these options for a separate session or a particular skill. Your daily plan remains saved.</p>
+
             <Dashboard compact gameDays={gameDays} onGameDaysChanged={days => { setGameDays(days); setTrainingRequest(null); }} practiceActive={Boolean(session)} onChooseGames={() => navigate("games")} onImport={() => openGamesAt("import")} refreshToken={refreshToken} onChooseMode={chooseMode} onStartSession={startSession} onProfileChanged={() => {
               setSession(null); setDailyPlanActive(false); setTrainingRequest(null); setProfileEpoch(value=>value+1);setRefreshToken((value) => value + 1);
             }} />
 
-              <p>Start with blunder check, or choose a specific skill to practise.</p>
+
               <div className="mode-tabs" aria-label="Training modes">
                 {([[
                   "what_changed", "1 · What changed",
@@ -255,9 +255,9 @@ export function App() {
         {view === "games" && (
           <>
             <div className="page-heading">
-              <span className="eyebrow">Your games</span>
+
               <h1>My games</h1>
-              <p>Review one game or practise a type of mistake across your games.</p>
+
             </div>
             <GameReview
               importPanel={hideForm=><ImportPanel draft={importDraft} onManageAccounts={()=>navigate("profile")} hideForm={hideForm} key={profileEpoch} refreshToken={refreshToken} onAnalyzed={refreshAfterGameAnalysis} expanded={showGameImport} onExpandedChange={setShowGameImport} />}
@@ -274,7 +274,7 @@ export function App() {
             <div className="page-heading">
               <span className="eyebrow">Patterns over time</span>
               <h1>Your progress</h1>
-              <p>Use your real-game occurrences and practice results to choose the next thinking habit to strengthen.</p>
+
             </div>
             <GameQualityProgress key={profileEpoch} refreshToken={refreshToken} onOpenGames={()=>navigate("games")} onTrain={trainItem} onOpenGame={(gameId,ply)=>{
               setView('games');window.history.pushState(null,'',`#games?game=${encodeURIComponent(gameId)}${ply===undefined?'':`&ply=${ply}`}`);
@@ -282,7 +282,7 @@ export function App() {
             }}/>
             <section className="panel opening-progress-link" aria-label="Opening progress">
               <div><h3>Preparation gaps</h3>
-                <p>Open a saved repertoire to inspect missing replies and choose what to prepare. The dashboard figures below cover thinking drills from your games.</p></div>
+                <p>Check replies in Openings. Thinking-practice results are below.</p></div>
               <button className="secondary" onClick={() => navigate("openings")}>Open saved repertoires</button>
             </section>
             <OpeningLearningMeasures refreshToken={refreshToken} />

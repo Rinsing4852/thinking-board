@@ -52,7 +52,7 @@ export function OpeningCoveragePanel({ coverage, busy, disabled, useExplorer, no
     || filter === "actionable" && (position.boundary || position.sampleStatus !== "fresh"));
   return <section className="opening-coverage-panel" aria-label="Repertoire coverage and gaps">
     <h3>What should I work on?</h3>
-    <p>Practise answers you have saved, or add an answer to an opponent reply you have not prepared for.</p>
+
     <button className="secondary" disabled={locked} onClick={() => onLoad()}>{busy ? "Checking…" : coverage ? "Recheck coverage" : "Check coverage"}</button>
     <details className="opening-coverage-settings"><summary>Change line, move limit or rating</summary>
     <div className="opening-coverage-controls">
@@ -78,7 +78,7 @@ export function OpeningCoveragePanel({ coverage, busy, disabled, useExplorer, no
     </div>
     </details>
     {notice && <p className={notice.error ? "error" : "status"} role={notice.error ? "alert" : "status"}>{notice.message}</p>}
-    {!useExplorer && <p className="opening-coverage-note">Common-move data is off. You can still find saved responses and practise them. Enable practical frequencies in Opening settings to estimate how often replies occur.</p>}
+    {!useExplorer && <p className="opening-coverage-note">Reply frequencies off. Saved responses and practice are still available.</p>}
     {coverage && <>
       {coverage.personal && <section className="opening-personal-coverage" aria-label="Coverage from your games">
         <h4>What happened in your games</h4>
@@ -94,7 +94,7 @@ export function OpeningCoveragePanel({ coverage, busy, disabled, useExplorer, no
         <small>Includes any stopping points you chose. Change the encounter goal and time control in Opening settings. The move limit stays a separate safety cap.</small>
       </section>}
       <h4>Start here</h4>
-      <p>These are tasks, not a count of chess mistakes. You do not need to complete everything at once.</p>
+      <p>Preparation tasks, not chess mistakes.</p>
       <div className="opening-coverage-tasks">{tasks.map(gap => <article key={openingTask(gap).id} data-task-id={openingTask(gap).id}>
         <strong>{gap.status === "needs_practice" ? "Practise your response to" : gap.status === "idea_only" ? "Review your idea for" : "Consider a response to"} {gap.moveSan}</strong>
         <p>{gap.responseLineId && responseTitles.get(gap.responseLineId) || `${gap.chapterTitle} · ${gap.lineTitle}`}</p>
@@ -111,7 +111,7 @@ export function OpeningCoveragePanel({ coverage, busy, disabled, useExplorer, no
             <button className="text-button" disabled={locked} onClick={() => onTaskChoice(openingTask(gap).id, "skip")}>Skip suggestion</button></>}
         </div>
       </article>)}</div>
-      {!tasks.length && <p>No next step found in the checked games and positions. You can still practise a saved line or check another line.</p>}
+      {!tasks.length && <p>No task found here. Practise a saved line or check another.</p>}
       {!!history.length && <details><summary>Postponed and skipped suggestions ({history.length})</summary>
         {history.map(gap => <article key={openingTask(gap).id} data-task-id={openingTask(gap).id}><p>{gap.responseLineId && responseTitles.get(gap.responseLineId) || `${gap.chapterTitle} · ${gap.lineTitle}`} · {gap.moveSan} · {gap.taskChoice?.choice === "later" ? `postponed until ${gap.taskChoice.untilAt?.slice(0, 10)}` : "skipped"}</p>
           <button className="text-button" disabled={locked} onClick={() => onTaskChoice?.(openingTask(gap).id,"restore")}>Restore suggestion</button></article>)}
@@ -127,8 +127,8 @@ export function OpeningCoveragePanel({ coverage, busy, disabled, useExplorer, no
       {model && <>
         <h4>Can this line handle replies until your move {model.throughMove}?</h4>
         <p>{coverage.scope?.lichess}</p>
-        <p>This estimate follows your selected line against replies sampled from Lichess. It stops each possible sequence at the first reply without a saved answer, or at a stopping point you chose.</p>
-        <p><strong>{model.preparedPercent}%</strong> of the estimated sequences reach that limit or a chosen stopping point. This is not the percentage of moves you know, your win chance, or your practice score.</p>
+        <p>Estimated sequences against sampled Lichess replies.</p>
+        <p><strong>{model.preparedPercent}%</strong> reach your move limit or chosen stopping point. This measures saved answers, not recall or winning chances.</p>
         <div className="opening-coverage-bar" aria-label={`Saved responses or stopping points ${model.preparedPercent}%, missing responses ${model.missingPercent}%, idea only ${model.ideaPercent}%, deliberately unprepared ${model.unpreparedPercent}%, unknown ${model.unknownPercent}%`}>
           {[["prepared", model.preparedPercent], ["missing_response", model.missingPercent], ["idea_only", model.ideaPercent],
             ["unprepared", model.unpreparedPercent], ["unknown", model.unknownPercent]].map(([status, percent]) =>
@@ -178,7 +178,7 @@ export function OpeningCoveragePanel({ coverage, busy, disabled, useExplorer, no
             <p>{position.sampledGames.toLocaleString()} sampled games{position.fetchedAt ? ` · sampled ${new Date(position.fetchedAt).toLocaleDateString()}` : ""}</p>
             <button className="secondary" disabled={locked} onClick={() => onBoundary(position.positionId, !position.boundary)}>
               {position.boundary ? "Include this position again" : "Prepared enough — stop here"}</button>
-            <p>Stops the coverage estimate here. It does not delete moves, stop practice or prove you remember them.</p>
+            <p>Stops this estimate here; saved moves and practice remain.</p>
             {branches.map(branch => <article className={`opening-coverage-branch coverage-${branch.status}`} key={branch.moveUci}>
               <strong>{branch.moveSan} · {labels[branch.status]}</strong>
               <p>{branch.games > 0 ? `${branch.frequencyPercent}% at this position${!branch.reliable ? " · uncertain sample" : ""}` : "Reply frequency unknown"}

@@ -9,7 +9,7 @@ import { UciEngine, type EngineLine, type EngineScore, type EngineHistory } from
 import { CandidateGenerator } from "./candidate-generator.js";
 import { WhatChangedGenerator } from "./what-changed-generator.js";
 import { V1Generator } from "./v1-generator.js";
-import { significantMistake, tacticalPunishment, type PunishmentProof, type SavedMoveAssessment } from "./tactical-punishment.js";
+import { significantMistake, worthwhileTacticalLine, tacticalPunishment, type PunishmentProof, type SavedMoveAssessment } from "./tactical-punishment.js";
 
 interface PositionRow {
   id: string;
@@ -384,10 +384,11 @@ export class AnalysisService {
       }
       if (threatened.length > 0 && !categories.includes("capture")) categories.push("threat");
       const proof = tacticalPunishment(move.from_fen, position.fen, line.move_uci, line.pv_uci_json, line.mate_in_white);
-      if (!proof || (opportunity && (line.move_uci === move.uci || (!applied.captured && proof.kind !== "forced_mate")))) continue;
+      if (!proof || (opportunity && line.move_uci === move.uci)) continue;
       if (!categories.length) {
-        if (proof.kind === "forced_mate") categories.push("threat");
-        else continue;
+        // A verified continuation can win by a quiet fork or discovered attack.
+        // The first move need not capture or create a newly attacked square.
+        categories.push("threat");
       }
 
       const lineUtility = utilityWhite({
@@ -397,7 +398,10 @@ export class AnalysisService {
       const loss = opponent === "white"
         ? bestUtility - lineUtility
         : lineUtility - bestUtility;
-      if (loss > this.config.acceptableToleranceCp) continue;
+      if (loss > this.config.acceptableToleranceCp || !worthwhileTacticalLine(
+        {centipawnsWhite:best.centipawns_white,mateInWhite:best.mate_in_white},
+        {centipawnsWhite:line.centipawns_white,mateInWhite:line.mate_in_white}, opponent,
+      )) continue;
       result.push({
         ...line, categories, loss: Math.max(0, Math.round(loss)),
         captured: applied.captured ?? null, threatened, proof,

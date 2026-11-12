@@ -103,7 +103,7 @@ export function OpeningPlayerContext({ preferences, onSaved }: OpeningPlayerCont
       <div className="opening-player-context-copy">
         <span className="eyebrow">Personalise the move choices</span>
         <h3>{preferences.configured ? "Update your practical level" : "Which games should guide your repertoire?"}</h3>
-        <p>This helps rank common opponent replies. It never changes which moves you have saved.</p>
+        <p>Sets the sample for reply frequencies.</p>
       </div>
       <div className="opening-player-context-fields">
         <label>
@@ -135,7 +135,7 @@ export function OpeningPlayerContext({ preferences, onSaved }: OpeningPlayerCont
             {[5, 10, 15, 20, 30, 50].map(count => <option key={count} value={count}>{count} positions</option>)}
             {![5, 10, 15, 20, 30, 50].includes(dailyPracticeGoal) && <option value={dailyPracticeGoal}>{dailyPracticeGoal} positions</option>}
           </select>
-          <small>Completed practice counts toward your goal; hints and corrections stay separate from unaided recall.</small>
+          <small>Completed practice counts toward this goal.</small>
         </label>
         <label>
           Practice time zone
@@ -188,7 +188,7 @@ export function OpeningPlayerContext({ preferences, onSaved }: OpeningPlayerCont
           <input type="checkbox" checked={boardSounds} onChange={(event) => setBoardSounds(event.target.checked)} />
           <span>
             <strong>Subtle board feedback</strong>
-            <small>Play a short sound and vibration after a move where the device supports it.</small>
+            <small>Sound and vibration, where supported.</small>
           </span>
         </label>
       </div>

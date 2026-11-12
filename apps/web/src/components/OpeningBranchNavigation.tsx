@@ -25,7 +25,7 @@ export function OpeningBranchNavigation({ index, lineId, ply, disabled, onNaviga
         <strong>{branch?.title ?? line.title}</strong></div>
       {previous && <button className="text-button" disabled={disabled} onClick={onReturn}>Back to previous line</button>}
     </div>
-    {lineCount > 1 && <p>This position is shared by {lineCount} active lines. Follow a saved move to explore its continuation.</p>}
+    {lineCount > 1 && <p>Shared by {lineCount} active lines.</p>}
     {choices.length > 0 && <div className="opening-branch-choices">
       {choices.map(choice => <button key={choice.moveUci} className={choice.selected ? "selected" : "secondary"}
         aria-label={`Follow ${choice.label}`} disabled={disabled} onClick={() => onNavigate(choice.target.lineId, choice.target.ply)}>
@@ -39,7 +39,7 @@ export function OpeningBranchNavigation({ index, lineId, ply, disabled, onNaviga
     </button>}
     {otherOrders.length > 0 && <details className="opening-equivalent-lines">
       <summary>Same position, another move order ({otherOrders.length})</summary>
-      <p>These lines reach the same board through different moves. Switching keeps this position.</p>
+      <p>Different move orders; same position.</p>
       {otherOrders.map(route => <button className="text-button" key={route.lineId} disabled={disabled}
         onClick={() => onNavigate(route.lineId, route.ply)}>{index.lines.get(route.lineId)?.chapterTitle} · {index.branches.get(route.lineId)?.title ?? index.lines.get(route.lineId)?.line.title} — same position</button>)}
     </details>}

@@ -112,7 +112,7 @@ export function WhatChangedPanel({ refreshToken, requestedItemId, sessionId, onC
       <div className="training-copy">
         <span className="eyebrow">Attention before calculation</span>
         <h2>What Changed?</h2>
-        <p>Watch their move first. Identify what it attacks, uncovers, removes, or threatens before generating candidates.</p>
+
       </div>
 
       {empty && <TrainingEmptyState gameDays={gameDays}
@@ -128,7 +128,7 @@ export function WhatChangedPanel({ refreshToken, requestedItemId, sessionId, onC
             <div className="candidate-banner">
               <div>
                 <span>{phase === "observe" ? "Position before their move" : "Position after their move"}</span>
-                <small>You are {exercise.playerColor}. {orientation === exercise.playerColor ? "Your side is nearest." : "Board flipped."}</small>
+                <small>You play {exercise.playerColor}.</small>
               </div>
               <strong>{phase === "observe" ? "Move hidden" : moveLabel}</strong>
             </div>
@@ -153,7 +153,7 @@ export function WhatChangedPanel({ refreshToken, requestedItemId, sessionId, onC
             {phase === "observe" && (
               <div className="ready-step">
                 <h3>First, look at the position.</h3>
-                <p className="instruction">Do not calculate yet. When you are ready, show the opponent’s move and ask what changed.</p>
+                <p className="instruction">Watch the opponent’s move.</p>
                 <button onClick={() => void playOpponentMove()}>Play their last move</button>
               </div>
             )}
@@ -162,7 +162,7 @@ export function WhatChangedPanel({ refreshToken, requestedItemId, sessionId, onC
               <>
                 <h3>{exercise.prompt}</h3>
                 <p className="move-context">They just played <strong>{exercise.opponentMoveSan}</strong>.</p>
-                <p className="instruction">Choose the most important change, then click the affected piece or square. The short explanation below the choices can help while you learn the terms.</p>
+                <p className="instruction">Choose what changed, then select the affected piece or square.</p>
                 <div className="change-category-grid">
                   {WHAT_CHANGED_OPTIONS.map((option) => (
                     <button
@@ -201,7 +201,7 @@ export function WhatChangedPanel({ refreshToken, requestedItemId, sessionId, onC
                   {!feedback.squareCorrect && feedback.correctSquares.length > 0 && <> Look at <strong>{feedback.correctSquares.join(" or ")}</strong>, highlighted on the board.</>}
                 </p>}
                 <p>{feedback.explanation}</p>
-                <p className="board-result-note">The relevant pieces are highlighted on the board.</p>
+
                 <div className="checklist-feedback">
                   <span>Thinking-process skill: Last-move awareness</span>
                   <p>{feedback.checklistPoint}</p>

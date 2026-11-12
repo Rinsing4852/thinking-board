@@ -33,7 +33,7 @@ export function ProfilePage({onProfileChanged,onAccountsChanged,onImport}:{onPro
   finally{if(version===generation.current)setBusy(false);}
  };
  return <section className="profile-page" aria-label="Player profile">
-  <div className="page-heading"><span className="eyebrow">Your chess identity</span><h1>Profile</h1><p>Link your Lichess and Chess.com usernames to the same learner. Games and training history stay together, even when your usernames differ.</p></div>
+  <div className="page-heading"><h1>Profile</h1><p>Link your playing accounts to keep games and practice together.</p></div>
   {!profiles&&!error&&<p role="status">Loading your profile…</p>}
   {error&&<p role="alert">{error} <button className="secondary" onClick={()=>{setStatus('');setRetry(value=>value+1);}}>Reload profile</button></p>}
   {profiles&&connections&&<>
@@ -43,7 +43,7 @@ export function ProfilePage({onProfileChanged,onAccountsChanged,onImport}:{onPro
      catch(problem){if(version===generation.current)setError(problem instanceof Error?problem.message:'Could not change player.');}
      finally{if(version===generation.current)setBusy(false);}
     }}>{profiles.profiles.map(player=><option key={player.id} value={player.id}>{player.displayName}</option>)}</select></label>
-    <p>Changing player switches the library and practice history. It does not merge players or delete their data.</p>
+    <p>Each player has a separate library and practice history.</p>
    </section>
    <div className="profile-accounts">{(['lichess','chesscom'] as const).map(provider=>{
     const label=provider==='lichess'?'Lichess':'Chess.com',connection=connections[provider];
@@ -51,7 +51,7 @@ export function ProfilePage({onProfileChanged,onAccountsChanged,onImport}:{onPro
      <h2>{label}</h2><p>{connection.connected?`Linked as ${connection.username}`:'No username linked yet.'}</p>
      <label>{label} username<input autoComplete="off" spellCheck={false} disabled={busy} maxLength={provider==='lichess'?30:25} value={names[provider]} onChange={event=>setNames(current=>({...current,[provider]:event.target.value}))}/></label>
      <button disabled={busy||!names[provider].trim()||names[provider].trim().toLowerCase()===connection.username?.toLowerCase()} onClick={()=>void save(provider)}>{busy?'Please wait…':`Save ${label} username`}</button>
-     <p>Public games need your username, not your password. Saving checks that the account exists; it does not request engine analysis.</p>
+     <p>Username only; no password needed.</p>
     </section>;
    })}</div>
    <button className="secondary" onClick={onImport}>Import games from linked accounts</button>

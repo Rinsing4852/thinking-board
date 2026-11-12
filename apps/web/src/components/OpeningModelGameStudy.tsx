@@ -113,7 +113,7 @@ export function OpeningModelGameStudy({repertoireId,lineId,savedPly,onBack}:{rep
   return <section className={`opening-model-study${quiz?" opening-study-guessing":""}${replay||quiz?" opening-study-replaying":""}`} aria-label="Model-game study">
     <div className="panel opening-workspace-heading">
       <div><span className="eyebrow">Understand the continuation</span><h2>Study a game from here</h2>
-        <p>Find a stronger player’s game that follows your moves or reaches the same position, then replay the continuation or guess their moves on your side.</p></div>
+        <p>Replay or guess moves from a stronger player’s game at this position.</p></div>
       <button className="secondary" disabled={busy} onClick={()=>{
         if(!pgn.trim()||window.confirm("Leave the pasted study PGN without importing it?")) onBack();
       }}>Back to saved position</button>
@@ -131,17 +131,17 @@ export function OpeningModelGameStudy({repertoireId,lineId,savedPly,onBack}:{rep
             <ChessBoard fen={quiz.feedback?applyStudyMove(quiz.fen,quiz.feedback.historicalUci):quiz.fen}
               orientation={data.learnerColor} interactive={!quiz.complete&&!quiz.feedback&&!busy&&!needsReload}
               onMove={uci=>guess("answer",uci)} lastMove={quiz.feedback?.historicalUci??null} ariaLabel="Guess-the-move board" />
-            <p>Position after replay step {quiz.currentPly} of {quiz.totalPlies}. Opponent moves play automatically between questions.</p>
+            <p>Move {quiz.currentPly} of {quiz.totalPlies} · opponent replies automatically.</p>
             {quiz.hint&&!quiz.feedback&&<p role="status">{quiz.hint}</p>}
             {quiz.feedback&&<div role="status" className="opening-study-note">
               <strong>{quiz.feedback.revealed?"Played move shown":quiz.feedback.matches?"You matched the played move":"A different legal move"}</strong>
               <p>{quiz.feedback.playedSan?`You chose ${quiz.feedback.playedSan}. `:""}The player played {quiz.feedback.historicalSan}.</p>
-              <p>{quality?"The played move is a historical example. The separate engine assessment below does not change your study result.":"The played move is a historical example. A different legal move may also be good; it has not been engine-graded here."}</p>
+              <p>{quality?"Historical move; engine quality is assessed separately.":"Historical move; alternatives may also be good and are ungraded."}</p>
               {quiz.feedback.playedSan&&!quiz.feedback.revealed&&<button className="secondary" disabled={busy||needsReload} onClick={checkQuality}>Check my move with Stockfish</button>}
               {quality&&<p><strong>{quality.verdict==="playable"?"Chess quality: playable":quality.verdict==="weaker"?"Chess quality: weaker move":"Chess quality: unverified"}</strong> · {quality.message} {quality.depth?`Engine depth ${quality.depth}.`:""}</p>}
               {quiz.feedback.comment&&<><strong>Supplied game annotation</strong><p>{quiz.feedback.comment}</p></>}
             </div>}
-            <p role="status">{quiz.progress.attempted} first attempts · {quiz.progress.matchedUnaided} matched without help · {quiz.progress.helped} helped. Retries do not add first-attempt credit.</p>
+            <p role="status">{quiz.progress.attempted} first attempts · {quiz.progress.matchedUnaided} matched without help · {quiz.progress.helped} helped.</p>
             <div className="answer-actions">
               {!quiz.complete&&!quiz.feedback&&<>
                 <button className="secondary" disabled={busy||needsReload||!!quiz.hint} onClick={()=>guess("hint")}>Hint: show the piece</button>
@@ -154,7 +154,7 @@ export function OpeningModelGameStudy({repertoireId,lineId,savedPly,onBack}:{rep
               <button className="secondary" disabled={busy||needsReload} onClick={()=>guess("exit")}>Return to replay</button>
               {quiz.complete&&<button disabled={busy||needsReload} onClick={()=>guess("restart")}>Study this game again</button>}
             </div>
-            <p className="opening-coverage-note">Study and hints are saved. Your repertoire recall, due dates and daily practice credit are unchanged.</p>
+            <p className="opening-coverage-note">Study progress saved separately from repertoire recall.</p>
           </section>}
           {fen&&!quiz&&<ChessBoard fen={fen} orientation={data.learnerColor} interactive={false} lastMove={current?.uci??null} ariaLabel="Model-game board" />}
           {replay&&<>
@@ -166,18 +166,18 @@ export function OpeningModelGameStudy({repertoireId,lineId,savedPly,onBack}:{rep
             </div>
             <p>{current?`Last played: ${current.moveNumber}${current.moverColor==="white"?".":"..."}${current.san}`:"Initial game position"}</p>
             {current?.comment?<div className="opening-study-note"><strong>Imported annotation · {replay.game.source}</strong><p>{current.comment}</p></div>
-              :<p className="opening-coverage-note">No annotation was supplied for this position. Replay shows the played moves.</p>}
+              :<p className="opening-coverage-note">No game annotation here.</p>}
             {replay.currentPly===replay.moves.length&&<p role="status">End of game · {replay.game.result}. You can step back or choose another example.</p>}
             <button disabled={busy||needsReload||replay.currentPly===replay.moves.length} onClick={()=>guess("start")}>Guess the player’s moves</button>
-            <p className="opening-coverage-note">Replay is saved as you move. The played move is an example, not a claim that it is the strongest move.</p>
+            <p className="opening-coverage-note">Replay saved automatically. Played moves are examples, not engine recommendations.</p>
           </>}
         </div>
         {!quiz&&<div className="panel opening-study-choices" ref={choicesRef} tabIndex={-1} role="region" aria-label="Matching study games">
           <h3>Find a stronger player’s game</h3>
-          <p>Search the selected databases for this saved position. Online examples require a higher-rated player on your {data.learnerColor} side. Master examples come from the over-the-board database; its ratings are not compared with your Lichess rating.</p>
+          <p>Find games with a stronger player on your {data.learnerColor} side. Master-database ratings are kept separate.</p>
           <label>Game source<select aria-label="Game source" value={gameSource} disabled={busy||needsReload} onChange={e=>{setGameSource(e.target.value as "online"|"masters"|"both");setFound(null);setSearchError("");}}><option value="online">Stronger Lichess players</option><option value="masters">Over-the-board masters</option><option value="both">Both sources</option></select></label>
           <label className="opening-study-rating">Your Lichess rating<input type="number" min={100} max={4000} step={1} inputMode="numeric" value={rating} disabled={busy||needsReload} onChange={event=>{setRating(event.target.value);setFound(null);setSearchError("");}} /></label>
-          <p className="opening-coverage-note">Use your Lichess rapid or classical rating. Ratings from other sites are not directly comparable.</p>
+          <p className="opening-coverage-note">Use your Lichess rapid or classical rating.</p>
           <button disabled={busy||needsReload||!Number.isInteger(Number(rating))||Number(rating)<100||Number(rating)>4000} onClick={findGames}>{busy?"Working…":"Find games"}</button>
           {searching&&<p role="status">Finding stronger-player games and checking their continuations…</p>}
           {searchError&&<div role="alert"><p>{searchError}</p><p>Use Find games to retry. Saved examples below remain available.</p></div>}
@@ -190,7 +190,7 @@ export function OpeningModelGameStudy({repertoireId,lineId,savedPly,onBack}:{rep
               <p>{game.reason}</p><p>{game.date??"Date unknown"} · <a href={game.sourceUrl} target="_blank" rel="noreferrer">{game.source==="masters"?"View master-game PGN":"View original on Lichess"}</a></p>
               <button disabled={busy||needsReload||!!quiz} onClick={()=>startExample(game.id)}>Replay from this position</button>
             </article>)}
-            <p className="opening-coverage-note">Up to three verified examples from the selected sources, preferring your move order. Online examples use a higher learner-side Lichess rating; master examples use the master database. A higher rating does not make every played move the best move.</p>
+            <p className="opening-coverage-note">Up to three examples, preferring your move order. Stronger players can still make mistakes.</p>
           </div>}
           <h3>Saved examples</h3>
           <p>{data.totalMatches} matching {data.totalMatches===1?"game":"games"} in your {data.libraryGames}-game study library. Up to three are shown.</p>
@@ -209,7 +209,7 @@ export function OpeningModelGameStudy({repertoireId,lineId,savedPly,onBack}:{rep
       </div>
       {!quiz&&<details className="panel opening-study-import" >
         <summary>Import study games</summary>
-        <p>Paste the PGN text exported from a complete game, including its result. These go into your separate study library and do not count as games you played. Add games you have permission to use; label the source so you can recognise it later.</p>
+        <p>Paste a complete game PGN you have permission to use. Study games stay separate from your played games.</p>
         <label>Study-game source<input value={source} placeholder="Collection, website or your own notes" maxLength={200} disabled={busy} onChange={event=>setSource(event.target.value)}/></label>
         <label>Complete game PGN<textarea rows={6} value={pgn} disabled={busy} onChange={event=>setPgn(event.target.value)}/></label>
         <button disabled={busy||needsReload||!pgn.trim()||!source.trim()} onClick={()=>void run(async signal=>{

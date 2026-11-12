@@ -16,7 +16,7 @@ export function OpeningMasterEvidence({fen,practical}:{fen:string;practical:Open
   const current=data?.fen===fen?data:null;
   return <details className="opening-master-evidence" open={open} onToggle={e=>setOpen(e.currentTarget.open)}>
     <summary>Compare master-game evidence</summary>
-    <p>Master games and games at your level are different samples. The table shows up to ten common master moves. Popularity is not proof of the best move.</p>
+    <p>Separate samples: masters and your rating band. Popularity is not engine strength.</p>
     {open&&!current&&!error&&<p role="status">Loading master games…</p>}
     {error&&<p role="alert">{error} <button onClick={()=>setRetry(n=>n+1)}>Retry master data</button></p>}
     {current&&<>

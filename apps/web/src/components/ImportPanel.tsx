@@ -196,7 +196,7 @@ export function ImportPanel({ draft, onManageAccounts, refreshToken, onAnalyzed,
         </div>
         <span className="step-number">01</span>
       </div>
-      <p className="panel-help">Copy the game text from Lichess, Chess.com, or a PGN file and paste it below. You can paste more than one game at once.</p>
+      <p className="panel-help">Paste one or more games in PGN format.</p>
       <textarea
         value={pgn}
         disabled={busy}
@@ -217,7 +217,7 @@ export function ImportPanel({ draft, onManageAccounts, refreshToken, onAnalyzed,
                 {preview.players.map((player) => <option key={player}>{player}</option>)}
               </select>
             </label>
-            {playerName&&<p className="panel-help" role="status">Save for {playerName}. This becomes the active player. Other players’ games and history are kept.</p>}
+            {playerName&&<p className="panel-help" role="status">Save for {playerName} and switch to this player.</p>}
             <button disabled={busy || !playerName} onClick={() => void importPgn()}>
               Save games
             </button>
@@ -240,7 +240,7 @@ export function ImportPanel({ draft, onManageAccounts, refreshToken, onAnalyzed,
         <summary>Sync finished Lichess games <small>{lichess?.connected ? `Connected as ${lichess.username}` : "Optional · use your username"}</small></summary>
         <div>
           <span className="eyebrow">Optional shortcut</span>
-          <p>Public games need only your username. A read-only token set by the server owner can include games visible to that token; it is never sent to this browser.</p>
+          <p>Public games need only your username. Private access uses the server’s read-only token.</p>
         </div>
         <div className="lichess-sync-controls">
           {lichess?.connected && <label>
@@ -252,7 +252,7 @@ export function ImportPanel({ draft, onManageAccounts, refreshToken, onAnalyzed,
             </select>
           </label>}
           {lichess?.connected&&<button disabled={lichessBusy||busy} onClick={()=>void syncLichess()}>{lichessBusy?'Syncing…':lichess.moreAvailable?'Continue syncing games':'Sync new games'}</button>}
-          <p className="panel-help">When this page opens, linked Lichess accounts are checked for new games at most once every six hours. Analysis starts only when you request it. Chess.com imports use the month you choose.</p>
+          <p className="panel-help">Checks for new Lichess games on opening, at most every six hours. Analysis is by request.</p>
           <button className="secondary" onClick={onManageAccounts}>{lichess?.connected?'Manage Lichess account':'Link Lichess in Profile'}</button>
         </div>
         {lichess?.connected && (

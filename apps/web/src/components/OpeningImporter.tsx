@@ -93,7 +93,7 @@ export function OpeningImporter({ onImported }: { onImported: () => Promise<void
                   <span className="eyebrow">Private import</span>
                   <h3>Import repertoire lines</h3>
                 </div>
-                <p>Paste opening lines from your own PGN or import a Lichess Study. This is for preparation—not a played game you want analysed.</p>
+                <p>Import opening lines. Use My games for played games.</p>
               </div>
 
               <div className="opening-import-fields">

@@ -1,7 +1,8 @@
 import { Chess } from "chess.js";
 
 import type { SqliteDatabase } from "../db/database.js";
-import { tacticalPunishment } from "./tactical-punishment.js";
+import { tacticalMotif } from "./tactical-motif.js";
+import { tacticalPunishment, type PunishmentProof } from "./tactical-punishment.js";
 import { id, now } from "../lib/ids.js";
 
 interface QuietRow {
@@ -120,40 +121,30 @@ export class V1Generator {
         WHERE item_id = ? ORDER BY engine_rank LIMIT 1
       `).get(item.id) as { move_uci: string; move_san: string; categories_json: string } | undefined;
       if (!response) continue;
-      const categories = JSON.parse(response.categories_json) as string[];
       const evidence = this.db.prepare("SELECT evidence_json FROM blunder_check_items WHERE item_id=? UNION ALL SELECT evidence_json FROM punish_blunder_items WHERE item_id=?").pluck().get(item.id,item.id) as string | undefined;
-      const savedEvidence = evidence ? JSON.parse(evidence) as { exerciseKind?:string; proof?: { kind?: string } } : undefined;
+      const savedEvidence = evidence ? JSON.parse(evidence) as { exerciseKind?:string; proof?: PunishmentProof } : undefined;
       const proof = savedEvidence?.proof;
-      let tactic = categories.includes("capture") ? "tactic.missed_capture" : "tactic.hanging_piece";
+      // Share the same conservative motif rule as game review and focus selection.
+      const motif = proof ? tacticalMotif(item.fen, { uci: response.move_uci }, proof) : null;
+      let tactic: string | null = null;
       try {
-        const board = new Chess(item.fen);
-        const applied = board.move(uciMove(response.move_uci));
-        if (applied?.captured === "q") tactic = "tactic.queen_loss";
-        else if (applied?.captured === "r") tactic = "tactic.rook_loss";
-        else if (applied?.captured === "b" || applied?.captured === "n") tactic = "tactic.minor_piece_loss";
-        if (applied) {
-          const attacker = applied.color;
-          const victim = attacker === "w" ? "b" : "w";
-          let valuableTargets = 0;
-          for (const rank of board.board()) {
-            for (const piece of rank) {
-              if (piece && piece.color === victim && ["n", "b", "r", "q", "k"].includes(piece.type)
-                && board.attackers(piece.square, attacker).includes(applied.to)) valuableTargets += 1;
-            }
-          }
-          if (valuableTargets >= 2 && proof?.kind === "material") tactic = "tactic.fork";
-        }
-        if (proof?.kind === "forced_mate" || board.isCheckmate() || response.move_san.includes("#")) tactic = "tactic.allowed_mate";
+        const applied = new Chess(item.fen).move(uciMove(response.move_uci));
+        const missed = savedEvidence?.exerciseKind === "missed_opportunity";
+        if (motif === "mating threat") tactic = missed ? "tactic.missed_mate" : "tactic.allowed_mate";
+        else if (motif === "fork") tactic = "tactic.fork";
+        else if (applied?.captured) tactic = missed ? "tactic.missed_capture"
+          : applied.captured === "q" ? "tactic.queen_loss"
+          : applied.captured === "r" ? "tactic.rook_loss"
+          : ["b", "n"].includes(applied.captured) ? "tactic.minor_piece_loss" : "tactic.hanging_piece";
       } catch {
-        // Stored engine moves were legal when generated; retain the conservative label if old data is malformed.
+        // Unknown motifs stay unclassified rather than acquiring a capture label.
       }
-      if(savedEvidence?.exerciseKind==='missed_opportunity')tactic=proof?.kind==='forced_mate'?'tactic.missed_mate':'tactic.missed_capture';
       this.db.prepare(`
         DELETE FROM training_item_concepts
         WHERE item_id = ? AND source = 'automatic'
           AND concept_id IN (SELECT id FROM concepts WHERE family = 'tactical')
       `).run(item.id);
-      this.db.prepare(`
+      if (tactic) this.db.prepare(`
         INSERT OR IGNORE INTO training_item_concepts(item_id, concept_id, source, confidence, is_primary)
         VALUES (?, ?, 'automatic', 0.85, 0)
       `).run(item.id, tactic);

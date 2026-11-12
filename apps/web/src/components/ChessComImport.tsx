@@ -39,7 +39,7 @@ export function ChessComImport({ onManageAccounts, onSaved, refreshToken }: { on
 
   return <details className="lichess-sync-card">
     <summary>Import finished Chess.com games <small>{connection?.connected ? `Connected as ${connection.username}` : "Optional · use your username"}</small></summary>
-    <p>Import a month of public games into this player's library. No password or token needed. Then choose individual games or a batch for analysis.</p>
+    <p>Import a month of public games. Analyse them separately when ready.</p>
     <div className="lichess-sync-controls">
       <label>Chess.com game month<input type="month" value={month} min="2007-01" max={new Date().toISOString().slice(0, 7)} disabled={busy} onChange={event => setMonth(event.target.value)} /></label>
       <button disabled={busy || !connected || !month} onClick={() => void run()}>
@@ -49,7 +49,7 @@ export function ChessComImport({ onManageAccounts, onSaved, refreshToken }: { on
       {!connection && <button className="text-button" disabled={busy} onClick={load}>Retry Chess.com connection status</button>}
     </div>
     {connection?.lastImportedAt && <p>Last imported {connection.lastMonth} · {new Date(connection.lastImportedAt).toLocaleString()}</p>}
-    <p className="panel-help">Recently finished games may take time to appear. Reimporting a month skips games already saved. For immediate access, paste the game's PGN above. Only standard chess is supported. Thinking Board is not affiliated with Chess.com.</p>
+    <p className="panel-help">Recent games may be delayed; paste PGN for immediate access. Reimports skip duplicates. Standard chess only. Not affiliated with Chess.com.</p>
     {status && <p className="status" role="status">{status}</p>}
   </details>;
 }

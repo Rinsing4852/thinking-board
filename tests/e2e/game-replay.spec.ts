@@ -98,7 +98,7 @@ test("filters opening recall on one board, resumes a round and distinguishes rev
   await page.goto(`/#games?game=${game.id}`);
   const replay=page.getByRole('region',{name:'Saved game replay',exact:true});
   const controls=replay.getByRole('region',{name:'Practise from this game',exact:true});
-  await expect(controls).toContainText('Engine analysis is not included');
+  await expect(controls).toContainText('Analyse and refresh feedback');
   await controls.locator('summary').click();
   await controls.getByRole('checkbox',{name:/Opening recall/}).check();
   await expect(controls.getByRole('checkbox',{name:/Recommended/})).not.toBeChecked();
@@ -125,7 +125,7 @@ test("filters opening recall on one board, resumes a round and distinguishes rev
   await expect(replay.getByText(/helped practice, not an unassisted recall/)).toBeVisible();
   await replay.getByRole('button',{name:'Finish practice',exact:true}).click();
   await expect(controls).toContainText('Practice finished');await expect(controls).toContainText('1 reviewed · 1 skipped');
-  await expect(controls).toContainText('does not prove mastery');
+  await expect(controls).toContainText('Reviewed means tried or revealed.');
   const completed=await(await page.request.get(`/api/v1/games/${game.id}/replay`)).json();
   expect(completed.snapshotId).toBe(original.snapshotId);expect(completed.practice.status).toBe('completed');
   expect(completed.checkpoints.reduce((total:number,p:{attempts:number})=>total+p.attempts,0)).toBe(0);

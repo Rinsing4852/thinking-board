@@ -998,7 +998,7 @@ test("[G1_BRANCH_TREE_UI] navigates nested variations through shared moves witho
   await board.getByRole("gridcell", { name: "e4 empty" }).click();
   await choices.getByRole("button", { name: "Follow 1...e5", exact: true }).click();
   await choices.getByRole("button", { name: "Follow 2.Nf3", exact: true }).click();
-  await expect(choices.getByText(/shared by 3 active lines/)).toBeVisible();
+  await expect(choices.getByText(/Shared by 3 active lines/)).toBeVisible();
   await expect(choices.getByText(/another move order/)).toBeHidden();
   await choices.getByRole("button", { name: "Follow 2...Nc6", exact: true }).click();
   await choices.getByRole("button", { name: "Follow 3.Bb5", exact: true }).click();
@@ -1425,8 +1425,13 @@ test("shows a retry when the next-line context cannot load", async ({ page }) =>
   for (const [step, from, to] of [[1, "e2 white pawn", "e4 empty"], [2, "g1 white knight", "f3 empty"], [3, "f1 white bishop", "c4 empty"]] as const) {
     await expect(page.getByText(`Step ${step} of 3`)).toBeVisible();
     await expect(board).toHaveClass(/interactive/);
+    await page.bringToFront();
+    await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe("visible");
+    const continued = page.waitForResponse(response => response.url().endsWith("/continue")
+      && response.request().method() === "POST" && response.ok());
     await board.getByRole("gridcell", { name: from }).click();
     await board.getByRole("gridcell", { name: to }).click();
+    await continued;
   }
   await expect(page.getByText("Practice complete", { exact: true })).toBeVisible();
   await expect(page.getByRole("alert")).toContainText("Could not load the line list");
@@ -1672,7 +1677,7 @@ test("explains large preparation lists as distinct tasks and keeps estimates opt
   const counts = panel.getByLabel("Types of next steps", { exact: true });
   await expect(counts).toBeHidden();
   await expect(panel.locator(".opening-coverage-tasks article")).toHaveCount(1);
-  await expect(panel.getByText(/of the estimated sequences reach/)).toBeHidden();
+  await expect(panel.getByText(/reach your move limit or chosen stopping point/)).toBeHidden();
   await expect(panel.getByText(/558 improvements/)).toHaveCount(0);
   await expect(panel.getByRole("spinbutton", { name: "Prepare through my move", exact: true })).toBeHidden();
   await page.screenshot({ path: testInfo.outputPath("plain-coverage-next-steps.png"), fullPage: true });
@@ -1687,8 +1692,8 @@ test("explains large preparation lists as distinct tasks and keeps estimates opt
   await expect(counts).toContainText("556 saved responses to practise");
   await expect(counts).toContainText("1 opponent reply without a saved answer");
   await expect(counts).toContainText("1 idea to review");
-  await expect(panel.getByText(/of the estimated sequences reach/)).toBeVisible();
-  await expect(panel.getByText(/This is not the percentage of moves you know/)).toBeVisible();
+  await expect(panel.getByText(/reach your move limit or chosen stopping point/)).toBeVisible();
+  await expect(panel.getByText(/This measures saved answers, not recall or winning chances/)).toBeVisible();
 });
 
 test("persists preparation goals and allows postponing, skipping and restoring tasks", async ({ page }, testInfo) => {

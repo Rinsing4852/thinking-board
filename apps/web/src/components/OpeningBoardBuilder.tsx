@@ -125,7 +125,7 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, explorerSpeeds =
         <div>
           <span className="eyebrow">Opening studio</span>
           <h2>{building ? "Choose your first moves" : "Name your repertoire and choose your side"}</h2>
-          <p>{building ? "Play on the board or select a move. Your first response creates the repertoire; each new move then saves automatically." : "Then build one decision at a time: their reply, your response."}</p>
+          <p>{building ? "Play a move to begin. New moves save automatically." : "Choose your colour, then play moves."}</p>
         </div>
         <button className="secondary" disabled={submitting} onClick={onCancel}>Back to repertoires</button>
       </div>
@@ -214,7 +214,7 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, explorerSpeeds =
                   <div className="opening-guided-prompt">
                     <span className="eyebrow">{isLearnerTurn ? "Your repertoire move" : "Opponent reply"}</span>
                     <strong>{isLearnerTurn ? `What will you play as ${learnerColor}?` : "Which reply do you want to prepare for?"}</strong>
-                    <small>Choose below to add the move immediately. You can undo it at any time.</small>
+                    <small>Choose a move to add it.</small>
                   </div>
                   <OpeningMoveSuggestions
                     fen={fen}
@@ -231,7 +231,7 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, explorerSpeeds =
               {lastMove && (
                 <div className="opening-builder-note">
                   <strong>{lastMoveBelongsToLearner ? `Why ${lastMove.moveSan}?` : `What is the idea behind ${lastMove.moveSan}?`}</strong>
-                  <p>Add a short explanation if you know it. Leaving this blank is honest and can be filled in later.</p>
+                  <p>Optional note: why this move?</p>
                   <textarea
                     disabled={draftLocked}
                     rows={4}
@@ -245,7 +245,7 @@ export function OpeningBoardBuilder({ ratingGroup, useExplorer, explorerSpeeds =
               {lastMove && !lastMoveBelongsToLearner && <OpeningPreparationAdvice target={{
                 fen: lastMove.fenBefore, opponentMoveUci: lastMove.moveUci, learnerColor,
               }} />}
-              {!lastMove && analysisOpen && <p className="opening-builder-empty-note">Try moves without changing your line, then add the sequence when it makes sense.</p>}
+              {!lastMove && analysisOpen && <p className="opening-builder-empty-note">Explore moves, then add the sequence.</p>}
             </div>
           </div>
         </section>

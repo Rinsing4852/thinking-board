@@ -80,7 +80,7 @@ export function Dashboard({ refreshToken, onChooseMode, onStartSession, onProfil
   </section>;
   if(compact&&dashboard.totals.trainingItems===0&&dashboard.totals.games>0)return <section className="panel" aria-label="Next step for saved games">
     <h2>{dashboard.totals.awaitingAnalysis?`${dashboard.totals.awaitingAnalysis} saved games awaiting analysis`:"Your saved games are ready to review"}</h2>
-    <p>{dashboard.totals.awaitingAnalysis?"Choose the games you want the engine to analyse. You can start, resume or retry analysis in My games.":"No thinking exercises were found for this practice pool. You can still replay your games and review your preparation."}</p>
+    <p>{dashboard.totals.awaitingAnalysis?"Choose games to analyse in My games.":"No exercises match this selection. Review a game or widen the date range."}</p>
     <button onClick={onChooseGames??onImport}>{dashboard.totals.awaitingAnalysis?"Choose games to analyse":"Review saved games"}</button>
     {error&&<p role="alert">{error}</p>}
   </section>;
@@ -121,9 +121,9 @@ export function Dashboard({ refreshToken, onChooseMode, onStartSession, onProfil
         </div>
       </div>
       <p className="panel-help" aria-live="polite">{available} exercises due now{gameDays === null ? "" : ` from games played in the last ${gameDays} ${gameDays === 1 ? "day" : "days"}`} · {dashboard.totals.trainingItems} saved in your library.</p>
-      {gameDays !== null && <p className="panel-help">Uses when each game was played. Games without a known date appear only under All game dates.</p>}
-      {(practiceActive || session) && <p className="panel-help">Finish your current session before changing its game filter.</p>}
-      {available === 0 && <p className="panel-help">{dashboard.practice?.nextDueAt ? `Next review: ${new Date(dashboard.practice.nextDueAt).toLocaleString()}.` : "No exercises are due for this game filter. Try a wider time range."} Missed or revealed answers return after 10 minutes. Successful answers return later.</p>}
+      {gameDays !== null && <p className="panel-help">Undated games appear under All game dates.</p>}
+      {(practiceActive || session) && <p className="panel-help">Finish this session to change its filter.</p>}
+      {available === 0 && <p className="panel-help">{dashboard.practice?.nextDueAt ? `Next review: ${new Date(dashboard.practice.nextDueAt).toLocaleString()}.` : "No exercises are due for this game filter. Try a wider time range."}</p>}
       {!compact && <>
       <div className="dashboard-totals">
         <div><strong>{dashboard.totals.games}</strong><span>games</span></div>
@@ -131,7 +131,7 @@ export function Dashboard({ refreshToken, onChooseMode, onStartSession, onProfil
         <div><strong>{dashboard.totals.due}</strong><span>due now</span></div>
         <div><strong>{dashboard.totals.attempts}</strong><span>attempts</span></div>
       </div>
-      {dashboard.totals.trainingItems === 0 && <p className="panel-help">Your progress starts with a game. Import its PGN, choose your name, then request analysis for the games you want to practise.</p>}
+      {dashboard.totals.trainingItems === 0 && <p className="panel-help">Import and analyse a game to begin.</p>}
       <div className="dashboard-grid">
         <div className="panel weakness-panel">
           <span className="eyebrow">Training priorities</span>
@@ -159,7 +159,7 @@ export function Dashboard({ refreshToken, onChooseMode, onStartSession, onProfil
               <span>{entry.label}</span><strong>{entry.count}</strong>
             </button>
           ))}
-          {!session && <p>Recent failures, slow answers, due reviews, and repeated game mistakes get priority.</p>}
+
         </div>
       </div>
       </>}

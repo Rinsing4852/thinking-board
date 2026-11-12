@@ -1,6 +1,6 @@
 import { Chess } from "chess.js";
 import { describe, expect, it } from "vitest";
-import { significantMistake, tacticalPunishment } from "./tactical-punishment.js";
+import { significantMistake, tacticalPunishment, worthwhileTacticalLine } from "./tactical-punishment.js";
 
 function position(moves: string[]) {
   const game = new Chess(); let before = game.fen();
@@ -65,5 +65,34 @@ describe("tactical punishment evidence", () => {
     const board=new Chess(before);expect(board.attackers("g4","w")).toContain("g1");board.move("Rf1");
     expect(board.attackers("g4","w")).toEqual([]);
     expect(tacticalPunishment(before,board.fen(),"d7g4",'["d7g4","h1h2","g4h5","h2g1"]',null)).toMatchObject({kind:"material",gainPawns:9});
+  });
+});
+
+
+describe("worthwhile tactical choices",()=>{
+  const cp=(centipawnsWhite:number|null)=>({centipawnsWhite,mateInWhite:null});
+  it.each(["white","black"] as const)("rejects material gains that give away an inaccuracy's worth of advantage for %s",color=>{
+    const sign=color==="white"?1:-1;
+    // Still inside the old 0.75-pawn tolerance, but crosses the app's
+    // established inaccuracy boundary. A piece won is not sufficient.
+    expect(worthwhileTacticalLine(cp(50*sign),cp(-25*sign),color)).toBe(false);
+    expect(worthwhileTacticalLine(cp(50*sign),cp(25*sign),color)).toBe(true);
+    // Best resistance in a bad position can remain a useful tactic.
+    expect(worthwhileTacticalLine(cp(-300*sign),cp(-300*sign),color)).toBe(true);
+    expect(worthwhileTacticalLine(cp(50*sign),cp(-500*sign),color)).toBe(false);
+    const mate={centipawnsWhite:null,mateInWhite:3*sign};
+    expect(worthwhileTacticalLine(mate,cp(2000*sign),color)).toBe(false);
+    expect(worthwhileTacticalLine(mate,{centipawnsWhite:null,mateInWhite:4*sign},color)).toBe(true);
+  });
+  it("rejects absent, non-finite and ambiguous evaluations",()=>{
+    for(const bad of [cp(null),cp(NaN),cp(Infinity),{centipawnsWhite:null,mateInWhite:0},
+      {centipawnsWhite:null,mateInWhite:Infinity},{centipawnsWhite:50,mateInWhite:2}]){
+      expect(worthwhileTacticalLine(cp(50),bad,"white")).toBe(false);
+      expect(worthwhileTacticalLine(bad,cp(50),"white")).toBe(false);
+    }
+  });
+  it("rejects winning a rook when the continuation loses the queen",()=>{
+    const fen="6k1/8/1r6/8/8/8/1r6/1Q4K1 w - - 0 1";
+    expect(tacticalPunishment(fen,fen,"b1b2",'["b1b2","b6b2","g1f2","b2b3"]',null)).toBeNull();
   });
 });

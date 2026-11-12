@@ -58,7 +58,7 @@ export function OpeningLearningComment({
       <div className="opening-learning-comment">
         <div>
           <strong>Your learning comment</strong>
-          <p>{comment ?? "Add the wording, reminder or warning that will help you remember this move."}</p>
+          <p>{comment ?? "Add a reminder for this move."}</p>
           {ideaHint && <small>Idea hint: {ideaHint}</small>}
         </div>
         <button className="text-button" onClick={() => { setEditing(true); onEditingChange?.(true); }}>
@@ -80,11 +80,11 @@ export function OpeningLearningComment({
         onChange={(event) => setValue(event.target.value)}
         placeholder="For example: If the bishop moves first, remember that the knight may block the c-pawn later."
       />
-      <small>This personal wording appears whenever this move is taught or reviewed. Leave it empty to remove it.</small>
+      <small>Shown in learning and review. Clear to remove.</small>
       <label htmlFor={`${commentId}-hint`}>Optional idea hint</label>
       <textarea id={`${commentId}-hint`} maxLength={280} rows={2} value={hint} onChange={event => setHint(event.target.value)}
         placeholder="For example: Develop a piece while attacking the centre." />
-      <small>Describe the purpose without naming the piece, destination or move. Practice shows this only when you ask for an idea hint.</small>
+      <small>Describe the idea without naming the move. Shown only on request.</small>
       <div className="answer-actions">
         <button disabled={saving} onClick={() => void save()}>{saving ? "Saving…" : "Save comment"}</button>
         <button className="secondary" disabled={saving} onClick={() => { setValue(comment ?? ""); setHint(ideaHint ?? ""); setEditing(false); setError(""); onEditingChange?.(false); }}>Cancel</button>

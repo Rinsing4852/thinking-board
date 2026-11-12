@@ -662,7 +662,7 @@ export function OpeningLineExplorer({
         </div>
         <div className="opening-workspace-actions">
           <button className="secondary" disabled={navigationBlocked} onClick={openCoverageTools}>Find repertoire gaps</button>
-          <div className="study-game-entry"><button className="secondary" disabled={navigationBlocked||line.archived} onClick={()=>setStudyOpen(true)}>Study a game from here</button><small>Replay a stronger player’s continuation or guess their moves from the position on this board.</small></div>
+          <div className="study-game-entry"><button className="secondary" disabled={navigationBlocked||line.archived} onClick={()=>setStudyOpen(true)}>Study a game from here</button><small>Replay or guess a stronger player’s moves.</small></div>
           {detail.repertoire.editable && (
             <button disabled={navigationBlocked} className={editing ? "active" : "secondary"} onClick={() => { setEditing((value) => !value); setPendingMove(null); }}>
               {editing ? "Finish editing" : "Edit lines"}
@@ -678,7 +678,7 @@ export function OpeningLineExplorer({
         <strong>Build mode · {displayFen.split(" ")[1] === (detail.repertoire.learnerColor === "white" ? "w" : "b")
           ? "Choose your response" : "Choose their reply"}</strong>
         <label><input type="checkbox" checked={autoSave} disabled={navigationBlocked} onChange={event => setAutoSave(event.target.checked)} /> Save each move automatically</label>
-        <small>{autoSave ? "Playing a new move saves it immediately. Saved moves navigate; alternatives keep the original line. Undo is available below."
+        <small>{autoSave ? "New moves save automatically. Alternatives create branches. Undo is available."
           : "Preview each new move and add its note before saving."}</small>
       </div>}
       {branchDraft.storageError && <p role="alert" className="error">{branchDraft.storageError}</p>}
@@ -797,7 +797,7 @@ export function OpeningLineExplorer({
             <p className={status.toLowerCase().includes("could not") || status.toLowerCase().includes("not legal") ? "error" : "status"}>{status}</p>
             {lastMutation && <button className="text-button" disabled={localBusy} onClick={() => void undoLastSave()}>Undo last save</button>}
           </div>}
-          {!editing && !line.archived && <p className="opening-inspector-help">Play a saved move on the board to follow its line. To add a new move, choose Edit lines.</p>}
+          {!editing && !line.archived && <p className="opening-inspector-help">Follow saved moves, or choose Edit lines to add moves.</p>}
         </div>
 
         <button className="secondary opening-notes-toggle" aria-expanded={notesOpen || editing || Boolean(pendingMove)} aria-controls="opening-move-inspector"
@@ -870,7 +870,7 @@ export function OpeningLineExplorer({
                 <div><dt>Moves</dt><dd>{line.moveCount}</dd></div>
                 <div><dt>Your decisions</dt><dd>{line.learnerDecisionCount}</dd></div>
               </dl>
-              <p className="opening-inspector-help">Use Next or select a move below the board to see why it belongs in the repertoire.</p>
+              <p className="opening-inspector-help">Select a move to read its notes.</p>
             </>
           )}
           {currentMove && (

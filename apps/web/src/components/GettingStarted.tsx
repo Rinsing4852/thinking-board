@@ -31,7 +31,7 @@ export function GettingStarted({ refreshToken, onNavigate }: GettingStartedProps
       <div>
         <span className="eyebrow">First time here?</span>
         <h2 id="getting-started-heading">{heading}</h2>
-        <p>You do not need an opening book or chess notation. The app will show one position and one question at a time.</p>
+
       </div>
       <ol aria-label="Getting started steps">
         <li className={activeStep === 1 ? "active" : activeStep > 1 ? "complete" : ""}>
@@ -41,7 +41,7 @@ export function GettingStarted({ refreshToken, onNavigate }: GettingStartedProps
           <span>2</span><div><strong>Let Stockfish analyse it</strong><small>You can refresh or close the page; progress is saved.</small></div>
         </li>
         <li className={activeStep === 3 ? "active" : ""}>
-          <span>3</span><div><strong>Practise the missed thinking step</strong><small>Read the feedback, then try the pattern again later.</small></div>
+          <span>3</span><div><strong>Practise decisions from your game</strong><small>Learn the pattern and revisit it later.</small></div>
         </li>
       </ol>
       {activeStep !== 2 && (activeStep === 1

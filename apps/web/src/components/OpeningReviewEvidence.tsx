@@ -14,7 +14,7 @@ export function OpeningReviewEvidence({ feedback, onOpenGame }: { feedback: Open
         <p>Move {game.moveNumber}: you played {game.playedMove}; your preparation was {game.repertoireMove}.</p>
         {onOpenGame && <button className="secondary" onClick={() => onOpenGame(game.gameId)}>Review this game</button>}
       </li>)}</ul>
-      <p>In game review, practise a forgotten move or edit your preparation. For an opponent surprise, you can add a response or deliberately leave a rare reply unprepared.</p>
+      <p>Review the game to practise, edit a line or prepare a response.</p>
     </>}
   </section>;
 }

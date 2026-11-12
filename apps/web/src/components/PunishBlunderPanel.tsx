@@ -89,7 +89,7 @@ export function PunishBlunderPanel({ refreshToken, requestedItemId, sessionId, o
       <div className="training-copy">
         <span className="eyebrow">See it from the other side</span>
         <h2>Punish a tactical mistake</h2>
-        <p>Use the other side’s pieces to find a material-winning tactic or forced mate. A normal developing move or attack on a piece is not enough.</p>
+
       </div>
       {empty && (
         <TrainingEmptyState gameDays={gameDays}
@@ -127,14 +127,14 @@ export function PunishBlunderPanel({ refreshToken, requestedItemId, sessionId, o
             {phase === "ready" && (
               <div className="ready-step">
                 <h3>The other player just made a mistake: {exercise.badMoveSan}?</h3>
-                <p className="instruction">You are switching sides for this exercise. Start with checks, then captures, then threats.</p>
+                <p className="instruction">Switch sides: look for checks, captures and threats.</p>
                 <button onClick={() => void begin()}>Find the punishment</button>
               </div>
             )}
             {phase === "answer" && (
               <>
                 <h3>{exercise.prompt}</h3>
-                <p className="instruction">Play one immediate reply. Tap or click the piece and a highlighted destination, or drag the piece.</p>
+                <p className="instruction">Play the winning reply.</p>
                 <div className="selected-answer">
                   {move ? <>
                     Your move: <strong>{move.san}</strong>{" "}
@@ -159,7 +159,7 @@ export function PunishBlunderPanel({ refreshToken, requestedItemId, sessionId, o
                   You played <strong>{move.san}</strong>. The strong reply was <strong>{feedback.acceptableMoves.map((answer) => answer.moveSan).join(" or ")}</strong>.
                 </p>}
                 <p>{feedback.explanation}</p>
-                <p className="board-result-note">The board shows the punishment, with its start and destination squares highlighted.</p>
+
                 <div className="checklist-feedback">
                   <span>Pattern reinforcement</span>
                   <p>{feedback.checklistPoint}</p>

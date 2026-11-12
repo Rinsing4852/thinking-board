@@ -17,7 +17,7 @@ test("requests individual and selected/all analysis, retains reports, and compar
   await page.goto(`/#games?game=${games[0].id}`);
   await openGameReport(page);
   const report=page.getByRole("region",{name:"Game move-quality report",exact:true});
-  await expect(report).toContainText("No move-quality report yet");
+  await expect(report).toContainText("No analysis yet");
   await report.getByRole("button",{name:"Analyse this game",exact:true}).click();
   await expect(report.getByText("Engine accuracy",{exact:true})).toBeVisible({timeout:20000});
   const first=await(await page.request.get(`/api/v1/games/${games[0].id}/quality`)).json();
@@ -118,7 +118,7 @@ test("takes saved games from Today to requested analysis and opens the latest re
   await page.locator('.game-chip').first().click();
   await openGameReport(page);
   const report=page.getByRole('region',{name:'Game move-quality report',exact:true});
-  await expect(report).toContainText('No move-quality report yet');
+  await expect(report).toContainText('No analysis yet');
   const game=(await(await page.request.get('/api/v1/games')).json()).games[0];
   const replayUrl=`/api/v1/games/${game.id}/replay`;
   const original=await(await page.request.get(replayUrl)).json();
@@ -133,7 +133,7 @@ test("takes saved games from Today to requested analysis and opens the latest re
   const current=await(await page.request.get(replayUrl)).json();
   expect(current.snapshotId).not.toBe(original.snapshotId);expect(current.analysisPending).toBe(false);
   expect(current.activeCheckpointId).toMatch(/^engine:/);
-  await expect(page.getByRole('region',{name:'Saved game replay',exact:true})).not.toContainText('Engine analysis is not included');
+  await expect(page.getByRole('region',{name:'Saved game replay',exact:true})).not.toContainText('Analyse and refresh feedback');
 });
 
 test("refreshes expanded learning results on player changes and ignores a late previous-player response",async({page},info)=>{
@@ -239,7 +239,7 @@ test('updates an open used replay when analysis finishes and clearly offers the 
  await expect(replay.getByRole('button',{name:'Review new analysis',exact:true})).toBeEnabled();
  expect((await(await page.request.get(`/api/v1/games/${game.id}/replay`)).json()).snapshotId).toBe(before.snapshotId);
  await replay.getByRole('button',{name:'Review new analysis',exact:true}).click();
- await expect(replay).not.toContainText('This board still uses older saved feedback');
+ await expect(replay).not.toContainText('Load the latest analysis; previous feedback and attempts are kept.');
  await expect(replay.locator('.game-replay-markers')).toContainText('Analysed blunder');
  expect((await(await page.request.get(`/api/v1/games/${game.id}/replay`)).json()).snapshotId).not.toBe(before.snapshotId);
  expect(await(await page.request.get('/api/v1/jobs/active')).json()).toBeNull();

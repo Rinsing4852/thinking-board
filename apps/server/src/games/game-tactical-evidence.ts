@@ -1,4 +1,6 @@
 import {Chess} from 'chess.js';
+import {tacticalMotif} from '../analysis/tactical-motif.js';
+export {tacticalMotif} from '../analysis/tactical-motif.js';
 import {tacticalPunishment} from '../analysis/tactical-punishment.js';
 export type SavedLine={uci:string;mate:number|null;pv:string};
 export type TacticalEvidence={categories:Array<'attacking'|'defending'|'mates'>;pattern:string;mateIn?:number;practiceEligible?:boolean};
@@ -30,19 +32,6 @@ export function verifiedMatingAnswers(fen:string,lines:SavedLine[],color:'white'
  for(const line of lines){if(line.mate===null||line.mate*(color==='white'?1:-1)<=0||Math.abs(line.mate)>4)continue;
   for(let distance=1;distance<=Math.abs(line.mate);distance++){const result=forcedMate(fen,line.uci,distance);if(result===null)break;if(result){answers[line.uci]=distance;break;}}}
  return answers;
-}
-export function tacticalMotif(fen:string,line:SavedLine,proof:NonNullable<ReturnType<typeof tacticalPunishment>>):string{
- if(proof.kind==='forced_mate')return 'mating threat';
- try{const board=new Chess(fen),move=play(board,line.uci);
-  // Explain an immediate winning capture directly; incidental attacks after it
-  // must not relabel a missed queen capture as a missed fork.
-  if(move.captured)return 'material capture';
-  const targets=new Set<string>();
-  for(const piece of board.board().flat())if(piece&&piece.color!==move.color&&['n','b','r','q','k'].includes(piece.type)&&board.attackers(piece.square,move.color).includes(move.to))targets.add(piece.square);
-  const followup=proof.pvUci[2];
-  const takesForkedTarget=followup?.slice(0,2)===move.to&&targets.has(followup.slice(2,4));
-  return targets.size>=2&&takesForkedTarget?'fork':'material threat';
- }catch{return 'tactical opportunity';}
 }
 export function tacticalEvidence(before:string,after:string,played:string,color:'white'|'black',best:SavedLine|undefined,reply:SavedLine|undefined,significant:boolean):TacticalEvidence{
  const result:TacticalEvidence={categories:[],pattern:'unclassified decision'};

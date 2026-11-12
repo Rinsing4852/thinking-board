@@ -68,8 +68,7 @@ export function GameReplay({gameId,onRefreshed,requestedPosition,refreshToken=0,
   const frame=walkthrough?teaching[walkthrough.line]?.steps[walkthrough.step]:null;
   const nextPoint=data?.checkpoints.find((point,index)=>point.ply>data.currentPly||(point.ply===data.currentPly&&index>data.checkpoints.findIndex(p=>p.id===data.activeCheckpointId)));
   return <section className="panel game-replay" aria-label="Saved game replay">
-    <div className="game-replay-heading"><div><span className="eyebrow">Replay and recall</span><h3>{focusedPractice?'Practise this decision':'Review this game on the board'}</h3>
-      <p>{focusedPractice?'Try the move, then study the feedback. Your review is saved with the source game.':'Pause at marked decisions, try the move yourself, then continue with the game as played.'}</p></div>
+    <div className="game-replay-heading"><div><h3>{focusedPractice?'Practise this decision':'Game review'}</h3></div>
       {data&&<small>Feedback saved {new Date(data.savedAt).toLocaleDateString()}</small>}
     </div>
     {error&&<div role="alert"><p>{error}</p>{needsReload&&<p>The save could not be confirmed. Reload the saved review before making another move.</p>}<button disabled={busy} onClick={load}>Reload saved review</button></div>}
@@ -82,7 +81,7 @@ export function GameReplay({gameId,onRefreshed,requestedPosition,refreshToken=0,
         {!data.analysisSummary.complete&&data.analysisSummary.totalMoves>0&&<p role="alert">This saved analysis does not cover all your moves. Request analysis again from the move report; an incomplete result is not an error-free game.</p>}
         {data.analysisSummary.complete&&!Object.values(data.analysisSummary.counts).some(Boolean)&&<p>No moves crossed the engine’s inaccuracy, mistake or blunder thresholds in this analysis. That does not mean every move was perfect.</p>}
       </section>}
-      {data.updatesAvailable&&data.analysisSummary&&<div className="game-replay-update" role="status"><strong>New review feedback is available</strong><p>This board still uses older saved feedback. Your previous feedback and attempts will be kept when you load the latest review.</p><button disabled={blocked||practiceActive} onClick={()=>act('latest',{ply:data.analysisSummary?.firstReviewPly??data.currentPly},true)}>Review new analysis</button></div>}
+      {data.updatesAvailable&&data.analysisSummary&&<div className="game-replay-update" role="status"><strong>New review feedback is available</strong><p>Load the latest analysis; previous feedback and attempts are kept.</p><button disabled={blocked||practiceActive} onClick={()=>act('latest',{ply:data.analysisSummary?.firstReviewPly??data.currentPly},true)}>Review new analysis</button></div>}
       {data.updatesAvailable&&!data.analysisSummary&&<div className="game-replay-update"><p>Your analysis or repertoire has changed. This replay keeps the feedback you saved.</p>
         <button className="secondary" disabled={blocked} onClick={()=>{if(window.confirm("Save a fresh review using the current analysis and repertoire? Replay restarts; the previous saved feedback and local attempts are retained."))act("refresh");}}>Refresh saved feedback</button></div>}
       {!focusedPractice&&data.reviewProgress&&<section className="game-review-progress" aria-label="Game review progress">
@@ -91,7 +90,7 @@ export function GameReplay({gameId,onRefreshed,requestedPosition,refreshToken=0,
         <label>Game review status<select aria-label="Game review status" disabled={blocked||practiceActive} value={data.reviewProgress.status} onChange={event=>act('review_status',{reviewStatus:event.target.value as 'not_started'|'in_progress'|'complete'})}>
           <option value="not_started">Not started</option><option value="in_progress">Partially reviewed</option><option value="complete">Complete</option>
         </select></label>
-        <small>Reading an answer counts as reviewed, not recalled. Refreshing saved feedback starts a new checklist.</small>
+        <small>Review and recall are tracked separately. Refreshing feedback starts a new checklist.</small>
       </section>}
       {!focusedPractice&&<GamePracticeControls key={data.snapshotId} data={data} blocked={blocked} onAction={(action,details)=>act(action,details??{},action==='practice_start')}/>}
       <div className="game-replay-layout">
@@ -119,7 +118,7 @@ export function GameReplay({gameId,onRefreshed,requestedPosition,refreshToken=0,
             <span className="eyebrow">{point.label}</span><h4>{point.question}</h4>
             {point.reviewedInTraining&&<p>Reviewed in Today practice. This does not count as unaided recall.</p>}
             {point.kind==="opening"&&<p>A different repertoire move is not automatically a chess mistake.</p>}
-            {data.phase==="question"&&<><p>Play your answer on the board. The saved answers stay hidden until you recall one or ask to see them.</p>
+            {data.phase==="question"&&<><p>Play your answer on the board.</p>
               <div className="answer-actions"><button disabled={blocked} onClick={()=>act("reveal")}>Show answer</button>
                 <button className="secondary" disabled={blocked} onClick={()=>act(practiceActive?"practice_skip":"skip")}>{focusedPractice||practiceActive?"Skip this position":"Continue without trying"}</button></div></>}
             {!focusedPractice&&<button className="secondary" disabled={blocked||practiceActive} onClick={()=>act('review_point',{checkpointId:point.id,reviewed:!point.reviewed})}>
@@ -135,14 +134,14 @@ export function GameReplay({gameId,onRefreshed,requestedPosition,refreshToken=0,
                   <p>Compare short saved engine examples on this board. These continuations show possible play, not what necessarily happened in the game.</p>
                   <div className="answer-actions">{teaching.map((line,index)=>line.steps.length>0&&<button className="secondary" key={index} disabled={blocked} onClick={()=>showWalkthrough({line:index,step:0})}>{line.label}</button>)}</div>
                 </details>}
-                <p>{focusedPractice?'This decision is reviewed in its source game. Choose Next position when you are ready.':practiceActive?"Continue moves to the next selected practice position. Answers and retries stay with this game.":"Continue returns to the move actually played in your game."}</p>
+                <p>{focusedPractice?'Saved to the source game.':practiceActive?"Continue moves to the next selected practice position. Answers and retries stay with this game.":"Continue replays the game move."}</p>
                 <div className="answer-actions"><button className="secondary" disabled={blocked} onClick={()=>act("retry",{},true)}>Try again in this game</button>
                   {point.canSchedule&&<button className="secondary" disabled={blocked} onClick={()=>act("schedule")}>{point.kind==='engine'?'Practise tomorrow':'Practise later'}</button>}</div>
                 {practiceActive&&<button disabled={blocked} onClick={()=>act("practice_next",{},!focusedPractice)}>{focusedPractice?(lastPosition?'Finish round':'Next position'):data.practice!.reviewedIds.length+data.practice!.skippedIds.length+1>=data.practice!.checkpointIds.length?"Finish practice":"Next practice position"}</button>}
                 {point.kind==="engine"&&!point.canSchedule&&<p className="opening-coverage-note">No separate candidate exercise is available for this position. You can retry it here.</p>}
               </>}
             </div>}
-          </>:<><h4>Follow the game</h4><p>Use Next move to play through the game. It pauses before a marked decision so you can recall a response.</p></>}
+          </>:<><h4>Follow the game</h4><p>Next move pauses at marked decisions.</p></>}
           {!focusedPractice&&<details className="game-replay-markers" open={!practiceActive}><summary>Marked decisions · {markedPoints.length}</summary>
             {!data.checkpoints.length&&<p>No decisions are marked in this saved review. Check the latest analysis summary above; older saved feedback may need updating. You can still replay every move.</p>}
             {markedPoints.map(point=>{
@@ -155,7 +154,7 @@ export function GameReplay({gameId,onRefreshed,requestedPosition,refreshToken=0,
               </button>;
             })}
           </details>}
-          <p className="opening-coverage-note">Replay and retries stay with this game. They do not change scheduled recall, practice totals or preparation coverage. Opening follow-ups use the existing repertoire schedule. Practise tomorrow schedules the engine decision at least 24 hours later without recording recall.</p>
+
         </div>
       </div>
     </>}

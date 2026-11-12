@@ -369,7 +369,7 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
           <div><strong>{complete.helpedPositions}</strong><span>moves helped by hints</span></div>
           <div><strong>{complete.mistakePositions}</strong><span>moves needing a retry</span></div>
         </div>
-        <p>{complete.positions} prepared move{complete.positions === 1 ? "" : "s"} practised · {complete.repeatAttempts} later recall retr{complete.repeatAttempts === 1 ? "y" : "ies"}. Hints and mistakes can overlap; later retries do not change your first-try result.</p>
+        <p>{complete.positions} prepared move{complete.positions === 1 ? "" : "s"} practised · {complete.repeatAttempts} retr{complete.repeatAttempts === 1 ? "y" : "ies"}. First-try results exclude corrections.</p>
         <div className="answer-actions opening-complete-actions">
           {fullLinePractice ? <>
             <button disabled={editingLineComment || navigationBusy} onClick={onRepeatLine}>Repeat this line</button>
@@ -475,16 +475,16 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
             <span className="eyebrow">LEARN FIRST</span>
             <h3>Play {exercise.introduction.repertoireMove.moveSan}</h3>
             {exercise.responseSequence&&<p>Saved answer {exercise.responseSequence.number} of {exercise.responseSequence.total} for this position. Recall these answers in the same order when this position returns.</p>}
-            <p>Follow the arrow and play the move yourself. After this batch, you’ll try again with the answers hidden.</p>
+            <p>Follow the arrow. Next, recall with answers hidden.</p>
             <OpeningExplanation explanation={exercise.introduction.explanation} />
-            <p className="opening-coverage-note">This demonstration does not count as a correct recall or change your memory schedule.</p>
+            <p className="opening-coverage-note">Learning example · no recall credit.</p>
             {moveNotice && <p role="status">{moveNotice}</p>}
           </section>}
           {!teaching && !explanationOpen && !observing && !feedback && (
             <>
               <span className="eyebrow">{!fullLinePractice && exercise.learningStage === "new" ? "LEARN" : "YOUR MOVE"}</span>
               <h3>{exercise.prompt}</h3>
-              <p className="instruction">Play directly on the board. Correct moves continue automatically. After a mistake, try again or choose Hint or Show move.</p>
+              <p className="instruction">Play on the board. Use Hint or Show move if needed.</p>
               {moveNotice && (
                 <div className="opening-move-result outside_repertoire" role="status">
                   <strong>{hintShown || ideaShown ? "Hint" : "Try again"}</strong>
@@ -501,7 +501,7 @@ export function OpeningReview({ initial, boardSounds = false, practicePace = "no
                 : feedback.outcome === "learning" ? "Learning" : "Review again"}</span>
               <h3>{feedback.repertoireMove.moveSan}</h3>
               <p>{feedback.message}</p>
-              {preferencePaused && <p>Paused by your practice setting. Read the explanation if you wish, then continue.</p>}
+              {preferencePaused && <p>Paused · continue when ready.</p>}
               <div className="answer-actions opening-feedback-actions">
                 <span className="opening-flow-status">{error ? "Practice stopped — retry when ready" : autoAdvancePaused || preferencePaused ? "Auto-advance paused" : "Continuing automatically…"}</span>
                 {preferencePaused && <button disabled={submitting || explanationOpen || editingLineComment || evidenceOpen || flow.manualPause} onClick={() => {

@@ -236,7 +236,7 @@ test("finds stronger-player study from home and guesses with hidden answers, hin
   await expect(quiz.getByText("You matched the played move",{exact:true})).toBeVisible();
   await expect(quiz).toContainText("1 first attempts · 0 matched without help");
   await quiz.getByRole("button",{name:"Continue guessing",exact:true}).click();
-  await expect(quiz).toContainText("Position after replay step 8 of 10");
+  await expect(quiz).toContainText("Move 8 of 10");
   // Save reaches the server, but its acknowledgement is lost.
   await page.route("**/study/guess",async route=>{const response=await route.fetch();expect(response.ok()).toBeTruthy();await route.fulfill({status:503,json:{error:"Acknowledgement lost"}});});
   await quiz.getByRole("button",{name:"Show played move",exact:true}).click();
@@ -260,20 +260,20 @@ test("guesses Black's moves and automatically follows White's continuation",asyn
   await study.locator(".opening-study-candidate").filter({hasText:"Black guessing fixture"}).getByRole("button",{name:"Study this game",exact:true}).click();
   await study.getByRole("button",{name:"Guess the player’s moves",exact:true}).click();
   const quiz=study.getByRole("region",{name:"Guess the player's move",exact:true});
-  await expect(quiz).toContainText("Position after replay step 7 of 10");
+  await expect(quiz).toContainText("Move 7 of 10");
   const board=quiz.getByRole("grid",{name:"Guess-the-move board",exact:true});
   await expect(board.getByRole("gridcell",{name:"c3 white knight",exact:true})).toBeVisible();
   await board.getByRole("gridcell",{name:"f8 black bishop",exact:true}).click();await board.getByRole("gridcell",{name:"e7 empty",exact:true}).click();
   await expect(quiz.getByText("You matched the played move",{exact:true})).toBeVisible();
   await quiz.getByRole("button",{name:"Continue guessing",exact:true}).click();
-  await expect(quiz).toContainText("Position after replay step 9 of 10");
+  await expect(quiz).toContainText("Move 9 of 10");
   await expect(board.getByRole("gridcell",{name:"g5 white bishop",exact:true})).toBeVisible();
   await quiz.getByRole("button",{name:"Show played move",exact:true}).click();await quiz.getByRole("button",{name:"Continue guessing",exact:true}).click();
   await expect(quiz.getByText("Study complete",{exact:true})).toBeVisible();
   const progress=(await(await page.request.get(`/api/v1/openings/repertoires/${repertoireId}/lines/${lineId}/study?ply=6`)).json()).quiz.progress;
   expect(progress).toEqual({attempted:2,matchedUnaided:1,helped:1});
   await quiz.getByRole("button",{name:"Study this game again",exact:true}).click();
-  await expect(quiz).toContainText("Position after replay step 7 of 10");
+  await expect(quiz).toContainText("Move 7 of 10");
   await expect(quiz).toContainText("2 first attempts · 1 matched without help · 1 helped");
 });
 

@@ -96,7 +96,7 @@ export function QuietPositionPanel({ refreshToken, requestedItemId, sessionId, o
       <div className="training-copy">
         <span className="eyebrow">When nothing is forcing</span>
         <h2>Quiet Position</h2>
-        <p>After checks, captures, and threats are exhausted, find a piece whose role can be improved.</p>
+
       </div>
       {empty && (
         <TrainingEmptyState gameDays={gameDays}
@@ -134,14 +134,14 @@ export function QuietPositionPanel({ refreshToken, requestedItemId, sessionId, o
             {phase === "ready" && (
               <div className="ready-step">
                 <h3>No useful check, capture, or immediate threat stands out.</h3>
-                <p className="instruction">Now ask which piece has little useful work and could take on a better role.</p>
+                <p className="instruction">Which piece could do more?</p>
                 <button onClick={() => void begin()}>Assess my pieces</button>
               </div>
             )}
             {phase === "piece" && (
               <>
                 <h3>Which piece has a useful improvement?</h3>
-                <p className="instruction">Click one of your pieces. A piece may need improving if it is undeveloped, blocked, exposed, or has few useful squares. More than one plan can be reasonable.</p>
+                <p className="instruction">Select a piece to improve. Several plans may work.</p>
                 <div className="selected-answer">{pieceSquare ? <>Selected piece: <strong>{pieceSquare}</strong></> : "Select one of your pieces."}</div>
                 <div className="answer-actions">
                   <button disabled={!pieceSquare} onClick={() => setPhase("move")}>Choose an improvement</button>
@@ -152,7 +152,7 @@ export function QuietPositionPanel({ refreshToken, requestedItemId, sessionId, o
             {phase === "move" && (
               <>
                 <h3>Which move gives that piece a better job?</h3>
-                <p className="instruction">Play one quiet improving move. Tap or click a piece and a highlighted square, or drag the piece.</p>
+                <p className="instruction">Play a quiet improving move.</p>
                 <div className="selected-answer">
                   {move ? <>
                     Your candidate: <strong>{move.san}</strong>{" "}
@@ -163,7 +163,7 @@ export function QuietPositionPanel({ refreshToken, requestedItemId, sessionId, o
                     }}>Change</button>
                   </> : `Improve the piece you selected on ${pieceSquare}.`}
                 </div>
-                <p className="instruction">Checking requests Stockfish analysis for alternatives outside the saved examples.</p>
+                <p className="instruction">Other moves are checked with Stockfish.</p>
                 <div className="answer-actions">
                   <button disabled={!move || checking} aria-busy={checking} onClick={() => void submit()}>{checking ? "Checking your move…" : "Check improvement"}</button>
                   <button className="text-button" disabled={checking} onClick={() => void reveal()}>Show an example</button>
@@ -188,9 +188,9 @@ export function QuietPositionPanel({ refreshToken, requestedItemId, sessionId, o
                   <summary>See the engine check</summary>
                   <p>Stockfish search depth: {feedback.engineCheck.depth}. Leading move: {feedback.engineCheck.bestMoveSan}.</p>
                   {feedback.engineCheck.continuationSan.length > 0 && <p>Example after your move: {feedback.engineCheck.continuationSan.join(" ")}</p>}
-                  <p>This is a limited search, not a guarantee that every continuation is best.</p>
+                  <p>Limited engine search.</p>
                 </details>}
-                <p className="board-result-note">The board shows one engine-supported example. It is not claiming that every other plan is wrong.</p>
+                <p className="board-result-note">One engine-supported example; other plans may work.</p>
                 <div className="checklist-feedback">
                   <span>Thinking-process skill: Quiet improvement</span>
                   <p>{feedback.checklistPoint}</p>

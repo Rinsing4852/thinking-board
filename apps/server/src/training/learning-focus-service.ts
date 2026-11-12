@@ -7,7 +7,7 @@ import {activeProfileId} from './profile.js';
 import {now} from '../lib/ids.js';
 import {parseGameDays} from './practice-scope.js';
 import {timeControl} from '../analysis/game-quality-service.js';
-import {significantMistake,tacticalPunishment,type SavedMoveAssessment} from '../analysis/tactical-punishment.js';
+import {significantMistake,worthwhileTacticalLine,tacticalPunishment,type SavedMoveAssessment} from '../analysis/tactical-punishment.js';
 import {forcedMate,tacticalMotif} from '../games/game-tactical-evidence.js';
 import {tacticalLesson} from '../../../../packages/contracts/src/tactical-lessons.js';
 import type {V1TrainingService} from './v1-training-service.js';
@@ -43,11 +43,16 @@ export class LearningFocusService {
    try{evidence=JSON.parse(row.evidence_json);}catch{continue;}
    if(evidence.detector!=='tactical-punishment-v4'||!Array.isArray(evidence.proof?.pvUci)||!['safety','missed_opportunity'].includes(evidence.exerciseKind??''))continue;
    const attacking=evidence.exerciseKind==='missed_opportunity',fen=attacking?row.fenBefore:row.fenAfter;
-   const line=this.db.prepare(`SELECT el.move_uci AS uci,el.mate_in_white AS mate,el.pv_uci_json AS pv FROM engine_lines el
+   const line=this.db.prepare(`SELECT el.move_uci AS uci,el.centipawns_white AS cp,el.mate_in_white AS mate,el.pv_uci_json AS pv FROM engine_lines el
      JOIN position_analyses pa ON pa.id=el.position_analysis_id JOIN positions p ON p.id=pa.position_id
      WHERE pa.run_id=? AND p.game_id=? AND p.fen=? AND el.move_uci=? ORDER BY el.rank LIMIT 1`)
-     .get(game.run_id,game.id,fen,evidence.proof!.pvUci![0]) as {uci:string;mate:number|null;pv:string}|undefined;
+     .get(game.run_id,game.id,fen,evidence.proof!.pvUci![0]) as {uci:string;cp:number|null;mate:number|null;pv:string}|undefined;
    if(!line)continue;
+   const best=this.db.prepare(`SELECT el.centipawns_white AS cp,el.mate_in_white AS mate FROM engine_lines el
+     JOIN position_analyses pa ON pa.id=el.position_analysis_id JOIN positions p ON p.id=pa.position_id
+     WHERE pa.run_id=? AND p.game_id=? AND p.fen=? AND el.rank=1 LIMIT 1`).get(game.run_id,game.id,fen) as {cp:number|null;mate:number|null}|undefined;
+   if(!best||!worthwhileTacticalLine({centipawnsWhite:best.cp,mateInWhite:best.mate},
+     {centipawnsWhite:line.cp,mateInWhite:line.mate},fen.split(' ')[1]==='w'?'white':'black'))continue;
    let pv:string[];try{pv=JSON.parse(line.pv);}catch{continue;}
    if(JSON.stringify(pv)!==JSON.stringify(evidence.proof!.pvUci))continue;
    const proof=tacticalPunishment(row.fenBefore,fen,line.uci,line.pv,line.mate);if(!proof)continue;

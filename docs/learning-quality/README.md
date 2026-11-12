@@ -44,7 +44,8 @@ a test runtime, not the application version being assessed.
 Stages 1 and 2 run the new focused browser journeys. Stage 3 runs the full existing
 browser suite as well as those journeys. Every stage runs type checks, unit tests
 and a production build. Stages 2 and 3 also require the real-engine corpus: six
-sound-move cases, five tactical cases, four independently verified mate lengths
+sound-move cases, eight tactical cases (including both-colour non-capturing forks
+and a standard-opening fork reaching the learning focus), four independently verified mate lengths
 and the saved-analysis idempotency check. A second full-game corpus checks nine
 learning/review behaviours, including the supplied missed-queen example: it must
 be tagged as both a missed attack and an allowed threat. Fake-engine browser fixtures test UI
@@ -124,3 +125,14 @@ verification and an additional explainable selector; no history is reset. Rollba
 can remove the new views/selector while leaving stored games, practice history and
 existing services intact. Do not start another training mode solely because the
 engineering checklist passes.
+
+The 6 November tactical pass shares motif classification across review and training.
+Non-capturing winning opportunities can enter the existing queue; apparent double
+attacks without retained material evidence remain ineligible. See the
+[tactical and UI change review](../reviews/TACTICAL_CONSISTENCY_AND_UI_TEXT_2026_11_06.md).
+
+The 7 November value check also tests both-colour queen-for-rook traps with
+real Stockfish, and rejects materially inferior alternatives using the existing
+move-quality scale. Existing review snapshots offer an explicit policy upgrade
+without erasing earlier feedback. See the
+[tactical value review](../reviews/TACTICAL_VALUE_CHECK_2026_11_07.md).

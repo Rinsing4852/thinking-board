@@ -165,7 +165,7 @@ function OpeningConnectionCard({
             <>
               <strong className="game-opening-result">First difference: {moveLabel(opening.departure)}</strong>
               <p>You played <strong>{opening.departure.moveSan}</strong>. Your prepared line continues with <strong>{opening.expectedMove.moveSan}</strong>.</p>
-              <p className="opening-neutral-note">This does not automatically make your move a mistake. It marks the first position where the game and your repertoire differed.</p>
+              <p className="opening-neutral-note">Outside preparation; not necessarily a mistake.</p>
               <div className="game-opening-explanation">
                 <span>{opening.expectedMove.chapterTitle}</span>
                 <strong>Why {opening.expectedMove.moveSan}?</strong>
@@ -180,14 +180,14 @@ function OpeningConnectionCard({
           {opening.status === "opponent_deviation" && opening.departure && (
             <>
               <strong className="game-opening-result">Your opponent left the prepared line with {moveLabel(opening.departure)}.</strong>
-              <p>You were still following your repertoire. From this point, use opening principles rather than trying to remember a move that was never taught.</p>
+              <p>Your prepared line ends here.</p>
             </>
           )}
 
           {opening.status === "repertoire_ended" && (
             <>
               <strong className="game-opening-result">You reached the end of the prepared material.</strong>
-              <p>The next position is not covered yet. That is a repertoire content gap, not a chess error.</p>
+              <p>No saved response here; not necessarily a chess error.</p>
             </>
           )}
 
@@ -364,7 +364,7 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
           <GameMoveReport key={`quality-${review.game.id}`} gameId={review.game.id} refreshToken={refreshToken} onInspect={ply=>setInspectMove(current=>({ply,requestId:(current?.requestId??0)+1}))}/>
           </details>
           <details className="game-review-details"><summary>Current review notes and practice options</summary>
-          <p className="opening-coverage-note">These notes use the current repertoire and analysis. The replay above preserves its saved feedback until you refresh it.</p>
+          <p className="opening-coverage-note">Current notes; the board keeps its saved feedback until refreshed.</p>
           {review.opening && (
             <OpeningConnectionCard
               opening={review.opening}
@@ -374,7 +374,7 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
             />
           )}
 
-          {review.game.analyzedAt && review.mistakes.length === 0 && <div className="panel review-analysis-note"><strong>No major engine mistakes found</strong><p>This game can still teach you about repertoire recall and where your prepared material ends.</p></div>}
+          {review.game.analyzedAt && review.mistakes.length === 0 && <div className="panel review-analysis-note"><strong>No major engine mistakes found</strong><p>You can still review opening decisions.</p></div>}
           {review.mistakes.length > 0 && <h3 className="review-subheading">Important middlegame and tactical mistakes</h3>}
           {review.mistakes.slice(0, showAll ? review.mistakes.length : 4).map((mistake) => (
             <MistakeCard
@@ -398,7 +398,7 @@ export function GameReview({ refreshToken, focusToken, onTrain, onOpeningPractic
         <div>
           <span className="eyebrow">From your games</span>
           <h2>Opening inbox</h2>
-          <p>Recurring misses come first. Practise what you forgot, inspect surprises, and clear each pattern when you understand it.</p>
+
         </div>
         <span className="step-number">Review</span>
       </div>

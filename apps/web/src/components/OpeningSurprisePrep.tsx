@@ -91,7 +91,7 @@ export function OpeningSurprisePrep({ group, onCancel, onSaved }: OpeningSurpris
       <div className="opening-surprise-copy">
         <span className="eyebrow">Prepare the position</span>
         <h4>How will you answer {departure.moveSan}?</h4>
-        <p>Move your piece on the board or choose a Stockfish candidate. Nothing is saved until you confirm it.</p>
+        <p>Play a move or choose a suggestion. Confirm to save.</p>
         {group.opening.repertoire.origin === "built_in" && (
           <p className="opening-personal-copy-note">Saving creates an editable personal copy. The built-in course remains unchanged.</p>
         )}
@@ -120,7 +120,7 @@ export function OpeningSurprisePrep({ group, onCancel, onSaved }: OpeningSurpris
           <div>
             <span className="eyebrow">Local Stockfish</span>
             <h4>Strong replies</h4>
-            <p>These are ideas to compare, not a demand to memorise the first move.</p>
+
           </div>
           {analysisBusy && <p>Analysing the position…</p>}
           <div className="opening-surprise-candidates">

@@ -134,7 +134,7 @@ export function OpeningMoveSuggestions({
               <strong>{candidate.moveSan}</strong>
               <small>{candidate.description}</small>
               {candidate.saved
-                ? <small>Saved · follow this move</small>
+                ? <small>Saved</small>
                 : ownTurn && candidate.engine?.rank === 1 && <small>Stockfish choice</small>}
             </span>
             <span>
@@ -154,12 +154,12 @@ export function OpeningMoveSuggestions({
         )}
       </div>
       {candidates.length > 3 && <button type="button" className="text-button" aria-expanded={showAllMoves} onClick={() => setShowAllMoves(value => !value)}>{showAllMoves ? "Show top three moves" : `Show all ${candidates.length} moves`}</button>}
-      {!useExplorer && <p className="opening-suggestion-note">Practical frequencies are off. Enable them in your opening settings to rank moves seen at your level.</p>}
+      {!useExplorer && <p className="opening-suggestion-note">Reply frequencies off · enable in Opening settings.</p>}
       <button type="button" className="text-button" aria-expanded={detailsOpen} onClick={() => setDetailsOpen(open => !open)}>
         {detailsOpen ? "Hide game results" : "Show game results"}
       </button>
-      <p className="opening-suggestion-note">{ownTurn ? "Stockfish ranks your options by strength." : explorer?.replies.length && useExplorer ? "Replies are ordered by frequency, not engine strength." : "Engine choices shown; reply frequencies are unavailable."} {explorer?.stale ? " Cached game data may be out of date." : ""}</p>
-      {detailsOpen && <p className="opening-suggestion-note">Stockfish search depth: {analysis?.depth ?? "unavailable"}. Results describe the sampled games, not your personal results. Move evaluations use White’s perspective and describe the position after that move, assuming best play.</p>}
+      <p className="opening-suggestion-note">{ownTurn ? "Ranked by engine strength." : explorer?.replies.length && useExplorer ? "Ranked by frequency." : "Engine choices · frequency unavailable."} {explorer?.stale ? " Cached game data may be out of date." : ""}</p>
+      {detailsOpen && <p className="opening-suggestion-note">Engine depth {analysis?.depth ?? "unavailable"}. Results: sampled games, not your own. Evaluations: after the move, from White’s side.</p>}
       {analysisError && <p className="error">{analysisError}</p>}
       {explorerError && <p className="error">{explorerError}</p>}
     </section>

@@ -144,7 +144,7 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
       <div className="training-copy">
         <span className="eyebrow">Highest priority drill</span>
         <h2>Blunder Check</h2>
-        <p>Check both sides: spot your winning opportunities and the danger your move could allow.</p>
+
       </div>
 
       {empty && <TrainingEmptyState gameDays={gameDays}
@@ -160,7 +160,7 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
             <div className="candidate-banner">
               <div>
                 <span>{missed ? "Find your missed opportunity" : phase === "ready" ? "Position before your move" : phase === "answer" ? "Position after your move" : "Opponent’s punishment"}</span>
-                <small>You are {exercise.playerColor}. {boardOrientation === exercise.playerColor ? "Your side is nearest." : "Board flipped."}</small>
+                <small>You play {exercise.playerColor}.</small>
               </div>
               <strong>{phase === "feedback" && feedback
                 ? feedback.acceptableMoves[0]?.moveSan
@@ -197,7 +197,7 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
                 <p className="move-context">
                   {missed ? <>Instead of {exercise.candidateMoveSan}, find your stronger move. You are {exercise.playerColor}.</> : <>You just played <strong>{exercise.candidateMoveSan}</strong>. It is now <strong>{exercise.playerColor === "white" ? "Black" : "White"} to move</strong>.</>}
                 </p>
-                <p className="instruction">{missed ? "Choose check, capture or threat, then play your winning move on the board." : "First choose the kind of danger. Then play the opponent’s reply by clicking its start and destination squares. You do not need to type chess notation."}</p>
+                <p className="instruction">{missed ? "Choose a type, then play your winning move." : "Choose the danger, then play the opponent’s reply."}</p>
                 <div className="category-grid">
                   {RESPONSE_CATEGORIES.map((option) => (
                     <button
@@ -240,7 +240,7 @@ export function TrainingPanel({ refreshToken, requestedItemId, sessionId, onComp
                 </p>
                 {feedback.lesson&&<section className="game-decision-lesson" aria-label="Lesson from this exercise"><h4>What to look for next time</h4><p><strong>Warning sign:</strong> {feedback.lesson.warning}</p><p><strong>Checking habit:</strong> {feedback.lesson.habit}</p></section>}
                 <p>{feedback.explanation}</p>
-                <p className="board-result-note">{missed ? "The board shows your missed winning move." : "The board now shows the opponent’s punishment; the highlighted squares show their move."}</p>
+                <p className="board-result-note">{missed ? "The board shows your missed winning move." : "The board shows the opponent’s reply."}</p>
                 {!feedback.lesson&&<div className="checklist-feedback">
                   <span>Habit to practise: Blunder check</span>
                   <p>{feedback.checklistPoint}</p>

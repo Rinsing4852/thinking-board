@@ -1,5 +1,6 @@
 import { Chess } from "chess.js";
-import { assessMove } from "./move-quality.js";
+import type { EngineScore } from "./uci-engine.js";
+import { assessMove, chances } from "./move-quality.js";
 
 export type PunishmentProof =
   | { kind: "forced_mate"; mateIn: number; pvUci: string[] }
@@ -23,6 +24,24 @@ export function significantMistake(assessment: SavedMoveAssessment, color: "whit
       { centipawnsWhite: assessment.eval_after_cp_white, mateInWhite: assessment.eval_after_mate_white },
       color, false,
     ).loss >= 10;
+  } catch { return false; }
+}
+
+/** A material-winning line must also preserve the best stored position's value.
+ * Use the same five-point inaccuracy boundary as move grading, alongside the
+ * caller's centipawn tolerance. Scores are engine estimates, not personal odds.
+ */
+export function worthwhileTacticalLine(best: EngineScore, candidate: EngineScore, color: "white" | "black"): boolean {
+  try {
+    const valid = (score: EngineScore) => score.mateInWhite === null
+      ? score.centipawnsWhite !== null && Number.isFinite(score.centipawnsWhite)
+      : score.centipawnsWhite === null && Number.isInteger(score.mateInWhite) && score.mateInWhite !== 0;
+    if (!valid(best) || !valid(candidate)) return false;
+    const bestChances = chances(best, color), candidateChances = chances(candidate, color);
+    const winningMate = (score: EngineScore) => score.mateInWhite !== null
+      && score.mateInWhite * (color === "white" ? 1 : -1) > 0;
+    if (winningMate(best) && !winningMate(candidate)) return false;
+    return bestChances - candidateChances < 5;
   } catch { return false; }
 }
 

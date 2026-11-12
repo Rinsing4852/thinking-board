@@ -708,7 +708,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onReviewPlayedGame,
               else if(step&&pausedLessonPhase){setPhase(pausedLessonPhase);setPausedLessonPhase(null);}
               else void startRecommendedReview();
             }} onStudyGame={id=>void openWorkspace(id,null,null,true)} onReviewPlayedGame={onReviewPlayedGame}/>
-          {(Boolean(activeReview && reviewPaused) || Boolean(step && pausedLessonPhase)) && <p role="status">Your practice is paused and your place is saved.</p>}
+          {(Boolean(activeReview && reviewPaused) || Boolean(step && pausedLessonPhase)) && <p role="status">Practice paused · place saved.</p>}
           {archiveMessage && <p className="success opening-catalog-status" role="status">{archiveMessage}</p>}
           <div className="panel answer-actions" role="group" aria-label="Add opening preparation">
             <button disabled={submitting} onClick={() => { setShowBuilder(true); setShowImporter(false); }}>Build on the board</button>
@@ -772,7 +772,7 @@ export function OpeningPractice({ refreshToken, onOpenGames, onReviewPlayedGame,
                     </div>
                     <details className="opening-extra-options">
                       <summary>More practice options and details</summary>
-                      <p>Learn the ideas explains a line. Varied practice follows different saved replies. Neither changes your saved moves.</p>
+                      <p>Learn the ideas, or practise varied saved replies.</p>
                       <div className="opening-card-actions">
                       {repertoire.review.due > 0 && repertoire.review.new > 0 && (
                         <button className="secondary" disabled={submitting} onClick={() => void startReview(repertoire.id, "new")}>

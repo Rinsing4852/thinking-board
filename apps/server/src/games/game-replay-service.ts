@@ -1,3 +1,4 @@
+import {worthwhileTacticalLine} from "../analysis/tactical-punishment.js";
 import {completedTrainingReview} from './training-review-link.js';
 import {gameReviewProgress,type ReviewEvent} from "./game-review-progress.js";
 import {gameSource} from './game-source.js';
@@ -36,7 +37,7 @@ export class GameReplayService {
   private revision(gameId:string) {
     const run=this.db.prepare("SELECT id FROM analysis_runs WHERE game_id=? AND status='completed' ORDER BY completed_at DESC,rowid DESC LIMIT 1").pluck().get(gameId) as string|undefined;
     const opening=this.db.prepare("SELECT revision FROM opening_match_revision WHERE id=1").pluck().get();
-    return {run,revision:JSON.stringify([run??null,opening,this.tolerance,"review-v4-inaccuracies"])};
+    return {run,revision:JSON.stringify([run??null,opening,this.tolerance,"review-v5-tactical-value"])};
   }
   private saved(gameId:string):Saved|undefined {
     const game=this.game(gameId);
@@ -90,8 +91,10 @@ export class GameReplayService {
         const legal=lines.filter(line=>{try {apply(move.fenBefore,line.uci);return line.cp!==null||line.mate!==null;}catch{return false;}});
         const utility=(line:typeof lines[number])=>(line.cp??((line.mate??0)>0?100_000-Math.min(100,line.mate!)*100:-100_000+Math.min(100,Math.abs(line.mate!))*100))*(game.player_color==="white"?1:-1);
         const best=Math.max(...legal.map(utility));
-        let answers=legal.filter(line=>best-utility(line)<=this.tolerance).map(({uci,san})=>({uci,san}));
         const leading=legal.find(line=>utility(line)===best);
+        let answers=legal.filter(line=>leading&&best-utility(line)<=this.tolerance&&worthwhileTacticalLine(
+          {centipawnsWhite:leading.cp,mateInWhite:leading.mate},{centipawnsWhite:line.cp,mateInWhite:line.mate},game.player_color,
+        )).map(({uci,san})=>({uci,san}));
         const teachingLines:GameReviewTeachingLine[]=[];
         if(leading)teachingLines.push(this.teachingLine(move.fenBefore,leading.pv,leading.uci,"A better continuation"));
         const reply=this.db.prepare(`SELECT el.move_uci AS uci,el.pv_uci_json AS pv,el.mate_in_white AS mate FROM position_analyses pa

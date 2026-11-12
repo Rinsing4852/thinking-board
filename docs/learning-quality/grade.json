@@ -1,22 +1,22 @@
 {
   "engine": {
     "name": "Stockfish 18",
-    "cases": 16,
+    "cases": 21,
     "fullGameCases": 9,
     "selection": {
       "negativeCases": 6,
       "falseTacticalCases": 0,
-      "positiveCases": 5,
+      "positiveCases": 8,
       "missedTacticalCases": 0
     }
   },
-  "generatedAt": "2026-11-05T22:57:38.556Z",
+  "generatedAt": "2026-11-12T21:40:08.944Z",
   "current": true,
   "run": {
-    "engineImage": "fc40f0f1f24e",
-    "measuredAt": "2026-11-05T22:57:38.477Z",
+    "engineImage": "thinking-board-audit:1.5.25",
+    "measuredAt": "2026-11-07T08:05:53.611Z",
     "stage": 3,
-    "fingerprint": "aadb772b6ff80c73b324de3c1d9b155ca85427582a32fdc585f59e75a826d23a",
+    "fingerprint": "d0378b33be79167f296e6b9422da2b6b18e14e15a32709838cd1e09c31c84782",
     "unchanged": true,
     "steps": [
       {
@@ -184,6 +184,16 @@
           "description": "Attack/defence tags require legal stored engine evidence; neutral moves and incomplete proof stay unlabelled.",
           "status": "passed",
           "evidence": [
+            {
+              "title": "[G2_PROOF] keeps a missed non-capturing 'white' fork in generated training and source review",
+              "status": "passed",
+              "file": "apps/server/src/analysis/missed-forks-training.test.ts"
+            },
+            {
+              "title": "[G2_PROOF] keeps a missed non-capturing 'black' fork in generated training and source review",
+              "status": "passed",
+              "file": "apps/server/src/analysis/missed-forks-training.test.ts"
+            },
             {
               "title": "[G2_PROOF] refuses neutral development and malformed proof while identifying a legal mating threat",
               "status": "passed",

@@ -78,8 +78,8 @@ export function OpeningPracticeSelection({ detail, disabled, onOpenLine, onChang
   };
   return <details className="panel opening-practice-selection" open={open} onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>Practice selection and recall · {enabledCount}/{activeCount} lines on</summary>
-    <p>Switch lines off to skip them in automatic practice. They stay in your library and game analysis; shared moves still practise when another enabled line needs them. You can deliberately practise any line once.</p>
-    <p>Changes end any paused session for this repertoire, keeping recorded answers. Choices apply only to the current player.</p>
+    <p>Turn off lines to skip automatic practice. Shared moves may still appear through another enabled line.</p>
+    <p>Changes end this player’s paused repertoire session; recorded answers are kept.</p>
     {loading && <p role="status">Loading line evidence…</p>}
     {error && <div role="alert"><p className="error">{error}</p><button className="secondary" disabled={busy} onClick={() => setReload(value => value + 1)}>Reload selection</button></div>}
     {data && <>

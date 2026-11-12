@@ -9,14 +9,14 @@ export function OpeningLearningRoutes({repertoires,busy,onPractice,onStudyGame,o
   const selectedStudy=repertoires.some(item=>item.id===studyRepertoire)?studyRepertoire:repertoires[0]?.id??"";
   return <section className="panel opening-learning-routes" aria-label="Choose how to learn">
     <h1>Your openings</h1>
-    <p>Practise saved moves, build your repertoire, or follow a stronger player’s game.</p>
+
     <div className="workflow-actions">
       <button disabled={busy||!repertoires.length} onClick={onPractice}>{resuming?"Resume opening practice":"Practise my repertoire"}</button>
       {onReviewPlayedGame&&<button className="secondary" onClick={onReviewPlayedGame}>Review my played game</button>}
     </div>
     <details className="study-route">
       <summary>Study a stronger player’s game</summary>
-      <p>Choose a repertoire to find a stronger player’s continuation. For a particular position, open a saved line, move its board to that position, then choose “Study a game from here”.</p>
+      <p>Choose a repertoire, or use “Study a game from here” on a line’s board.</p>
       {repertoires.length>0?<><label>Repertoire for model-game study<select value={selectedStudy} onChange={event=>setStudyRepertoire(event.target.value)}>
         {repertoires.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         <button className="secondary" disabled={busy||!selectedStudy} onClick={()=>onStudyGame(selectedStudy)}>Find a study game</button></>:<p>Save an opening line first to search for a matching game.</p>}

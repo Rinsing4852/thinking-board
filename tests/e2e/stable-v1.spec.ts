@@ -368,7 +368,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await expect(openings.getByText("Step 1 of 5")).toBeVisible();
     await expect(page.locator(".site-header")).toHaveClass(/practice-hidden/);
     await expect(openings.getByRole("heading", { name: "Recall your repertoire move for this position." })).toBeVisible();
-    await expect(openings.getByText("Correct moves continue automatically", { exact: false })).toBeVisible();
+    await expect(openings.getByText("Play on the board. Use Hint or Show move if needed.", { exact: false })).toBeVisible();
 
     let board = openings.getByRole("grid", { name: "Chess position" });
     await board.getByRole("gridcell", { name: "g1 white knight" }).click();
@@ -426,7 +426,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await starter.getByRole("button", { includeHidden: true, name: "Learn the ideas (guided)" }).click();
     await expect(openings.getByText("Decision 1 of 6")).toBeVisible();
     await openings.getByRole("button", { name: "Pause" }).click();
-    await expect(openings.getByText("Your practice is paused and your place is saved.")).toBeVisible();
+    await expect(openings.getByText("Practice paused · place saved.")).toBeVisible();
     page.once("dialog", async (dialog) => {
       expect(dialog.message()).toContain("end the paused guided line");
       await dialog.dismiss();
@@ -434,7 +434,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await starter.locator("summary").first().click();
     await revealControl(starter.getByRole("button", { includeHidden: true, name: "Learn the ideas (guided)" }));
     await starter.getByRole("button", { includeHidden: true, name: "Learn the ideas (guided)" }).click();
-    await expect(openings.getByText("Your practice is paused and your place is saved.")).toBeVisible();
+    await expect(openings.getByText("Practice paused · place saved.")).toBeVisible();
     await openings.getByRole("button", { name: "Resume opening practice" }).click();
 
     const board = openings.getByRole("grid", { name: "Chess position" });
@@ -496,7 +496,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await page.getByRole("button", { includeHidden: true, name: "1 · What changed" }).click();
     await expect(page.getByRole("heading", { name: "What Changed?" })).toBeVisible();
     await page.getByRole("button", { name: "Play their last move" }).click();
-    await expect(page.getByText("Choose the most important change", { exact: false })).toBeVisible();
+    await expect(page.getByText("Choose what changed", { exact: false })).toBeVisible();
     await page.getByRole("button", { name: "Show answer" }).click();
     await expect(page.getByRole("heading", { name: "This is what changed" })).toBeVisible();
     await page.locator(".trainer-layout").screenshot({ path: testInfo.outputPath("what-changed-feedback.png") });
@@ -504,9 +504,9 @@ test.describe.serial("stable V1 browser journey", () => {
     await revealControl(page.getByRole("button", { includeHidden: true, name: "2 · Candidates" }));
     await page.getByRole("button", { includeHidden: true, name: "2 · Candidates" }).click();
     await page.getByRole("button", { name: "Start generating candidates" }).click();
-    await expect(page.getByText(/tap or click a piece and a highlighted square/i)).toBeVisible();
+    await expect(page.getByText(/Choose a type and play a candidate/)).toBeVisible();
     await page.getByRole("button", { name: "Show engine candidates" }).click();
-    await expect(page.getByText("These are comparison moves, not a demand to find one single “correct” move.")).toBeVisible();
+    await expect(page.getByText("Several moves may be good.")).toBeVisible();
     await page.locator(".trainer-layout").screenshot({ path: testInfo.outputPath("candidates-feedback.png") });
 
     await revealControl(page.getByRole("button", { includeHidden: true, name: "3 · Blunder check" }));
@@ -528,9 +528,9 @@ test.describe.serial("stable V1 browser journey", () => {
     await revealControl(page.getByRole("button", { includeHidden: true, name: "5 · Quiet plan" }));
     await page.getByRole("button", { includeHidden: true, name: "5 · Quiet plan" }).click();
     await page.getByRole("button", { name: "Assess my pieces" }).click();
-    await expect(page.getByText("More than one plan can be reasonable.")).toBeVisible();
+    await expect(page.getByText("Several plans may work.")).toBeVisible();
     await page.getByRole("button", { name: "Show an example" }).click();
-    await expect(page.getByText("It is not claiming that every other plan is wrong.")).toBeVisible();
+    await expect(page.getByText("other plans may work.")).toBeVisible();
     await page.locator(".trainer-layout").screenshot({ path: testInfo.outputPath("quiet-plan-feedback.png") });
 
     await expectSquareBoard(page);
@@ -559,7 +559,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await page.getByText("Current review notes and practice options",{exact:true}).click();
     await expect(page.getByText("Opening connection", { exact: true })).toBeVisible();
     await expect(page.getByText("First difference: 1.f3", { exact: true })).toBeVisible();
-    await expect(page.getByText("This does not automatically make your move a mistake.", { exact: false })).toBeVisible();
+    await expect(page.getByText("Outside preparation; not necessarily a mistake.", { exact: false })).toBeVisible();
     await page.getByRole("button", { name: "Practise e4 now" }).click();
     await expect(page.locator("#opening-practice .opening-review")).toBeVisible();
     await expect(page.getByText(/Recall your repertoire move|Play one of your saved responses/).filter({ visible: true })).toBeVisible();
@@ -587,7 +587,7 @@ test.describe.serial("stable V1 browser journey", () => {
     await surprise.getByRole("button", { name: "Review pattern",exact:true }).click();
     await surprise.getByRole("button", { name: "Prepare for d6" }).click();
     await expect(surprise.getByRole("heading", { name: "How will you answer d6?" })).toBeVisible();
-    await expect(surprise.getByText("Nothing is saved until you confirm it.", { exact: false })).toBeVisible();
+    await expect(surprise.getByText("Confirm to save.", { exact: false })).toBeVisible();
 
     const board = surprise.getByRole("grid", { name: "Position after d6" });
     await board.getByRole("gridcell", { name: "d2 white pawn" }).click();

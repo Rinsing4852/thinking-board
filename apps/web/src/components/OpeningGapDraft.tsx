@@ -22,7 +22,7 @@ export function OpeningGapDraft({repertoireId,lineId,afterPly,fen,opponentMoveUc
   };
   return <section className="opening-gap-draft" aria-label="Prepare one gap">
     <details><summary>Prepare one missing response</summary>
-    <p>Preview an engine suggestion for this position. Existing responses and notes are kept. Nothing is saved until you apply it.</p>
+    <p>Preview an engine suggestion. Apply to save; existing responses and notes are kept.</p>
     <button className="secondary" disabled={disabled||busy} onClick={()=>void run("preview")}>{busy?"Working…":"Preview suggested response"}</button>
     {draft&&<div role="status"><p>{draft.message}</p><p>{draft.moves.map(m=>m.san).join(" → ")} · {draft.source}</p>
       {draft.state==="preview"&&<div className="answer-actions"><button disabled={busy||disabled} onClick={()=>void run("apply",draft.id)}>Add this response</button><button className="secondary" disabled={busy} onClick={()=>setDraft(null)}>Discard preview</button></div>}

@@ -20,11 +20,11 @@ export function CrossGamePractice({source,onOpenGame,refreshToken=0}:{source:Gam
  const advance=(skip=false)=>{setIndex(i=>i+1);if(skip)setSkipped(n=>n+1);else setCompleted(n=>n+1);};
  return <section className="cross-game-practice" aria-label="Practice across games">
   <h3>Practise across your games</h3>
-  {!entry&&<><p>Choose one type of decision from {source==='all'?'all game sources':sourceLabels[source]}. Uses saved analysis; it does not start Stockfish. Reviewed positions are left out unless you include them.</p>
+  {!entry&&<><p>From {source==='all'?'all game sources':sourceLabels[source]} · saved analysis only.</p>
    <div className="game-library-filters"><label>Practice type<select aria-label="Practice type" value={type} onChange={e=>setType(e.target.value as GameErrorType)}>{Object.entries(types).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
    <label>Maximum mate length<select aria-label="Maximum mate length" value={maxMateIn} onChange={e=>setMaxMateIn(Number(e.target.value))}>{[1,2,3,4].map(n=><option key={n} value={n}>Mate in {n}</option>)}</select></label></div>
    <label><input type="checkbox" checked={includeReviewed} onChange={e=>setIncludeReviewed(e.target.checked)}/> Include decisions already reviewed</label>
-   <p className="opening-coverage-note">Practice covers all games in this source, regardless of the library search or review filter. Find positions loads current feedback and keeps older feedback and attempts. Showing an answer counts as reviewed, not recalled. Other decisions in each game remain to review.</p>
+   <p className="opening-coverage-note">Uses all games from this source, regardless of table filters. Answers update source-game review, not scheduled recall.</p>
    <button disabled={busy} onClick={()=>void find()}>{busy?'Finding positions…':'Find practice positions'}</button></>}
   {error&&<p role="alert">{error}</p>}
   {selection&&<p role="status">{completed} reviewed · {skipped} skipped · {selection.totalMatches} matching positions{selection.totalMatches>30?includeReviewed?' · this round contains the first 30; exclude reviewed decisions to work through remaining unreviewed positions':' · this round contains the first 30; find positions again for the remaining decisions':''}.{selection.unanalysedGames>0?` ${selection.unanalysedGames} games have no completed analysis; analyse them to find engine errors.`:''}</p>}

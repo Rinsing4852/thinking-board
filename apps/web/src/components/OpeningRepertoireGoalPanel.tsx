@@ -35,7 +35,7 @@ export function OpeningRepertoireGoalPanel({repertoireId,graphKey,rating,speeds,
   const omitted=data?.plans.filter(plan=>plan.outcomes.omitted>1e-9).length??0;
   return <section className="opening-coverage-panel" aria-label="Whole repertoire coverage">
     <h3>Does my whole repertoire meet my goal?</h3>
-    <p>Check whether you have saved answers to the replies you are likely to face. Memory is tested separately in practice.</p>
+    <p>Check saved answers to likely replies; recall is tested in practice.</p>
 
     <p className="opening-coverage-note">Checks reset when you leave this view or change settings. Your saved moves are kept.</p>
     <button disabled={busy||disabled||!valid} onClick={()=>void load()}>{busy?"Checking repertoire…":data?"Recheck whole repertoire":"Check whole repertoire"}</button>
@@ -82,7 +82,7 @@ export function OpeningRepertoireGoalPanel({repertoireId,graphKey,rating,speeds,
     </>}
     <details className="opening-coverage-settings"><summary>Change the checking limit</summary>
       <label>Maximum moves to check from each starting position<input type="number" min={1} max={60} value={limit} aria-invalid={!valid} disabled={disabled} onChange={event=>setLimit(event.target.value)}/></label>
-      <p>One full move means a White move and a Black move. This limits how far the check looks; it does not mark the rest as prepared.</p>
+      <p>One full move = White + Black. Later positions remain unchecked.</p>
       {!valid&&<p role="alert">Enter a whole number from 1 to 60.</p>}
     </details>
   </section>;

@@ -1,0 +1,1 @@
+Container smoke passed (persistent restart, local Stockfish).

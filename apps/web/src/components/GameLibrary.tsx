@@ -68,7 +68,7 @@ export function GameLibrary({ games, selectedId, onChoose,active=true,refreshTok
        })}</tbody>
       </table>
     </div>
-    <small>Source uses the game's saved platform information. PGN means no playing platform was identified. On a phone, swipe the table sideways for more columns.</small>
+    <small>PGN: playing platform unknown.</small>
     {matches.length === 0 && <p role="status">No games match this search. <button className="text-button" onClick={() => {setQuery("");setReviewFilter("all");setSourceFilter('all');}}>Clear game search</button></p>}
   </div>;
 }

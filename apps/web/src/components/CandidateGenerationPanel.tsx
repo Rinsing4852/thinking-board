@@ -120,7 +120,7 @@ export function CandidateGenerationPanel({ refreshToken, requestedItemId, sessio
       <div className="training-copy">
         <span className="eyebrow">Breadth before calculation</span>
         <h2>Candidate Generation</h2>
-        <p>Find up to three legal ideas in order: checks, captures, threats, then improve your weakest piece.</p>
+
       </div>
 
       {empty && <TrainingEmptyState gameDays={gameDays}
@@ -136,7 +136,7 @@ export function CandidateGenerationPanel({ refreshToken, requestedItemId, sessio
             <div className="candidate-banner">
               <div>
                 <span>Position from your game</span>
-                <small>You are {exercise.playerColor}. {orientation === exercise.playerColor ? "Your side is nearest." : "Board flipped."}</small>
+                <small>You play {exercise.playerColor}.</small>
               </div>
               <strong>{formatMoveLabel(exercise.moveNumber, exercise.playerColor)}</strong>
             </div>
@@ -158,7 +158,7 @@ export function CandidateGenerationPanel({ refreshToken, requestedItemId, sessio
             {phase === "ready" && (
               <div className="ready-step">
                 <h3>{exercise.prompt}</h3>
-                <p className="instruction">Do not hunt for one perfect move. Build a short list before calculating deeply.</p>
+                <p className="instruction">Find up to three candidates: checks, captures, threats or improvements.</p>
                 <button onClick={() => void start()}>Start generating candidates</button>
               </div>
             )}
@@ -178,7 +178,7 @@ export function CandidateGenerationPanel({ refreshToken, requestedItemId, sessio
                   ))}
                 </div>
                 <p className="term-help">{CANDIDATE_TYPES.find((type) => type.value === selectedType)?.description}</p>
-                <p className="instruction">Choose a type, then tap or click a piece and a highlighted square — or drag the piece. The position resets after each candidate, ready for your next idea.</p>
+                <p className="instruction">Choose a type and play a candidate. The board resets for your next idea.</p>
                 <div className="entered-candidates">
                   {candidates.length === 0 && <span>No candidates entered yet.</span>}
                   {candidates.map((candidate) => (
@@ -224,7 +224,7 @@ export function CandidateGenerationPanel({ refreshToken, requestedItemId, sessio
                     <span key={candidate.moveUci}><strong>{candidate.moveSan}</strong> · {CANDIDATE_GRADE_COPY[candidate.grade].label}</span>
                   ))}
                 </div>
-                <p className="board-result-note">These are comparison moves, not a demand to find one single “correct” move.</p>
+                <p className="board-result-note">Several moves may be good.</p>
                 <p>{feedback.explanation}</p>
                 <div className="checklist-feedback">
                   <span>Thinking-process skill: Candidate generation</span>

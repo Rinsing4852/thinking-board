@@ -124,10 +124,10 @@ export function OpeningGameInbox({
                     : "No reason written yet. Add a learning note when you review this line."}</p>
                 )}
                 {group.opening.status === "opponent_deviation" && (
-                  <p className="opening-inbox-why">You followed your repertoire. Inspect the position before deciding whether this reply deserves preparation.</p>
+                  <p className="opening-inbox-why">Your repertoire ends here. Review before adding a response.</p>
                 )}
                 {group.opening.status === "repertoire_ended" && (
-                  <p className="opening-inbox-why">This is a content gap, not necessarily a mistake. Inspect the game before expanding the line.</p>
+                  <p className="opening-inbox-why">No saved response; not necessarily a mistake.</p>
                 )}
                 {canPrepare && departure && <OpeningPreparationAdvice
                     target={{ fen: departure.fenBefore, opponentMoveUci: departure.moveUci,

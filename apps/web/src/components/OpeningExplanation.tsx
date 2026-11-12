@@ -33,7 +33,7 @@ export function OpeningExplanation({
     <div className="opening-explanation">
       {showSummary && (hasOpeningReason(explanation.summary)
         ? <><strong>{explanation.sourceSummary ? "Your explanation" : "Why this move"}</strong><p>{explanation.summary}</p></>
-        : <p className="opening-missing-reason">No reason written yet. Add a short note about what this move achieves when you know it.</p>)}
+        : <p className="opening-missing-reason">No note yet.</p>)}
       {explanation.sourceSummary && hasOpeningReason(explanation.sourceSummary) && <details><summary>Original source note</summary><p>{explanation.sourceSummary}</p></details>}
       {changes.length > 0 && <><strong>{changesLabel}</strong><ul>{changes.map(change => <li key={change}>{change}</li>)}</ul></>}
       {plan && <><strong>What comes next</strong><p>{plan}</p></>}

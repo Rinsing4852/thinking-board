@@ -97,7 +97,7 @@ test("keeps navigation history, keyboard access and first-run actions clear", as
   await expect(page).toHaveURL(/#openings$/);
   await page.getByRole("button", { name: "Progress", exact: true }).click();
   await expect(page.getByRole("button", { name: "Import a game to begin" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Opening progress", exact: true })).toContainText("figures below cover thinking drills");
+  await expect(page.getByRole("region", { name: "Opening progress", exact: true })).toContainText("Thinking-practice results are below");
   await page.screenshot({ path: testInfo.outputPath("progress-first-run.png"), fullPage: true });
   await page.getByRole("button", { name: "Open saved repertoires", exact: true }).click();
   await expect(page).toHaveURL(/#openings$/);
