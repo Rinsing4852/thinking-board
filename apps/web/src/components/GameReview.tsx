@@ -1,4 +1,5 @@
 import { GameMoveReport } from "./GameMoveReport";
+import {conceptEvidenceLabel} from '../../../../packages/contracts/src/concept-evidence';
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import type {
@@ -76,7 +77,7 @@ interface MistakeCardProps {
 
 function MistakeCard({ mistake, concepts, onSave, onTrain }: MistakeCardProps) {
   const [thinking, setThinking] = useState(
-    mistake.concepts.find((concept) => concept.family === "thinking_process")?.id ?? "",
+    mistake.concepts.find((concept) => concept.family === "thinking_process" && concept.source==='manual')?.id ?? "process.cause_unknown",
   );
   const [tactic, setTactic] = useState(
     mistake.concepts.find((concept) => concept.family === "tactical")?.id ?? "",
@@ -103,16 +104,15 @@ function MistakeCard({ mistake, concepts, onSave, onTrain }: MistakeCardProps) {
             : `The engine estimate worsened by about ${pawnSwing} pawn${pawnSwing === "1" ? "" : "s"}`
         }</p>
         {mistake.betterCandidates.length > 0 && <p className="review-detail"><b>Moves worth considering:</b> {mistake.betterCandidates.map((candidate) => candidate.moveSan).join(", ")}</p>}
-        {mistake.concepts.length > 0 && <div className="concept-chips">{mistake.concepts.map((concept) => <span key={concept.id}>{concept.label}</span>)}</div>}
+        {mistake.concepts.length > 0 && <div className="concept-chips">{mistake.concepts.map((concept) => <span key={`${concept.id}:${concept.source}`}>{conceptEvidenceLabel(concept)}</span>)}</div>}
         {mistake.diagnosisItemId && (
           <>
-            <details className="diagnosis-disclosure"><summary>Adjust the thinking-step or pattern label</summary><div className="diagnosis-editor">
-              <label>Thinking step to train
+            <details className="diagnosis-disclosure"><summary>Your explanation and pattern label</summary><div className="diagnosis-editor">
+              <label>Your explanation (optional)
                 <select value={thinking} onChange={(event) => setThinking(event.target.value)}>
-                  <option value="">Choose…</option>
                   {concepts.filter((concept) => concept.family === "thinking_process").map((concept) => <option key={concept.id} value={concept.id}>{concept.label}</option>)}
                 </select>
-                <small>Which part of SEE → CANDIDATES → CHECK was missed?</small>
+                <small>Your report; the engine cannot establish why you missed a move.</small>
               </label>
               <label>Chess pattern
                 <select value={tactic} onChange={(event) => setTactic(event.target.value)}>

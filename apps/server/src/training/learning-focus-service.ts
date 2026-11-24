@@ -1,5 +1,6 @@
 import {focusTransfer} from './focus-transfer.js';
-import {createHash} from 'node:crypto';
+import {linkFocusRound} from './daily-practice-link.js';
+import {PersonalPlanStore,learningCohort} from './personal-plan-store.js';
 import {Chess} from 'chess.js';
 import type {LearningFocusPlan,TrainingSessionResponse} from '../../../../packages/contracts/src/api.js';
 import type {SqliteDatabase} from '../db/database.js';
@@ -17,18 +18,39 @@ type Item={id:string;game_id:string;source_move_id:string;ply:number;fenBefore:s
 export class LearningFocusService {
  constructor(private readonly db:SqliteDatabase,private readonly training:V1TrainingService){}
  get(gameDays:number|null=null,requestedControl?:string):LearningFocusPlan {
+  const store=new PersonalPlanStore(this.db);let recommended:LearningFocusPlan;
+  try{recommended=this.compute(gameDays,requestedControl);}catch(error){
+   const profile=activeProfileId(this.db);if(!profile||!store.has(profile))throw error;
+   recommended={...this.compute(),focus:null};
+  }
+  return store.present(recommended,(days,control,focusId,cohort,anchors)=>this.compute(days,control,focusId,cohort,anchors));
+ }
+ choose(profile:string,focusId:string,gameDays:number|null,control:string|undefined,expectedPlanId:string|null,expectedCohort?:string):LearningFocusPlan {
+  if(profile!==activeProfileId(this.db))throw new Error('Your player changed. Reload the learning focus.');
+  const recommended=this.compute(gameDays,control,focusId);
+  if(recommended.focus?.id!==focusId||expectedCohort&&recommended.cohort!==expectedCohort)throw new Error('The recommendation changed. Reload before saving.');
+  new PersonalPlanStore(this.db).choose(profile,recommended,expectedPlanId);
+  return this.get(gameDays,control);
+ }
+ keep(profile:string,planId:string,gameDays:number|null,control?:string):LearningFocusPlan {
+  if(profile!==activeProfileId(this.db))throw new Error('Your player changed. Reload the learning focus.');
+  new PersonalPlanStore(this.db).keep(profile,planId,this.compute(gameDays,control));return this.get(gameDays,control);
+ }
+ private compute(gameDays:number|null=null,requestedControl?:string,preferredFocus?:string,requestedCohort?:string,anchorIds:string[]=[]):LearningFocusPlan {
   gameDays=parseGameDays(gameDays);const profile=activeProfileId(this.db);
   if(!profile)return {profileId:null,gameDays,timeControl:null,timeControls:[],cohort:null,eligibleGames:0,analysedGames:0,focus:null,message:'Import and analyse some games to find a learning focus.'};
   const games=(this.db.prepare(`SELECT g.*,ar.id AS run_id,ar.engine_name,ar.engine_version,ar.depth,ar.multipv,ar.threads,ar.hash_mb,
     (SELECT rule_version FROM game_move_quality WHERE run_id=ar.id LIMIT 1) AS rule_version
     FROM games g JOIN analysis_runs ar ON ar.game_id=g.id AND ar.status='completed'
     WHERE g.profile_id=? AND ar.id=(SELECT id FROM analysis_runs WHERE game_id=g.id AND status='completed' ORDER BY completed_at DESC,rowid DESC LIMIT 1)
-    ORDER BY g.played_at DESC,g.id LIMIT 100`).all(profile) as Array<Game&{engine_name:string;engine_version:string;depth:number;multipv:number;threads:number;hash_mb:number;rule_version:string|null;initial_fen:string}>)
-    .filter(g=>g.played_at&&Number.isFinite(Date.parse(g.played_at))&&Date.parse(g.played_at)<=Date.now()&&g.result!=='*'&&g.initial_fen===new Chess().fen()&&(!gameDays||Date.parse(g.played_at)>=Date.now()-gameDays*86400000))
-    .map(g=>({...g,control:timeControl(g.headers_json),cohort:createHash('sha256').update(JSON.stringify([g.engine_name,g.engine_version,g.depth,g.multipv,g.threads,g.hash_mb,g.rule_version])).digest('hex').slice(0,20)}));
+    AND (g.id IN (SELECT id FROM games WHERE profile_id=? AND EXISTS(SELECT 1 FROM analysis_runs WHERE game_id=games.id AND status='completed') ORDER BY played_at DESC,id LIMIT 100)
+      ${anchorIds.length?`OR g.id IN (${anchorIds.map(()=>'?').join(',')})`:''})
+    ORDER BY g.played_at DESC,g.id`).all(profile,profile,...anchorIds) as Array<Game&{engine_name:string;engine_version:string;depth:number;multipv:number;threads:number;hash_mb:number;rule_version:string|null;initial_fen:string}>)
+    .filter(g=>g.played_at&&Number.isFinite(Date.parse(g.played_at))&&Date.parse(g.played_at)<=Date.now()&&g.result!=='*'&&g.initial_fen===new Chess().fen()&&(!gameDays||anchorIds.includes(g.id)||Date.parse(g.played_at)>=Date.now()-gameDays*86400000))
+    .map(g=>({...g,control:timeControl(g.headers_json),cohort:learningCohort(g)}));
   const controls=[...new Set(games.map(g=>g.control))].sort(),control=requestedControl??(controls.includes('rapid')?'rapid':controls[0]??null);
   if(requestedControl&&!controls.includes(requestedControl))throw new Error('No analysed games for that time control.');
-  const sameControl=games.filter(g=>g.control===control),cohort=sameControl[0]?.cohort??null;
+  const sameControl=games.filter(g=>g.control===control),cohort=requestedCohort??sameControl[0]?.cohort??null;
   const eligible=sameControl.filter(g=>g.cohort===cohort),byGame=new Map(eligible.map(g=>[g.id,g]));
   const groups=new Map<string,Array<Item&{game:Game;pattern:string;motif:string;defending:boolean}>>();
   const savedMateLimit=Number(this.db.prepare("SELECT value FROM app_state WHERE key=?").pluck().get(`practice_mate:${profile}`)??2);
@@ -37,7 +59,7 @@ export class LearningFocusService {
   for(const row of this.db.prepare(`SELECT ti.id,ti.game_id,ti.source_move_id,m.ply,p.fen AS fenBefore,a.fen AS fenAfter,bci.evidence_json,rs.due_at,rs.attempts,rs.successes
     FROM training_items ti JOIN blunder_check_items bci ON bci.item_id=ti.id JOIN moves m ON m.id=ti.source_move_id
     JOIN positions p ON p.id=m.from_position_id JOIN positions a ON a.id=m.to_position_id JOIN review_states rs ON rs.item_id=ti.id
-    WHERE ti.profile_id=? AND ti.active=1 AND ti.mode='blunder_check' ORDER BY ti.created_at DESC,m.ply LIMIT 2000`).all(profile) as Item[]){
+    WHERE ti.profile_id=? AND ti.active=1 AND ti.mode='blunder_check' ORDER BY ${anchorIds.length?`CASE WHEN ti.game_id IN (${anchorIds.map(()=>'?').join(',')}) THEN 0 ELSE 1 END,`:''}ti.created_at DESC,m.ply LIMIT 2000`).all(profile,...anchorIds) as Item[]){
    const game=byGame.get(row.game_id);if(!game)continue;
    let evidence:{detector?:string;exerciseKind?:string;proof?:{kind:string;mateIn?:number;pvUci?:string[]}};
    try{evidence=JSON.parse(row.evidence_json);}catch{continue;}
@@ -70,7 +92,7 @@ export class LearningFocusService {
    const recent=unique.reduce((sum,item)=>sum+Math.exp(-Math.max(0,Date.now()-Date.parse(item.game.played_at))/2592000000),0);
    return {key,items,unique,score:recent,severity:unique.reduce((sum,item)=>sum+(item.chance_loss??0),0)/unique.length};
   }).sort((a,b)=>b.score-a.score||b.severity-a.severity||a.key.localeCompare(b.key));
-  const top=ranked[0];
+  const top=preferredFocus?ranked.find(group=>group.key===preferredFocus):ranked[0];
   const due=top?.items.filter(item=>item.due_at<=now()).sort((a,b)=>(a.attempts-a.successes>0?-1:0)-(b.attempts-b.successes>0?-1:0)||b.game.played_at.localeCompare(a.game.played_at))??[];
   const selected:typeof due=[];for(const item of due){if(!selected.some(chosen=>chosen.game_id===item.game_id))selected.push(item);if(selected.length===3)break;}
   const focus=top?{id:top.key,title:top.unique[0]!.pattern,provisional:top.unique.length<2,games:top.unique.length,
@@ -85,9 +107,11 @@ export class LearningFocusService {
  }
  start(profileId:string,focusId:string,gameDays:number|null=null,control?:string):TrainingSessionResponse{
   if(profileId!==activeProfileId(this.db))throw new Error('Your player changed. Reload the learning focus.');
-  const active=this.training.activeSession();if(active)return {...active,message:'Resume your existing practice first; the new focus can follow.'};
+  const active=this.training.activeSession();if(active){linkFocusRound(this.db,profileId,active);return {...active,message:'Resume your existing practice first; the new focus can follow.'};}
   const plan=this.get(gameDays,control);
   if(plan.focus?.id!==focusId||!plan.focus.itemIds.length)throw new Error('This focus changed or no positions are due. Refresh the plan.');
-  return this.training.createSession(3,gameDays,plan.focus.itemIds);
+  const session=this.training.createSession(3,plan.gameDays,plan.focus.itemIds);
+  linkFocusRound(this.db,profileId,session);
+  return session;
  }
 }

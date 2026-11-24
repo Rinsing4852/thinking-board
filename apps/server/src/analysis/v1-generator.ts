@@ -100,7 +100,7 @@ export class V1Generator {
         this.db.prepare("UPDATE training_items SET active = 1, prompt_version = 2 WHERE id = ?").run(stored.id);
         this.db.prepare(`
           INSERT OR IGNORE INTO training_item_concepts(item_id, concept_id, source, confidence, is_primary)
-          VALUES (?, 'process.calculation_failure', 'automatic', 0.4, 1)
+          VALUES (?, 'process.cause_unknown', 'automatic', 0, 1)
         `).run(stored.id);
       }
     })();

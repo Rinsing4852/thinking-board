@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { Chess } from "chess.js";
+import {gameSource} from '../games/game-source.js';
 import type { GameQualityMove,GameQualityReport,GameQualitySide,GameQualityTrends,GameQualityWindow,GameQualitySource } from "../../../../packages/contracts/src/api.js";
 import type { SqliteDatabase } from "../db/database.js";
 import type { AppConfig } from "../config.js";
@@ -8,7 +9,7 @@ import { QUALITY_VERSION, gameAccuracy } from "./move-quality.js";
 import type { OpeningGameService } from "../openings/opening-game-service.js";
 
 type Run={id:string;game_id:string;engine_name:string;engine_version:string;depth:number;multipv:number;threads:number;hash_mb:number;completed_at:string;rule_version:string};
-type Game={white_name:string;black_name:string;id:string;player_color:"white"|"black";headers_json:string;played_at:string|null;created_at:string;initial_fen:string;result:string};
+type Game={identity_key:string|null;white_name:string;black_name:string;id:string;player_color:"white"|"black";headers_json:string;played_at:string|null;created_at:string;initial_fen:string;result:string};
 const round=(n:number)=>Math.round(n*10)/10;
 function cohort(run:Run):string{return createHash("sha256").update(JSON.stringify([run.rule_version,run.engine_name,run.engine_version,run.depth,run.multipv,run.threads,run.hash_mb])).digest("hex").slice(0,20);}
 export function timeControl(headers:string):string {
@@ -84,18 +85,22 @@ export class GameQualityService {
       return {id:jobId,queued:pending.length,alreadyQueued,alreadyAnalyzed};
     })();
   }
-  trends(profileId:string,requestedCohort?:string,requestedControl?:string):GameQualityTrends {
+  trends(profileId:string,requestedCohort?:string,requestedControl?:string,requestedSource?:string):GameQualityTrends {
     const games=this.db.prepare("SELECT * FROM games WHERE profile_id=? ORDER BY played_at DESC,created_at DESC,id").all(profileId) as Game[];
     const available=games.flatMap(game=>{const run=this.run(game.id);return run?[{game,run,cohort:cohort(run),timeControl:timeControl(game.headers_json)}]:[];});
     const cohorts=[...new Map(available.map(r=>[r.cohort,{id:r.cohort,engine:r.run.engine_name,depth:r.run.depth,ruleVersion:r.run.rule_version}])).values()];
     const chosen=requestedCohort??[...available].sort((a,b)=>b.run.completed_at.localeCompare(a.run.completed_at))[0]?.cohort??null;
     if(requestedCohort&&!cohorts.some(c=>c.id===requestedCohort))throw new Error("Analysis settings not found");
     const same=available.filter(r=>r.cohort===chosen);
-    const eligible=same.filter(({game})=>game.played_at&&Number.isFinite(Date.parse(game.played_at))&&game.result!=="*"&&game.initial_fen===new Chess().fen()&&Boolean(this.db.prepare("SELECT 1 FROM moves WHERE game_id=? AND mover_color=? LIMIT 1").get(game.id,game.player_color)));
+    const eligible=same.filter(({game})=>game.played_at&&Number.isFinite(Date.parse(game.played_at))&&Date.parse(game.played_at)<=Date.now()&&game.result!=="*"&&game.initial_fen===new Chess().fen()&&Boolean(this.db.prepare("SELECT 1 FROM moves WHERE game_id=? AND mover_color=? LIMIT 1").get(game.id,game.player_color)));
     const timeControls=[...new Set(eligible.map(r=>r.timeControl))].sort();
     const control=requestedControl??(timeControls.includes("rapid")?"rapid":timeControls[0]??null);
     if(requestedControl&&!timeControls.includes(requestedControl))throw new Error("No comparable games for this time control");
-    const selected=eligible.filter(r=>r.timeControl===control).slice(0,40);
+    const scoped=eligible.filter(r=>r.timeControl===control);
+    const platforms=[...new Set(scoped.map(r=>gameSource(r.game.identity_key,r.game.headers_json)))].sort();
+    const platform=requestedSource??(scoped[0]?gameSource(scoped[0].game.identity_key,scoped[0].game.headers_json):null);
+    if(requestedSource&&!platforms.includes(requestedSource as typeof platforms[number]))throw new Error('No comparable games for this playing platform');
+    const selected=scoped.filter(r=>gameSource(r.game.identity_key,r.game.headers_json)===platform).slice(0,40);
     const rows=selected.map(({game})=>{
       const report=this.report(game.id,profileId,false)!;
       return {side:report[report.playerColor],moves:report.moves.filter(m=>m.color===report.playerColor)};
@@ -109,6 +114,6 @@ export class GameQualityService {
         accuracy:row.side.accuracy,blunders:row.side.counts.blunder,mistakes:row.side.counts.mistake,
         firstError:first?{ply:first.ply,moveNumber:first.moveNumber,san:first.san,grade:first.grade as 'mistake'|'blunder'}:null,practiceItemId:practice??null};
     });
-    return {sources:{recent:sources.slice(0,20),previous:sources.slice(20,40)},totalGames:games.length,analyzedGames:available.length,excludedGames:same.length-eligible.length,cohorts,cohort:chosen,timeControls,timeControl:control,recent:qualityWindow(rows.slice(0,20),same[0]?.run.rule_version),previous:qualityWindow(rows.slice(20,40),same[0]?.run.rule_version)};
+    return {platforms,platform:platform as GameQualityTrends['platform'],sources:{recent:sources.slice(0,20),previous:sources.slice(20,40)},totalGames:games.length,analyzedGames:available.length,excludedGames:same.length-eligible.length,cohorts,cohort:chosen,timeControls,timeControl:control,recent:qualityWindow(rows.slice(0,20),same[0]?.run.rule_version),previous:qualityWindow(rows.slice(20,40),same[0]?.run.rule_version)};
   }
 }

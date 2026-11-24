@@ -448,7 +448,7 @@ export class AnalysisService {
       for(const response of responses)insert.run(id(),itemId,response.move_uci,response.move_san,JSON.stringify(response.categories),response.rank,response.loss);
       this.db.prepare(`INSERT INTO training_item_concepts(item_id,concept_id,source,confidence,is_primary)
         VALUES (?,?,'automatic',.9,1) ON CONFLICT(item_id,concept_id,source) DO UPDATE SET active=1`)
-        .run(itemId,mode==='punish_blunder'?'process.pattern_failure':opportunity?'process.missed_forcing_move':'process.blunder_check');
+        .run(itemId,opportunity?'process.missed_forcing_move':'process.blunder_check');
       const categoryConcept=top.categories.includes('capture')?'response.capture':top.categories.includes('check')?'response.check':'response.threat';
       this.db.prepare(`INSERT INTO training_item_concepts(item_id,concept_id,source,confidence,is_primary)
         VALUES (?,?,'automatic',.9,0) ON CONFLICT(item_id,concept_id,source) DO UPDATE SET active=1`).run(itemId,categoryConcept);

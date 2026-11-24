@@ -105,6 +105,16 @@ describe("shared move quality",()=>{
    expect(result.sources.previous.map(g=>g.black)).toEqual(Array.from({length:20},(_,i)=>`Opponent ${22-i}`));
    expect(result.sources.previous[0]?.firstError).toMatchObject({ply:1,grade:'blunder'});
    expect(result.sources.recent.every(g=>g.firstError===null)).toBe(true);
+   db.prepare("UPDATE games SET headers_json=json_set(headers_json,'$.Site','https://chess.com/game/live/42') WHERE black_name='Opponent 42'").run();
+   db.prepare("UPDATE games SET headers_json=json_set(headers_json,'$.Site','https://lichess.org/abcd1234') WHERE black_name='Opponent 41'").run();
+   expect(service.trends(alice)).toMatchObject({platform:'chesscom',platforms:['chesscom','lichess','pgn'],recent:{games:1},previous:{games:0}});
+   expect(service.trends(alice,undefined,'rapid','lichess').sources.recent.map(g=>g.black)).toEqual(['Opponent 41']);
+   const pgn=service.trends(alice,undefined,'rapid','pgn');expect(pgn.recent.games).toBe(20);expect(pgn.previous.games).toBe(20);
+   expect(pgn.sources.recent.some(g=>['Opponent 41','Opponent 42'].includes(g.black))).toBe(false);
+   expect(()=>service.trends(alice,undefined,'rapid','all')).toThrow('playing platform');
+   db.prepare("UPDATE games SET played_at='2999-01-01' WHERE black_name='Opponent 42'").run();
+   expect(service.trends(alice).platform).toBe('lichess');
+
  });
 
 });

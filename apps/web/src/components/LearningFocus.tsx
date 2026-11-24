@@ -1,3 +1,4 @@
+import {PersonalPlanDetails} from './PersonalPlanDetails';
 import {FocusTransfer} from './FocusTransfer';
 import {useEffect,useRef,useState} from 'react';
 import type {LearningFocusPlan,TrainingSessionResponse} from '../../../../packages/contracts/src/api';
@@ -10,15 +11,28 @@ export function LearningFocus({refreshToken,gameDays,onStart}:{refreshToken:numb
   void get<LearningFocusPlan>(url,abort.signal).then(data=>{if(!abort.signal.aborted)setPlan(data);}).catch(e=>{if(!abort.signal.aborted)setError(e.message);});
   return()=>{abort.abort();generation.current++;};
  },[refreshToken,gameDays,control,retry]);
+ const savePlan=(action:'choose'|'keep',suggested=false)=>{
+  if(!plan?.focus)return;const request=generation.current;setBusy(true);setError('');
+  const choice=suggested||action==='keep'?plan.suggestion:null;
+  void post<LearningFocusPlan>('/api/v1/practice/focus/plan',{action,profileId:plan.profileId,planId:plan.personalPlan?.id??null,
+   focusId:choice?.id??plan.focus.id,gameDays:choice?choice.gameDays:plan.gameDays,timeControl:choice?choice.timeControl:plan.timeControl,
+   ...(plan.personalPlan?.evidenceStatus==='superseded'&&!suggested?{}:{cohort:choice?.cohort??plan.cohort})},pending.current?.signal)
+   .then(result=>{if(request===generation.current){setPlan(result);window.dispatchEvent(new Event('learning-plan-changed'));}}).catch(e=>{if(request===generation.current)setError(e.message);})
+   .finally(()=>{if(request===generation.current)setBusy(false);});
+ };
  return <section className="learning-focus" aria-label="Learning focus from your games"><h2>Game-learning focus</h2>
  {error&&<p role="alert">{error} <button onClick={()=>{setControl('');setRetry(value=>value+1);}}>Retry learning focus</button></p>}
  {!plan&&!error&&<p role="status">Checking recurring patterns…</p>}
- {plan&&<>{plan.focus?<><h3>{plan.focus.title}{plan.focus.provisional?' · provisional':''}</h3><p>{plan.focus.reason}</p>
+ {plan&&<>{plan.focus?<>{plan.personalPlan&&<p>Saved focus · {new Date(plan.personalPlan.chosenAt).toLocaleDateString()}</p>}<h3>{plan.focus.title}{plan.focus.provisional?' · provisional':''}</h3><p>{plan.focus.reason}</p>
+ {!plan.personalPlan&&<button className="secondary" disabled={busy} onClick={()=>savePlan('choose')}>Save this focus</button>}
+ {plan.personalPlan?.evidenceStatus==='superseded'&&<p role="status">Evidence changed after analysis. <button disabled={busy} onClick={()=>savePlan('choose')}>Refresh plan evidence</button></p>}
+ {plan.suggestion&&(plan.suggestion.kept?<details><summary>Other recommended focus</summary><p>{plan.suggestion.title} · {plan.suggestion.timeControl}</p><button disabled={busy} onClick={()=>savePlan('choose',true)}>Change focus</button></details>:<p>Suggested next focus: {plan.suggestion.title} · {plan.suggestion.timeControl}. <button disabled={busy} onClick={()=>savePlan('keep')}>Keep this focus</button> <button disabled={busy} onClick={()=>savePlan('choose',true)}>Change focus</button></p>)}
  {plan.focus.lesson&&<p className="focus-checking-habit"><strong>Habit to practise:</strong> {plan.focus.lesson.habit}</p>}
  {plan.focus.lesson&&<p><strong>What to look for:</strong> {plan.focus.lesson.warning}</p>}
  {plan.focus.sources[0]&&<p><a href={`#games?game=${encodeURIComponent(plan.focus.sources[0].gameId)}&ply=${plan.focus.sources[0].ply}`}>Study an example</a></p>}
   <button className="secondary" disabled={busy||!plan.focus.dueCount} onClick={()=>{const request=generation.current;setBusy(true);void post<TrainingSessionResponse>('/api/v1/practice/focus/start',{profileId:plan.profileId,focusId:plan.focus!.id,gameDays:plan.gameDays,...plan.timeControl?{timeControl:plan.timeControl}:{}},pending.current?.signal).then(result=>{if(request===generation.current)onStart(result);}).catch(e=>{if(request===generation.current)setError(e.message);}).finally(()=>{if(request===generation.current)setBusy(false);});}}>{busy?'Starting…':'Practise this focus'}</button>
  {!plan.focus.dueCount&&plan.focus.nextDueAt&&<p>Next review: {new Date(plan.focus.nextDueAt).toLocaleString()}.</p>}
+ <PersonalPlanDetails plan={plan.personalPlan}/>
  <FocusTransfer data={plan.focus.transfer}/>
  <details><summary>Supporting games and evidence</summary>
 <p>{plan.message}</p><p>The daily plan uses this focus when positions are due. Saved sessions keep their original selection.</p><p>{plan.gameDays===null?'All dates':`Last ${plan.gameDays} days`} · {plan.timeControl} · {plan.eligibleGames} comparable games. Different engine settings and time controls stay separate; platform ratings are not compared.</p>

@@ -28,6 +28,15 @@ This checklist does not award recall or change scheduled practice. Refreshing sa
 feedback starts a new checklist while retaining the old review history.
 See the [workflow audit and next priorities](docs/reviews/WORKFLOW_AUDIT_2026_10_31.md).
 
+**Today:** one daily plan is the main starting point. **Save this focus** keeps
+one chosen game-learning focus across reloads, imports and date filters. New
+evidence can suggest a change; keeping, changing or refreshing its evidence is
+explicit. **Saved plan and progress** retains the original reason and baseline,
+records first study and shows later serious-error rates by platform and colour.
+Reanalysis that changes supporting evidence pauses focus practice until reviewed.
+A completed focus round also completes its game-practice step rather than refilling
+it from the wider library. Saved sessions and review schedules remain independent.
+
 **Today:** one daily plan is the main starting point. Its game-learning focus
 explains a recurring pattern and a checking habit; supporting games and optional
 focus-only practice are inside its evidence section. Open **Choose your own
@@ -776,3 +785,32 @@ Run `npm run quality:learning -- --verify --stage 3` before expanding this work;
 see the guide for the required real Stockfish runtime. The generated
 [quality report](docs/learning-quality/QUALITY.md) grades current engineering
 evidence and keeps human usability and learning outcomes explicitly unmeasured.
+
+
+### Reliability, evidence labels and saved focus: 24 November 2026
+
+Charter purpose check (LR02, LR03, LR09–LR12): the learner needs a completed round
+to stay complete, an honest explanation of mistakes and one lasting next focus.
+This change reuses daily practice, verified game exercises, FSRS and retained
+start-time exercise provenance. It adds a saved choice, not another trainer.
+Automatic historical calculation/pattern-failure labels are not established causes;
+only learner reports contribute to those cause-specific metrics. Unknown causes
+are not scored as weaknesses. Progress comparisons separate playing platforms;
+unknown-platform PGNs are explicitly identified.
+
+Acceptance evidence covers completion after reload, unchanged schedules on plan
+reads/choices, retained manual labels, stale evidence, profile isolation, explicit
+replacement, stable baselines and platform-separated source games. The expected
+benefit is a clearer, more consistent learning session; reduced errors and improved
+transfer remain hypotheses to check in later games, not results of passing tests.
+Plan baselines are immutable snapshots; follow-up reports all serious errors,
+separate from focus-pattern recurrence and exercise performance. Ratings, opponent
+strength, sample size, missing analysis and timing limit interpretation.
+
+Costs/protections: two additive migrations, one bounded local plan store and details
+inside Today. Games, repertoires, attempts and schedules are retained. No new cloud
+service or automatic analysis. Keep database backups before deployment; application
+rollback can ignore the additive tables/seed, retaining saved plans for a later
+upgrade. Decision: proceed with reliability and trust fixes plus the minimal saved
+plan; do not expand training modes until pilot retention/transfer evidence and
+physical Safari checks support further work.

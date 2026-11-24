@@ -245,3 +245,24 @@ test('updates an open used replay when analysis finishes and clearly offers the 
  expect(await(await page.request.get('/api/v1/jobs/active')).json()).toBeNull();
  await page.screenshot({path:info.outputPath('live-analysis-review.png'),fullPage:true});
 });
+
+test('keeps progress comparisons within the chosen playing platform',async({page},info)=>{
+ const learner=`Platform progress ${info.project.name}`;
+ const pgn=['https://chess.com/game/live/765432','https://lichess.org/abcd1234'].map((site,i)=>`[White "${learner}"]\n[Black "Platform opponent ${i}"]\n[Site "${site}"]\n[Date "2026.10.${28+i}"]\n[TimeControl "600+0"]\n[Result "0-1"]\n\n1. f3 e5 2. g4 Qh4# 0-1`).join('\n\n');
+ const saved=await(await page.request.post('/api/v1/imports/pgn',{data:{playerName:learner,pgn}})).json();
+ await page.request.post(`/api/v1/profiles/${saved.profileId}/activate`);
+ const job=await(await page.request.post('/api/v1/games/analysis',{data:{all:true}})).json();
+ await expect.poll(async()=>(await(await page.request.get(`/api/v1/jobs/${job.id}`)).json()).status,{timeout:20000}).toBe('completed');
+ await page.goto('/#progress');const progress=page.getByRole('region',{name:'Move quality over time',exact:true});
+ await progress.getByRole('combobox',{name:'Playing platform',exact:true}).selectOption('chesscom');
+ await progress.getByText('Games behind these figures',{exact:true}).click();
+ const recent=progress.getByRole('region',{name:'Recent source games',exact:true});
+ await expect(recent).toContainText('Platform opponent 0');await expect(recent).not.toContainText('Platform opponent 1');
+ const changed=page.waitForResponse(response=>response.url().includes('platform=lichess')&&response.ok());
+ await progress.getByRole('combobox',{name:'Playing platform',exact:true}).selectOption('lichess');await changed;
+ await expect(progress).toHaveAttribute('aria-busy','false');
+ await progress.getByText('Games behind these figures',{exact:true}).click();
+ await expect(recent).toContainText('Platform opponent 1');await expect(recent).not.toContainText('Platform opponent 0');
+ await expect(progress).toContainText('do not adjust for rating or opponent strength');
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});

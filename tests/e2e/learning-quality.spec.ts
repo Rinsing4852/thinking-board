@@ -65,15 +65,37 @@ test('[G3_COACH_UI] [G3_UI] explains a recurring weakness, links its games and s
  await expect(focus).toContainText('Preventing mating threats');await expect(focus).toContainText('2 of 2 comparable');
  await expect(focus.getByRole('button',{name:'Practise this focus',exact:true})).toBeVisible();
  await expect(focus).toContainText('What to look for:');
- await focus.locator('summary').click();await expect(focus.getByRole('link')).toHaveCount(3);
+ await focus.getByRole('button',{name:'Save this focus',exact:true}).click();
+ await expect(focus).toContainText('Saved focus');
+ const chosen=(await(await page.request.get('/api/v1/practice/focus')).json()).personalPlan.id;
+ await page.reload();await expect(focus).toContainText('Saved focus');
+ await focus.getByText('Saved plan and progress',{exact:true}).click();
+ await expect(focus).toContainText('Not studied since choosing this plan');
+ await expect(focus.getByRole('table',{name:'All serious errors around this plan'})).toContainText('2 games · 4 own moves');
+
+ await focus.getByText('Supporting games and evidence',{exact:true}).click();await expect(focus.getByRole('link')).toHaveCount(3);
  await focus.screenshot({path:info.outputPath('learning-focus.png')});
  const target=focus.getByRole('link').first();await target.click();
  await expect(page.getByRole('grid',{name:'Game replay board',exact:true})).toBeVisible();
- await page.goto('/#today');await focus.locator('summary').click();await focus.getByRole('button',{name:'Practise this focus',exact:true}).click();
+ await page.goto('/#today');await focus.getByText('Supporting games and evidence',{exact:true}).click();await focus.getByRole('button',{name:'Practise this focus',exact:true}).click();
  await expect(page.getByRole('button',{name:'Practise this focus',exact:true})).toBeVisible();
  const session=await(await page.request.get('/api/v1/training/session/active')).json();
  // The regular trainer owns the queue and progress; no second board is introduced.
  expect(session?.remainingCount??session?.session?.remainingCount).toBe(2);
+ for(let i=0;i<2;i++){
+  const trainer=page.locator('#trainer');
+  await trainer.getByRole('button',{name:'Play my move on the board',exact:true}).click();
+  await trainer.getByRole('button',{name:'Show answer',exact:true}).click();
+  await trainer.getByRole('button',{name:'Continue session',exact:true}).click();
+ }
+ const daily=page.getByRole('region',{name:'Your daily practice plan',exact:true});
+ await expect(daily).toContainText('Your short plan is complete');
+ await page.reload();await expect(daily).toContainText('Your short plan is complete');
+ const retained=await(await page.request.get('/api/v1/practice/focus')).json();expect(retained.personalPlan.id).toBe(chosen);expect(retained.personalPlan.studiedAt).toBeTruthy();
+ await focus.getByText('Saved plan and progress',{exact:true}).click();await expect(focus).toContainText('not mastery');
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await focus.screenshot({path:info.outputPath('saved-plan-complete.png')});
+
  expect(await(await page.request.get('/api/v1/jobs/active')).json()).toBeNull();
 });
 
@@ -99,5 +121,30 @@ test('[G3_TRANSFER_UI] follows recorded practice with later comparable games and
  await expect(focus).toContainText('Small sample');await expect(focus).toContainText('do not show that practice caused a change');
  await expect(focus).toContainText('opponents 500–500');
  await page.screenshot({path:info.outputPath('focus-later-games.png'),fullPage:true});
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+
+test('keeps a chosen focus until an explicit change and retains the previous plan',async({page},info)=>{
+ const learner=`Plan choice ${info.project.name}`;
+ const pgn=['600+0','600+0','60+0'].map((clock,i)=>`[White "${learner}"]\n[Black "Plan opponent ${i}"]\n[Date "2026.10.${27+i}"]\n[TimeControl "${clock}"]\n[Result "0-1"]\n\n1. f3 e5 2. g4 Qh4# 0-1`).join('\n\n');
+ const saved=await(await page.request.post('/api/v1/imports/pgn',{data:{playerName:learner,pgn}})).json();
+ await page.request.post(`/api/v1/profiles/${saved.profileId}/activate`);
+ const job=await(await page.request.post('/api/v1/games/analysis',{data:{all:true}})).json();
+ await expect.poll(async()=>(await(await page.request.get(`/api/v1/jobs/${job.id}`)).json()).status,{timeout:20000}).toBe('completed');
+ await page.goto('/#today');const focus=page.getByRole('region',{name:'Learning focus from your games',exact:true});
+ await focus.getByRole('button',{name:'Save this focus',exact:true}).click();await expect(focus).toContainText('Saved focus');
+ const before=await(await page.request.get('/api/v1/practice/focus')).json();expect(before.timeControl).toBe('rapid');
+ await focus.getByText('Supporting games and evidence',{exact:true}).click();
+ await focus.getByRole('combobox',{name:'Focus time control',exact:true}).selectOption('bullet');
+ await focus.getByRole('button',{name:'Keep this focus',exact:true}).click();
+ await expect(focus.getByText('Other recommended focus',{exact:true})).toBeVisible();
+ expect((await(await page.request.get('/api/v1/practice/focus')).json()).personalPlan.id).toBe(before.personalPlan.id);
+ await focus.getByText('Other recommended focus',{exact:true}).click();
+ const changed=page.waitForResponse(response=>response.url().endsWith('/api/v1/practice/focus/plan')&&response.ok());
+ await focus.getByRole('button',{name:'Change focus',exact:true}).click();await changed;
+ const after=await(await page.request.get('/api/v1/practice/focus')).json();expect(after.timeControl).toBe('bullet');expect(after.personalPlan.id).not.toBe(before.personalPlan.id);
+ expect(after.personalPlan.history[0].id).toBe(before.personalPlan.id);
+ await page.reload();await expect(focus).toContainText('Saved focus');
+ await focus.getByText('Saved plan and progress',{exact:true}).click();await expect(focus).toContainText('Previous focuses');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });

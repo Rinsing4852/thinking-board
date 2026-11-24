@@ -16,8 +16,8 @@ export function DailyPracticePlan({refreshToken,gameDays,onOpening,onThinking,on
     const load=()=>void get<Plan>(`/api/v1/practice/daily${gameDays===null?'':`?gameDays=${gameDays}`}`,controller.signal)
       .then(result=>{if(generation===version.current&&!controller.signal.aborted){setPlan(result);onStateChange(result.status==='active');}})
       .catch(problem=>{if(!controller.signal.aborted)setError(problem.message);});
-    load();window.addEventListener('training-completed',load);
-    return()=>{controller.abort();version.current++;window.removeEventListener('training-completed',load);};
+    load();window.addEventListener('training-completed',load);window.addEventListener('learning-plan-changed',load);
+    return()=>{controller.abort();version.current++;window.removeEventListener('training-completed',load);window.removeEventListener('learning-plan-changed',load);};
   },[refreshToken,gameDays,retry]);
   const start=async()=>{
     if(!plan||busy)return;

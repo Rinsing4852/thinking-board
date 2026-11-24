@@ -98,6 +98,17 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   app.get('/api/v1/practice/focus',async(request,reply)=>{try{const query=request.query as {gameDays?:unknown;timeControl?:string};return learningFocus.get(parseGameDays(query.gameDays),query.timeControl);}catch(error){return reply.code(400).send({error:error instanceof Error?error.message:'Could not load learning focus'});}});
   app.post('/api/v1/practice/focus/start',async(request,reply)=>{try{const body=request.body as {profileId?:unknown;focusId?:unknown;gameDays?:unknown;timeControl?:string};return learningFocus.start(requiredString(body.profileId,'Player'),requiredString(body.focusId,'Focus'),parseGameDays(body.gameDays),body.timeControl);}catch(error){return reply.code(400).send({error:error instanceof Error?error.message:'Could not start focused practice'});}});
   const attempts = new AttemptLifecycle(database.connection);
+  app.post('/api/v1/practice/focus/plan',async(request,reply)=>{
+    try{
+      const body=(request.body??{}) as Record<string,unknown>;
+      const profile=requiredString(body.profileId,'Player');
+      const days=parseGameDays(body.gameDays),control=body.timeControl===undefined?undefined:requiredString(body.timeControl,'Time control');
+      if(body.action==='keep')return learningFocus.keep(profile,requiredString(body.planId,'Plan'),days,control);
+      if(body.action!=='choose')throw new Error('Choose a valid plan action');
+      const previous=body.planId===null||body.planId===undefined?null:requiredString(body.planId,'Plan');
+      return learningFocus.choose(profile,requiredString(body.focusId,'Focus'),days,control,previous,body.cohort===undefined?undefined:requiredString(body.cohort,'Analysis group'));
+    }catch(error){return reply.code(400).send({error:error instanceof Error?error.message:'Could not save your learning plan'});}
+  });
   const openingContent = new OpeningContentService(database.connection);
   const openingStudy=new OpeningStudyService(database.connection);
   const openingImports = new OpeningPgnImportService(database.connection, openingContent);
@@ -160,8 +171,8 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     catch{return reply.code(404).send({error:"Game not found"});}
   });
   app.get("/api/v1/game-quality/progress",async(request,reply)=>{
-    const query=request.query as {cohort?:string;timeControl?:string};
-    try{return gameQuality.trends(activeProfileId(database.connection)??"",query.cohort,query.timeControl);}
+    const query=request.query as {cohort?:string;timeControl?:string;platform?:string};
+    try{return gameQuality.trends(activeProfileId(database.connection)??"",query.cohort,query.timeControl,query.platform);}
     catch(error){return reply.code(400).send({error:error instanceof Error?error.message:"Could not load progress"});}
   });
   const analysis = new AnalysisService(database.connection, config);

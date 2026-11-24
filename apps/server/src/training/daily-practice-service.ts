@@ -22,7 +22,7 @@ export class DailyPracticeService {
     gameDays=parseGameDays(gameDays);
     const activity=new OpeningActivityService(this.db).get(),profile=activeProfileId(this.db)!;
     const plan=this.db.prepare(`SELECT * FROM daily_practice_plans WHERE profile_id=? AND
-      (status='active' OR local_day=?) ORDER BY status='active' DESC,created_at DESC LIMIT 1`).get(profile,activity.date) as Plan|undefined;
+      (status='active' OR local_day=?) ORDER BY status='active' DESC,created_at DESC,rowid DESC LIMIT 1`).get(profile,activity.date) as Plan|undefined;
     if(plan){
       const result=this.describe(plan);
       if(result.status==='active'&&plan.local_day!==activity.date)result.message=`Continue your saved plan from ${plan.local_day}. ${result.message}`;
@@ -35,10 +35,11 @@ export class DailyPracticeService {
     const recommendation=this.openings.recommendation(Math.min(5,activity.remaining));
     const openingCount=activeLesson?Math.max(1,activeLesson.totalDecisions-activeLesson.decisionNumber+1):activeOpening ? Number(this.db.prepare(`SELECT COUNT(*) FROM opening_review_queue
       WHERE session_id=? AND presentation_kind='scheduled'`).pluck().get(activeOpening.sessionId)) : recommendation.counts.total;
-    const resolvedGameDays=activeThinking?activeThinking.gameDays??null:gameDays;
+    const requestedGameDays=activeThinking?activeThinking.gameDays??null:gameDays;
+    const learningPlan=new LearningFocusService(this.db,this.thinking).get(requestedGameDays),learningFocus=learningPlan.focus;
+    const resolvedGameDays=activeThinking?requestedGameDays:learningPlan.personalPlan?learningPlan.gameDays:gameDays;
     const dashboard=this.thinking.dashboard(resolvedGameDays);
-    const learningFocus=new LearningFocusService(this.db,this.thinking).get(resolvedGameDays).focus;
-    const thinkingCount=activeThinking?.remainingCount ?? (learningFocus?.dueCount || Math.min(5,dashboard.practice?.available??0));
+    const thinkingCount=activeThinking?.remainingCount ?? (learningPlan.personalPlan ? learningFocus?.dueCount??0 : learningFocus?.dueCount || Math.min(5,dashboard.practice?.available??0));
     const next=activeThinking?'thinking':openingCount?'opening':thinkingCount?'thinking':dashboard.totals.games?'games':'build';
     return {id:null,openingKind:activeLesson?"lesson":"recall",profileId:profile,date:activity.date,gameDays:resolvedGameDays,status:openingCount||thinkingCount?'ready':'empty',next,
       openingCount,thinkingCount,openingDone:openingCount===0,thinkingDone:thinkingCount===0,
@@ -84,10 +85,15 @@ export class DailyPracticeService {
         this.db.prepare('UPDATE daily_practice_plans SET opening_lesson_id=NULL,opening_session_id=?,opening_count=? WHERE id=?').run(review.sessionId,count,plan.id);
       } else if(state.next==='thinking'){
         const focusService=new LearningFocusService(this.db,this.thinking),focus=focusService.get(plan.game_days);
+        if(focus.personalPlan&&!focus.focus?.dueCount&&!this.thinking.activeSession()){
+          if(focus.personalPlan.evidenceStatus==='superseded')throw new Error('Saved focus evidence changed. Refresh its evidence before starting game practice.');
+          this.db.prepare('UPDATE daily_practice_plans SET thinking_count=0 WHERE id=?').run(plan.id);
+          return this.get(gameDays);
+        }
         const session=focus.focus?.dueCount?focusService.start(profileId,focus.focus.id,plan.game_days,focus.timeControl??undefined):this.thinking.createSession(Math.max(1,plan.thinking_count),plan.game_days);
         if(!session.id){this.db.prepare('UPDATE daily_practice_plans SET thinking_count=0 WHERE id=?').run(plan.id);}
-        else this.db.prepare('UPDATE daily_practice_plans SET thinking_session_id=?,thinking_count=? WHERE id=?')
-          .run(session.id,session.items.length,plan.id);
+        else this.db.prepare('UPDATE daily_practice_plans SET thinking_session_id=?,thinking_count=?,game_days=? WHERE id=?')
+          .run(session.id,session.items.length,session.gameDays??null,plan.id);
       }
       return this.get(gameDays);
     })();
@@ -112,8 +118,8 @@ export class DailyPracticeService {
       openingCount:plan.opening_count,thinkingCount:plan.thinking_count,openingDone,thinkingDone,
       ...(session?.status==='active'?{thinkingSession:session}:{}),
       message:complete?'Your short plan is complete. More positions may remain due in your library; progress and scores stay with each practice type.'
-        :next==='opening'?plan.opening_lesson_id?'Finish your saved guided opening lesson, then return here for game practice.':'Recall the opening responses in your saved session, then return here for the next step.'
+        :next==='opening'?thinkingDone&&plan.thinking_count>0?'Game practice finished. Continue your saved opening practice.':plan.opening_lesson_id?'Finish your saved guided opening lesson, then return here for game practice.':'Recall the opening responses in your saved session, then return here for the next step.'
         :openingDone&&plan.opening_count>0?'Opening practice finished. Continue with decisions from your games.'
-        :'Continue your saved game-practice session.'};
+        :thinkingDone?'Game practice finished. Continue your saved opening practice.':'Continue your saved game-practice session.'};
   }
 }

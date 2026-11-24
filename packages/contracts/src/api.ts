@@ -1204,6 +1204,7 @@ export interface GameQualitySource {
   practiceItemId:string|null;
 }
 export interface GameQualityTrends {
+  platforms:GameSource[]; platform:GameSource|null;
   totalGames:number; analyzedGames:number; excludedGames:number;
   cohorts:Array<{id:string;engine:string;depth:number;ruleVersion:string}>; cohort:string|null;
   timeControls:string[]; timeControl:string|null; recent:GameQualityWindow; previous:GameQualityWindow;
@@ -1242,8 +1243,20 @@ export interface FocusTransfer {
  practisedAt:string;source:GameSource;playerColor:Color;incompleteGames:number;timingExcludedGames:number;before:FocusTransferWindow;after:FocusTransferWindow;
 }
 export interface LearningFocusPlan {
+ personalPlan?:PersonalLearningPlan|null;
+ suggestion?:{id:string;title:string;gameDays:number|null;timeControl:string|null;cohort:string|null;kept?:boolean}|null;
  profileId:string|null;gameDays:number|null;timeControl:string|null;timeControls:string[];cohort:string|null;
  eligibleGames:number;analysedGames:number;message:string;
  focus:null|{transfer?:FocusTransfer|null;lesson?:{warning:string;habit:string}|null;id:string;title:string;provisional:boolean;games:number;reason:string;nextStep:string;dueCount:number;nextDueAt:string|null;
  sources:Array<{gameId:string;ply:number;white:string;black:string;playedAt:string}>;itemIds:string[]};
+}
+
+export interface PlanMeasure {
+ source:GameSource;playerColor:Color;games:number;ownMoves:number;seriousErrors:number;blunders:number;errorsPer100Moves:number|null;
+ from:string|null;to:string|null;learnerRatings:{min:number;max:number;known:number}|null;opponentRatings:{min:number;max:number;known:number}|null;
+}
+export interface PersonalLearningPlan {
+ id:string;chosenAt:string;reviewedAt:string;studiedAt:string|null;evidenceStatus:'current'|'superseded';reasonAtChoice:string;
+ baseline:{groups:PlanMeasure[];excludedGames:number};followUp:{groups:PlanMeasure[];excludedGames:number}|null;
+ history:Array<{id:string;title:string;chosenAt:string;replacedAt:string|null;studiedAt:string|null}>;
 }

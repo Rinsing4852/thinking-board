@@ -303,8 +303,10 @@ export class V1TrainingService {
              COUNT(DISTINCT CASE WHEN tic.active = 1 THEN ti.source_move_id END) AS occurrences
       FROM concepts c
       LEFT JOIN training_item_concepts tic ON tic.concept_id = c.id AND tic.active = 1
+        AND NOT (tic.source='automatic' AND tic.concept_id IN ('process.calculation_failure','process.pattern_failure'))
       LEFT JOIN training_items ti ON ti.id = tic.item_id AND ti.profile_id = ? AND ti.active = 1
       WHERE c.family IN ('thinking_process', 'candidate_type', 'tactical', 'position_change')
+        AND c.id!='process.cause_unknown'
       GROUP BY c.id ORDER BY c.family, c.label
     `).all(profile.id) as Array<{ id: string; family: string; label: string; occurrences: number }>;
     const metrics = concepts.map((concept) => this.metric(profile.id, concept));
@@ -329,7 +331,7 @@ export class V1TrainingService {
 
   createSession(requestedSize = 15, gameDays: number | null = null, focusItemIds?:string[]): TrainingSessionResponse {
     gameDays = parseGameDays(gameDays);
-    const scope = practiceScope(gameDays);
+    const scope = practiceScope(focusItemIds ? null : gameDays);
     const size = Math.max(1, Math.min(50, Math.round(requestedSize)));
     const selectedProfileId = activeProfileId(this.db);
     const profile = selectedProfileId ? { id: selectedProfileId } : undefined;
@@ -352,11 +354,15 @@ export class V1TrainingService {
         FROM training_items ti
         JOIN review_states rs ON rs.item_id = ti.id
         LEFT JOIN training_item_concepts tic ON tic.item_id = ti.id AND tic.active = 1
+          AND tic.concept_id!='process.cause_unknown'
+          AND NOT (tic.source='automatic' AND tic.concept_id IN ('process.calculation_failure','process.pattern_failure'))
         LEFT JOIN (
           SELECT tic2.concept_id, COUNT(DISTINCT ti2.source_move_id) AS occurrences
           FROM training_item_concepts tic2
           JOIN training_items ti2 ON ti2.id = tic2.item_id AND ti2.active = 1
           WHERE tic2.active = 1 AND ti2.profile_id = ?
+            AND tic2.concept_id!='process.cause_unknown'
+            AND NOT (tic2.source='automatic' AND tic2.concept_id IN ('process.calculation_failure','process.pattern_failure'))
           GROUP BY tic2.concept_id
         ) concept_frequency ON concept_frequency.concept_id = tic.concept_id
         WHERE ti.profile_id = ? AND ti.mode = ? AND ti.active = 1 AND rs.due_at <= ? ${scope.sql} ${focusItemIds?.length?`AND ti.id IN (${focusItemIds.map(()=>'?').join(',')})`:focusItemIds?'AND 0':''}
@@ -460,7 +466,7 @@ export class V1TrainingService {
       items,
       mix,
       message: this.sessionMessage(session.status === "completed"
-        ? "Session complete. The prevention habit gets stronger through repetition."
+        ? "Session complete. Other practice is optional; your results and next review are saved."
         : completedCount > 0 ? "Continue today’s session." : "Your weakness-weighted session is ready.", session.similar_deferred_count),
       status: session.status,
       completedCount,
@@ -497,16 +503,12 @@ export class V1TrainingService {
           UPDATE training_item_concepts SET active = 0
           WHERE item_id = ? AND concept_id IN (SELECT id FROM concepts WHERE family = ?)
         `).run(itemId, family);
-        this.db.prepare(`
-          DELETE FROM training_item_concepts
-          WHERE item_id = ? AND source = 'manual'
-            AND concept_id IN (SELECT id FROM concepts WHERE family = ?)
-        `).run(itemId, family);
       }
       for (const concept of chosen) {
         this.db.prepare(`
           INSERT INTO training_item_concepts(item_id, concept_id, source, confidence, is_primary, active)
           VALUES (?, ?, 'manual', 1, 1, 1)
+          ON CONFLICT(item_id,concept_id,source) DO UPDATE SET active=1,confidence=1,is_primary=1
         `).run(itemId, concept.id);
       }
     })();
@@ -618,6 +620,7 @@ export class V1TrainingService {
       JOIN training_items ti ON ti.id = ta.item_id
       JOIN training_item_concepts tic ON tic.item_id = ti.id AND tic.active = 1
       WHERE ti.profile_id = ? AND tic.concept_id = ? AND ta.answered_at IS NOT NULL
+        AND NOT (tic.source='automatic' AND tic.concept_id IN ('process.calculation_failure','process.pattern_failure'))
     `).get(profileId, concept.id) as {
       attempts: number; successes: number | null; average_response_ms: number | null;
     };
@@ -627,6 +630,7 @@ export class V1TrainingService {
       JOIN training_items ti ON ti.id = ta.item_id
       JOIN training_item_concepts tic ON tic.item_id = ti.id AND tic.active = 1
       WHERE ti.profile_id = ? AND tic.concept_id = ? AND ta.answered_at IS NOT NULL
+        AND NOT (tic.source='automatic' AND tic.concept_id IN ('process.calculation_failure','process.pattern_failure'))
       ORDER BY ta.answered_at DESC LIMIT 10
     `).all(profileId, concept.id) as Array<{ outcome: string; duration_ms: number | null }>;
     const successes = summary.successes ?? 0;
@@ -639,7 +643,7 @@ export class V1TrainingService {
       ? "new"
       : recentRate > previousRate + 0.1 ? "improving" : recentRate < previousRate - 0.1 ? "declining" : "steady";
     return {
-      conceptId: concept.id, family: concept.family, label: concept.label,
+      conceptId: concept.id, family: concept.family, label: ['process.calculation_failure','process.pattern_failure'].includes(concept.id)?`Your report: ${concept.label}`:concept.label,
       attempts: summary.attempts, successes,
       successRate: summary.attempts ? successes / summary.attempts : null,
       averageResponseMs: summary.average_response_ms === null ? null : Math.round(summary.average_response_ms),

@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 import type {SqliteDatabase} from '../db/database.js';
 
 const tables:Record<string,string>={blunder_check:'blunder_check_items',what_changed:'what_changed_items',candidate_generation:'candidate_generation_items',punish_blunder:'punish_blunder_items',quiet_position:'quiet_position_items'};
-function fingerprint(db:SqliteDatabase,itemId:string,mode:string):string|null {
+export function trainingExerciseFingerprint(db:SqliteDatabase,itemId:string,mode:string):string|null {
  const table=tables[mode];if(!table)return null;
  const exercise=db.prepare(`SELECT * FROM ${table} WHERE item_id=?`).get(itemId);if(!exercise)return null;
  const answers=db.prepare(`SELECT move_uci,move_san,categories_json,engine_rank,loss_from_best_cp
@@ -19,7 +19,7 @@ export function captureTrainingReview(db:SqliteDatabase,attemptId:string):void {
    JOIN moves m ON m.id=ti.source_move_id AND m.game_id=g.id AND m.mover_color=g.player_color
    WHERE ta.id=? AND ti.active=1`).get(attemptId) as {id:string;mode:string;source_move_id:string;game_id:string;profile_id:string;run:string|null}|undefined;
  if(!row?.run)return;
- const hash=fingerprint(db,row.id,row.mode);if(!hash)return;
+ const hash=trainingExerciseFingerprint(db,row.id,row.mode);if(!hash)return;
  const saved=db.prepare(`SELECT s.id,s.source_revision FROM game_review_replays r JOIN game_review_snapshots s ON s.id=r.snapshot_id
    WHERE r.game_id=? AND r.profile_id=?`).get(row.game_id,row.profile_id) as {id:string;source_revision:string}|undefined;
  const snapshot=saved&&JSON.parse(saved.source_revision)[0]===row.run?saved.id:null;
@@ -36,6 +36,6 @@ export function completedTrainingReview(db:SqliteDatabase,attemptId:string) {
    WHERE ta.id=? AND ta.answered_at IS NOT NULL AND ta.abandoned_at IS NULL AND ti.active=1
    AND ta.outcome IN ('excellent','partial','incorrect','revealed') AND ta.feedback_json IS NOT NULL`).get(attemptId) as
    {id:string;answered_at:string;outcome:string;item_id:string;mode:string;profile_id:string;game_id:string;source_move_id:string;analysis_run_id:string;exercise_fingerprint:string;snapshot_id:string|null}|undefined;
- if(!row||row.exercise_fingerprint!==fingerprint(db,row.item_id,row.mode))return null;
+ if(!row||row.exercise_fingerprint!==trainingExerciseFingerprint(db,row.item_id,row.mode))return null;
  return row;
 }
