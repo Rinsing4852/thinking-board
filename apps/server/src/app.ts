@@ -629,9 +629,25 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   app.post("/api/v1/chesscom/import", async (request, reply) => {
     try {
       const body = (request.body ?? {}) as Record<string, unknown>;
-      return await chessCom.importMonth(requiredString(body.month, "Month"));
+      return await chessCom.importMonth(requiredString(body.month, "Month"), {
+        ...(body.profileId === undefined ? {} : {profileId: requiredString(body.profileId, 'Player')}),
+        ...(body.username === undefined ? {} : {username: requiredString(body.username, 'Chess.com username')}),
+      });
     } catch (error) {
       return reply.code(400).send({ error: error instanceof Error ? error.message : "Could not import Chess.com games" });
+    }
+  });
+
+  app.post('/api/v1/chesscom/sync', async (request, reply) => {
+    try {
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      if (body.automatic !== undefined && typeof body.automatic !== 'boolean') throw new Error('Invalid automatic-sync choice');
+      return await chessCom.sync({
+        ...(body.profileId === undefined ? {} : {profileId: requiredString(body.profileId, 'Player')}),
+        ...(body.username === undefined ? {} : {username: requiredString(body.username, 'Chess.com username')}),
+      }, body.automatic === true);
+    } catch (error) {
+      return reply.code(400).send({error: error instanceof Error ? error.message : 'Could not sync Chess.com games'});
     }
   });
 

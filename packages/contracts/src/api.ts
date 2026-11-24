@@ -430,16 +430,20 @@ export interface LichessSyncResponse extends ImportPgnResponse {
 }
 
 export interface ChessComConnectionResponse {
+  profileId: string;
   connected: boolean;
   username: string | null;
   lastImportedAt: string | null;
   lastMonth: string | null;
+  lastSyncedAt: string | null;
+  lastSyncMonth: string | null;
 }
 
 export interface ChessComImportResponse extends ImportPgnResponse {
   connection: ChessComConnectionResponse;
   skipped: number;
   message: string;
+  checkedMonths?: string[];
 }
 
 export type GameOpeningStatus =

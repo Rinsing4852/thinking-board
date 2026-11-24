@@ -152,7 +152,7 @@ test("puts pasted games before optional sync and invalidates stale previews", as
   const input = page.getByLabel("PGN text");
   await expect(input).toBeVisible();
   const sync = page.locator("details.lichess-sync-card").filter({has:page.locator("summary",{hasText:"Sync finished Lichess games"})});
-  const chesscom = page.locator("details.lichess-sync-card").filter({has:page.locator("summary",{hasText:"Import finished Chess.com games"})});
+  const chesscom = page.locator("details.lichess-sync-card").filter({has:page.locator("summary",{hasText:"Sync Chess.com games"})});
   await expect(sync).not.toHaveAttribute("open");
   await expect(chesscom).not.toHaveAttribute("open");
   const fieldBox = await input.boundingBox();

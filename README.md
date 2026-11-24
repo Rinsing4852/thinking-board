@@ -7,8 +7,16 @@ in later games. Every improvement must pass the charter's purpose check.
 
 **Linked accounts:** open **Profile** in the header to save your Lichess and
 Chess.com usernames for the same learner. No password or token is needed.
-Then use My games → Add a game for Lichess sync or **Import finished Chess.com
-games**, where you choose a month.
+Then use My games → Add a game for Lichess sync or **Sync Chess.com games**.
+Linked Chess.com accounts are checked when My games opens, at most every 12 hours;
+**Sync recent games** also checks on demand. Recent months are rechecked for delayed
+publication, and available missed months are caught up within the last 12 months.
+Use **Import a specific month** for older history. Manual month imports do not reset
+recent-sync freshness. Chess.com's public API may itself lag; syncing cannot make
+unpublished games immediately available. Failed batches keep the last successful
+sync marker and save no partial batch; network/temporary server failures receive
+one bounded retry, while rate limits ask the learner to wait. Provider requests
+are serial, and sync never starts Stockfish analysis.
 Reimporting skips saved games. Choose games for analysis separately; newly finished
 games may take time to appear in the public archive, so PGN paste remains available.
 See the [game sources and coaching plan](docs/reviews/GAME_SOURCES_AND_COACH_2026_10_31.md).

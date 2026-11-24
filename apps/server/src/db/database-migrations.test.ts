@@ -59,10 +59,14 @@ describe("database migrations", () => {
       const databasePath = path.join(directory, "trainer.sqlite3");
       const oldDatabase = new Database(databasePath, partialMigrations);
       seedRepresentativeData(oldDatabase);
+      if (prefix >= 48) oldDatabase.connection.prepare(`INSERT INTO chesscom_connections(profile_id,username,last_imported_at,last_month,updated_at)
+        VALUES ('profile','Player','2026-11-01','2026-10','2026-11-01')`).run();
       oldDatabase.close();
 
       const upgraded = new Database(databasePath, path.resolve("migrations"));
       expect(upgraded.connection.prepare("SELECT display_name FROM player_profiles WHERE id = 'profile'").pluck().get()).toBe("Player");
+      if (prefix >= 48) expect(upgraded.connection.prepare('SELECT username,last_imported_at,last_month,last_synced_at,last_sync_month FROM chesscom_connections').get())
+        .toEqual({username:'Player',last_imported_at:'2026-11-01',last_month:'2026-10',last_synced_at:null,last_sync_month:null});
       expect(upgraded.connection.prepare("SELECT abandoned_at FROM training_attempts WHERE id = 'attempt'").pluck().get())
         .toBe(prefix < abandonedAttemptsMigration ? "2026-01-01" : null);
       expect(upgraded.connection.prepare("SELECT COUNT(*) FROM schema_migrations").pluck().get()).toBe(migrationFiles.length);

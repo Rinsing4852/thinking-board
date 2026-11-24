@@ -4,6 +4,9 @@ test.use({ baseURL: "http://127.0.0.1:8192" });
 
 test("imports Chess.com games through the existing review and requested-analysis workflow", async ({ page }, info) => {
   const username = `chesscom_fixture_${info.project.name}`;
+  const currentMonth = new Date().toISOString().slice(0,7);
+  let syncRequests = 0;
+  page.on('request', request => { if (request.url().endsWith('/api/v1/chesscom/sync')) syncRequests++; });
   // Give each browser its own existing learner, then link a different source alias.
   const existing = await (await page.request.post("/api/v1/imports/pgn", { data: {
     playerName: `Learner ${info.project.name}`, pgn: `[White "Learner ${info.project.name}"]\n[Black "Existing opponent"]\n[Date "2026.10.19"]\n[Result "1-0"]\n\n1. d4 d5 1-0`,
@@ -12,8 +15,8 @@ test("imports Chess.com games through the existing review and requested-analysis
   await page.goto("/#games?focus=import");
   const add = page.locator(".game-import-disclosure");
   if (!(await add.evaluate(element => (element as HTMLDetailsElement).open))) await add.locator("summary").first().click();
-  const card = page.locator(".lichess-sync-card").filter({ has: page.locator("summary", { hasText: "Import finished Chess.com games" }) });
-  await card.locator("summary").click();
+  const card = page.locator(".lichess-sync-card").filter({ has: page.locator("summary", { hasText: "Sync Chess.com games" }) });
+  await card.locator("summary").first().click();
   await card.getByRole("button", {name:"Link Chess.com in Profile",exact:true}).click();
   const account=page.getByRole("region",{name:"Chess.com account",exact:true});
   await account.getByLabel("Chess.com username",{exact:true}).fill("missing_account");
@@ -23,20 +26,26 @@ test("imports Chess.com games through the existing review and requested-analysis
   await account.getByRole("button",{name:"Save Chess.com username",exact:true}).click();
   await expect(page.getByRole("status")).toContainText("username saved");
   await page.getByRole("button",{name:"Import games from linked accounts",exact:true}).click();
-  await card.locator("summary").click();
-  await card.getByLabel("Chess.com game month", { exact: true }).fill("2026-10");
+  await card.locator("summary").first().click();
+  await expect(card.getByRole("status")).toContainText("4 new Chess.com games saved");
+  await expect(card.getByRole('button',{name:'Sync recent games',exact:true})).toBeEnabled();
+  await card.getByText('Import a specific month',{exact:true}).click();
+  await card.getByLabel("Chess.com game month", { exact: true }).fill(currentMonth);
   await card.getByRole("button", { name: "Import this month", exact: true }).click();
-  await expect(card.getByRole("status")).toContainText("2 new Chess.com games saved");
+  await expect(card.getByRole("status")).toContainText("0 new Chess.com games saved · 2 already saved");
   const games = (await (await page.request.get("/api/v1/games")).json()).games;
-  expect(games).toHaveLength(3);
+  expect(games).toHaveLength(5);
   const imported = games.filter((game: {white: string; black: string}) => game.white === username || game.black === username);
-  expect(imported.map((game: {playerColor: string}) => game.playerColor).sort()).toEqual(["black", "white"]);
+  expect(imported.map((game: {playerColor: string}) => game.playerColor).sort()).toEqual(["black", "black", "white", "white"]);
   expect(await (await page.request.get("/api/v1/jobs/active")).json()).toBeNull();
   await card.getByRole("button", { name: "Import this month", exact: true }).click();
   await expect(card.getByRole("status")).toContainText("0 new Chess.com games saved · 2 already saved");
+  await card.getByRole('button',{name:'Sync recent games',exact:true}).click();
+  await expect(card.getByRole('status')).toContainText('0 new Chess.com games saved · 4 already saved');
   await page.reload();
   if (!(await add.evaluate(element => (element as HTMLDetailsElement).open))) await add.locator("summary").first().click();
-  await expect(card.locator("summary")).toContainText(`Connected as ${username}`);
+  await expect(card.locator("summary").first()).toContainText(`Connected as ${username}`);
+  expect(syncRequests).toBe(2); // First automatic check + explicit sync; reload is fresh.
   await page.goto(`/#games?game=${imported[0].id}`);
   await openGameReport(page);
   const report = page.getByRole("region", { name: "Game move-quality report", exact: true });
@@ -68,7 +77,7 @@ test("imports Chess.com games through the existing review and requested-analysis
   await page.screenshot({ path: info.outputPath("chesscom-game-review.png"), fullPage: true });
   await page.getByRole("button", {name:"Back to games",exact:true}).click();
   if (!(await add.evaluate(element => (element as HTMLDetailsElement).open))) await add.locator("summary").first().click();
-  await card.locator("summary").click();
+  await card.locator("summary").first().click();
   await card.screenshot({ path: info.outputPath("chesscom-import-controls.png") });
   // PGN import can activate another learner without navigating away from My games.
   const other = `Other Chesscom Learner ${info.project.name}`;
@@ -76,11 +85,33 @@ test("imports Chess.com games through the existing review and requested-analysis
   await page.getByRole("button", { name: "Check PGN", exact: true }).click();
   await page.getByRole("combobox", { name: "I am", exact: true }).selectOption(other);
   await page.getByRole("button", { name: "Save games", exact: true }).click();
-  await expect(card.locator("summary")).toContainText("Optional · use your username");
+  await expect(card.locator("summary").first()).toContainText("Optional · use your username");
   await expect(card.getByRole("textbox", { name: "Chess.com username", exact: true })).toHaveCount(0);
   await page.getByRole("button",{name:"Profile",exact:true}).click();
   await expect(page.getByLabel("Chess.com username",{exact:true})).toHaveValue("");
   expect((await (await page.request.get("/api/v1/chesscom/connection")).json()).connected).toBe(false);
   await page.request.post(`/api/v1/profiles/${existing.profileId}/activate`);
-  expect((await (await page.request.get("/api/v1/games")).json()).games).toHaveLength(3);
+  expect((await (await page.request.get("/api/v1/games")).json()).games).toHaveLength(5);
+});
+
+test('shows a failed automatic Chess.com check and allows manual retry without falsely advancing freshness', async ({page},info) => {
+  const player=`Retry learner ${info.project.name}`;
+  const imported=await (await page.request.post('/api/v1/imports/pgn',{data:{playerName:player,pgn:`[White "${player}"]\n[Black "Retry opponent"]\n[Result "1-0"]\n\n1. d4 d5 1-0`}})).json();
+  await page.request.post(`/api/v1/profiles/${imported.profileId}/activate`);
+  await page.request.post('/api/v1/chesscom/connect',{data:{username:'chesscom_fixture_retry'}});
+  await page.route('**/api/v1/chesscom/sync',route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Chess.com is temporarily unavailable. Retry later.'})}));
+  await page.goto('/#games?add');
+  const add=page.locator('.game-import-disclosure');
+  if(!(await add.evaluate(element=>(element as HTMLDetailsElement).open)))await add.locator('summary').first().click();
+  const card=page.locator('.lichess-sync-card').filter({has:page.locator('summary',{hasText:'Sync Chess.com games'})});
+  await card.locator('summary').first().click();
+  await expect(card.getByRole('status')).toContainText('temporarily unavailable');
+  expect((await (await page.request.get('/api/v1/chesscom/connection')).json()).lastSyncedAt).toBeNull();
+  expect((await (await page.request.get('/api/v1/games')).json()).games).toHaveLength(1);
+  await page.unroute('**/api/v1/chesscom/sync');
+  await card.getByRole('button',{name:'Sync recent games',exact:true}).click();
+  await expect(card.getByRole('status')).toContainText('4 new Chess.com games saved');
+  expect((await (await page.request.get('/api/v1/chesscom/connection')).json()).lastSyncedAt).toBeTruthy();
+  expect((await (await page.request.get('/api/v1/games')).json()).games).toHaveLength(5);
+  expect(await (await page.request.get('/api/v1/jobs/active')).json()).toBeNull();
 });

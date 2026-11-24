@@ -27,8 +27,11 @@ globalThis.fetch=async(input,options)=>{
     const username=url.pathname.split("/")[3];
     if(!username?.startsWith("chesscom_fixture"))return new Response("",{status:404});
     if(!url.pathname.includes("/games/"))return Response.json({username});
-    return Response.json({games:[false,true].map((black,index)=>({rules:"chess",url:`https://www.chess.com/game/live/${index+771001}`,
-      pgn:`[Event "Chess.com test game"]\n[Site "Chess.com"]\n[White "${black?'Fixture opponent':username}"]\n[Black "${black?username:'Fixture opponent'}"]\n[UTCDate "2026.10.20"]\n[UTCTime "12:00:00"]\n[TimeControl "600+0"]\n[WhiteElo "1200"]\n[BlackElo "1300"]\n[Result "1-0"]\n\n1. e4 e5 2. Nf3 Nc6 1-0`}))});
+    const date=new Date(), current=date.toISOString().slice(0,7), previous=new Date(Date.UTC(date.getUTCFullYear(),date.getUTCMonth()-1,1)).toISOString().slice(0,7);
+    if(url.pathname.endsWith('/archives'))return Response.json({archives:[previous,current].map(month=>`https://api.chess.com/pub/player/${username}/games/${month.replace('-','/')}`)});
+    const month=url.pathname.split('/').slice(-2).join('-');
+    return Response.json({games:[false,true].map((black,index)=>({rules:"chess",url:`https://www.chess.com/game/live/${month.replace('-','')}${index+771001}`,
+      pgn:`[Event "Chess.com test game"]\n[Site "Chess.com"]\n[White "${black?'Fixture opponent':username}"]\n[Black "${black?username:'Fixture opponent'}"]\n[UTCDate "${month.replace('-','.')}.01"]\n[UTCTime "12:00:00"]\n[TimeControl "600+0"]\n[WhiteElo "1200"]\n[BlackElo "1300"]\n[Result "1-0"]\n\n1. e4 e5 2. Nf3 Nc6 1-0`}))});
   }
   if(url.hostname==="explorer.lichess.org"&&url.pathname==="/masters") {
     if(url.searchParams.get("topGames")==="4")return Response.json({topGames:[{id:"master01"}]});
